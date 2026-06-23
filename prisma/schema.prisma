@@ -1,0 +1,242 @@
+// LynnHub Prisma Schema
+// 数据库：MySQL 8.4
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+// 灵感 - 闪电输入源头
+model Idea {
+  id        String   @id @default(cuid())
+  content   String   @db.Text
+  source    String   @default("lightning") // lightning | conversation
+  status    String   @default("inbox") // inbox | board | graveyard
+  tags      Json     @default("[]")
+  embedding Bytes?   @db.LongBlob
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  tasks      Task[]
+  memories   Memory[]
+  graveyard  Graveyard?
+  cognitions Cognition[]
+
+  @@index([status])
+  @@index([createdAt])
+}
+
+// 对话资产 - Kimi/Claude/Codex 捕获
+model Conversation {
+  id          String   @id @default(cuid())
+  source      String   // kimi | claude | codex | gpt
+  title       String
+  rawContent  String   @db.LongText
+  conclusions Json     @default("[]")
+  todos       Json     @default("[]")
+  prompts     Json     @default("[]")
+  data        Json     @default("[]")
+  capturedAt  DateTime @default(now())
+  embedding   Bytes?   @db.LongBlob
+  createdAt   DateTime @default(now())
+
+  memories   Memory[]
+  cognitions Cognition[]
+
+  @@index([source])
+  @@index([capturedAt])
+}
+
+// 决策看板任务
+model Task {
+  id        String   @id @default(cuid())
+  content   String   @db.Text
+  column    String   // northstar | campaign | task
+  position  Int      @default(0)
+  status    String   @default("active") // active | done | dropped
+  sourceId  String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  idea Idea? @relation(fields: [sourceId], references: [id])
+
+  dailyFocusItems DailyFocusItem[]
+
+  @@index([column, status])
+}
+
+// 记忆节点 - 图谱
+model Memory {
+  id              String   @id @default(cuid())
+  type            String   // idea | conversation | cognition
+  ideaId          String?
+  conversationId  String?
+  cognitionId     String?
+  content         String   @db.Text
+  embedding       Bytes?   @db.LongBlob
+  connections     Json     @default("[]") // [memoryId, ...]
+  strength        Float    @default(1.0)
+  createdAt       DateTime @default(now())
+
+  idea         Idea?         @relation(fields: [ideaId], references: [id])
+  conversation Conversation? @relation(fields: [conversationId], references: [id])
+  cognition    Cognition?    @relation(fields: [cognitionId], references: [id])
+
+  @@index([type])
+}
+
+// 灵感墓地
+model Graveyard {
+  id               String    @id @default(cuid())
+  originalIdeaId   String    @unique
+  reason           String    @db.Text
+  reviveCondition  String    @db.Text
+  abandonedAt      DateTime  @default(now())
+  revivedAt        DateTime?
+
+  idea Idea @relation(fields: [originalIdeaId], references: [id])
+
+  @@index([revivedAt])
+}
+
+// 认知库
+model Cognition {
+  id            String   @id @default(cuid())
+  type          String   // method | experience | prompt
+  content       String   @db.Text
+  source        String   @default("manual") // conversation | idea | manual
+  ideaId        String?
+  conversationId String?
+  tags          Json     @default("[]")
+  embedding     Bytes?   @db.LongBlob
+  createdAt     DateTime @default(now())
+
+  idea         Idea?         @relation(fields: [ideaId], references: [id])
+  conversation Conversation? @relation(fields: [conversationId], references: [id])
+  memories     Memory[]
+
+  @@index([type])
+}
+
+// 今日聚焦
+model DailyFocus {
+  id          String   @id @default(cuid())
+  date        DateTime @unique
+  cardIds     Json     @default("[]") // [taskId, taskId, taskId]
+  generatedAt DateTime @default(now())
+  status      String   @default("pending") // pending | completed
+
+  items DailyFocusItem[]
+
+  @@index([date])
+}
+
+model DailyFocusItem {
+  id           String  @id @default(cuid())
+  dailyFocusId String
+  taskId       String
+  position     Int     @default(0)
+  completed    Boolean @default(false)
+
+  dailyFocus DailyFocus @relation(fields: [dailyFocusId], references: [id], onDelete: Cascade)
+  task       Task       @relation(fields: [taskId], references: [id])
+}
+
+// Skill - 可复用技能模板
+model Skill {
+  id          String   @id @default(cuid())
+  name        String
+  description String   @db.Text
+  category    String   @default("general") // general | finance | report | review | knowledge | meeting | product | custom
+  content     String   @db.LongText        // Markdown 正文（含步骤、提示词模板）
+  parameters  Json     @default("[]")      // 参数定义数组
+  promptTemplate String @db.LongText       // AI 提示词模板（用 {{param}} 占位）
+  source      String   @default("manual")  // manual | imported | ai-generated
+  tags        Json     @default("[]")
+  usageCount  Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  versions SkillVersion[]
+
+  @@index([category])
+  @@index([source])
+}
+
+// Skill 版本历史
+model SkillVersion {
+  id          String   @id @default(cuid())
+  skillId     String
+  version     Int      // 版本号，从 1 递增
+  name        String
+  description String   @db.Text
+  category    String
+  content     String   @db.LongText
+  parameters  Json     @default("[]")
+  promptTemplate String @db.LongText
+  tags        Json     @default("[]")
+  createdAt   DateTime @default(now())
+
+  skill Skill @relation(fields: [skillId], references: [id], onDelete: Cascade)
+
+  @@index([skillId])
+  @@unique([skillId, version])
+}
+
+// Skill 评分/评论
+model SkillReview {
+  id        String   @id @default(cuid())
+  skillId   String
+  rating    Int      // 1-5 星
+  comment   String   @db.Text
+  author    String   @default("匿名用户")
+  createdAt DateTime @default(now())
+
+  @@index([skillId])
+  @@index([rating])
+}
+
+// 飞书任务（数据库持久化缓存）
+model LarkTask {
+  guid        String   @id
+  summary     String   @db.Text
+  description String   @db.LongText
+  createdAt   DateTime?
+  updatedAt   DateTime?
+  dueAt       DateTime?
+  dueIsAllDay Boolean  @default(false)
+  startAt     DateTime?
+  startIsAllDay Boolean @default(false)
+  url         String   @default("")
+  completed   Boolean  @default(false)
+  completedAt DateTime?
+  status      String   @default("incomplete")
+  priority    Int      @default(0)
+  assignees   Json     @default("[]")
+  collaborators Json  @default("[]")
+  followers   Json     @default("[]")
+  creator     Json?
+  tasklist    Json?
+  members     Json     @default("[]")
+  repeatRule  String   @db.Text
+  location    Json?
+  origin      Json?
+  shortcuts   Json     @default("[]")
+  reminders   Json     @default("[]")
+  attachments Json     @default("[]")
+  customCompleteRule String @db.Text
+  customCompleted Boolean @default(false)
+  originPlugin Json?
+  commentCount Int     @default(0)
+  followerCount Int    @default(0)
+  subtaskCount Int     @default(0)
+  syncedAt    DateTime @default(now())
+
+  @@index([completed])
+  @@index([status])
+  @@index([dueAt])
+}

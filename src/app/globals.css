@@ -1,0 +1,115 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* 浅色主题 */
+    --background: 0 0% 98%;
+    --foreground: 220 20% 14%;
+    --card: 0 0% 100%;
+    --card-foreground: 220 20% 14%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 220 20% 14%;
+    --primary: 26 90% 56%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 220 14% 96%;
+    --secondary-foreground: 220 20% 14%;
+    --muted: 220 14% 96%;
+    --muted-foreground: 220 9% 46%;
+    --accent: 35 100% 96%;
+    --accent-foreground: 26 90% 45%;
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 220 13% 91%;
+    --input: 220 13% 91%;
+    --ring: 26 90% 56%;
+    --radius: 0.875rem;
+
+    /* LynnHub 语义色 - 浅色 */
+    --northstar: 32 91% 55%;
+    --campaign: 210 100% 60%;
+    --task: 150 65% 50%;
+    --graveyard: 0 80% 65%;
+    --cognition: 262 60% 70%;
+  }
+
+  .dark {
+    /* 深色主题 */
+    --background: 220 14% 5%;
+    --foreground: 210 20% 94%;
+    --card: 220 13% 8%;
+    --card-foreground: 210 20% 94%;
+    --popover: 220 13% 8%;
+    --popover-foreground: 210 20% 94%;
+    --primary: 32 95% 62%;
+    --primary-foreground: 220 20% 6%;
+    --secondary: 220 10% 14%;
+    --secondary-foreground: 210 20% 94%;
+    --muted: 220 10% 14%;
+    --muted-foreground: 220 9% 56%;
+    --accent: 32 60% 15%;
+    --accent-foreground: 32 95% 70%;
+    --destructive: 0 72% 58%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 220 10% 16%;
+    --input: 220 10% 16%;
+    --ring: 32 95% 62%;
+
+    /* LynnHub 语义色 - 深色 */
+    --northstar: 36 100% 68%;
+    --campaign: 210 100% 68%;
+    --task: 150 65% 55%;
+    --graveyard: 0 85% 70%;
+    --cognition: 262 70% 75%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  html {
+    @apply scroll-smooth;
+  }
+  body {
+    @apply bg-background text-foreground antialiased;
+    font-feature-settings: "rlig" 1, "calt" 1;
+  }
+  ::selection {
+    background: hsl(var(--primary) / 0.25);
+  }
+}
+
+/* 自定义滚动条 */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: hsl(var(--muted-foreground) / 0.2);
+  border-radius: 999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: hsl(var(--muted-foreground) / 0.35);
+}
+
+/* 力导向图谱节点动画 */
+@keyframes pulse-node {
+  0%, 100% { opacity: 0.8; }
+  50% { opacity: 1; }
+}
+.pulse-node {
+  animation: pulse-node 2s ease-in-out infinite;
+}
+
+/* 主题切换平滑过渡（仅颜色属性） */
+html.theme-transition,
+html.theme-transition * {
+  transition-property: background-color, border-color, color, fill, stroke, opacity, box-shadow;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  transition-duration: 200ms;
+}

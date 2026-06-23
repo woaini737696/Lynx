@@ -1,0 +1,49 @@
+import type { Metadata, Viewport } from "next";
+import "./globals.css";
+import { AppShell } from "@/components/layout/AppShell";
+import { LightningInput } from "@/components/lightning/LightningInput";
+import { CommandPalette } from "@/components/layout/CommandPalette";
+import { SuppressDevErrors } from "@/components/layout/SuppressDevErrors";
+import { Toaster } from "@/components/ui/toast";
+import { ThemeProvider } from "@/components/theme/ThemeProvider";
+import { ReminderManager } from "@/components/layout/ReminderManager";
+
+export const metadata: Metadata = {
+  title: "LynnHub · 个人认知操作系统",
+  description: "灵感收敛 · 工作聚焦 · 记忆复利",
+};
+
+export const viewport: Viewport = {
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#ffffff" },
+    { media: "(prefers-color-scheme: dark)", color: "#0a0a0a" },
+  ],
+};
+
+export default function RootLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
+  return (
+    <html lang="zh-CN" suppressHydrationWarning>
+      <head>
+        <link
+          rel="icon"
+          href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%23f6ad55'/%3E%3Ctext x='16' y='22' text-anchor='middle' font-size='18' font-weight='bold' fill='%23000'%3EL%3C/text%3E%3C/svg%3E"
+          type="image/svg+xml"
+        />
+      </head>
+      <body className="min-h-screen bg-background text-foreground antialiased">
+        <ThemeProvider>
+          <SuppressDevErrors />
+          <AppShell>{children}</AppShell>
+          <LightningInput />
+          <CommandPalette />
+          <ReminderManager />
+          <Toaster />
+        </ThemeProvider>
+      </body>
+    </html>
+  );
+}
