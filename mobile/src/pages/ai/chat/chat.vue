@@ -19,7 +19,7 @@
 
       <view v-if="loading" class="msg-row assistant">
         <view class="msg-bubble">
-          <text class="msg-text typing">Lynn 正在思考...</text>
+          <text class="msg-text typing">{{ streamingText || "Lynn 正在思考..." }}</text>
         </view>
       </view>
     </scroll-view>
@@ -41,12 +41,13 @@
 <script setup>
 import { ref, nextTick } from "vue";
 import { onShow } from "@dcloudio/uni-app";
-import { chat } from "@/api/ai.js";
+import { chatStream } from "@/api/ai.js";
 
 const messages = ref([]);
 const input = ref("");
 const loading = ref(false);
 const scrollTop = ref(0);
+const streamingText = ref("");
 
 async function send() {
   const content = input.value.trim();
@@ -55,13 +56,35 @@ async function send() {
   messages.value.push({ id: Date.now(), role: "user", content });
   input.value = "";
   loading.value = true;
+  streamingText.value = "";
   await scrollToBottom();
 
+  // 构建历史消息（最近 10 条）
+  const history = messages.value
+    .slice(-10)
+    .map((m) => ({ role: m.role, content: m.content }));
+
   try {
-    const res = await chat(content);
-    const reply =
-      res.reply || res.content || res.message || JSON.stringify(res);
-    messages.value.push({ id: Date.now() + 1, role: "assistant", content: reply });
+    // 优先使用流式（H5），App 端 fetch 流式不可用时回退
+    let reply = "";
+    try {
+      reply = await chatStream(content, undefined, history.slice(0, -1), (chunk) => {
+        streamingText.value += chunk;
+        scrollToBottom();
+      });
+    } catch (streamErr) {
+      // 流式失败，回退到非流式
+      const { chat } = await import("@/api/ai.js");
+      const res = await chat(content, undefined, history.slice(0, -1));
+      reply = res.content || "（无回复）";
+    }
+
+    if (!reply && streamingText.value) reply = streamingText.value;
+    messages.value.push({
+      id: Date.now() + 1,
+      role: "assistant",
+      content: reply || "（无回复）",
+    });
   } catch (e) {
     messages.value.push({
       id: Date.now() + 1,
@@ -69,6 +92,7 @@ async function send() {
       content: `⚠️ ${e.message || "请求失败"}`,
     });
   } finally {
+    streamingText.value = "";
     loading.value = false;
     await scrollToBottom();
   }
@@ -76,7 +100,7 @@ async function send() {
 
 async function scrollToBottom() {
   await nextTick();
-  scrollTop.value = 99999;
+  scrollTop.value = scrollTop.value === 99998 ? 99999 : 99998;
 }
 
 onShow(() => {
@@ -142,7 +166,7 @@ onShow(() => {
   line-height: 1.6;
 }
 .typing {
-  color: #737373;
+  color: #a3a3a3;
 }
 
 .input-bar {

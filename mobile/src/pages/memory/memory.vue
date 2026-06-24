@@ -26,7 +26,7 @@
           <text class="result-type" :class="`type-${item.type}`">{{ typeLabel(item.type) }}</text>
           <text v-if="item.score" class="result-score">{{ (item.score * 100).toFixed(0) }}%</text>
         </view>
-        <text class="result-content">{{ item.content }}</text>
+        <text class="result-content">{{ item.label }}</text>
       </view>
     </view>
 

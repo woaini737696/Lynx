@@ -39,7 +39,7 @@
 <script setup>
 import { ref, onMounted } from "vue";
 import { onShow } from "@dcloudio/uni-app";
-import { getLarkTasks, syncLarkTasks } from "@/api/lark-tasks.js";
+import { getLarkTasks, refreshLarkTasks } from "@/api/lark-tasks.js";
 
 const tasks = ref([]);
 const loading = ref(false);
@@ -61,7 +61,7 @@ async function sync() {
   if (syncing.value) return;
   syncing.value = true;
   try {
-    await syncLarkTasks();
+    await refreshLarkTasks();
     uni.showToast({ title: "同步完成", icon: "success" });
     await loadTasks();
   } catch (e) {
