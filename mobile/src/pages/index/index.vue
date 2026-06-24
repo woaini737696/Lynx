@@ -1,21 +1,44 @@
 <template>
   <view class="page">
     <view class="header">
-      <text class="header-title">今日聚焦</text>
-      <text class="header-date">{{ todayStr }}</text>
+      <view class="header-left">
+        <text class="header-greeting">{{ greeting }}</text>
+        <text class="header-title">今日聚焦</text>
+      </view>
+      <view class="header-date">
+        <text class="date-day">{{ todayDay }}</text>
+        <text class="date-month">{{ todayMonth }}</text>
+      </view>
     </view>
 
     <view v-if="loading && !focus" class="loading">
-      <text class="text-secondary">加载中...</text>
+      <view class="loading-dot"></view>
+      <text class="loading-text">加载中...</text>
     </view>
 
     <view v-else-if="!focus || !focus.items || focus.items.length === 0" class="empty">
-      <text class="empty-icon">🎯</text>
+      <view class="empty-circle">
+        <text class="empty-icon">🎯</text>
+      </view>
       <text class="empty-text">今天还没有聚焦任务</text>
       <text class="empty-hint">去决策看板添加任务，系统会自动生成今日聚焦</text>
+      <view class="empty-btn" @click="goBoard">
+        <text class="empty-btn-text">去添加任务</text>
+      </view>
     </view>
 
     <view v-else class="cards">
+      <view class="progress-section">
+        <view class="progress-info">
+          <text class="progress-label">今日进度</text>
+          <text class="progress-num">{{ completedCount }}/{{ focus.items.length }}</text>
+        </view>
+        <view class="progress-track">
+          <view class="progress-fill" :style="{ width: progressPercent + '%' }"></view>
+        </view>
+        <text class="progress-percent">{{ progressPercent }}%</text>
+      </view>
+
       <view
         v-for="(item, idx) in focus.items"
         :key="item.id"
@@ -27,20 +50,15 @@
           <text v-if="item.completed" class="check-icon">✓</text>
         </view>
         <view class="card-body">
-          <text class="card-index">{{ idx + 1 }}</text>
+          <view class="card-header">
+            <text class="card-index">#{{ idx + 1 }}</text>
+            <view class="card-tag" :class="`tag-${item.task.column}`">
+              {{ columnLabel(item.task.column) }}
+            </view>
+          </view>
           <text class="card-content">{{ item.task.content }}</text>
         </view>
-        <view class="card-tag" :class="`tag-${item.task.column}`">
-          {{ columnLabel(item.task.column) }}
-        </view>
       </view>
-    </view>
-
-    <view v-if="focus && focus.items && focus.items.length > 0" class="progress-bar">
-      <view class="progress-track">
-        <view class="progress-fill" :style="{ width: progressPercent + '%' }"></view>
-      </view>
-      <text class="progress-text">{{ completedCount }}/{{ focus.items.length }} 已完成</text>
     </view>
 
     <capture-bar @saved="loadFocus" />
@@ -56,9 +74,18 @@ import CaptureBar from "@/components/CaptureBar.vue";
 const loading = ref(false);
 const focus = ref(null);
 
-const todayStr = computed(() => {
-  const d = new Date();
-  return `${d.getMonth() + 1}月${d.getDate()}日`;
+const greeting = computed(() => {
+  const h = new Date().getHours();
+  if (h < 6) return "夜深了";
+  if (h < 12) return "早上好";
+  if (h < 18) return "下午好";
+  return "晚上好";
+});
+
+const todayDay = computed(() => new Date().getDate());
+const todayMonth = computed(() => {
+  const m = new Date().getMonth() + 1;
+  return `${m}月`;
 });
 
 const completedCount = computed(() => {
@@ -100,6 +127,10 @@ async function toggle(item) {
   }
 }
 
+function goBoard() {
+  uni.switchTab({ url: "/pages/board/board" });
+}
+
 onMounted(loadFocus);
 onShow(loadFocus);
 </script>
@@ -110,37 +141,97 @@ onShow(loadFocus);
   padding: 32rpx;
   box-sizing: border-box;
 }
+
+/* 头部 */
 .header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
   margin-bottom: 40rpx;
 }
-.header-title {
-  display: block;
-  font-size: 48rpx;
-  font-weight: 700;
-  color: #1d1d1f;
-}
-.header-date {
+.header-greeting {
   display: block;
   font-size: 26rpx;
   color: #86868b;
-  margin-top: 8rpx;
+  margin-bottom: 4rpx;
+}
+.header-title {
+  display: block;
+  font-size: 52rpx;
+  font-weight: 800;
+  color: #1d1d1f;
+  letter-spacing: 1rpx;
+}
+.header-date {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  background-color: #ffffff;
+  border-radius: 16rpx;
+  padding: 12rpx 24rpx;
+  box-shadow: 0 2rpx 8rpx rgba(0, 0, 0, 0.04);
+}
+.date-day {
+  font-size: 40rpx;
+  font-weight: 700;
+  color: #f59e0b;
+  line-height: 1;
+}
+.date-month {
+  font-size: 20rpx;
+  color: #86868b;
+  margin-top: 4rpx;
 }
 
-.loading,
+/* 加载 */
+.loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 120rpx 0;
+}
+.loading-dot {
+  width: 24rpx;
+  height: 24rpx;
+  border-radius: 50%;
+  background-color: #f59e0b;
+  animation: pulse 1.2s infinite;
+  margin-bottom: 16rpx;
+}
+@keyframes pulse {
+  0%, 100% { transform: scale(0.8); opacity: 0.5; }
+  50% { transform: scale(1.2); opacity: 1; }
+}
+.loading-text {
+  color: #86868b;
+  font-size: 26rpx;
+}
+
+/* 空状态 */
 .empty {
   display: flex;
   flex-direction: column;
   align-items: center;
+  padding: 100rpx 0;
+}
+.empty-circle {
+  width: 160rpx;
+  height: 160rpx;
+  border-radius: 50%;
+  background-color: #ffffff;
+  display: flex;
+  align-items: center;
   justify-content: center;
-  padding: 120rpx 0;
+  margin-bottom: 32rpx;
+  box-shadow: 0 4rpx 20rpx rgba(0, 0, 0, 0.06);
 }
 .empty-icon {
-  font-size: 80rpx;
-  margin-bottom: 24rpx;
+  font-size: 72rpx;
 }
 .empty-text {
   font-size: 32rpx;
-  color: #86868b;
+  color: #1d1d1f;
+  font-weight: 600;
   margin-bottom: 12rpx;
 }
 .empty-hint {
@@ -148,35 +239,100 @@ onShow(loadFocus);
   color: #aeaeb2;
   text-align: center;
   padding: 0 60rpx;
+  margin-bottom: 32rpx;
+}
+.empty-btn {
+  background: linear-gradient(135deg, #f59e0b, #f97316);
+  border-radius: 32rpx;
+  padding: 16rpx 48rpx;
+  box-shadow: 0 4rpx 16rpx rgba(245, 158, 11, 0.3);
+}
+.empty-btn-text {
+  color: #ffffff;
+  font-size: 28rpx;
+  font-weight: 600;
 }
 
+/* 进度条 */
+.progress-section {
+  display: flex;
+  align-items: center;
+  background-color: #ffffff;
+  border-radius: 20rpx;
+  padding: 24rpx 28rpx;
+  margin-bottom: 24rpx;
+  box-shadow: 0 2rpx 12rpx rgba(0, 0, 0, 0.04);
+}
+.progress-info {
+  flex-shrink: 0;
+  margin-right: 24rpx;
+}
+.progress-label {
+  display: block;
+  font-size: 22rpx;
+  color: #86868b;
+}
+.progress-num {
+  display: block;
+  font-size: 32rpx;
+  font-weight: 700;
+  color: #1d1d1f;
+}
+.progress-track {
+  flex: 1;
+  height: 12rpx;
+  background-color: #f2f2f7;
+  border-radius: 6rpx;
+  overflow: hidden;
+  margin-right: 16rpx;
+}
+.progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #10b981, #34d399);
+  border-radius: 6rpx;
+  transition: width 0.4s ease;
+}
+.progress-percent {
+  font-size: 26rpx;
+  font-weight: 700;
+  color: #10b981;
+  width: 80rpx;
+  text-align: right;
+}
+
+/* 聚焦卡片 */
 .cards {
   margin-bottom: 40rpx;
 }
 .focus-card {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   background-color: #ffffff;
   border-radius: 20rpx;
-  padding: 32rpx;
-  margin-bottom: 20rpx;
-  border-left: 8rpx solid #f59e0b;
+  padding: 28rpx;
+  margin-bottom: 16rpx;
+  border-left: 6rpx solid #f59e0b;
   box-shadow: 0 2rpx 12rpx rgba(0, 0, 0, 0.04);
+  transition: transform 0.15s;
+}
+.focus-card:active {
+  transform: scale(0.98);
 }
 .focus-card.completed {
   opacity: 0.55;
   border-left-color: #10b981;
 }
 .card-check {
-  width: 48rpx;
-  height: 48rpx;
+  width: 44rpx;
+  height: 44rpx;
   border-radius: 50%;
   border: 3rpx solid #d1d1d6;
   display: flex;
   align-items: center;
   justify-content: center;
-  margin-right: 24rpx;
+  margin-right: 20rpx;
   flex-shrink: 0;
+  margin-top: 4rpx;
   transition: all 0.2s;
 }
 .card-check.checked {
@@ -185,32 +341,28 @@ onShow(loadFocus);
 }
 .check-icon {
   color: #ffffff;
-  font-size: 28rpx;
+  font-size: 24rpx;
   font-weight: 700;
 }
 .card-body {
   flex: 1;
+}
+.card-header {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
+  gap: 12rpx;
+  margin-bottom: 8rpx;
 }
 .card-index {
-  color: #f59e0b;
-  font-size: 28rpx;
-  font-weight: 700;
-  margin-right: 16rpx;
-  flex-shrink: 0;
-}
-.card-content {
-  color: #1d1d1f;
-  font-size: 30rpx;
-  line-height: 1.5;
+  color: #aeaeb2;
+  font-size: 22rpx;
+  font-weight: 600;
 }
 .card-tag {
-  font-size: 22rpx;
-  padding: 6rpx 16rpx;
-  border-radius: 8rpx;
-  margin-left: 16rpx;
-  flex-shrink: 0;
+  font-size: 20rpx;
+  padding: 4rpx 12rpx;
+  border-radius: 6rpx;
+  font-weight: 600;
 }
 .tag-northstar {
   background-color: rgba(245, 158, 11, 0.12);
@@ -224,28 +376,9 @@ onShow(loadFocus);
   background-color: rgba(16, 185, 129, 0.12);
   color: #10b981;
 }
-
-.progress-bar {
-  display: flex;
-  align-items: center;
-  padding: 0 8rpx;
-}
-.progress-track {
-  flex: 1;
-  height: 16rpx;
-  background-color: #e5e5ea;
-  border-radius: 8rpx;
-  overflow: hidden;
-  margin-right: 20rpx;
-}
-.progress-fill {
-  height: 100%;
-  background: linear-gradient(90deg, #10b981, #34d399);
-  border-radius: 8rpx;
-  transition: width 0.3s;
-}
-.progress-text {
-  font-size: 24rpx;
-  color: #86868b;
+.card-content {
+  color: #1d1d1f;
+  font-size: 30rpx;
+  line-height: 1.5;
 }
 </style>

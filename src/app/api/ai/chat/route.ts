@@ -16,6 +16,86 @@ import {
 } from "@/lib/ai-assistant-tools";
 import { executeTool } from "../assistant/tool-executor";
 
+// ============ 关键词意图检测（Fallback）============
+// 当 AI 没有输出 action 块时，用关键词匹配检测用户意图
+function detectIntent(text: string): { tool: string; args: Record<string, any> } | null {
+  const t = text.toLowerCase();
+
+  // 灵感相关
+  if (/查看|看看|有什么|列出|显示|搜索.*灵感|灵感.*列表/.test(text) && /灵感|idea/.test(text)) {
+    return { tool: "searchIdeas", args: { query: text.replace(/帮我|看看|查看|列出|显示|最近|有什么|的|灵感|idea/g, "").trim() || "" } };
+  }
+  if (/创建|新建|添加|记录.*灵感|灵感.*创建/.test(text) && /灵感|idea/.test(text)) {
+    const content = text.replace(/帮我|创建|新建|添加|记录|一个|灵感|idea|：|:/g, "").trim();
+    if (content) return { tool: "createIdea", args: { content } };
+  }
+
+  // 看板/任务相关
+  if (/看板|任务.*列表|列出.*任务|有什么任务|查看.*任务/.test(text) && !/完成|创建|新建/.test(text)) {
+    return { tool: "searchTasks", args: { status: "active" } };
+  }
+  if (/创建|新建|添加.*任务|任务.*创建/.test(text) && /任务|task/.test(text)) {
+    const content = text.replace(/帮我|创建|新建|添加|一个|任务|task|：|:/g, "").trim();
+    if (content) return { tool: "createTask", args: { content, column: "task" } };
+  }
+  if (/完成.*任务|任务.*完成|标记.*done/.test(text)) {
+    return { tool: "completeTask", args: {} };
+  }
+  if (/统计|完成.*多少|多少.*完成|进度|概览|board.*stat/.test(t)) {
+    return { tool: "getBoardStats", args: {} };
+  }
+
+  // 记忆/认知相关
+  if (/搜索|查找|找.*记忆|记忆.*搜索|语义搜索/.test(text) && /记忆|memory/.test(text)) {
+    const query = text.replace(/帮我|搜索|查找|找|关于|的|记忆|memory|语义搜索/g, "").trim();
+    return { tool: "semanticSearch", args: { query: query || "test" } };
+  }
+  if (/重建|刷新.*记忆|记忆.*重建|rebuild.*memory/.test(t)) {
+    return { tool: "rebuildMemory", args: {} };
+  }
+  if (/认知|cognition|经验|方法论/.test(text) && /查看|看看|列出|显示|有什么/.test(text)) {
+    return { tool: "getCognitions", args: { type: "all", limit: 10 } };
+  }
+
+  // 技能/工作流相关
+  if (/列出|查看|有什么.*技能|技能.*列表|skill.*list/.test(text) && /技能|skill/.test(text)) {
+    return { tool: "listSkills", args: {} };
+  }
+  if (/执行|运行.*技能|技能.*执行|run.*skill/.test(text) && /技能|skill/.test(text)) {
+    return { tool: "listSkills", args: {} };
+  }
+  if (/列出|查看|有什么.*工作流|工作流.*列表|flow.*list/.test(text) && /工作流|flow/.test(text)) {
+    return { tool: "listFlows", args: {} };
+  }
+  if (/执行|运行.*工作流|工作流.*执行|run.*flow/.test(text) && /工作流|flow/.test(text)) {
+    return { tool: "listFlows", args: {} };
+  }
+
+  // 巡检/通知相关
+  if (/巡检|patrol|检查|跑一下/.test(text) && !/编辑|修改|创建|配置/.test(text)) {
+    return { tool: "runPatrol", args: {} };
+  }
+  if (/列出|查看.*巡检规则|巡检规则.*列表/.test(text)) {
+    return { tool: "listPatrolRules", args: {} };
+  }
+  if (/巡检.*结果|结果.*巡检|patrol.*result/.test(t)) {
+    return { tool: "getPatrolResults", args: { limit: 5 } };
+  }
+  if (/发送.*通知|通知.*发送|send.*notification/.test(t)) {
+    return { tool: "sendNotification", args: { title: "LynnHub 通知", body: text.replace(/帮我|发送|通知|send|notification/g, "").trim() || "测试通知" } };
+  }
+  if (/导出|备份|export|backup/.test(t)) {
+    return { tool: "exportBackup", args: { type: "all" } };
+  }
+
+  // 今日概览
+  if (/今日|今天|概览|总览|overview/.test(text) && !/具体|详情/.test(text)) {
+    return { tool: "getBoardStats", args: {} };
+  }
+
+  return null;
+}
+
 // POST /api/ai/chat
 // Request: { messages, provider?, model?, reasoningMode?, temperature?, maxTokens?, stream? }
 // - messages 中 content 可为字符串或多模态数组 [{ type: "text", text }, { type: "image_url", image_url: { url } }]
@@ -218,7 +298,14 @@ export async function POST(req: NextRequest) {
       });
 
       // 解析 action
-      const action = parseAction(firstResult.content);
+      let action = parseAction(firstResult.content);
+
+      // Fallback：如果 AI 没输出 action 块，用关键词意图检测
+      if (!action) {
+        const lastUserMsg = cleanMessages.filter((m) => m.role === "user").pop();
+        const userText = typeof lastUserMsg?.content === "string" ? lastUserMsg.content : "";
+        action = detectIntent(userText);
+      }
 
       // 无 action：直接返回回复（去除可能的 action 块）
       if (!action) {

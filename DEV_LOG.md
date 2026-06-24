@@ -4,6 +4,62 @@
 
 ---
 
+## 迭代 19 - 2026-06-25
+
+### 任务概要
+完成 6 项 P0-P1 深化任务：AI 助理打通全功能（Function Calling 混合模式 + 18 工具）、AI 巡检规则编辑（创建/编辑区分 + AI 对话编辑模式）、Web Push 订阅 bug 修复（sw.js + PWARegister + manifest）、AI 工作流 output 节点真实副作用 + 执行历史 UI、所有功能右上角使用说明（HelpButton 统一组件）、AI 中心 4 功能使用说明输出。
+
+### 完成内容
+
+#### 1. AI 助理打通所有功能（P0，核心架构）
+- **工具定义**：`src/lib/ai-assistant-tools.ts` 定义 18 个工具，覆盖灵感/看板/记忆/认知/技能/工作流/巡检/通知全场景
+- **混合调用模式**：AI 通过 system prompt 知道可用工具，回复中包含 ` ```action {"tool":"xxx","args":{}}``` ` 代码块，后端解析执行
+- **工具执行器**：`src/app/api/ai/assistant/tool-executor.ts` 实现 18 个工具的执行逻辑（searchIdeas/createIdea/searchTasks/createTask/completeTask/getBoardStats/semanticSearch/rebuildMemory/getCognitions/listSkills/executeSkill/listFlows/executeFlow/getFlowHistory/runPatrol/listPatrolRules/getPatrolResults/sendNotification/exportBackup）
+- **两轮调用**：`src/app/api/ai/chat/route.ts` assistantMode 第一轮 AI 决定调工具，第二轮基于工具结果生成回复
+- **关键词意图检测 fallback**：`detectIntent` 函数，当 AI 未输出 action 块时用关键词匹配检测用户意图，覆盖全场景
+- **快捷指令**：6 个快捷指令按钮（今日概览/创建灵感/看板状态/搜索记忆/执行巡检/执行技能）
+- **工具调用卡片**：前端展示工具调用结果，可展开查看完整 JSON
+
+#### 2. AI 巡检规则编辑功能（P1）
+- **创建/编辑区分**：规则列表增加编辑按钮，AI 对话区增加创建/编辑模式切换
+- **AI 对话编辑模式**：`/api/patrol/config-chat` 接收 editRuleId 参数，编辑模式系统提示词包含规则当前详情
+- **直接编辑**：规则列表支持直接编辑规则字段
+- **模板库**：`src/lib/patrol-templates.ts` 4 个预置模板（每周灵感回顾/看板停滞检测/墓地复活检查/每日总结巡检）
+- **巡检结果可操作**：巡检结果项增加 itemType 字段（idea/task/graveyard），可点击跳转操作
+
+#### 3. Web Push 订阅 bug 修复（P0）
+- **根因 1**：`public/sw.js` 完全缺少 push 事件监听器 → 追加 push/notificationclick/notificationclose 三个事件监听器
+- **根因 2**：`src/components/layout/PWARegister.tsx` 仅生产环境注册 SW → 移除环境限制，所有环境都注册
+- **根因 3**：`public/manifest.webmanifest` 缺少 gcm_sender_id → 追加 `"gcm_sender_id": "103953800507"`
+- **错误处理增强**：`src/app/settings/push/page.tsx` 重写 handleSubscribe，SW 未注册/权限拒绝/VAPID 未配置分别提示
+
+#### 4. AI 工作流可视化编排完善（P1）
+- **output 节点真实副作用**：`src/lib/flow-engine.ts` executeOutputNode 改为 async，按 outputTarget 执行真实副作用
+  - cognition → 写入 Cognition 表
+  - skills → 创建 Skill
+  - notification → 发送 Push
+- **执行历史 UI**：`src/app/ai/flows/page.tsx` 增加 History 按钮 + modal + 分页展示
+- **看板完成认知确认**：`src/app/board/page.tsx` AI 提取认知后弹窗让用户确认/编辑/跳过
+- **认知 API 直接写入模式**：`/api/cognitions` POST 新增直接写入模式（type+content+source+ideaId）
+
+#### 5. 所有功能右上角使用说明（P1）
+- **统一组件**：`src/components/layout/HelpButton.tsx` HelpContent 接口（painPoint/need/solution/usage），问号图标按钮 + modal 弹窗
+- **12 个页面注入**：page.tsx、inbox、board、graveyard、memory、ai/workspace、skills、skills/market、settings/patrol、settings/push、settings、search
+
+#### 6. AI 中心 4 功能使用说明输出
+- 输出 AI 工作空间、AI 工作流、技能管理、Skill 市场的详细使用说明、价值和关系
+
+### 自测结果
+- TypeScript 编译：`npx tsc --noEmit` 通过（exit 0）
+- Playwright E2E：19 个测试 18 passed / 1 skipped（16.4s）
+- Dev server 运行中：http://localhost:3000（PID 54956）
+
+### 涉及文件
+新增：`src/components/layout/HelpButton.tsx`、`src/app/api/ai/assistant/tool-executor.ts`、`src/lib/patrol-templates.ts`
+修改：`src/lib/ai-assistant-tools.ts`、`src/app/api/ai/chat/route.ts`、`src/app/api/patrol/config-chat/route.ts`、`src/app/api/patrol/run/route.ts`、`src/lib/flow-engine.ts`、`src/app/ai/flows/page.tsx`、`src/app/ai/assistant/page.tsx`、`src/app/board/page.tsx`、`src/app/settings/patrol/page.tsx`、`src/app/settings/push/page.tsx`、`public/sw.js`、`public/manifest.webmanifest`、`src/components/layout/PWARegister.tsx`、12 个页面注入 HelpButton
+
+---
+
 ## 迭代 18 - 2026-06-24
 
 ### 任务概要

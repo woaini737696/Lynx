@@ -17,22 +17,29 @@ export function getChatMessages(sessionId) {
 
 /** 可用 AI 模型列表 */
 export const AI_PROVIDERS = [
-  { key: "deepseek", label: "DeepSeek", desc: "深度求索 · 推理强" },
-  { key: "mimo", label: "MiMo", desc: "小米 · 响应快" },
+  { key: "deepseek", label: "DeepSeek", desc: "深度求索 · 推理强", icon: "🧠" },
+  { key: "mimo", label: "MiMo", desc: "小米 · 响应快", icon: "⚡" },
 ];
 
 /**
- * 发送对话消息（非流式）
- * 后端契约：POST /api/ai/chat { messages, provider?, stream? }
- * 返回 { content, provider, model, usage }
+ * 发送对话消息（非流式，启用 AI 助理模式 = 工具调用）
+ * 同步 Web 端契约：POST /api/ai/chat { messages, provider, stream:false, assistantMode:true }
+ * 返回 { content, provider, model, usage, toolCalled }
  */
 export function chat(content, provider, history = []) {
   const messages = [...history, { role: "user", content }];
-  return post("/api/ai/chat", { messages, provider, stream: false });
+  return post("/api/ai/chat", {
+    messages,
+    provider,
+    stream: false,
+    assistantMode: true,
+  });
 }
 
 /**
  * 流式对话（H5 支持，通过 fetch + ReadableStream）
+ * 注意：流式模式不支持工具调用（后端 assistantMode 与 stream 互斥）
+ * 仅作为非流式失败时的降级方案
  * @param {string} content - 用户消息
  * @param {string} provider - deepseek | mimo
  * @param {Array} history - 历史消息 [{role, content}]
@@ -87,4 +94,26 @@ export async function chatStream(content, provider, history, onChunk) {
     }
   }
   return full;
+}
+
+/**
+ * 简要总结工具调用结果（用于工具卡片标题）
+ * 同步 Web 端 summarizeToolResult 逻辑
+ */
+export function summarizeToolResult(result) {
+  if (!result) return "";
+  if (typeof result === "string") return result.slice(0, 60);
+  if (result.error) return "执行失败";
+  if (Array.isArray(result)) return `${result.length} 条结果`;
+  if (result.ideas) return `${result.ideas.length} 条灵感`;
+  if (result.tasks) return `${result.tasks.length} 条任务`;
+  if (result.cognitions) return `${result.cognitions.length} 条认知`;
+  if (result.skills) return `${result.skills.length} 个技能`;
+  if (result.flows) return `${result.flows.length} 个工作流`;
+  if (result.suggestions) return `${result.suggestions.length} 条建议`;
+  if (result.success) return "执行成功";
+  if (result.id) return "创建成功";
+  const keys = Object.keys(result);
+  if (keys.length <= 3) return keys.join(", ");
+  return `${keys.length} 个字段`;
 }

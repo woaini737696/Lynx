@@ -14,8 +14,9 @@ import {
 
 // GET /api/lark-tasks/[id] - 获取单个任务详情
 // 优先从 DB 缓存返回（快速），后台异步刷新 lark-cli
+// db_only=true 时纯数据库读取（移动端用，不调用 lark-cli）
 export async function GET(
-  _req: NextRequest,
+  req: NextRequest,
   { params }: { params: { id: string } }
 ) {
   try {
@@ -24,18 +25,31 @@ export async function GET(
       return NextResponse.json({ error: "缺少任务 ID" }, { status: 400 });
     }
 
-    // 优先从 DB 返回缓存（毫秒级），后台异步刷新 lark-cli
+    const { searchParams } = new URL(req.url);
+    const dbOnly = searchParams.get("db_only") === "true";
+
+    // 优先从 DB 返回缓存（毫秒级）
     const dbTask = await getTaskFromDb(taskId);
     if (dbTask) {
-      // 后台异步拉取最新详情并更新 DB（不阻塞响应）
-      getTaskDetailAsync(taskId).then(async (detail) => {
-        if (detail) {
-          enrichDetailMemberNames(detail);
-          const task = normalizeTask(detail);
-          await upsertTaskToDb(task).catch(() => {});
-        }
-      }).catch(() => {});
+      // 纯数据库模式不触发 lark-cli 后台刷新
+      if (!dbOnly) {
+        getTaskDetailAsync(taskId).then(async (detail) => {
+          if (detail) {
+            enrichDetailMemberNames(detail);
+            const task = normalizeTask(detail);
+            await upsertTaskToDb(task).catch(() => {});
+          }
+        }).catch(() => {});
+      }
       return NextResponse.json({ task: dbTask, source: "db-cache" });
+    }
+
+    // 纯数据库模式下，DB 无数据直接返回 404，不调用 lark-cli
+    if (dbOnly) {
+      return NextResponse.json(
+        { error: "任务不存在于本地数据库" },
+        { status: 404 }
+      );
     }
 
     // DB 无缓存时同步等待 lark-cli（首次加载）

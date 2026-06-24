@@ -168,11 +168,23 @@ export default function BoardPage() {
             }))
           );
           setDoneTasks((prev) => [updatedTask, ...prev]);
-          // 提示认知提取
-          const msg = data.cognitionExtracted
-            ? "任务已完成 · AI 已提取认知入库"
-            : "任务已完成 · AI 正在提取认知...";
-          toast(msg, "success");
+
+          // 如果后端提取到认知，弹出确认弹窗（不立即 toast）
+          if (data.cognitionExtracted && Array.isArray(data.extractedCognitions) && data.extractedCognitions.length > 0) {
+            const cognitions: ExtractedCognition[] = data.extractedCognitions.map(
+              (c: ExtractedCognition) => ({ type: c.type, content: c.content })
+            );
+            setEditableCognitions(cognitions);
+            setCognitionModal({
+              taskId: task.id,
+              taskContent: task.content,
+              ideaId: task.sourceId || null,
+              cognitions,
+            });
+          } else {
+            // 未提取到认知，直接 toast
+            toast("任务已完成", "success");
+          }
           // 刷新统计
           loadStats();
         } else {
@@ -194,6 +206,49 @@ export default function BoardPage() {
     } catch {
       toast("网络错误", "error");
     }
+  };
+
+  // 确认入库：将编辑后的认知逐条写入 Cognition 表
+  const confirmSaveCognitions = async () => {
+    if (!cognitionModal) return;
+    // 过滤掉空内容
+    const toSave = editableCognitions.filter((c) => c.content.trim());
+    if (toSave.length === 0) {
+      toast("没有可入库的认知", "info");
+      setCognitionModal(null);
+      return;
+    }
+    setSavingCognitions(true);
+    try {
+      let savedCount = 0;
+      for (const c of toSave) {
+        const res = await fetch("/api/cognitions", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            type: c.type,
+            content: c.content,
+            source: "task",
+            ideaId: cognitionModal.ideaId,
+          }),
+        });
+        if (res.ok) savedCount++;
+      }
+      toast(`已入库 ${savedCount} 条认知`, "success");
+      setCognitionModal(null);
+      setEditableCognitions([]);
+    } catch {
+      toast("网络错误", "error");
+    } finally {
+      setSavingCognitions(false);
+    }
+  };
+
+  // 跳过：不入库
+  const skipCognitions = () => {
+    setCognitionModal(null);
+    setEditableCognitions([]);
+    toast("已跳过认知入库", "info");
   };
 
   const addTask = async (column: BoardColumn) => {
@@ -457,6 +512,109 @@ export default function BoardPage() {
           </div>
         )}
       </Card>
+
+      {/* 认知确认弹窗：任务完成时 AI 提取认知，用户确认后入库 */}
+      {cognitionModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm">
+          <Card className="w-full max-w-2xl">
+            <div className="mb-4 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Brain className="h-4 w-4 text-cognition" />
+                <h2 className="text-sm font-semibold">AI 提取了认知，确认入库？</h2>
+              </div>
+              <button
+                onClick={() => {
+                  setCognitionModal(null);
+                  setEditableCognitions([]);
+                }}
+                className="text-muted-foreground hover:text-foreground"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            {/* 任务内容摘要 */}
+            <div className="mb-3 rounded-lg border border-border bg-muted/30 p-2.5">
+              <div className="text-[10px] text-muted-foreground">完成任务</div>
+              <p className="mt-0.5 text-xs text-foreground line-clamp-2">
+                {cognitionModal.taskContent}
+              </p>
+            </div>
+
+            {/* 可编辑的认知列表 */}
+            <div className="max-h-[50vh] space-y-3 overflow-y-auto">
+              {editableCognitions.length === 0 ? (
+                <p className="text-xs text-muted-foreground">无认知数据</p>
+              ) : (
+                editableCognitions.map((c, i) => (
+                  <div key={i} className="rounded-lg border border-border p-2.5">
+                    <div className="mb-1.5 flex items-center gap-2">
+                      <span
+                        className={cn(
+                          "rounded-full px-2 py-0.5 text-[10px] font-medium",
+                          c.type === "method"
+                            ? "bg-cognition/10 text-cognition"
+                            : c.type === "experience"
+                            ? "bg-task/10 text-task"
+                            : "bg-campaign/10 text-campaign"
+                        )}
+                      >
+                        {c.type === "method"
+                          ? "方法论"
+                          : c.type === "experience"
+                          ? "经验"
+                          : "提示词"}
+                      </span>
+                      <button
+                        onClick={() =>
+                          setEditableCognitions((prev) => prev.filter((_, idx) => idx !== i))
+                        }
+                        className="ml-auto text-muted-foreground hover:text-graveyard"
+                        title="删除此条"
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    </div>
+                    <textarea
+                      value={c.content}
+                      onChange={(e) =>
+                        setEditableCognitions((prev) =>
+                          prev.map((item, idx) =>
+                            idx === i ? { ...item, content: e.target.value } : item
+                          )
+                        )
+                      }
+                      rows={3}
+                      className="w-full resize-none rounded-lg border border-border bg-background px-2.5 py-2 text-xs outline-none transition-colors focus:border-primary"
+                    />
+                  </div>
+                ))
+              )}
+            </div>
+
+            {/* 操作按钮 */}
+            <div className="mt-4 flex flex-wrap justify-end gap-2">
+              <Button variant="ghost" onClick={() => {
+                setCognitionModal(null);
+                setEditableCognitions([]);
+              }}>
+                查看任务
+              </Button>
+              <Button variant="outline" onClick={skipCognitions}>
+                跳过
+              </Button>
+              <Button onClick={confirmSaveCognitions} disabled={savingCognitions}>
+                {savingCognitions ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <Check className="h-3.5 w-3.5" />
+                )}
+                确认入库
+              </Button>
+            </div>
+          </Card>
+        </div>
+      )}
     </div>
   );
 }

@@ -12,6 +12,7 @@ const logger = getLogger("patrol-run");
 // 巡检结果项
 interface PatrolResultItem {
   itemId: string;
+  itemType: "idea" | "task" | "graveyard";
   content: string;
   matched: boolean;
   reason: string;
@@ -213,13 +214,26 @@ ${itemsText}
       if (jsonMatch) {
         const parsed = JSON.parse(jsonMatch[0]);
         if (Array.isArray(parsed)) {
-          results = parsed.map((item: Record<string, unknown>) => ({
-            itemId: String(item.itemId || ""),
-            content: String(item.content || ""),
-            matched: Boolean(item.matched),
-            reason: String(item.reason || ""),
-            suggestion: String(item.suggestion || ""),
-          }));
+          // 构建 itemId -> type 映射，用于补全 itemType 字段
+          const itemTypeMap = new Map<string, "idea" | "task" | "graveyard">();
+          for (const it of items) {
+            itemTypeMap.set(it.itemId, it.type as "idea" | "task" | "graveyard");
+          }
+          results = parsed.map((item: Record<string, unknown>) => {
+            const id = String(item.itemId || "");
+            return {
+              itemId: id,
+              // 优先用 AI 返回的 itemType，否则从收集的数据中查找
+              itemType:
+                (item.itemType as "idea" | "task" | "graveyard") ||
+                itemTypeMap.get(id) ||
+                "idea",
+              content: String(item.content || ""),
+              matched: Boolean(item.matched),
+              reason: String(item.reason || ""),
+              suggestion: String(item.suggestion || ""),
+            };
+          });
         }
       }
     } catch (e) {

@@ -60,9 +60,31 @@ export async function GET(req: NextRequest) {
   const meta = searchParams.get("meta") === "true"; // 仅获取筛选元数据
   const refresh = searchParams.get("refresh") === "true"; // 强制刷新（跳过数据库缓存）
   const fast = searchParams.get("fast") === "true"; // 快速模式：优先返回 DB 缓存，后台刷新
+  const dbOnly = searchParams.get("db_only") === "true"; // 纯数据库模式：移动端用，不调用 lark-cli
 
   const complete =
     completeRaw === "true" ? true : completeRaw === "false" ? false : null;
+
+  // ===== 纯数据库模式（移动端）：完全不依赖 lark-cli，只读数据库 =====
+  if (dbOnly) {
+    const me = getCurrentUser();
+    const myOpenId = me?.openId || "";
+    const dbAllTasks = await getTasksFromDb({ complete: null });
+    const filtered = applyClientFilters(dbAllTasks, {
+      complete, q, assignee, tasklist, myOpenId, view,
+    });
+    const assignees = extractAssignees(dbAllTasks);
+    const tasklists = extractTasklists(dbAllTasks);
+    const subtaskMap = buildSubtaskMap(dbAllTasks);
+    return NextResponse.json({
+      tasks: filtered,
+      assignees,
+      tasklists,
+      subtaskMap,
+      myOpenId,
+      source: "db-only",
+    });
+  }
 
   // meta 模式：返回筛选下拉选项（负责人清单 + 任务清单）+ 同步状态
   if (meta) {

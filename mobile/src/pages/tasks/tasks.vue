@@ -2,9 +2,7 @@
   <view class="page">
     <view class="header">
       <text class="header-title">飞书任务</text>
-      <view class="sync-btn" @click="sync">
-        <text class="sync-text">{{ syncing ? "同步中..." : "↻ 同步" }}</text>
-      </view>
+      <text class="header-hint">数据由 Web 端同步</text>
     </view>
 
     <!-- 分类标签 -->
@@ -119,11 +117,10 @@
 <script setup>
 import { ref, computed, onMounted } from "vue";
 import { onShow } from "@dcloudio/uni-app";
-import { getLarkTasks, refreshLarkTasks, toggleLarkTask, getLarkTask } from "@/api/lark-tasks.js";
+import { getLarkTasks, toggleLarkTask, getLarkTask } from "@/api/lark-tasks.js";
 
 const tasks = ref([]);
 const loading = ref(false);
-const syncing = ref(false);
 const currentTab = ref("active");
 
 const detailVisible = ref(false);
@@ -155,20 +152,6 @@ async function loadTasks() {
     uni.showToast({ title: e.message || "加载失败", icon: "none" });
   } finally {
     loading.value = false;
-  }
-}
-
-async function sync() {
-  if (syncing.value) return;
-  syncing.value = true;
-  try {
-    await refreshLarkTasks();
-    uni.showToast({ title: "同步完成", icon: "success" });
-    await loadTasks();
-  } catch (e) {
-    uni.showToast({ title: e.message || "同步失败", icon: "none" });
-  } finally {
-    syncing.value = false;
   }
 }
 
@@ -248,16 +231,6 @@ onShow(loadTasks);
   font-size: 48rpx;
   font-weight: 700;
   color: #1d1d1f;
-}
-.sync-btn {
-  background-color: rgba(245, 158, 11, 0.12);
-  border-radius: 32rpx;
-  padding: 12rpx 28rpx;
-}
-.sync-text {
-  color: #f59e0b;
-  font-size: 26rpx;
-  font-weight: 600;
 }
 
 .tabs {
