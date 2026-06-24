@@ -134,8 +134,8 @@ export async function GET(req: NextRequest) {
         const assignees = extractAssignees(dbAllTasks);
         const tasklists = extractTasklists(dbAllTasks);
         const subtaskMap = buildSubtaskMap(dbAllTasks);
-        // 后台触发 lark-cli 刷新（不阻塞响应）
-        refreshTasksInBackground();
+        // 后台触发 lark-cli 刷新（延迟执行，不阻塞当前响应）
+        setImmediate(() => refreshTasksInBackground());
         return NextResponse.json({
           tasks: filtered,
           assignees,
