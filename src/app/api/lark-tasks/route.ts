@@ -14,10 +14,38 @@ import {
   getTasksFromDb,
   getAssigneesFromDb,
   getTasklistsFromDb,
+  getCurrentUser,
+  applyClientFilters,
   type NormalizedTask,
   type LarkMember,
   type LarkTasklistRef,
 } from "@/lib/lark-sync";
+
+/** 构建子任务映射：parentGuid → 子任务数组（从全量任务中提取） */
+function buildSubtaskMap(allTasks: NormalizedTask[]): Record<string, NormalizedTask[]> {
+  const map: Record<string, NormalizedTask[]> = {};
+  for (const t of allTasks) {
+    if (t.parentTaskGuid) {
+      if (!map[t.parentTaskGuid]) map[t.parentTaskGuid] = [];
+      map[t.parentTaskGuid].push(t);
+    }
+  }
+  return map;
+}
+
+/** 后台刷新任务（不阻塞响应）：从 lark-cli 拉取并写入 DB */
+function refreshTasksInBackground() {
+  try {
+    const result = getAllTasks({ refresh: true });
+    if (result.ok && result.allTasks.length > 0) {
+      upsertTasksToDb(result.allTasks).catch((e) => {
+        console.error("[lark-tasks] 后台同步写入数据库失败:", e);
+      });
+    }
+  } catch (e) {
+    console.error("[lark-tasks] 后台刷新失败:", e);
+  }
+}
 
 // GET /api/lark-tasks?view=my|related|all&complete=true|false&q=关键词&assignee=xxx&tasklist=xxx&refresh=true
 export async function GET(req: NextRequest) {
@@ -29,6 +57,7 @@ export async function GET(req: NextRequest) {
   const tasklist = searchParams.get("tasklist") || null;
   const meta = searchParams.get("meta") === "true"; // 仅获取筛选元数据
   const refresh = searchParams.get("refresh") === "true"; // 强制刷新（跳过数据库缓存）
+  const fast = searchParams.get("fast") === "true"; // 快速模式：优先返回 DB 缓存，后台刷新
 
   const complete =
     completeRaw === "true" ? true : completeRaw === "false" ? false : null;
@@ -91,8 +120,36 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    // 始终优先从 lark-cli 拉取最新数据，确保与飞书完全同步
-    // DB 仅作为 lark-cli 失败时的降级缓存
+    // ===== 快速模式：优先返回 DB 缓存，后台触发 lark-cli 刷新 =====
+    if (fast && !refresh) {
+      const me = getCurrentUser();
+      const myOpenId = me?.openId || "";
+      // 从 DB 读取全量任务（不含视图过滤，用于构建 subtaskMap）
+      const dbAllTasks = await getTasksFromDb({ complete: null });
+      if (dbAllTasks.length > 0) {
+        // 按视图+筛选条件过滤
+        const filtered = applyClientFilters(dbAllTasks, {
+          complete, q, assignee, tasklist, myOpenId, view,
+        });
+        const assignees = extractAssignees(dbAllTasks);
+        const tasklists = extractTasklists(dbAllTasks);
+        const subtaskMap = buildSubtaskMap(dbAllTasks);
+        // 后台触发 lark-cli 刷新（不阻塞响应）
+        refreshTasksInBackground();
+        return NextResponse.json({
+          tasks: filtered,
+          assignees,
+          tasklists,
+          subtaskMap,
+          myOpenId,
+          source: "db-cache",
+          refreshing: true,
+        });
+      }
+      // DB 为空时继续走 lark-cli 慢路径（首次加载）
+    }
+
+    // ===== 慢路径：从 lark-cli 拉取最新数据 =====
     let result: { ok: boolean; tasks: NormalizedTask[]; allTasks: NormalizedTask[]; myOpenId: string; error?: string };
 
     if (view === "my") {
@@ -108,9 +165,11 @@ export async function GET(req: NextRequest) {
       // lark-cli 失败时回退到数据库缓存，避免前端报错
       const dbTasks = await getTasksFromDb({ complete, assignee, tasklist });
       if (dbTasks.length > 0) {
-        const assignees = extractAssignees(dbTasks);
-        const tasklists = extractTasklists(dbTasks);
-        return NextResponse.json({ tasks: dbTasks, assignees, tasklists, myOpenId: result.myOpenId, source: "db-fallback" });
+        const dbAll = await getTasksFromDb({ complete: null });
+        const assignees = extractAssignees(dbAll);
+        const tasklists = extractTasklists(dbAll);
+        const subtaskMap = buildSubtaskMap(dbAll);
+        return NextResponse.json({ tasks: dbTasks, assignees, tasklists, subtaskMap, myOpenId: result.myOpenId, source: "db-fallback" });
       }
       return NextResponse.json(
         { error: "lark-cli 不可用：" + result.error },
@@ -122,6 +181,8 @@ export async function GET(req: NextRequest) {
     // 从全量数据聚合assignees和tasklists（过滤条件不影响筛选下拉选项）
     const allAssignees = extractAssignees(result.allTasks);
     const allTasklists = extractTasklists(result.allTasks);
+    // 构建子任务映射（从全量数据，确保子任务不丢失）
+    const subtaskMap = buildSubtaskMap(result.allTasks);
 
     // 同步后写入数据库（upsert，后台执行不阻塞响应）
     if (result.allTasks.length > 0) {
@@ -130,15 +191,17 @@ export async function GET(req: NextRequest) {
       });
     }
 
-    return NextResponse.json({ tasks, assignees: allAssignees, tasklists: allTasklists, myOpenId: result.myOpenId, source: "lark" });
+    return NextResponse.json({ tasks, assignees: allAssignees, tasklists: allTasklists, subtaskMap, myOpenId: result.myOpenId, source: "lark" });
   } catch (e) {
     console.error("获取飞书任务失败:", e);
     // 异常时回退到数据库缓存
     const dbTasks = await getTasksFromDb({ complete, assignee, tasklist });
     if (dbTasks.length > 0) {
-      const assignees = extractAssignees(dbTasks);
-      const tasklists = extractTasklists(dbTasks);
-      return NextResponse.json({ tasks: dbTasks, assignees, tasklists, source: "db-fallback" });
+      const dbAll = await getTasksFromDb({ complete: null });
+      const assignees = extractAssignees(dbAll);
+      const tasklists = extractTasklists(dbAll);
+      const subtaskMap = buildSubtaskMap(dbAll);
+      return NextResponse.json({ tasks: dbTasks, assignees, tasklists, subtaskMap, source: "db-fallback" });
     }
     return NextResponse.json({ error: "服务器错误" }, { status: 500 });
   }

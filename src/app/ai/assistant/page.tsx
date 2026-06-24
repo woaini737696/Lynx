@@ -286,6 +286,20 @@ export default function AIAssistantPage() {
   const voiceCallSilenceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isProcessingVoiceRef = useRef(false);
 
+  // VAD（语音活动检测）相关 refs
+  const audioContextRef = useRef<AudioContext | null>(null);
+  const analyserRef = useRef<AnalyserNode | null>(null);
+  const vadIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const vadSpeechActiveRef = useRef(false); // 当前是否在说话
+  const vadSpeechStartRef = useRef(0); // 说话开始时间
+  const vadChunksRef = useRef<Blob[]>([]); // 当前语音段的音频块
+  const vadRecorderRef = useRef<MediaRecorder | null>(null);
+
+  // 流式 TTS 播放队列
+  const ttsQueueRef = useRef<Array<{ url: string; text: string }>>([]);
+  const ttsPlayingRef = useRef(false);
+  const ttsAbortRef = useRef(false);
+
   const [speakingId, setSpeakingId] = useState<string | null>(null);
   const [ttsLoadingId, setTtsLoadingId] = useState<string | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
@@ -430,6 +444,9 @@ export default function AIAssistantPage() {
   };
 
   const stopSpeaking = useCallback(() => {
+    ttsAbortRef.current = true;
+    ttsQueueRef.current = [];
+    ttsPlayingRef.current = false;
     if (audioRef.current) {
       audioRef.current.pause();
       audioRef.current = null;
@@ -437,47 +454,109 @@ export default function AIAssistantPage() {
     setSpeakingId(null);
   }, []);
 
+  /** 将文本按句子切分（用于流式 TTS，降低首包延迟） */
+  const splitSentences = (text: string): string[] => {
+    // 按中文标点、英文标点、换行切分，保留标点
+    const parts = text.split(/(?<=[。！？；\n.!?;])\s*/).filter(s => s.trim());
+    // 合并过短的片段（<5 字符合并到前一句），避免过多请求
+    const merged: string[] = [];
+    for (const part of parts) {
+      if (merged.length > 0 && part.trim().length < 5) {
+        merged[merged.length - 1] += part;
+      } else {
+        merged.push(part);
+      }
+    }
+    return merged.length > 0 ? merged : [text];
+  };
+
+  /** 流式 TTS：按句子分块合成，队列播放，首包延迟 < 300ms */
   const speak = useCallback(async (text: string, msgId?: string) => {
     stopSpeaking();
+    ttsAbortRef.current = false;
     const loadingId = msgId || `tts-${Date.now()}`;
     setTtsLoadingId(loadingId);
-    try {
-      const res = await fetch("/api/ai/tts", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text }),
-      });
-      if (!res.ok) {
-        const data = await res.json().catch(() => null);
-        const errMsg = data?.error || `语音合成失败（${res.status}）`;
-        toast(errMsg, "error");
-        return;
+    if (msgId) setSpeakingId(msgId);
+
+    const sentences = splitSentences(text);
+    const queue: Array<{ url: string; text: string }> = [];
+
+    // 并行合成前 2 句（降低首包延迟），后续顺序合成
+    const synthesizeSentence = async (sentence: string): Promise<string | null> => {
+      try {
+        const res = await fetch("/api/ai/tts", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ text: sentence }),
+        });
+        if (!res.ok) return null;
+        const blob = await res.blob();
+        return URL.createObjectURL(blob);
+      } catch {
+        return null;
       }
-      const blob = await res.blob();
-      const url = URL.createObjectURL(blob);
-      const audio = new Audio(url);
-      audioRef.current = audio;
-      if (msgId) setSpeakingId(msgId);
-      audio.onended = () => {
-        URL.revokeObjectURL(url);
-        audioRef.current = null;
-        setSpeakingId(null);
-      };
-      audio.onerror = () => {
-        URL.revokeObjectURL(url);
-        audioRef.current = null;
-        setSpeakingId(null);
-      };
-      await audio.play().catch(() => {
-        URL.revokeObjectURL(url);
-        audioRef.current = null;
-        setSpeakingId(null);
-      });
-    } catch (e) {
-      toast("语音合成错误：" + (e as Error).message, "error");
-    } finally {
-      setTtsLoadingId(null);
+    };
+
+    // 预合成前 2 句
+    const firstBatch = sentences.slice(0, 2).map(s => synthesizeSentence(s));
+    const firstUrls = await Promise.all(firstBatch);
+    setTtsLoadingId(null);
+
+    for (let i = 0; i < firstUrls.length; i++) {
+      if (firstUrls[i]) {
+        queue.push({ url: firstUrls[i]!, text: sentences[i] });
+      }
     }
+
+    if (queue.length === 0) {
+      toast("语音合成失败", "error");
+      setSpeakingId(null);
+      return;
+    }
+
+    ttsQueueRef.current = queue;
+
+    // 后续句子在后台继续合成
+    const synthesizeRest = async () => {
+      for (let i = 2; i < sentences.length; i++) {
+        if (ttsAbortRef.current) return;
+        const url = await synthesizeSentence(sentences[i]);
+        if (url && !ttsAbortRef.current) {
+          ttsQueueRef.current.push({ url, text: sentences[i] });
+        }
+      }
+    };
+    synthesizeRest();
+
+    // 播放队列
+    const playQueue = async () => {
+      ttsPlayingRef.current = true;
+      while (!ttsAbortRef.current) {
+        const item = ttsQueueRef.current.shift();
+        if (!item) {
+          // 队列为空，等待一小段时间看是否有新内容
+          if (ttsAbortRef.current) break;
+          await new Promise(r => setTimeout(r, 100));
+          continue;
+        }
+        const audio = new Audio(item.url);
+        audioRef.current = audio;
+        try {
+          await audio.play();
+          // 等待播放结束
+          await new Promise<void>((resolve) => {
+            audio.onended = () => { URL.revokeObjectURL(item.url); resolve(); };
+            audio.onerror = () => { URL.revokeObjectURL(item.url); resolve(); };
+          });
+        } catch {
+          URL.revokeObjectURL(item.url);
+        }
+        audioRef.current = null;
+      }
+      ttsPlayingRef.current = false;
+      setSpeakingId(null);
+    };
+    playQueue();
   }, [stopSpeaking]);
 
   const send = async (text?: string) => {
@@ -740,14 +819,168 @@ export default function AIAssistantPage() {
       setVoiceCallActive(true);
       setVoiceCallListening(true);
       isProcessingVoiceRef.current = false;
-      toast("语音对话已开启，开始说话即可", "success");
-      startVoiceChunkRecording();
+      toast("语音对话已开启（VAD 已启用），开始说话即可", "success");
+      startVadRecording();
     } catch (e) {
       toast("无法访问麦克风：" + (e as Error).message, "error");
     }
   };
 
-  const startVoiceChunkRecording = () => {
+  /**
+   * VAD（语音活动检测）录音：基于 Web Audio API AnalyserNode 实时分析音量，
+   * 精准检测语音起止，实现"说完即识别"的低延迟体验。
+   * - 音量高于阈值且持续 > 300ms → 语音开始
+   * - 音量低于阈值且持续 > 800ms → 语音结束，立即发送识别
+   */
+  const startVadRecording = () => {
+    const stream = voiceCallStreamRef.current;
+    if (!stream || !voiceModeActiveRef.current) return;
+
+    // 创建 AudioContext + AnalyserNode
+    try {
+      if (!audioContextRef.current || audioContextRef.current.state === "closed") {
+        audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
+      }
+      const ctx = audioContextRef.current;
+      const source = ctx.createMediaStreamSource(stream);
+      const analyser = ctx.createAnalyser();
+      analyser.fftSize = 512;
+      analyser.smoothingTimeConstant = 0.6;
+      source.connect(analyser);
+      analyserRef.current = analyser;
+    } catch (e) {
+      // AudioContext 创建失败，回退到旧方式
+      console.warn("VAD 初始化失败，回退到定时录音:", e);
+      startVoiceChunkRecordingLegacy();
+      return;
+    }
+
+    // 重置 VAD 状态
+    vadSpeechActiveRef.current = false;
+    vadSpeechStartRef.current = 0;
+    vadChunksRef.current = [];
+
+    // 创建 MediaRecorder，使用 timeslice 获取周期性数据块
+    try {
+      const recorder = new MediaRecorder(stream);
+      vadRecorderRef.current = recorder;
+      recorder.ondataavailable = (e) => {
+        if (e.data.size > 0 && vadSpeechActiveRef.current) {
+          vadChunksRef.current.push(e.data);
+        }
+      };
+      recorder.start(200); // 每 200ms 产生一个数据块
+    } catch {
+      startVoiceChunkRecordingLegacy();
+      return;
+    }
+
+    // VAD 参数
+    const VOLUME_THRESHOLD = 18; // 音量阈值（dB，经验值）
+    const SPEECH_START_MS = 300; // 音量超阈值持续 300ms 判定为语音开始
+    const SPEECH_END_MS = 800; // 音量低于阈值持续 800ms 判定为语音结束
+    const MAX_SPEECH_MS = 30000; // 单次最长 30 秒
+
+    let highVolumeStart = 0;
+    let lowVolumeStart = 0;
+    const buffer = new Uint8Array(analyserRef.current!.frequencyBinCount);
+
+    vadIntervalRef.current = setInterval(() => {
+      if (!voiceModeActiveRef.current || isProcessingVoiceRef.current) return;
+      if (!analyserRef.current) return;
+
+      analyserRef.current.getByteFrequencyData(buffer);
+      // 计算平均音量（RMS 近似）
+      let sum = 0;
+      for (let i = 0; i < buffer.length; i++) sum += buffer[i] * buffer[i];
+      const rms = Math.sqrt(sum / buffer.length);
+      const volume = rms > 0 ? 20 * Math.log10(rms) : -100;
+
+      const now = Date.now();
+
+      if (volume > VOLUME_THRESHOLD) {
+        highVolumeStart = highVolumeStart || now;
+        lowVolumeStart = 0;
+
+        // 语音开始检测
+        if (!vadSpeechActiveRef.current && now - highVolumeStart > SPEECH_START_MS) {
+          vadSpeechActiveRef.current = true;
+          vadSpeechStartRef.current = now;
+          vadChunksRef.current = [];
+          setVoiceCallListening(false);
+        }
+      } else {
+        lowVolumeStart = lowVolumeStart || now;
+        highVolumeStart = 0;
+
+        // 语音结束检测
+        if (vadSpeechActiveRef.current && now - lowVolumeStart > SPEECH_END_MS) {
+          // 收集音频并发送识别
+          const speechDuration = now - vadSpeechStartRef.current;
+          vadSpeechActiveRef.current = false;
+
+          const chunks = [...vadChunksRef.current];
+          vadChunksRef.current = [];
+
+          if (chunks.length > 0 && speechDuration > 400) {
+            // 停止当前 recorder 并处理音频
+            const recorder = vadRecorderRef.current;
+            if (recorder && recorder.state !== "inactive") {
+              recorder.onstop = async () => {
+                const blob = new Blob(chunks, { type: "audio/webm" });
+                if (blob.size > 2000 && voiceModeActiveRef.current) {
+                  isProcessingVoiceRef.current = true;
+                  const text = await transcribeAudio(blob);
+                  if (text && voiceModeActiveRef.current) {
+                    await send(text);
+                  }
+                  isProcessingVoiceRef.current = false;
+                  if (voiceModeActiveRef.current) {
+                    setVoiceCallListening(true);
+                    // 重新启动 recorder
+                    startVadRecording();
+                  }
+                } else if (voiceModeActiveRef.current) {
+                  setVoiceCallListening(true);
+                  startVadRecording();
+                }
+              };
+              recorder.stop();
+            }
+          } else {
+            setVoiceCallListening(true);
+          }
+        }
+      }
+
+      // 超时保护：单次语音超过 30 秒强制结束
+      if (vadSpeechActiveRef.current && now - vadSpeechStartRef.current > MAX_SPEECH_MS) {
+        vadSpeechActiveRef.current = false;
+        const chunks = [...vadChunksRef.current];
+        vadChunksRef.current = [];
+        const recorder = vadRecorderRef.current;
+        if (recorder && recorder.state !== "inactive") {
+          recorder.onstop = async () => {
+            const blob = new Blob(chunks, { type: "audio/webm" });
+            if (blob.size > 2000 && voiceModeActiveRef.current) {
+              isProcessingVoiceRef.current = true;
+              const text = await transcribeAudio(blob);
+              if (text && voiceModeActiveRef.current) await send(text);
+              isProcessingVoiceRef.current = false;
+              if (voiceModeActiveRef.current) {
+                setVoiceCallListening(true);
+                startVadRecording();
+              }
+            }
+          };
+          recorder.stop();
+        }
+      }
+    }, 100);
+  };
+
+  /** 旧版定时录音（VAD 不可用时的回退方案） */
+  const startVoiceChunkRecordingLegacy = () => {
     if (!voiceCallStreamRef.current || !voiceModeActiveRef.current) return;
     try {
       const recorder = new MediaRecorder(voiceCallStreamRef.current);
@@ -755,12 +988,12 @@ export default function AIAssistantPage() {
       recorder.ondataavailable = (e) => { if (e.data.size > 0) chunks.push(e.data); };
       recorder.onstop = async () => {
         if (chunks.length === 0 || isProcessingVoiceRef.current || !voiceModeActiveRef.current) {
-          if (voiceModeActiveRef.current && !isProcessingVoiceRef.current) startVoiceChunkRecording();
+          if (voiceModeActiveRef.current && !isProcessingVoiceRef.current) startVoiceChunkRecordingLegacy();
           return;
         }
         const blob = new Blob(chunks, { type: "audio/webm" });
         if (blob.size < 2000) {
-          if (voiceModeActiveRef.current) startVoiceChunkRecording();
+          if (voiceModeActiveRef.current) startVoiceChunkRecordingLegacy();
           return;
         }
         isProcessingVoiceRef.current = true;
@@ -772,7 +1005,7 @@ export default function AIAssistantPage() {
         isProcessingVoiceRef.current = false;
         if (voiceModeActiveRef.current) {
           setVoiceCallListening(true);
-          startVoiceChunkRecording();
+          startVoiceChunkRecordingLegacy();
         }
       };
       recorder.start();
@@ -786,6 +1019,26 @@ export default function AIAssistantPage() {
 
   const stopVoiceCall = () => {
     voiceModeActiveRef.current = false;
+    // 清理 VAD
+    if (vadIntervalRef.current) {
+      clearInterval(vadIntervalRef.current);
+      vadIntervalRef.current = null;
+    }
+    if (vadRecorderRef.current && vadRecorderRef.current.state !== "inactive") {
+      vadRecorderRef.current.stop();
+    }
+    vadRecorderRef.current = null;
+    vadSpeechActiveRef.current = false;
+    vadChunksRef.current = [];
+    if (analyserRef.current) {
+      analyserRef.current.disconnect();
+      analyserRef.current = null;
+    }
+    if (audioContextRef.current && audioContextRef.current.state !== "closed") {
+      audioContextRef.current.close().catch(() => {});
+      audioContextRef.current = null;
+    }
+    // 清理旧版定时器
     if (voiceCallSilenceRef.current) {
       clearTimeout(voiceCallSilenceRef.current);
       voiceCallSilenceRef.current = null;

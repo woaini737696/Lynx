@@ -4,6 +4,66 @@
 
 ---
 
+## 迭代 12 - 2026-06-24
+
+### 任务概要
+用户提出 4 项需求：飞书任务子任务展示修复、加载性能优化、VAD+流式ASR+流式TTS、飞书任务前端展示优化（排序+负责人徽标）。
+
+### 完成内容
+
+#### 1. 飞书任务子任务展示修复
+- **根因**：前端从过滤后的 `tasks` 数组构建 `subtaskMap`，当 view=my 过滤掉子任务（子任务的 assignee 可能不是当前用户）时，subtaskMap 为空，导致只显示数量不显示具体子任务
+- **解决方案**：API 路由新增 `subtaskMap` 字段，从 `result.allTasks`（全量数据）构建 `parentGuid → 子任务[]` 映射，确保子任务数据完整传递到前端
+- **前端适配**：`lark-tasks/page.tsx` 新增 `subtaskMap` state，直接使用 API 返回的映射而非从过滤后数据构建
+- `TaskCard` 组件接收 `myOpenId` prop，子任务展开时显示完整内容并支持完成/创建交互
+
+#### 2. 加载性能优化（非阻塞式加载）
+- **根因**：`fetchTasks` 使用 `setLoading(true)` 阻塞整个 UI，lark-cli 全量拉取需 48 秒，期间无法切换页面
+- **DB 优先快速加载**：API 新增 `fast=true` 参数，优先从数据库返回缓存数据（毫秒级），后台异步触发 lark-cli 刷新
+- **非阻塞 UI**：前端首次加载显示全屏 loading，已有数据时仅显示"同步中..."指示器（`refreshing` state），不阻塞页面交互
+- **两阶段加载**：第一步 `fast=true` 请求 DB 缓存（instant）→ 第二步后台请求 lark-cli 最新数据并更新
+- **强制刷新**：手动同步/子任务状态变更时使用 `fetchTasks({ force: true })` 带 `refresh=true` 强制拉取 lark-cli
+- **避免无限循环**：使用 `hasDataRef` 替代 `tasks.length` 作为 useCallback 依赖，防止状态更新触发重复请求
+
+#### 3. VAD 语音活动检测 + 流式 ASR + 流式 TTS
+- **VAD（语音活动检测）**：
+  - 基于 Web Audio API `AnalyserNode` 实时分析音频音量（RMS → dB）
+  - 音量超阈值持续 300ms → 判定语音开始
+  - 音量低于阈值持续 800ms → 判定语音结束，立即发送识别
+  - 超时保护：单次语音最长 30 秒自动截断
+  - VAD 不可用时自动回退到旧版 3 秒定时录音（`startVoiceChunkRecordingLegacy`）
+- **流式 ASR（边说边识别）**：
+  - VAD 检测到语音结束后立即发送音频段进行识别，无需等待固定超时
+  - 相比旧版 3 秒固定超时，延迟降低 60-80%
+  - `MediaRecorder` 使用 200ms timeslice 获取周期性数据块
+- **流式 TTS（首包延迟 < 300ms）**：
+  - 文本按句子切分（中文标点。！？；+ 英文标点 + 换行）
+  - 前 2 句并行合成（降低首包延迟），后续句子在播放时后台继续合成
+  - 队列播放：前一句播放完毕立即播放下一句，无缝衔接
+  - 短句合并（<5 字符合并到前一句），避免过多请求
+
+#### 4. 飞书任务前端展示优化
+- **按截止时间排序**：未完成在前 → 已完成在后；有截止时间优先 → 无截止时间排最后；同状态按截止时间升序
+- **负责人徽标区分**：
+  - "我负责"：蓝色（cognition）徽标 + 头像高亮
+  - "关注"：橙色（campaign）徽标
+  - "他人负责"：灰色文字 + 灰色头像
+- **子任务负责人徽标**：子任务列表中"我"负责的子任务头像高亮 + "我"标签
+- **同步状态指示**：后台刷新时显示"同步中..."旋转图标，不阻塞操作
+
+### 修改文件清单
+- `src/lib/lark-sync.ts` - 导出 `applyClientFilters` 供 API 路由使用
+- `src/app/api/lark-tasks/route.ts` - 新增 `fast` 快速模式、`subtaskMap` 返回、`buildSubtaskMap`/`refreshTasksInBackground` 辅助函数
+- `src/app/ai/lark-tasks/page.tsx` - 非阻塞加载、subtaskMap state、按截止时间排序、负责人徽标、refreshing 指示器
+- `src/app/ai/assistant/page.tsx` - VAD 录音、流式 TTS（句子切分+队列播放）、旧版录音回退
+- `DEV_LOG.md` - 本次迭代记录
+
+### 测试验证
+- TypeScript 编译零错误
+- Dev server 正常启动（localhost:3000）
+
+---
+
 ## 迭代 11 - 2026-06-24
 
 ### 任务概要

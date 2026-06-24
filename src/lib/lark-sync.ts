@@ -719,7 +719,7 @@ function fetchAllTasksFromSource(forceRefresh = false): { ok: boolean; tasks: No
  * 客户端过滤任务（关键词搜索、完成状态、负责人、清单）。
  * 因为 lark-cli 的 --query 只支持 +get-my-tasks，统一用客户端过滤。
  */
-function applyClientFilters(
+export function applyClientFilters(
   tasks: NormalizedTask[],
   opts: { complete?: boolean | null; q?: string | null; assignee?: string | null; tasklist?: string | null; myOpenId?: string; view?: "my" | "related" | "all" }
 ): NormalizedTask[] {

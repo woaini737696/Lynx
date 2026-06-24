@@ -473,6 +473,9 @@ function formatMonthTitle(year: number, month: number): string {
 export default function LarkTasksPage() {
   const [tasks, setTasks] = useState<LarkTask[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false); // 后台刷新中（不阻塞 UI）
+  const [myOpenId, setMyOpenId] = useState<string>("");
+  const [subtaskMap, setSubtaskMap] = useState<Record<string, LarkTask[]>>({});
   const [view, setView] = useState<ViewTab>("my");
   const [completeFilter, setCompleteFilter] = useState<CompleteFilter>("incomplete");
   const [query, setQuery] = useState("");
@@ -536,31 +539,73 @@ export default function LarkTasksPage() {
   const setAction = (key: string, val: boolean) =>
     setActionLoading((s) => ({ ...s, [key]: val }));
 
-  // 拉取任务列表
-  const fetchTasks = useCallback(async () => {
-    setLoading(true);
-    try {
-      const params = new URLSearchParams();
-      params.set("view", view);
-      if (completeFilter === "incomplete") params.set("complete", "false");
-      else if (completeFilter === "completed") params.set("complete", "true");
-      if (query) params.set("q", query);
-      if (selectedAssignee) params.set("assignee", selectedAssignee);
-      if (selectedTasklist) params.set("tasklist", selectedTasklist);
+  // 拉取任务列表（非阻塞式：先返回 DB 缓存，后台刷新 lark-cli）
+  const hasDataRef = useRef(false);
+  const fetchTasks = useCallback(async (opts?: { force?: boolean }) => {
+    const force = opts?.force === true;
+    const params = new URLSearchParams();
+    params.set("view", view);
+    if (completeFilter === "incomplete") params.set("complete", "false");
+    else if (completeFilter === "completed") params.set("complete", "true");
+    if (query) params.set("q", query);
+    if (selectedAssignee) params.set("assignee", selectedAssignee);
+    if (selectedTasklist) params.set("tasklist", selectedTasklist);
 
-      const res = await fetch(`/api/lark-tasks?${params.toString()}`);
-      const data = await res.json();
-      if (!res.ok) {
-        toast(data.error || "获取任务失败", "error");
-        setTasks([]);
-      } else {
-        setTasks(data.tasks || []);
+    // 首次加载（无数据）显示全屏 loading；已有数据时仅显示后台刷新指示
+    const hasData = hasDataRef.current;
+    if (!hasData) setLoading(true);
+    else setRefreshing(true);
+
+    try {
+      // 第一步：快速请求 DB 缓存（instant）
+      const fastParams = new URLSearchParams(params);
+      fastParams.set("fast", "true");
+      const fastRes = await fetch(`/api/lark-tasks?${fastParams.toString()}`);
+      const fastData = await fastRes.json();
+      if (fastRes.ok && fastData.tasks) {
+        setTasks(fastData.tasks);
+        hasDataRef.current = fastData.tasks.length > 0;
+        if (fastData.subtaskMap) setSubtaskMap(fastData.subtaskMap);
+        if (fastData.myOpenId) setMyOpenId(fastData.myOpenId);
+        if (fastData.assignees) setAssignees(fastData.assignees);
+        if (fastData.tasklists) setTasklists(fastData.tasklists);
+      }
+      setLoading(false);
+
+      // 第二步：如果 DB 缓存返回了数据且非强制刷新，后台拉取 lark-cli 最新数据
+      if (fastData.source === "db-cache" && !force) {
+        setRefreshing(true);
+        const slowRes = await fetch(`/api/lark-tasks?${params.toString()}`);
+        const slowData = await slowRes.json();
+        if (slowRes.ok && slowData.tasks) {
+          setTasks(slowData.tasks);
+          hasDataRef.current = slowData.tasks.length > 0;
+          if (slowData.subtaskMap) setSubtaskMap(slowData.subtaskMap);
+          if (slowData.myOpenId) setMyOpenId(slowData.myOpenId);
+          if (slowData.assignees) setAssignees(slowData.assignees);
+          if (slowData.tasklists) setTasklists(slowData.tasklists);
+        }
+      } else if (force) {
+        // 强制刷新：带 refresh=true
+        const refreshParams = new URLSearchParams(params);
+        refreshParams.set("refresh", "true");
+        const refreshRes = await fetch(`/api/lark-tasks?${refreshParams.toString()}`);
+        const refreshData = await refreshRes.json();
+        if (refreshRes.ok && refreshData.tasks) {
+          setTasks(refreshData.tasks);
+          hasDataRef.current = refreshData.tasks.length > 0;
+          if (refreshData.subtaskMap) setSubtaskMap(refreshData.subtaskMap);
+          if (refreshData.myOpenId) setMyOpenId(refreshData.myOpenId);
+          if (refreshData.assignees) setAssignees(refreshData.assignees);
+          if (refreshData.tasklists) setTasklists(refreshData.tasklists);
+        }
       }
     } catch {
       toast("网络错误，请检查服务是否正常", "error");
-      setTasks([]);
+      if (!hasData) setTasks([]);
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
   }, [view, completeFilter, query, selectedAssignee, selectedTasklist]);
 
@@ -713,8 +758,8 @@ export default function LarkTasksPage() {
         if (!silent) {
           toast(data.success ? "同步完成" : "同步完成（有错误）", data.success ? "success" : "info");
         }
-        // 同步后刷新列表
-        fetchTasks();
+        // 同步后刷新列表（强制刷新）
+        fetchTasks({ force: true });
         fetchMeta();
       } else if (!silent) {
         toast(data.error || "同步失败", "error");
@@ -1133,37 +1178,46 @@ export default function LarkTasksPage() {
         />
       ) : (
         <>
-          {/* 构建父子任务结构：顶层任务（无 parentTaskGuid）+ 子任务映射 */}
+          {/* 使用 API 返回的 subtaskMap（从全量数据构建，子任务不丢失） */}
           {(() => {
-            const subtaskMap = new Map<string, LarkTask[]>();
-            for (const t of tasks) {
-              if (t.parentTaskGuid) {
-                const list = subtaskMap.get(t.parentTaskGuid) || [];
-                list.push(t);
-                subtaskMap.set(t.parentTaskGuid, list);
-              }
-            }
             const rootTasks = tasks.filter(t => !t.parentTaskGuid);
+            // 按截止时间排序：未完成在前，已逾期优先，无截止时间排最后
+            const sortedRootTasks = [...rootTasks].sort((a, b) => {
+              // 未完成优先
+              if (a.completed !== b.completed) return a.completed ? 1 : -1;
+              // 有截止时间的优先
+              if (a.due && !b.due) return -1;
+              if (!a.due && b.due) return 1;
+              if (a.due && b.due) {
+                return new Date(a.due).getTime() - new Date(b.due).getTime();
+              }
+              return 0;
+            });
             const rootIncompleteCount = rootTasks.filter(t => !t.completed).length;
+            const totalSubtasks = Object.values(subtaskMap).reduce((sum, arr) => sum + (arr?.length || 0), 0);
             return (
               <>
-                <div className="mb-3 text-xs text-muted-foreground">
-                  共 {rootTasks.length} 个主任务
+                <div className="mb-3 flex items-center gap-2 text-xs text-muted-foreground">
+                  <span>共 {rootTasks.length} 个主任务</span>
                   {rootIncompleteCount > 0 && completeFilter !== "completed" && (
-                    <span className="ml-1">· {rootIncompleteCount} 个未完成</span>
+                    <span>· {rootIncompleteCount} 个未完成</span>
                   )}
-                  {subtaskMap.size > 0 && (
-                    <span className="ml-1">
-                      · {tasks.length - rootTasks.length} 个子任务
+                  {totalSubtasks > 0 && (
+                    <span>· {totalSubtasks} 个子任务</span>
+                  )}
+                  {refreshing && (
+                    <span className="flex items-center gap-1 text-cognition">
+                      <Loader2 className="h-3 w-3 animate-spin" />
+                      同步中...
                     </span>
                   )}
                 </div>
                 <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
-                  {rootTasks.map((task) => (
+                  {sortedRootTasks.map((task) => (
                     <TaskCard
                       key={task.guid}
                       task={task}
-                      subtasks={subtaskMap.get(task.guid) || []}
+                      subtasks={subtaskMap[task.guid] || []}
                       expanded={expandedTasks.has(task.guid)}
                       onToggleExpand={() => toggleExpand(task.guid)}
                       onComplete={handleComplete}
@@ -1171,7 +1225,8 @@ export default function LarkTasksPage() {
                       onImport={handleImport}
                       onOpenDetail={() => setDetailTask(task)}
                       actionLoading={actionLoading}
-                      onSubtaskStateChange={fetchTasks}
+                      onSubtaskStateChange={() => fetchTasks({ force: true })}
+                      myOpenId={myOpenId}
                     />
                   ))}
                 </div>
@@ -1269,6 +1324,7 @@ function TaskCard({
   onOpenDetail,
   actionLoading,
   onSubtaskStateChange,
+  myOpenId,
 }: {
   task: LarkTask;
   subtasks?: LarkTask[];
@@ -1280,6 +1336,7 @@ function TaskCard({
   onOpenDetail: () => void;
   actionLoading: Record<string, boolean>;
   onSubtaskStateChange?: () => void;
+  myOpenId?: string;
 }) {
   const completeLoading = actionLoading[`complete-${task.guid}`];
   const reopenLoading = actionLoading[`reopen-${task.guid}`];
@@ -1287,6 +1344,11 @@ function TaskCard({
   const overdue = isOverdue(task.due, task.completed);
   const totalSubtaskCount = task.subtaskCount ?? subtasks.length;
   const completedSubtaskCount = subtasks.filter(s => s.completed).length;
+
+  // 判断负责人与当前用户的关系
+  const isMyTask = myOpenId && task.assignees.some(a => (a.open_id || a.id) === myOpenId);
+  const isFollowing = myOpenId && task.followers?.some(a => (a.open_id || a.id) === myOpenId) && !isMyTask;
+  const isOthersTask = !isMyTask && !isFollowing && task.assignees.length > 0;
 
   return (
     <Card hover className="flex flex-col">
@@ -1349,25 +1411,52 @@ function TaskCard({
         {task.assignees.length > 0 && (
           <span className="flex items-center gap-1">
             <span className="flex -space-x-1">
-              {task.assignees.slice(0, 3).map((a, i) => (
-                <MemberAvatar
-                  key={i}
-                  member={a}
-                  size="xs"
-                  className="ring-1 ring-background"
-                />
-              ))}
+              {task.assignees.slice(0, 3).map((a, i) => {
+                const isMe = myOpenId && (a.open_id || a.id) === myOpenId;
+                return (
+                  <MemberAvatar
+                    key={i}
+                    member={a}
+                    size="xs"
+                    className={cn(
+                      "ring-1 ring-background",
+                      isMe
+                        ? "bg-cognition/25 ring-cognition/40"
+                        : isOthersTask
+                        ? "bg-muted/40"
+                        : ""
+                    )}
+                  />
+                );
+              })}
               {task.assignees.length > 3 && (
                 <span className="flex h-4 w-4 items-center justify-center rounded-full bg-muted text-[8px] font-medium ring-1 ring-background">
                   +{task.assignees.length - 3}
                 </span>
               )}
             </span>
-            <span className="text-[10px]">
-              {task.assignees.length > 1
-                ? `${task.assignees.length} 人负责`
-                : memberName(task.assignees[0])}
-            </span>
+            {/* 负责人关系徽标 */}
+            {isMyTask ? (
+              <span className="rounded-full bg-cognition/15 px-1.5 py-0.5 text-[9px] font-medium text-cognition">
+                我负责
+              </span>
+            ) : isFollowing ? (
+              <span className="rounded-full bg-campaign/15 px-1.5 py-0.5 text-[9px] font-medium text-campaign">
+                关注
+              </span>
+            ) : isOthersTask ? (
+              <span className="text-[10px] text-muted-foreground">
+                {task.assignees.length > 1
+                  ? `${task.assignees.length} 人负责`
+                  : memberName(task.assignees[0])}
+              </span>
+            ) : (
+              <span className="text-[10px]">
+                {task.assignees.length > 1
+                  ? `${task.assignees.length} 人负责`
+                  : memberName(task.assignees[0])}
+              </span>
+            )}
           </span>
         )}
         {task.tasklist?.name && (
@@ -1460,6 +1549,7 @@ function TaskCard({
           taskId={task.guid}
           initialSubtasks={subtasks}
           onStateChange={onSubtaskStateChange}
+          myOpenId={myOpenId}
         />
       )}
     </Card>
@@ -1472,10 +1562,12 @@ function SubtaskInline({
   taskId,
   initialSubtasks = [],
   onStateChange,
+  myOpenId,
 }: {
   taskId: string;
   initialSubtasks?: LarkTask[];
   onStateChange?: () => void;
+  myOpenId?: string;
 }) {
   const [subtasks, setSubtasks] = useState<LarkTask[]>(initialSubtasks);
   const [loading, setLoading] = useState(initialSubtasks.length === 0);
@@ -1631,10 +1723,28 @@ function SubtaskInline({
                 {st.summary}
               </span>
               {st.assignees && st.assignees.length > 0 && (
-                <span className="flex -space-x-1">
-                  {st.assignees.slice(0, 2).map((a, i) => (
-                    <MemberAvatar key={i} member={a} size="xs" className="ring-1 ring-background" />
-                  ))}
+                <span className="flex items-center gap-1">
+                  <span className="flex -space-x-1">
+                    {st.assignees.slice(0, 2).map((a, i) => {
+                      const isMe = myOpenId && (a.open_id || a.id) === myOpenId;
+                      return (
+                        <MemberAvatar
+                          key={i}
+                          member={a}
+                          size="xs"
+                          className={cn(
+                            "ring-1 ring-background",
+                            isMe && "bg-cognition/25 ring-cognition/40"
+                          )}
+                        />
+                      );
+                    })}
+                  </span>
+                  {myOpenId && st.assignees.some(a => (a.open_id || a.id) === myOpenId) && (
+                    <span className="rounded-full bg-cognition/15 px-1 py-0 text-[8px] font-medium text-cognition">
+                      我
+                    </span>
+                  )}
                 </span>
               )}
               {st.due && (
