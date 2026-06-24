@@ -1,11 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
-import { runSync, readSyncState } from "@/lib/lark-sync";
+import { runSyncAsync, readSyncState } from "@/lib/lark-sync";
 
-// POST /api/lark-tasks/sync - 触发一次飞书任务同步
-// 本地操作已实时推送到飞书，此接口用于主动拉取飞书侧变更并刷新同步状态。
+// POST /api/lark-tasks/sync - 触发一次飞书任务同步（异步，不阻塞事件循环）
 export async function POST(_req: NextRequest) {
   try {
-    const result = runSync();
+    const result = await runSyncAsync();
     return NextResponse.json({
       success: result.ok,
       state: result.state,

@@ -17,7 +17,7 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const result = handleWebhookEvent(body);
+    const result = await handleWebhookEvent(body);
 
     // URL 验证：原样返回 challenge
     if (result.challenge !== undefined) {

@@ -1,0 +1,54 @@
+"use client";
+
+import { useEffect } from "react";
+import { AlertCircle, RefreshCw, Home } from "lucide-react";
+
+/**
+ * 全局 Error Boundary（App Router 根级）。
+ * 捕获子树渲染错误，提供重试和返回首页操作。
+ */
+export default function GlobalError({
+  error,
+  reset,
+}: {
+  error: Error & { digest?: string };
+  reset: () => void;
+}) {
+  useEffect(() => {
+    // 上报到控制台（生产环境可替换为 Sentry/日志服务）
+    console.error("[GlobalError]", error);
+  }, [error]);
+
+  return (
+    <div className="flex min-h-[60vh] flex-col items-center justify-center p-8 text-center">
+      <div className="mb-6 flex h-20 w-20 items-center justify-center rounded-2xl bg-graveyard/10">
+        <AlertCircle className="h-10 w-10 text-graveyard" />
+      </div>
+      <h2 className="mb-2 text-2xl font-semibold text-foreground">
+        页面出错了
+      </h2>
+      <p className="mb-1 max-w-md text-sm text-muted-foreground">
+        {error.message || "发生未知错误，请重试或返回首页。"}
+      </p>
+      {error.digest && (
+        <p className="mb-6 font-mono text-[11px] text-muted-foreground/60">
+          错误编号：{error.digest}
+        </p>
+      )}
+      <div className="flex items-center gap-3">
+        <button
+          onClick={reset}
+          className="inline-flex items-center gap-2 rounded-xl bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
+        >
+          <RefreshCw className="h-4 w-4" /> 重试
+        </button>
+        <a
+          href="/"
+          className="inline-flex items-center gap-2 rounded-xl border border-border bg-card px-4 py-2 text-sm font-medium text-foreground transition-colors hover:bg-muted"
+        >
+          <Home className="h-4 w-4" /> 返回首页
+        </a>
+      </div>
+    </div>
+  );
+}

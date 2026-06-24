@@ -691,51 +691,56 @@ export default function LarkTasksPage() {
     return () => clearInterval(timer);
   }, []);
 
-  // Webhook 实时刷新：每 30 秒轮询 /api/lark-webhook/events
-  // 发现新事件后自动刷新任务列表
+  // Webhook 实时刷新：使用 SSE（Server-Sent Events）替代 30 秒轮询
+  // 收到新事件后秒级刷新任务列表
   const lastEventTimestampRef = useRef<string>("");
-  const isFirstPollRef = useRef<boolean>(true);
   useEffect(() => {
+    if (typeof window === "undefined" || !("EventSource" in window)) return;
     let cancelled = false;
-    const poll = async () => {
-      try {
-        const params = new URLSearchParams();
-        if (lastEventTimestampRef.current) {
-          params.set("since", lastEventTimestampRef.current);
-        }
-        const res = await fetch(`/api/lark-webhook/events?${params.toString()}`);
-        if (!res.ok) return;
-        const data = await res.json();
-        const events: Array<{ timestamp: string; eventType: string; summary?: string }> = data.events || [];
-        if (events.length === 0) return;
-        // 更新最新时间戳
-        const latest = events[events.length - 1]?.timestamp;
-        if (latest) lastEventTimestampRef.current = latest;
-        // 首次轮询只记录时间戳，不触发刷新（避免页面加载时重复拉取）
-        if (isFirstPollRef.current) {
-          isFirstPollRef.current = false;
-          return;
-        }
-        if (!cancelled) {
-          fetchTasks();
-          fetchWebhookStatus();
-          // 显示实时事件通知
-          const lastEvent = events[events.length - 1];
-          if (lastEvent?.summary) {
-            const action = lastEvent.eventType?.split(".").pop() || "更新";
-            toast(`飞书实时同步：${action} - ${lastEvent.summary}`, "info");
-          }
-        }
-      } catch {
-        // 静默失败
+    let es: EventSource | null = null;
+    let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+
+    const connect = () => {
+      if (cancelled) return;
+      const url = new URL("/api/lark-webhook/stream", window.location.origin);
+      if (lastEventTimestampRef.current) {
+        url.searchParams.set("since", lastEventTimestampRef.current);
       }
+      es = new EventSource(url.toString());
+
+      es.onmessage = (e) => {
+        try {
+          const data = JSON.parse(e.data);
+          if (data.type === "event") {
+            lastEventTimestampRef.current = data.timestamp;
+            if (!cancelled) {
+              fetchTasks();
+              fetchWebhookStatus();
+              if (data.summary) {
+                const action = data.eventType?.split(".").pop() || "更新";
+                toast(`飞书实时同步：${action} - ${data.summary}`, "info");
+              }
+            }
+          }
+        } catch {}
+      };
+
+      es.onerror = () => {
+        // 连接断开，5 秒后重连
+        es?.close();
+        es = null;
+        if (!cancelled) {
+          reconnectTimer = setTimeout(connect, 5000);
+        }
+      };
     };
-    // 首次立即拉一次，同步服务端最新时间戳
-    poll();
-    const timer = setInterval(poll, 30 * 1000);
+
+    connect();
+
     return () => {
       cancelled = true;
-      clearInterval(timer);
+      es?.close();
+      if (reconnectTimer) clearTimeout(reconnectTimer);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fetchTasks, fetchWebhookStatus]);

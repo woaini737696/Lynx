@@ -11,7 +11,7 @@ export async function GET(
     if (!taskId) {
       return NextResponse.json({ error: "缺少任务 ID" }, { status: 400 });
     }
-    const res = getComments(taskId);
+    const res = await getComments(taskId);
     return NextResponse.json({
       comments: res.comments,
       supported: res.supported,
@@ -36,7 +36,7 @@ export async function POST(
     if (!content || !content.trim()) {
       return NextResponse.json({ error: "缺少评论内容" }, { status: 400 });
     }
-    const res = addComment(taskId, content.trim());
+    const res = await addComment(taskId, content.trim());
     if (!res.ok) {
       return NextResponse.json(
         { error: "评论失败：" + res.error },

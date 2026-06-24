@@ -5,7 +5,7 @@ import { getRecentEvents } from "@/lib/lark-webhook-handler";
 // 前端用于显示实时同步状态指示器
 export async function GET() {
   try {
-    const events = getRecentEvents();
+    const events = await getRecentEvents();
     const lastEvent = events.length > 0 ? events[events.length - 1] : null;
     const tokenConfigured = Boolean(process.env.LARK_WEBHOOK_TOKEN);
 

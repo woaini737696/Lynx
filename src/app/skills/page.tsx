@@ -1857,7 +1857,10 @@ function AIGenerateModal({
       const data = await res.json();
       if (res.ok) {
         setGeneratedSkill(data.skill);
-        if (data.mock) {
+        if (data.fallback) {
+          // 降级模式：展示明确的降级原因
+          toast(data.fallbackReason || "AI 调用失败，已降级为简单分类", "info");
+        } else if (data.mock) {
           toast("AI_API_KEY 未配置，已用 Mock 逻辑生成", "info");
         } else {
           toast("已生成技能", "success");

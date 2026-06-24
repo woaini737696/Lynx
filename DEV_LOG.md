@@ -4,6 +4,106 @@
 
 ---
 
+## 迭代 14 - 2026-06-24
+
+### 任务概要
+完成所有高/中/低优先级任务：Flows 执行引擎、全局 Error Boundary、全局 Loading UI、Skills 降级提示、README 文档、同步/异步代码合并、Webhook 事件持久化、SSE 实时推送、评论 DB 迁移。
+
+### 完成内容
+
+#### 1. Flows 真实执行引擎（高优先级）
+- **新增端点**：`POST /api/ai/flows/[id]/execute`，按节点类型真实执行
+- **action 节点**：调用 LLM（DeepSeek/MiMo），支持 `{{upstream}}` 占位符注入上游输出
+- **condition 节点**：安全表达式求值器（白名单字符 + Function 构造），支持 `==`/`!=`/`>`/`<`/`&&`/`||`/`!`
+- **trigger 节点**：记录触发信息
+- **output 节点**：收集最终产物，按 outputTarget 分类
+- **执行流程**：按节点顺序执行，condition 不成立则跳过剩余节点，出错则终止
+- **前端适配**：`runFlow` 函数从模拟 setTimeout 改为调用真实执行端点，展示节点耗时和状态
+- **测试验证**：flow-2 执行成功，AI 调用 1928ms / 84 tokens，flow-3（未启用）正确返回 400
+
+#### 2. Webhook 事件持久化到数据库（高优先级）
+- **新增 Model**：`LarkWebhookEvent`（eventId 唯一、eventType、taskGuid、summary、raw JSON、processed、createdAt）
+- **持久化**：`handleWebhookEvent` 将事件写入 DB，`getRecentEvents` 从 DB 读取
+- **幂等性**：eventId 唯一约束 + 内存去重缓存（最近 100 个）
+- **替代方案**：从内存队列迁移到数据库，重启不丢失事件
+
+#### 3. SSE 实时推送替代 30 秒轮询（高优先级）
+- **新增端点**：`GET /api/lark-webhook/stream`，返回 `text/event-stream`
+- **订阅者模式**：`subscribeWebhookEvents` 注册回调，新事件到达时实时推送
+- **回填机制**：连接时先发送历史事件（支持 `since` 参数），再发送 ready 标记
+- **心跳**：每 30 秒发送 ping
+- **前端适配**：`lark-tasks/page.tsx` 从 `setInterval(poll, 30000)` 改为 `EventSource`，断线 5 秒自动重连
+- **测试验证**：模拟事件后 SSE 实时推送确认成功
+
+#### 4. 任务评论迁移到数据库（高优先级）
+- **新增 Model**：`LarkTaskComment`（taskGuid、content、creatorId、creatorName、source、createdAt）
+- **迁移**：`addComment`/`getComments` 从 `.lark-task-comments.json` 文件改为 Prisma DB
+- **索引**：taskGuid + createdAt 复合索引，查询高效
+
+#### 5. 全局 Error Boundary（中优先级）
+- **新增**：`src/app/error.tsx`，App Router 根级错误边界
+- **功能**：捕获子树渲染错误，展示错误信息和 digest，提供"重试"和"返回首页"按钮
+- **错误上报**：console.error 记录（可扩展为 Sentry）
+
+#### 6. 全局 Loading UI（中优先级）
+- **新增**：`src/app/loading.tsx`，路由段加载时自动展示
+- **视觉**：旋转加载图标 + "加载中..."文本，避免白屏
+
+#### 7. Skills 降级提示优化（中优先级）
+- **问题**：AI 调用失败时静默降级到 fallback，用户无感知
+- **改进**：新增 `fallbackReason` 字段，返回明确的降级原因和配置检查建议
+- **前端适配**：`skills/page.tsx` 展示降级原因 toast
+
+#### 8. README 文档（低优先级）
+- **新增**：`README.md`，包含核心功能、技术栈、快速开始、环境变量、项目结构、常用命令
+- **飞书配置**：lark-cli 安装和 Webhook 配置说明
+
+#### 9. 同步/异步代码合并（低优先级）
+- **删除未使用**：`getTaskDetail`（sync）、`runSync`（sync）—— 已被 async 版本替代，无任何引用
+- **保留**：`getAllTasks`/`getMyTasks`/`getRelatedTasks`（sync）仍用于请求-响应路径，`runLarkCli`（sync）用于 mutation 端点
+- **约定**：后台刷新用 async 版本，请求响应用 sync 版本
+
+#### 10. 其他修复
+- **simulate/route.ts**：`handleWebhookEvent` 改为 async 后补加 `await`
+- **status/route.ts**：`getRecentEvents` 改为 async 后补加 `await`
+- **LarkTask 索引**：新增 `parentTaskGuid` 和 `completedAt` 索引
+- **URL 常量提取**：`LARK_TASK_URL_PREFIX` 提取为环境变量
+
+### 修改文件清单
+- `prisma/schema.prisma` - 新增 `LarkTaskComment`、`LarkWebhookEvent` model + LarkTask 索引
+- `src/lib/lark-sync.ts` - 新增 `getTaskDetailAsync`/`runSyncAsync`，评论 DB 迁移，URL 常量，删除未使用 sync 函数
+- `src/lib/lark-webhook-handler.ts` - 完全重写为 DB 持久化 + SSE 订阅者模式
+- `src/app/api/lark-webhook/stream/route.ts` - 新增 SSE 端点
+- `src/app/api/lark-webhook/simulate/route.ts` - 补加 `await`
+- `src/app/api/lark-webhook/status/route.ts` - 补加 `await`
+- `src/app/api/lark-webhook/events/route.ts` - `getRecentEvents` 加 `await`
+- `src/app/api/lark-webhook/route.ts` - `handleWebhookEvent` 加 `await`
+- `src/app/api/lark-tasks/[id]/route.ts` - `getTaskDetailAsync` + DB 优先
+- `src/app/api/lark-tasks/[id]/comments/route.ts` - 评论 async 化
+- `src/app/api/lark-tasks/sync/route.ts` - `runSyncAsync`
+- `src/app/api/ai/flows/[id]/execute/route.ts` - 新增执行引擎
+- `src/app/ai/flows/page.tsx` - `runFlow` 调用真实执行端点
+- `src/app/ai/lark-tasks/page.tsx` - SSE EventSource 替代轮询
+- `src/app/api/skills/generate/route.ts` - 降级提示 `fallbackReason`
+- `src/app/skills/page.tsx` - 展示降级原因
+- `src/app/error.tsx` - 新增全局错误边界
+- `src/app/loading.tsx` - 新增全局加载 UI
+- `README.md` - 新增项目文档
+- `DEV_LOG.md` - 本次迭代记录
+
+### 测试验证
+- TypeScript 编译零错误（`npx tsc --noEmit` exit 0）
+- Webhook status API：返回配置状态和事件统计
+- Webhook simulate API：模拟事件成功持久化到 DB
+- Webhook events API：从 DB 读取事件列表
+- SSE stream API：历史事件回填 + ready 标记 + 实时推送验证成功
+- Flows execute API：flow-2 执行成功（AI 1928ms/84 tokens），flow-3（未启用）返回 400
+- lark-tasks fast 模式：DB 缓存 30 任务 / 27 subtaskMap / 9 assignees，source=db-cache
+- lark-tasks sync：`runSyncAsync` 同步 219 任务成功
+- skills generate：AI 成功生成财务分析技能（含参数/内容/提示词模板）
+
+---
+
 ## 迭代 13 - 2026-06-24
 
 ### 任务概要

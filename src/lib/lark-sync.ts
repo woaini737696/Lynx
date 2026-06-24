@@ -9,7 +9,9 @@ const execAsync = promisify(exec);
 
 const LARK_CLI_TIMEOUT = 30000; // 30 秒超时
 const SYNC_STATE_FILE = path.join(process.cwd(), ".lark-sync-state.json");
-const COMMENTS_FILE = path.join(process.cwd(), ".lark-task-comments.json"); // 评论本地临时存储
+// 飞书任务详情页 URL 前缀（可被环境变量覆盖，适配不同域名）
+const LARK_TASK_URL_PREFIX =
+  process.env.LARK_TASK_URL_PREFIX || "https://applink.feishu.cn/client/todo/detail";
 
 // 模块级缓存：open_id → 昵称，避免重复调用 contact +get-user
 const memberNameCache = new Map<string, string>();
@@ -558,12 +560,12 @@ function extractItems(res: { ok: boolean; data?: any; error?: string }): LarkTas
 }
 
 /**
- * 获取任务详情：调用 `lark-cli task tasks get --task-guid "xxx" --format json`，
- * 解析返回的 `data.task` 对象。失败时返回 null。
+ * 异步获取任务详情（不阻塞事件循环）。
+ * API 路由应使用此版本。
  */
-export function getTaskDetail(guid: string): LarkTaskItem | null {
+export async function getTaskDetailAsync(guid: string): Promise<LarkTaskItem | null> {
   if (!guid) return null;
-  const res = runLarkCli(`tasks get --task-guid ${shellQuote(guid)}`);
+  const res = await runLarkCliAsync(`tasks get --task-guid ${shellQuote(guid)}`);
   if (!res.ok) {
     console.log(`[lark-sync] 获取任务详情失败 guid=${guid}: ${res.error}`);
     return null;
@@ -724,7 +726,7 @@ function fetchAllTasksFromSource(forceRefresh = false): { ok: boolean; tasks: No
     }
     // 构造 URL（tasklists tasks 不返回 url，subtasks 有 url）
     if (!item.url && item.guid) {
-      item.url = `https://applink.feishu.cn/client/todo/detail?guid=${item.guid}`;
+      item.url = `${LARK_TASK_URL_PREFIX}?guid=${item.guid}`;
     }
     // 设置 tasklist 名称
     const tlName = (item as any)._tasklistName;
@@ -925,7 +927,7 @@ async function fetchAllTasksFromSourceAsync(forceRefresh = false): Promise<{ ok:
       item.creator.name = memberNameCache.get(item.creator.id) || undefined;
     }
     if (!item.url && item.guid) {
-      item.url = `https://applink.feishu.cn/client/todo/detail?guid=${item.guid}`;
+      item.url = `${LARK_TASK_URL_PREFIX}?guid=${item.guid}`;
     }
     const tlName = (item as any)._tasklistName;
     if (tlName) {
@@ -1218,69 +1220,71 @@ export function updateTasklist(
   return { ok: true };
 }
 
-// ==================== 评论本地临时存储 ====================
+// ==================== 评论数据库持久化 ====================
 
-type CommentStore = Record<string, NormalizedComment[]>;
-
-function readCommentStore(): CommentStore {
-  try {
-    const content = fs.readFileSync(COMMENTS_FILE, "utf-8");
-    return JSON.parse(content) as CommentStore;
-  } catch {
-    return {};
-  }
-}
-
-function writeCommentStore(store: CommentStore): void {
-  try {
-    fs.writeFileSync(COMMENTS_FILE, JSON.stringify(store, null, 2), "utf-8");
-  } catch (e) {
-    console.error("写入评论本地存储失败:", e);
-  }
-}
-
-function addLocalComment(taskId: string, content: string): NormalizedComment {
-  const store = readCommentStore();
-  const list = store[taskId] || [];
-  const comment: NormalizedComment = {
+/** 添加本地评论到数据库 */
+async function addLocalComment(taskId: string, content: string): Promise<NormalizedComment> {
+  const comment = {
     id: `local-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
     content,
     createdAt: new Date().toISOString(),
     creator: null,
   };
-  list.push(comment);
-  store[taskId] = list;
-  writeCommentStore(store);
+  try {
+    await prisma.larkTaskComment.create({
+      data: {
+        taskGuid: taskId,
+        content,
+        source: "local",
+      },
+    });
+  } catch (e) {
+    console.error("[lark-sync] 写入评论到数据库失败:", e);
+  }
   return comment;
 }
 
-function getLocalComments(taskId: string): NormalizedComment[] {
-  const store = readCommentStore();
-  return store[taskId] || [];
+/** 从数据库读取本地评论 */
+async function getLocalComments(taskId: string): Promise<NormalizedComment[]> {
+  try {
+    const rows = await prisma.larkTaskComment.findMany({
+      where: { taskGuid: taskId },
+      orderBy: { createdAt: "asc" },
+    });
+    return rows.map((r) => ({
+      id: r.source === "local" ? `local-${r.id}` : r.id,
+      content: r.content,
+      createdAt: r.createdAt.toISOString(),
+      creator: r.creatorId ? { id: r.creatorId, name: r.creatorName || undefined } : null,
+    }));
+  } catch (e) {
+    console.error("[lark-sync] 从数据库读取评论失败:", e);
+    return [];
+  }
 }
 
 // ==================== 评论 ====================
 
-export function addComment(
+export async function addComment(
   taskId: string,
   content: string
-): { ok: boolean; comment?: NormalizedComment; error?: string; local?: boolean } {
+): Promise<{ ok: boolean; comment?: NormalizedComment; error?: string; local?: boolean }> {
   const res = runLarkCli(
     `+comment --task-id ${shellQuote(taskId)} --content ${shellQuote(content)}`
   );
   if (!res.ok) {
-    // lark-cli 不支持或失败时使用本地存储兜底，确保前端可测试
-    console.log(`[lark-sync] lark-cli 评论失败，已使用本地存储: ${res.error}`);
-    const localComment = addLocalComment(taskId, content);
+    // lark-cli 不支持或失败时使用数据库存储兜底
+    console.log(`[lark-sync] lark-cli 评论失败，已使用数据库存储: ${res.error}`);
+    const localComment = await addLocalComment(taskId, content);
     return { ok: true, comment: localComment, local: true };
   }
   return { ok: true, comment: normalizeComment(res.data?.data || {}) };
 }
 
-export function getComments(
+export async function getComments(
   taskId: string
-): { ok: boolean; comments: NormalizedComment[]; error?: string; supported: boolean } {
-  const localComments = getLocalComments(taskId);
+): Promise<{ ok: boolean; comments: NormalizedComment[]; error?: string; supported: boolean }> {
+  const localComments = await getLocalComments(taskId);
   // lark-cli v1.0.56 暂无 list-comments shortcut，尝试原生命令
   const res = runLarkCli(`comments list --task-id ${shellQuote(taskId)}`);
   if (!res.ok) {
@@ -1403,21 +1407,19 @@ export function writeSyncState(state: SyncState): void {
 }
 
 /**
- * 执行一次同步：拉取飞书最新任务并更新同步状态。
- * 本地操作（创建/编辑/完成）已实时推送到飞书，此处主要刷新缓存与时间戳。
- * 同步后将所有任务 upsert 到数据库 LarkTask 表。
+ * 异步执行同步（不阻塞事件循环）。
+ * API 路由应使用此版本。
  */
-export function runSync(): { ok: boolean; state: SyncState; error?: string } {
-  const result = getAllTasks({ refresh: true });
+export async function runSyncAsync(): Promise<{ ok: boolean; state: SyncState; error?: string }> {
+  const result = await getAllTasksAsync({ refresh: true });
   const state: SyncState = {
     lastSyncAt: new Date().toISOString(),
     lastError: result.ok ? null : result.error || "同步失败",
     taskCount: result.ok ? result.tasks.length : 0,
   };
   writeSyncState(state);
-  // 同步成功后将任务写入数据库
   if (result.ok && result.tasks.length > 0) {
-    upsertTasksToDb(result.tasks).catch((e) => {
+    await upsertTasksToDb(result.tasks).catch((e) => {
       console.error("[lark-sync] 同步写入数据库失败:", e);
     });
   }

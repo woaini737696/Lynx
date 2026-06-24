@@ -176,9 +176,11 @@ ${conversationText || "(无)"}
     } catch (e) {
       console.error("AI 生成 Skill 失败，降级为 fallback:", e);
       const fallback = fallbackGenerateSkill(workLog, conversation);
+      const errMsg = (e as Error).message || "未知错误";
       return NextResponse.json({
         skill: { ...fallback, source: "ai-generated" },
         fallback: true,
+        fallbackReason: `AI 调用失败（${errMsg}）。已降级为基于关键词的简单分类，质量较低。请检查 .env 中的 DEEPSEEK_API_KEY / MIMO_API_KEY 配置，或稍后重试。`,
       });
     }
 
@@ -197,6 +199,7 @@ ${conversationText || "(无)"}
         skill: { ...fallback, source: "ai-generated" },
         fallback: true,
         parseError: true,
+        fallbackReason: "AI 返回的内容无法解析为 JSON。已降级为基于关键词的简单分类。建议重试或更换 provider。",
       });
     }
 

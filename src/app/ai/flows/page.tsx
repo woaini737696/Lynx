@@ -352,28 +352,45 @@ export default function AIFlowsPage() {
     }
   };
 
-  // 运行工作流（列表视图）
+  // 运行工作流（列表视图）—— 调用真实执行引擎
   const runFlow = async (flow: Flow) => {
     toast(`开始运行「${flow.name}」...`, "info");
-    // 模拟节点依次执行
-    for (let i = 0; i < flow.nodes.length; i++) {
-      const node = flow.nodes[i];
-      await new Promise((r) => setTimeout(r, 600));
-      toast(`[${i + 1}/${flow.nodes.length}] ${node.label} ✓`, "success");
-    }
-    // 更新最后运行时间
-    const updated = { ...flow, lastRun: "刚刚" };
-    setFlows((prev) => prev.map((f) => (f.id === flow.id ? updated : f)));
     try {
-      await fetch(`/api/ai/flows/${flow.id}`, {
-        method: "PUT",
+      const res = await fetch(`/api/ai/flows/${flow.id}/execute`, {
+        method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ lastRun: "刚刚" }),
+        body: JSON.stringify({ input: "" }),
       });
-    } catch {
-      // 忽略持久化错误
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || `执行失败（${res.status}）`);
+      }
+      const data = await res.json();
+      const result = data.result as {
+        success: boolean;
+        nodes: Array<{ nodeLabel: string; status: string; message: string; durationMs: number }>;
+        totalDurationMs: number;
+        finalOutput?: string;
+      };
+
+      // 逐条展示节点执行结果
+      for (const node of result.nodes) {
+        const icon = node.status === "done" ? "✓" : node.status === "skipped" ? "→" : "✗";
+        toast(`${icon} ${node.nodeLabel}（${node.durationMs}ms）`, node.status === "error" ? "error" : "success");
+      }
+
+      // 更新最后运行时间
+      const updated = { ...flow, lastRun: "刚刚" };
+      setFlows((prev) => prev.map((f) => (f.id === flow.id ? updated : f)));
+
+      if (result.success) {
+        toast(`「${flow.name}」运行完成（${result.totalDurationMs}ms）`, "success");
+      } else {
+        toast(`「${flow.name}」运行出错`, "error");
+      }
+    } catch (e) {
+      toast("运行失败：" + (e as Error).message, "error");
     }
-    toast(`「${flow.name}」运行完成`, "success");
   };
 
   // 从模板创建工作流

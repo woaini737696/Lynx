@@ -8,7 +8,7 @@ export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url);
     const since = searchParams.get("since") || undefined;
-    const events = getRecentEvents(since);
+    const events = await getRecentEvents(since);
     return NextResponse.json({
       events,
       count: events.length,

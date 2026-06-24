@@ -240,6 +240,38 @@ model LarkTask {
   @@index([completed])
   @@index([status])
   @@index([dueAt])
+  @@index([parentTaskGuid])
+  @@index([completedAt])
+}
+
+// 飞书任务评论（数据库持久化，替代本地文件存储）
+model LarkTaskComment {
+  id        String   @id @default(cuid())
+  taskGuid  String   @db.VarChar(64)
+  content   String   @db.Text
+  creatorId String?  @db.VarChar(64)
+  creatorName String? @db.VarChar(100)
+  source    String   @default("local") // local | lark
+  createdAt DateTime @default(now())
+
+  @@index([taskGuid])
+  @@index([createdAt])
+}
+
+// 飞书 Webhook 事件（数据库持久化，替代内存队列）
+model LarkWebhookEvent {
+  id        String   @id @default(cuid())
+  eventId   String   @unique @db.VarChar(64)
+  eventType String   @db.VarChar(64)
+  taskGuid  String?  @db.VarChar(64)
+  summary   String?  @db.Text
+  raw       Json?
+  processed Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@index([eventType])
+  @@index([taskGuid])
+  @@index([createdAt])
 }
 
 // AI 助理设置

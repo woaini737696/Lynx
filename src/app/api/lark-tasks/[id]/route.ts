@@ -4,7 +4,7 @@ import {
   completeTask,
   reopenTask,
   assignTask,
-  getTaskDetail,
+  getTaskDetailAsync,
   getTaskFromDb,
   upsertTaskToDb,
   normalizeTask,
@@ -13,7 +13,7 @@ import {
 } from "@/lib/lark-sync";
 
 // GET /api/lark-tasks/[id] - 获取单个任务详情
-// 始终优先从 lark-cli 拉取最新数据，DB 仅作为降级缓存
+// 优先从 DB 缓存返回（快速），后台异步刷新 lark-cli
 export async function GET(
   _req: NextRequest,
   { params }: { params: { id: string } }
@@ -24,27 +24,30 @@ export async function GET(
       return NextResponse.json({ error: "缺少任务 ID" }, { status: 400 });
     }
 
-    // 优先调用 lark-cli 获取最新详情
-    const detail = getTaskDetail(taskId);
+    // 优先从 DB 返回缓存（毫秒级），后台异步刷新 lark-cli
+    const dbTask = await getTaskFromDb(taskId);
+    if (dbTask) {
+      // 后台异步拉取最新详情并更新 DB（不阻塞响应）
+      getTaskDetailAsync(taskId).then(async (detail) => {
+        if (detail) {
+          enrichDetailMemberNames(detail);
+          const task = normalizeTask(detail);
+          await upsertTaskToDb(task).catch(() => {});
+        }
+      }).catch(() => {});
+      return NextResponse.json({ task: dbTask, source: "db-cache" });
+    }
+
+    // DB 无缓存时同步等待 lark-cli（首次加载）
+    const detail = await getTaskDetailAsync(taskId);
     if (detail) {
-      // 解析成员昵称后归一化
       enrichDetailMemberNames(detail);
-      // 获取任务清单列表以填充 tasklistNameCache
       getTasklists();
       const task = normalizeTask(detail);
-
-      // 写入数据库缓存（后台执行不阻塞响应）
       upsertTaskToDb(task).catch((e) => {
         console.error("[lark-tasks] GET 写入数据库失败:", e);
       });
-
       return NextResponse.json({ task, source: "lark" });
-    }
-
-    // lark-cli 失败时回退到数据库缓存
-    const dbTask = await getTaskFromDb(taskId);
-    if (dbTask) {
-      return NextResponse.json({ task: dbTask, source: "db-fallback" });
     }
 
     return NextResponse.json(
@@ -53,7 +56,6 @@ export async function GET(
     );
   } catch (e) {
     console.error("获取飞书任务详情失败:", e);
-    // 异常时回退到数据库缓存
     const { id: taskId } = params;
     const dbTask = await getTaskFromDb(taskId);
     if (dbTask) {
@@ -162,9 +164,8 @@ export async function PATCH(
  */
 async function syncTaskToDb(taskId: string): Promise<void> {
   try {
-    const detail = getTaskDetail(taskId);
+    const detail = await getTaskDetailAsync(taskId);
     if (!detail) return;
-    // 解析成员昵称后归一化写入数据库
     enrichDetailMemberNames(detail);
     const task = normalizeTask(detail);
     await upsertTaskToDb(task);
