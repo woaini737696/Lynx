@@ -4,7 +4,7 @@ import * as fs from "fs";
 import * as path from "path";
 import { prisma } from "@/lib/db";
 
-const LARK_CLI_TIMEOUT = 15000; // 15 秒超时
+const LARK_CLI_TIMEOUT = 30000; // 30 秒超时
 const SYNC_STATE_FILE = path.join(process.cwd(), ".lark-sync-state.json");
 const COMMENTS_FILE = path.join(process.cwd(), ".lark-task-comments.json"); // 评论本地临时存储
 
@@ -595,19 +595,73 @@ function enrichTasksWithBatchNamesInPlace(items: LarkTaskItem[]): LarkTaskItem[]
   return items;
 }
 
+/**
+ * 将列表端点返回的极简字段适配为 normalizeTask 可处理的格式，并注入已知的完成状态。
+ * 列表端点（+get-my-tasks / +get-related-tasks）只返回 guid/summary/created_at/url/due_at，
+ * 不含 status/completed_at/members/creator 等详情字段。
+ * 由于我们通过 --complete=true/false 让服务端过滤，所以我们明确知道每个任务的完成状态。
+ */
+function adaptListItem(
+  item: Record<string, any>,
+  knownCompleted: boolean
+): LarkTaskItem {
+  const adapted: any = { ...item };
+  if (item.due_at && !item.due) {
+    adapted.due = item.due_at;
+  }
+  if (item.start_at && !item.start) {
+    adapted.start = item.start_at;
+  }
+  adapted.status = knownCompleted ? "done" : "incomplete";
+  if (knownCompleted && !item.completed_at) {
+    adapted.completed_at = item.completed_at || item.updated_at || item.created_at || null;
+  }
+  if (!Array.isArray(adapted.members)) adapted.members = [];
+  if (!adapted.creator) adapted.creator = null;
+  return adapted as LarkTaskItem;
+}
+
+/**
+ * 调用列表端点（+get-my-tasks / +get-related-tasks），返回适配后的任务项。
+ * 根据 complete 参数决定是单次过滤查询还是双次查询合并。
+ * 优势：只需 1-2 次 lark-cli 调用，避免对每个任务调用 getTaskDetail（N次调用）。
+ */
+function fetchTaskList(
+  baseCmd: string,
+  opts?: { complete?: boolean | null; q?: string | null }
+): { ok: boolean; items: LarkTaskItem[]; error?: string } {
+  const queryPart = opts?.q ? ` --query ${shellQuote(opts.q)}` : "";
+
+  if (opts?.complete === true || opts?.complete === false) {
+    const args = `${baseCmd} --complete=${opts.complete}${queryPart}`;
+    const res = runLarkCli(args);
+    if (!res.ok) return { ok: false, items: [], error: res.error };
+    const rawItems = extractItems(res);
+    const items = rawItems.map((it) => adaptListItem(it, opts.complete as boolean));
+    return { ok: true, items };
+  }
+
+  const doneArgs = `${baseCmd} --complete=true${queryPart}`;
+  const todoArgs = `${baseCmd} --complete=false${queryPart}`;
+  const doneRes = runLarkCli(doneArgs);
+  const todoRes = runLarkCli(todoArgs);
+
+  if (!doneRes.ok && !todoRes.ok) {
+    return { ok: false, items: [], error: doneRes.error || todoRes.error };
+  }
+
+  const doneItems = doneRes.ok ? extractItems(doneRes).map((it) => adaptListItem(it, true)) : [];
+  const todoItems = todoRes.ok ? extractItems(todoRes).map((it) => adaptListItem(it, false)) : [];
+  return { ok: true, items: [...todoItems, ...doneItems] };
+}
+
 /** 我的任务（+get-my-tasks）- 性能优化版，不调用 getTaskDetail */
 export function getMyTasks(opts?: {
   complete?: boolean | null;
   q?: string | null;
 }): { ok: boolean; tasks: NormalizedTask[]; error?: string } {
-  let args = "+get-my-tasks";
-  if (opts?.complete === true) args += " --complete=true";
-  else if (opts?.complete === false) args += " --complete=false";
-  if (opts?.q) args += ` --query ${shellQuote(opts.q)}`;
-  const res = runLarkCli(args);
-  if (!res.ok) return { ok: false, tasks: [], error: res.error };
-  const items = extractItems(res);
-  // 批量解析昵称（不调用 getTaskDetail，性能优化）
+  const { ok, items, error } = fetchTaskList("+get-my-tasks --page-all", opts);
+  if (!ok) return { ok: false, tasks: [], error };
   enrichTasksWithBatchNamesInPlace(items);
   const tasks = items.map(normalizeTask);
   return { ok: true, tasks };
@@ -618,14 +672,8 @@ export function getRelatedTasks(opts?: {
   complete?: boolean | null;
   q?: string | null;
 }): { ok: boolean; tasks: NormalizedTask[]; error?: string } {
-  let args = "+get-related-tasks";
-  if (opts?.complete === true) args += " --complete=true";
-  else if (opts?.complete === false) args += " --complete=false";
-  if (opts?.q) args += ` --query ${shellQuote(opts.q)}`;
-  const res = runLarkCli(args);
-  if (!res.ok) return { ok: false, tasks: [], error: res.error };
-  const items = extractItems(res);
-  // 批量解析昵称（不调用 getTaskDetail，性能优化）
+  const { ok, items, error } = fetchTaskList("+get-related-tasks --page-all", opts);
+  if (!ok) return { ok: false, tasks: [], error };
   enrichTasksWithBatchNamesInPlace(items);
   const tasks = items.map(normalizeTask);
   return { ok: true, tasks };
@@ -636,43 +684,29 @@ export function getAllTasks(opts?: {
   complete?: boolean | null;
   q?: string | null;
 }): { ok: boolean; tasks: NormalizedTask[]; error?: string } {
-  // 先获取任务清单列表，填充 tasklistNameCache
   getTasklists();
 
-  // 拉取我的任务
-  let myArgs = "+get-my-tasks";
-  if (opts?.complete === true) myArgs += " --complete=true";
-  else if (opts?.complete === false) myArgs += " --complete=false";
-  if (opts?.q) myArgs += ` --query ${shellQuote(opts.q)}`;
-  const myRes = runLarkCli(myArgs);
+  const myResult = fetchTaskList("+get-my-tasks --page-all", opts);
+  const relatedResult = fetchTaskList("+get-related-tasks --page-all", opts);
 
-  // 拉取关注的任务
-  let relatedArgs = "+get-related-tasks";
-  if (opts?.complete === true) relatedArgs += " --complete=true";
-  else if (opts?.complete === false) relatedArgs += " --complete=false";
-  if (opts?.q) relatedArgs += ` --query ${shellQuote(opts.q)}`;
-  const relatedRes = runLarkCli(relatedArgs);
-
-  if (!myRes.ok && !relatedRes.ok) {
-    return { ok: false, tasks: [], error: myRes.error || relatedRes.error };
+  if (!myResult.ok && !relatedResult.ok) {
+    return { ok: false, tasks: [], error: myResult.error || relatedResult.error };
   }
 
-  // 合并任务，按 guid 去重
   const map = new Map<string, LarkTaskItem>();
-  if (myRes.ok) {
-    for (const item of extractItems(myRes)) {
+  if (myResult.ok) {
+    for (const item of myResult.items) {
       if (item.guid) map.set(item.guid, item);
     }
   }
-  if (relatedRes.ok) {
-    for (const item of extractItems(relatedRes)) {
+  if (relatedResult.ok) {
+    for (const item of relatedResult.items) {
       if (item.guid && !map.has(item.guid)) map.set(item.guid, item);
     }
   }
 
   const items = Array.from(map.values());
 
-  // 批量解析昵称（统一处理，避免重复）
   enrichTasksWithBatchNamesInPlace(items);
 
   // 归一化

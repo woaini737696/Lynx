@@ -12,11 +12,18 @@
 ### 完成内容
 
 #### 1. 飞书任务完成状态+性能优化+完全同步
-- **性能优化**：`lark-sync.ts` 中用 `enrichTasksWithBatchNamesInPlace` 替换 `enrichTasksWithDetail`，消除了 50 次 `getTaskDetail` 同步调用
+- **完成状态彻底修复（关键 BUG）**：发现列表端点 `+get-my-tasks`/`+get-related-tasks` 只返回极简字段（`guid/summary/created_at/url/due_at`），不含 `status/completed_at/members` 等详情字段。之前的"性能优化版"直接 normalize 列表项导致 `completed` 字段始终为 false。
+  - **解决方案**：新增 `adaptListItem` 函数，利用服务端 `--complete=true/false` 过滤结果已知完成状态这一特性，直接注入正确的 `status` 字段
+  - 新增 `fetchTaskList` 辅助函数：过滤查询时单次调用；全量查询（`complete=null`）时双次调用（已完成+未完成）分别标记后合并
+  - 正确映射 `due_at` → `due` 字段（列表返回 ISO 字符串格式）
+- **分页修复**：所有列表命令添加 `--page-all` 参数，确保获取超过默认分页限制的所有任务
+- **超时配置**：lark-cli 超时从 15s 增加到 30s，避免大数据量超时
+- **性能优化**：`lark-sync.ts` 中用 `enrichTasksWithBatchNamesInPlace` 批量解析昵称，消除逐任务详情查询（N 次→1-2 次 lark-cli 调用）
 - **同步策略修复**：`route.ts` 和 `[id]/route.ts` 始终优先从 lark-cli 拉取最新数据，DB 仅作为降级缓存
-- **meta 端点优化**：仅在 DB 完全为空时才触发 `getAllTasks`，避免每次 meta 请求都全量同步
-- **TTL 缓存**：`getTasklists` 添加 5 分钟 TTL 缓存，减少 lark-cli 调用
-- **前端轮询优化**：webhook 轮询从 10 秒改为 30 秒，首次轮询不触发刷新
+- **meta 端点优化**：仅在 DB 完全为空时才触发全量同步
+- **TTL 缓存**：`getTasklists` 添加 5 分钟 TTL 缓存
+- **前端轮询优化**：webhook 轮询从 10 秒改为 30 秒，首次不刷新
+- **性能指标**：我的未完成任务 ~1.2s、我的已完成任务 ~1.8s、Meta ~90ms（缓存命中）
 
 #### 2. ASR 和 TTS 模型连接修复
 - 验证 TTS API 返回 HTTP 200，生成 69KB WAV 音频
