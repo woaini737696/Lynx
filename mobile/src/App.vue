@@ -3,6 +3,13 @@ import { onLaunch } from "@dcloudio/uni-app";
 import { useUserStore } from "@/store/user.js";
 
 onLaunch(() => {
+  // 清理旧版默认 baseUrl（http://localhost:3000），H5 模式改用 vite proxy 同源代理
+  // 旧值会导致手机/外部浏览器访问不到电脑 localhost
+  const storedBaseUrl = uni.getStorageSync("api_base_url");
+  if (storedBaseUrl === "http://localhost:3000") {
+    uni.removeStorageSync("api_base_url");
+  }
+
   // 恢复登录态，未登录跳转登录页
   const userStore = useUserStore();
   userStore.restore();

@@ -40,7 +40,7 @@
 
       <view class="server-config" @click="showServerConfig = !showServerConfig">
         <text class="server-config-text">
-          {{ showServerConfig ? "▼" : "▶" }} 服务器地址
+          {{ showServerConfig ? "▼" : "▶" }} 服务器地址（H5 测试留空即可，App 需填后端 IP）
         </text>
       </view>
       <view v-if="showServerConfig" class="input-group">
@@ -48,7 +48,7 @@
           v-model="form.baseUrl"
           class="input"
           type="text"
-          placeholder="http://192.168.x.x:3000"
+          placeholder="留空走代理；App 填 http://192.168.x.x:3000"
           placeholder-class="placeholder"
         />
       </view>
