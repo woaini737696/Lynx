@@ -66,7 +66,7 @@ const settingsStore = useSettingsStore();
 
 const loading = ref(false);
 const showPassword = ref(false);
-const showServerConfig = ref(false);
+const showServerConfig = ref(true);
 
 const form = reactive({
   username: "",

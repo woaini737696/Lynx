@@ -1,5 +1,6 @@
 // 统一请求封装：注入 Bearer Token、401 拦截跳登录、统一错误处理
 
+// 默认指向本机开发服务器（手机测试时需在登录页/设置页改为电脑局域网 IP，如 http://192.168.x.x:3000）
 const DEFAULT_BASE_URL = "http://localhost:3000";
 
 const STORAGE_KEY_BASE_URL = "api_base_url";
