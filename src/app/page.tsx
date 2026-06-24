@@ -58,8 +58,17 @@ export default function FocusPage() {
       }
     };
     load();
+
+    // 监听决策看板的状态变更，自动刷新聚焦数据
+    const handleMsg = (e: MessageEvent) => {
+      if (e.data?.type === "LYNNHUB_REFRESH_FOCUS") {
+        load();
+      }
+    };
+    window.addEventListener("message", handleMsg);
     return () => {
       mounted = false;
+      window.removeEventListener("message", handleMsg);
     };
   }, []);
 

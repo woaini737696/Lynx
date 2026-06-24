@@ -225,7 +225,7 @@ export default function AIWorkspacePage() {
         return;
       }
       setResult(data.result);
-      setResultMock(Boolean(data.mock));
+      setResultMock(Boolean(data.fallback));
       toast("蒸馏完成", "success");
 
       // 写入历史

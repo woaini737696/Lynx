@@ -1,6 +1,7 @@
 // Web Push 测试推送 API
 // POST: 向当前用户的所有订阅发送测试推送通知
-import { NextResponse } from "next/server";
+// 支持可选 body { title, body }：传入则发送自定义内容（用于巡检通知），不传则发送默认测试消息
+import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { requireAuth } from "@/lib/auth-utils";
 import {
@@ -10,7 +11,7 @@ import {
   type PushSubscriptionObject,
 } from "@/lib/push";
 
-export async function POST() {
+export async function POST(req: NextRequest) {
   const auth = await requireAuth();
   if (auth.user === null) return auth.error;
 
@@ -23,6 +24,17 @@ export async function POST() {
       },
       { status: 500 }
     );
+  }
+
+  // 解析可选的自定义标题和正文（用于巡检通知等场景）
+  let customTitle: string | undefined;
+  let customBody: string | undefined;
+  try {
+    const body = await req.json();
+    if (body && typeof body.title === "string") customTitle = body.title;
+    if (body && typeof body.body === "string") customBody = body.body;
+  } catch {
+    // 无 body 或解析失败时使用默认测试消息
   }
 
   try {
@@ -39,11 +51,11 @@ export async function POST() {
     }
 
     const payload = {
-      title: "LynnHub 测试通知",
-      body: `这是一条测试推送通知 · ${new Date().toLocaleString("zh-CN")}`,
+      title: customTitle || "LynnHub 测试通知",
+      body: customBody || `这是一条测试推送通知 · ${new Date().toLocaleString("zh-CN")}`,
       icon: "/icon-192.png",
       badge: "/icon-192.png",
-      tag: "lynnhub-test",
+      tag: customTitle ? "lynnhub-notify" : "lynnhub-test",
       data: {
         url: "/",
       },

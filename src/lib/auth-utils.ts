@@ -1,6 +1,8 @@
 // 鉴权工具函数：供所有 API 使用
 import { auth } from "@/auth";
+import { headers } from "next/headers";
 import { prisma } from "@/lib/db";
+import { verifyToken } from "@/lib/jwt";
 
 export interface AuthUser {
   id: string;
@@ -9,10 +11,35 @@ export interface AuthUser {
 }
 
 /**
- * 获取当前登录用户（从 session 中提取）
+ * 获取当前登录用户（双通道鉴权）
+ * 1. 优先检查 Authorization: Bearer <token>（App 端 JWT）
+ * 2. 无 Bearer 时回退到 NextAuth session（Web 端）
  * 未登录返回 null
  */
 export async function getCurrentUser(): Promise<AuthUser | null> {
+  // 通道 1：App 端 Bearer Token
+  const headerList = headers();
+  const authHeader = headerList.get("authorization");
+  if (authHeader?.startsWith("Bearer ")) {
+    const token = authHeader.slice(7);
+    const payload = await verifyToken(token);
+    if (!payload?.id) return null;
+
+    const user = await prisma.user.findUnique({
+      where: { id: payload.id },
+      select: { id: true, username: true, role: true, active: true },
+    });
+
+    if (!user || !user.active) return null;
+
+    return {
+      id: user.id,
+      username: user.username,
+      role: user.role,
+    };
+  }
+
+  // 通道 2：Web 端 NextAuth session
   const session = await auth();
   if (!session?.user) return null;
 

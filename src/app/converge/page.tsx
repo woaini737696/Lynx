@@ -121,7 +121,7 @@ export default function ConvergePage() {
         <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-northstar/10 text-northstar">
           <Moon className="h-6 w-6" />
         </div>
-        <div className="mb-2 text-xs tracking-widest text-northstar">收敛仪式</div>
+        <div className="mb-2 text-xs tracking-widest text-northstar">灵感收敛</div>
         <h1 className="text-xl font-semibold sm:text-2xl">
           {ideas.length === 0 ? "今日已收敛" : `还有 ${ideas.length} 条灵感待收敛`}
         </h1>
@@ -145,7 +145,7 @@ export default function ConvergePage() {
       </div>
 
       {loading ? (
-        <LoadingState title="收敛仪式" />
+        <LoadingState title="灵感收敛" />
       ) : ideas.length === 0 ? (
         <EmptyState
           icon={<Sparkles className="h-8 w-8 text-northstar" />}

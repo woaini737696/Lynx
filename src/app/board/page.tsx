@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Check, Plus, RotateCcw, X, Target, Swords, ListChecks } from "lucide-react";
+import { Check, Plus, RotateCcw, X, Target, Swords, ListChecks, ChevronDown, ChevronRight, TrendingUp } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { BOARD_COLUMNS, type BoardColumn } from "@/lib/utils";
 import { toast } from "@/components/ui/toast";
@@ -13,11 +13,19 @@ interface Task {
   column: BoardColumn;
   status: "active" | "done" | "dropped";
   position: number;
+  updatedAt?: string;
 }
 
 interface ColumnData {
   key: BoardColumn;
   tasks: Task[];
+}
+
+interface TaskStats {
+  totalCompleted: number;
+  totalActive: number;
+  thisWeekCompleted: number;
+  byColumn: { northstar: number; campaign: number; task: number };
 }
 
 const COLUMN_ICONS = {
@@ -26,41 +34,77 @@ const COLUMN_ICONS = {
   task: ListChecks,
 };
 
+// localStorage key：累计完成数（前端缓存，用于离线展示）
+const COMPLETED_COUNT_KEY = "lynnhub:board:completed-count";
+
 export default function BoardPage() {
   const [columns, setColumns] = useState<ColumnData[]>(
     (Object.keys(BOARD_COLUMNS) as BoardColumn[]).map((key) => ({ key, tasks: [] }))
   );
+  const [doneTasks, setDoneTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(true);
   const [adding, setAdding] = useState<BoardColumn | null>(null);
   const [newContent, setNewContent] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [stats, setStats] = useState<TaskStats | null>(null);
+  const [showDone, setShowDone] = useState(false);
+
+  // 加载任务列表
+  const loadTasks = async () => {
+    setLoading(true);
+    try {
+      const res = await fetch("/api/tasks");
+      if (res.ok) {
+        const data = await res.json();
+        const tasks: Task[] = data.tasks || [];
+        setColumns(
+          (Object.keys(BOARD_COLUMNS) as BoardColumn[]).map((key) => ({
+            key,
+            tasks: tasks
+              .filter((t) => t.column === key && t.status === "active")
+              .sort((a, b) => a.position - b.position),
+          }))
+        );
+        setDoneTasks(
+          tasks
+            .filter((t) => t.status === "done")
+            .sort((a, b) => (b.updatedAt || "").localeCompare(a.updatedAt || ""))
+        );
+      }
+    } catch (e) {
+      console.error(e);
+      toast("加载看板失败", "error");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // 加载统计
+  const loadStats = async () => {
+    try {
+      const res = await fetch("/api/tasks/stats");
+      if (res.ok) {
+        const data = await res.json();
+        setStats(data);
+        // 同步到 localStorage
+        if (typeof window !== "undefined") {
+          localStorage.setItem(
+            COMPLETED_COUNT_KEY,
+            String(data.totalCompleted || 0)
+          );
+        }
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  };
 
   useEffect(() => {
     let mounted = true;
     const load = async () => {
-      setLoading(true);
-      try {
-        const res = await fetch("/api/tasks");
-        if (!mounted) return;
-        if (res.ok) {
-          const data = await res.json();
-          const tasks: Task[] = data.tasks || [];
-          setColumns(
-            (Object.keys(BOARD_COLUMNS) as BoardColumn[]).map((key) => ({
-              key,
-              tasks: tasks
-                .filter((t) => t.column === key)
-                .sort((a, b) => a.position - b.position),
-            }))
-          );
-        }
-      } catch (e) {
-        if (!mounted) return;
-        console.error(e);
-        toast("加载看板失败", "error");
-      } finally {
-        if (mounted) setLoading(false);
-      }
+      await loadTasks();
+      if (!mounted) return;
+      await loadStats();
     };
     load();
 
@@ -74,6 +118,7 @@ export default function BoardPage() {
       mounted = false;
       window.removeEventListener("message", handleMsg);
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const toggleDone = async (task: Task) => {
@@ -85,15 +130,43 @@ export default function BoardPage() {
         body: JSON.stringify({ status: newStatus }),
       });
       if (res.ok) {
-        setColumns((prev) =>
-          prev.map((col) => ({
-            ...col,
-            tasks: col.tasks.map((t) =>
-              t.id === task.id ? { ...t, status: newStatus } : t
-            ),
-          }))
-        );
-        toast(newStatus === "done" ? "任务已完成" : "任务已恢复", "success");
+        const data = await res.json();
+        if (newStatus === "done") {
+          // 从列中移除，加入已完成列表
+          const updatedTask: Task = {
+            ...task,
+            status: "done",
+            updatedAt: new Date().toISOString(),
+          };
+          setColumns((prev) =>
+            prev.map((col) => ({
+              ...col,
+              tasks: col.tasks.filter((t) => t.id !== task.id),
+            }))
+          );
+          setDoneTasks((prev) => [updatedTask, ...prev]);
+          // 提示认知提取
+          const msg = data.cognitionExtracted
+            ? "任务已完成 · AI 已提取认知入库"
+            : "任务已完成 · AI 正在提取认知...";
+          toast(msg, "success");
+          // 刷新统计
+          loadStats();
+        } else {
+          // 从已完成列表移除，回到原列
+          setDoneTasks((prev) => prev.filter((t) => t.id !== task.id));
+          setColumns((prev) =>
+            prev.map((col) =>
+              col.key === task.column
+                ? { ...col, tasks: [...col.tasks, { ...task, status: "active" }] }
+                : col
+            )
+          );
+          toast("任务已恢复", "success");
+          loadStats();
+        }
+        // 通知今日聚焦页刷新
+        window.postMessage({ type: "LYNNHUB_REFRESH_FOCUS" }, "*");
       }
     } catch {
       toast("网络错误", "error");
@@ -119,6 +192,7 @@ export default function BoardPage() {
         setNewContent("");
         setAdding(null);
         toast("任务已创建", "success");
+        loadStats();
       } else {
         const err = await res.json();
         setError(err.error);
@@ -162,6 +236,27 @@ export default function BoardPage() {
       <PageHeader
         title="决策看板"
         subtitle="北极星 ≤3 · 战役 ≤5 · 任务 ≤10，满额阻断"
+        action={
+          stats ? (
+            <div className="flex items-center gap-3 rounded-xl border border-border bg-card px-3 py-1.5 text-xs">
+              <div className="flex items-center gap-1.5">
+                <TrendingUp className="h-3.5 w-3.5 text-task" />
+                <span className="text-muted-foreground">累计完成</span>
+                <span className="font-semibold text-task">{stats.totalCompleted}</span>
+              </div>
+              <div className="h-3 w-px bg-border" />
+              <div className="flex items-center gap-1.5">
+                <span className="text-muted-foreground">本周</span>
+                <span className="font-semibold text-cognition">{stats.thisWeekCompleted}</span>
+              </div>
+              <div className="h-3 w-px bg-border" />
+              <div className="flex items-center gap-1.5">
+                <span className="text-muted-foreground">进行中</span>
+                <span className="font-semibold text-northstar">{stats.totalActive}</span>
+              </div>
+            </div>
+          ) : null
+        }
       />
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
@@ -246,28 +341,17 @@ export default function BoardPage() {
                   col.tasks.map((task) => (
                     <div
                       key={task.id}
-                      className={cn(
-                        "group flex cursor-pointer items-start gap-2.5 rounded-xl border border-border bg-background p-2.5 transition-all hover:border-primary/30 hover:shadow-sm",
-                        task.status === "done" && "opacity-60"
-                      )}
+                      className="group flex cursor-pointer items-start gap-2.5 rounded-xl border border-border bg-background p-2.5 transition-all hover:border-primary/30 hover:shadow-sm"
                       onClick={() => toggleDone(task)}
                     >
                       <div
                         className={cn(
                           "mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded border transition-colors",
-                          task.status === "done"
-                            ? "border-task bg-task text-white"
-                            : "border-border bg-transparent hover:border-primary"
+                          "border-border bg-transparent hover:border-primary"
                         )}
                       >
-                        {task.status === "done" && <Check className="h-3 w-3" />}
                       </div>
-                      <span
-                        className={cn(
-                          "flex-1 text-xs leading-relaxed",
-                          task.status === "done" && "line-through text-muted-foreground"
-                        )}
-                      >
+                      <span className="flex-1 text-xs leading-relaxed">
                         {task.content}
                       </span>
                     </div>
@@ -278,6 +362,65 @@ export default function BoardPage() {
           );
         })}
       </div>
+
+      {/* 已完成折叠区域 */}
+      <Card className="mt-4 p-0">
+        <button
+          onClick={() => setShowDone((v) => !v)}
+          className="flex w-full items-center justify-between border-b border-border px-4 py-3 text-left transition-colors hover:bg-muted/30"
+        >
+          <div className="flex items-center gap-2">
+            {showDone ? (
+              <ChevronDown className="h-4 w-4 text-muted-foreground" />
+            ) : (
+              <ChevronRight className="h-4 w-4 text-muted-foreground" />
+            )}
+            <Check className="h-4 w-4 text-task" />
+            <h2 className="text-sm font-semibold">已完成</h2>
+            <span className="ml-1 rounded-full bg-task/10 px-2 py-0.5 text-[10px] font-medium text-task">
+              {doneTasks.length}
+            </span>
+          </div>
+          <span className="text-[10px] text-muted-foreground">
+            {showDone ? "点击收起" : "点击展开"}
+          </span>
+        </button>
+
+        {showDone && (
+          <div className="space-y-2 p-3">
+            {doneTasks.length === 0 ? (
+              <div className="flex h-20 flex-col items-center justify-center rounded-xl border border-dashed border-border bg-muted/30 text-center">
+                <span className="text-xs text-muted-foreground">暂无已完成任务</span>
+              </div>
+            ) : (
+              doneTasks.map((task) => (
+                <div
+                  key={task.id}
+                  className="group flex cursor-pointer items-start gap-2.5 rounded-xl border border-border bg-background p-2.5 transition-all hover:border-task/30 hover:shadow-sm"
+                  onClick={() => toggleDone(task)}
+                >
+                  <div className="mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded border border-task bg-task text-white">
+                    <Check className="h-3 w-3" />
+                  </div>
+                  <div className="flex-1">
+                    <span className="text-xs leading-relaxed line-through text-muted-foreground">
+                      {task.content}
+                    </span>
+                    {task.updatedAt && (
+                      <div className="mt-0.5 text-[10px] text-muted-foreground/70">
+                        完成于 {new Date(task.updatedAt).toLocaleString("zh-CN")}
+                      </div>
+                    )}
+                  </div>
+                  <RotateCcw
+                    className="h-3 w-3 shrink-0 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100"
+                  />
+                </div>
+              ))
+            )}
+          </div>
+        )}
+      </Card>
     </div>
   );
 }

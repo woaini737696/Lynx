@@ -8,12 +8,16 @@ import {
   type SkillParameter,
 } from "@/lib/skill-parser";
 
-// 从 distill-templates.ts 迁移默认 Skill（Skill 表为空时调用）
+// 从 distill-templates.ts 同步默认 Skill（检查每个模板是否存在，不存在则创建）
 async function ensureSkillsSeeded() {
-  const count = await prisma.skill.count();
-  if (count > 0) return;
-
   for (const tpl of DISTILL_TEMPLATES) {
+    // 按名称检查是否已存在
+    const existing = await prisma.skill.findFirst({
+      where: { name: tpl.name },
+      select: { id: true },
+    });
+    if (existing) continue;
+
     const content = `# ${tpl.name}\n\n${tpl.description}\n\n## 步骤\n${tpl.steps
       .map((s, i) => `${i + 1}. ${s}`)
       .join("\n")}\n\n## 提示词模板\n\n${tpl.promptTemplate}`;
@@ -138,7 +142,8 @@ export async function POST(req: NextRequest) {
       result: resultText,
       steps,
       prompt,
-      ...(isFallback ? { fallback: true } : {}),
+      // 降级时返回 fallback: true（新字段）和 mock: true（向后兼容老前端）
+      ...(isFallback ? { fallback: true, mock: true } : {}),
     });
   } catch (e) {
     console.error("AI 蒸馏执行失败:", e);

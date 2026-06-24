@@ -4,6 +4,91 @@
 
 ---
 
+## 迭代 18 - 2026-06-24
+
+### 任务概要
+完成 10 项功能深化与体验完善任务：今日聚焦修复+看板状态同步、决策看板完成闭环（AI 提取认知）、灵感捕获附件上传、AI 巡检全可配置（AI 对话配置规则）、灵感墓地深度完善、通知设置完善（VAPID+多渠道）、设置页 AI Key 数据库配置、收敛仪式改名灵感收敛+移菜单、蒸馏模板修复、向量搜索 UI。
+
+### 完成内容
+
+#### 1. 今日聚焦修复 + 看板状态双向同步
+- **5 卡片问题修复**：`/api/focus` GET 方法增加截断逻辑，已有 DailyFocus 的 items > 3 时截断为前 3 个
+- **双向状态同步**：
+  - 看板 `toggleDone` 成功后 `postMessage({ type: "LYNNHUB_REFRESH_FOCUS" })` 通知聚焦页
+  - 聚焦页监听该事件重新加载
+  - `/api/focus` PATCH 方法：单卡完成时即时同步 Task.status=done（不再等全部完成）
+
+#### 2. 决策看板完成闭环（AI 提取认知 + 同步聚焦 + 归档统计）
+- **AI 认知提取**：`/api/tasks/[id]` PATCH status=done 时，调用 AI + `COGNITION_EXTRACT_PROMPT` 提取 method/experience/prompt，写入 Cognition 表
+- **完成统计 API**：`/api/tasks/stats` 返回 totalCompleted/totalActive/thisWeekCompleted/byColumn
+- **看板 UI**：完成 toast 提示"AI 正在提取认知..."、已完成折叠区域、累计完成统计
+
+#### 3. 灵感捕获支持上传文件/图片
+- **上传 API**：`/api/upload` 接收 multipart/form-data，支持图片（jpg/png/gif/webp）和文档（pdf/txt/md/doc/docx），10MB 限制，20次/分钟限流
+- **LightningInput 改造**：支持点击上传 + 拖拽上传 + 粘贴图片，附件缩略图列表，可删除
+- **Idea 表扩展**：新增 `attachments Json` 字段
+- **Inbox 展示**：图片缩略图可点击放大，文件显示图标+文件名
+
+#### 4. AI 巡检全可配置（对象+时间+规则+通知）
+- **Prisma schema**：新增 `PatrolRule`（规则）和 `PatrolLog`（日志）表
+- **规则 CRUD API**：`/api/patrol/rules` GET/POST、`/api/patrol/rules/[id]` PATCH/DELETE
+- **巡检执行 API**：`/api/patrol/run` 按 scope 收集数据 + AI 分析 + 写日志 + 发通知
+- **AI 对话配置 API**：`/api/patrol/config-chat` 自然语言→规则草案
+- **巡检日志 API**：`/api/patrol/logs` 分页查询
+- **巡检设置页**：`/settings/patrol` 规则列表 + AI 对话配置区 + 日志展示
+- **调度器集成**：`reminder-scheduler.ts` 支持从数据库加载动态规则
+
+#### 5. 灵感墓地深度完善
+- **彻底删除**：`/api/graveyard` DELETE 方法，先删 Graveyard 再删 Idea
+- **编辑原因/条件**：`/api/graveyard` PUT 方法
+- **批量操作**：多选模式，批量复活/批量删除
+- **搜索 + 排序**：按内容/原因搜索，按放弃/创建时间排序
+- **统计信息**：总数、已复活数、待复活数
+
+#### 6. 通知设置完善
+- **VAPID 密钥生成**：写入 `.env`（VAPID_PUBLIC_KEY/VAPID_PRIVATE_KEY/VAPID_SUBJECT）
+- **多渠道统一管理**：浏览器推送 + 桌面通知 + 飞书通知
+- **巡检通知打通**：`reminder-scheduler.ts` sendNotification 增加 Web Push 推送（调用 /api/push/test）
+- **push/test API 增强**：支持可选 `{ title, body }` 参数
+
+#### 7. 设置页 AI Key 数据库配置
+- **AISetting 表扩展**：新增 defaultProvider + DeepSeek/MiMo/Embedding 配置字段
+- **ai-provider.ts 改造**：`refreshAISettings()` 数据库缓存机制，优先级：数据库 > 环境变量
+- **设置页 AI 配置区**：3 个 Provider 卡片（API Key/BaseURL/Model），默认 Provider 切换
+- **设置 API**：GET 返回 dbSettings（mask）+ envSettings，PUT 保存并刷新缓存
+
+#### 8. 收敛仪式改名"灵感收敛" + 移入灵感收集菜单
+- Sidebar：从 `rituals` 分组移到 `capture` 分组，删除空的 rituals 分组
+- 全项目"收敛仪式"→"灵感收敛"（converge/page.tsx、AppShell.tsx、CommandPalette.tsx、seed.ts）
+
+#### 9. 蒸馏模板修复
+- **字段名 bug**：`data.mock` → `data.fallback`（前端），后端增加 `mock: true` 向后兼容
+- **ensureSkillsSeeded 修复**：改为按名称检查每个模板是否存在（不再只在表空时执行），解决 Skill 表有数据但缺蒸馏模板导致 404 的问题
+- **验证**：蒸馏 API 200，AI 真实执行，结果 2997 字符
+
+#### 10. 向量搜索 UI
+- **搜索页**：`/search` 关键词搜索 + 语义搜索 tab 切换
+- **语义搜索**：调用 `/api/memory/search`，展示相似度分数（进度条+百分比）
+- **结果跳转**：idea→/inbox、conversation→/assets、cognition→/cognition
+
+### 自测结果
+- TypeScript 编译：`npx tsc --noEmit` 通过（exit 0）
+- Playwright E2E：19 个测试全部通过（16.7s）
+- API 验证：
+  - PUT /api/settings（保存 AI Key）→ 200 ✓
+  - POST /api/patrol/rules（创建巡检规则）→ 200 ✓
+  - POST /api/patrol/config-chat（AI 对话配置）→ 200，AI 回复 410 字符 ✓
+  - POST /api/patrol/run（执行巡检）→ 200，hitCount=9 ✓
+  - POST /api/ai/distill（蒸馏）→ 200，AI 真实执行，结果 2997 字符 ✓
+  - PATCH /api/tasks/[id]（看板完成）→ 200，cognitionExtracted=true ✓
+  - GET /api/tasks/stats → 200 ✓
+  - GET /api/memory/search?q=test → 200 ✓
+
+### 涉及文件
+新增 15+ 文件（upload API、patrol 5 个 API、tasks/stats API、search 页面、patrol 设置页），修改 25+ 文件
+
+---
+
 ## 迭代 17 - 2026-06-24
 
 ### 任务概要

@@ -29,6 +29,7 @@ import {
   Users,
   Database,
   Bell,
+  Radar,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "@/components/ui/toast";
@@ -67,6 +68,7 @@ const NAV_GROUPS: NavGroup[] = [
     color: "text-foreground",
     items: [
       { href: "/inbox", label: "Inbox", icon: Inbox, color: "text-foreground" },
+      { href: "/converge", label: "灵感收敛", icon: Moon, color: "text-northstar" },
       { href: "/graveyard", label: "灵感墓地", icon: Skull, color: "text-graveyard" },
     ],
   },
@@ -79,15 +81,6 @@ const NAV_GROUPS: NavGroup[] = [
       { href: "/assets", label: "对话资产", icon: MessageSquare, color: "text-campaign" },
       { href: "/cognition", label: "认知库", icon: BookOpen, color: "text-cognition" },
       { href: "/memory", label: "记忆图谱", icon: Brain, color: "text-cognition" },
-    ],
-  },
-  {
-    id: "rituals",
-    label: "周期仪式",
-    icon: Moon,
-    color: "text-northstar",
-    items: [
-      { href: "/converge", label: "收敛仪式", icon: Moon, color: "text-northstar" },
     ],
   },
   {
@@ -111,6 +104,7 @@ const NAV_GROUPS: NavGroup[] = [
     color: "text-muted-foreground",
     items: [
       { href: "/settings", label: "设置", icon: Settings, color: "text-muted-foreground" },
+      { href: "/settings/patrol", label: "AI 巡检", icon: Radar, color: "text-cognition" },
       { href: "/settings/lark-bot", label: "飞书机器人", icon: MessageCircle, color: "text-campaign" },
       { href: "/settings/push", label: "通知设置", icon: Bell, color: "text-muted-foreground" },
       { href: "/settings/users", label: "用户管理", icon: Users, color: "text-muted-foreground" },

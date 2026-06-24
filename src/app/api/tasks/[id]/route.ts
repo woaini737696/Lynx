@@ -1,6 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { requireAuth } from "@/lib/auth-utils";
+import { chat } from "@/lib/ai-provider";
+import { COGNITION_EXTRACT_PROMPT } from "@/lib/ai";
+import { writeMemoryForCognition } from "@/lib/memory-sync";
+import { getLogger } from "@/lib/logger";
+
+const logger = getLogger("tasks-api");
 
 // 更新任务状态/位置
 export async function PATCH(
@@ -14,7 +20,10 @@ export async function PATCH(
     const { id } = params;
 
     // 验证任务归属权
-    const existing = await prisma.task.findUnique({ where: { id } });
+    const existing = await prisma.task.findUnique({
+      where: { id },
+      include: { idea: { select: { content: true } } },
+    });
     if (!existing) {
       return NextResponse.json({ error: "未找到" }, { status: 404 });
     }
@@ -50,7 +59,84 @@ export async function PATCH(
         ...(position !== undefined && { position }),
       },
     });
-    return NextResponse.json({ task, success: true });
+
+    // 当状态变为 done 时，触发 AI 认知提取（失败不阻断完成操作）
+    let cognitionExtracted = false;
+    if (status === "done" && existing.status !== "done") {
+      try {
+        // 拼接任务内容 + 关联 Idea 内容（如果有）作为补充
+        const ideaContent = existing.idea?.content || "";
+        const combinedContent = ideaContent
+          ? `${existing.content}\n\n[关联灵感]\n${ideaContent}`
+          : existing.content;
+
+        const aiResp = await chat(
+          [{ role: "user", content: combinedContent }],
+          {
+            system: COGNITION_EXTRACT_PROMPT,
+            reasoningMode: "fast",
+            temperature: 0.3,
+          }
+        );
+
+        // 解析 AI 返回的 JSON
+        const jsonMatch = aiResp.content.match(/\{[\s\S]*\}/);
+        const parsed = jsonMatch
+          ? JSON.parse(jsonMatch[0])
+          : { method: [], experience: [], prompt: [] };
+
+        const sourceType = existing.sourceId ? "idea" : "task";
+        const ideaId = existing.sourceId || null;
+
+        // 写入 Cognition 表
+        const items: Array<{
+          type: "method" | "experience" | "prompt";
+          content: string;
+        }> = [];
+        for (const item of parsed.method || []) {
+          if (item?.content) {
+            items.push({ type: "method", content: item.content });
+          }
+        }
+        for (const item of parsed.experience || []) {
+          if (item?.content) {
+            items.push({ type: "experience", content: item.content });
+          }
+        }
+        for (const item of parsed.prompt || []) {
+          if (item?.content) {
+            items.push({ type: "prompt", content: item.content });
+          }
+        }
+
+        for (const item of items) {
+          const c = await prisma.cognition.create({
+            data: {
+              type: item.type,
+              content: item.content,
+              source: sourceType,
+              ideaId,
+              tags: [],
+              userId: user.id,
+            },
+          });
+          // 异步写入 Memory（不阻塞）
+          writeMemoryForCognition(c.id, c.content).catch(() => {});
+        }
+
+        cognitionExtracted = items.length > 0;
+        logger.info(
+          { taskId: id, count: items.length },
+          "AI 认知提取成功"
+        );
+      } catch (e) {
+        // AI 调用失败不阻断完成操作，只记录错误
+        console.error("AI 认知提取失败:", e);
+        logger.error({ err: e, taskId: id }, "AI 认知提取失败");
+      }
+    }
+
+    return NextResponse.json({ task, success: true, cognitionExtracted });
   } catch (e) {
     console.error("更新任务失败:", e);
     return NextResponse.json({ error: "服务器错误" }, { status: 500 });

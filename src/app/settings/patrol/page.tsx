@@ -1,0 +1,811 @@
+"use client";
+
+import { useEffect, useState, useRef, useCallback } from "react";
+import {
+  Bot,
+  Plus,
+  Trash2,
+  Play,
+  Power,
+  Loader2,
+  Send,
+  Sparkles,
+  ChevronDown,
+  ChevronRight,
+  CheckCircle2,
+  XCircle,
+  Clock,
+  AlertCircle,
+} from "lucide-react";
+import { PageHeader, Card, Button, Badge } from "@/components/layout/PageHeader";
+import { toast } from "@/components/ui/toast";
+import { cn } from "@/lib/utils";
+
+// 巡检规则类型
+interface PatrolRule {
+  id: string;
+  name: string;
+  description: string;
+  scope: "inbox" | "board" | "graveyard" | "all";
+  triggerTime: string;
+  prompt: string;
+  threshold: number;
+  notifyChannels: string[];
+  enabled: boolean;
+  lastRunAt: string | null;
+  createdAt: string;
+}
+
+// 巡检日志类型
+interface PatrolLog {
+  id: string;
+  ruleId: string;
+  ruleName: string;
+  scope: string;
+  success: boolean;
+  results: Array<{
+    itemId: string;
+    content: string;
+    matched: boolean;
+    reason: string;
+    suggestion: string;
+  }>;
+  hitCount: number;
+  durationMs: number;
+  error: string | null;
+  startedAt: string;
+  finishedAt: string | null;
+}
+
+// 聊天消息类型
+interface ChatMessage {
+  role: "user" | "assistant";
+  content: string;
+  suggestedRule?: PatrolRuleDraft | null;
+}
+
+// 规则草案类型
+interface PatrolRuleDraft {
+  name: string;
+  description: string;
+  scope: string;
+  triggerTime: string;
+  prompt: string;
+  threshold: number;
+  notifyChannels: string[];
+  enabled: boolean;
+}
+
+const SCOPE_LABELS: Record<string, string> = {
+  inbox: "Inbox 灵感",
+  board: "决策看板",
+  graveyard: "灵感墓地",
+  all: "全部范围",
+};
+
+const CHANNEL_LABELS: Record<string, string> = {
+  toast: "Toast",
+  notification: "浏览器通知",
+  push: "Web Push",
+  feishu: "飞书",
+};
+
+export default function PatrolSettingsPage() {
+  const [rules, setRules] = useState<PatrolRule[]>([]);
+  const [logs, setLogs] = useState<PatrolLog[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [running, setRunning] = useState<string | null>(null);
+  const [expandedLog, setExpandedLog] = useState<string | null>(null);
+  const [showAddForm, setShowAddForm] = useState(false);
+
+  // 聊天状态
+  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
+  const [chatInput, setChatInput] = useState("");
+  const [chatLoading, setChatLoading] = useState(false);
+  const [pendingRule, setPendingRule] = useState<PatrolRuleDraft | null>(null);
+  const [savingRule, setSavingRule] = useState(false);
+  const chatEndRef = useRef<HTMLDivElement>(null);
+
+  // 加载规则列表
+  const loadRules = useCallback(async () => {
+    try {
+      const res = await fetch("/api/patrol/rules");
+      if (res.ok) {
+        const data = await res.json();
+        setRules(data.rules || []);
+      }
+    } catch (e) {
+      console.error(e);
+      toast("加载规则失败", "error");
+    }
+  }, []);
+
+  // 加载日志
+  const loadLogs = useCallback(async () => {
+    try {
+      const res = await fetch("/api/patrol/logs?limit=10");
+      if (res.ok) {
+        const data = await res.json();
+        setLogs(data.logs || []);
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  }, []);
+
+  useEffect(() => {
+    const load = async () => {
+      setLoading(true);
+      await Promise.all([loadRules(), loadLogs()]);
+      setLoading(false);
+    };
+    load();
+  }, [loadRules, loadLogs]);
+
+  // 滚动到聊天底部
+  useEffect(() => {
+    chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [chatMessages]);
+
+  // 切换规则启用状态
+  const toggleRule = async (rule: PatrolRule) => {
+    try {
+      const res = await fetch(`/api/patrol/rules/${rule.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ enabled: !rule.enabled }),
+      });
+      if (res.ok) {
+        toast(rule.enabled ? "规则已禁用" : "规则已启用", "success");
+        loadRules();
+      } else {
+        toast("操作失败", "error");
+      }
+    } catch {
+      toast("网络错误", "error");
+    }
+  };
+
+  // 删除规则
+  const deleteRule = async (rule: PatrolRule) => {
+    if (!confirm(`确定删除规则「${rule.name}」？关联的日志也会一并删除。`)) return;
+    try {
+      const res = await fetch(`/api/patrol/rules/${rule.id}`, { method: "DELETE" });
+      if (res.ok) {
+        toast("规则已删除", "success");
+        loadRules();
+        loadLogs();
+      } else {
+        toast("删除失败", "error");
+      }
+    } catch {
+      toast("网络错误", "error");
+    }
+  };
+
+  // 手动执行巡检
+  const runPatrol = async (rule: PatrolRule) => {
+    setRunning(rule.id);
+    try {
+      const res = await fetch("/api/patrol/run", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ruleId: rule.id }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        toast(`巡检完成 · 命中 ${data.hitCount} 项`, "success");
+        loadRules();
+        loadLogs();
+      } else {
+        toast(data.error || "巡检失败", "error");
+      }
+    } catch {
+      toast("网络错误", "error");
+    } finally {
+      setRunning(null);
+    }
+  };
+
+  // 发送聊天消息
+  const sendChat = async () => {
+    if (!chatInput.trim() || chatLoading) return;
+    const userMsg = chatInput.trim();
+    const newMessages: ChatMessage[] = [
+      ...chatMessages,
+      { role: "user", content: userMsg },
+    ];
+    setChatMessages(newMessages);
+    setChatInput("");
+    setChatLoading(true);
+    setPendingRule(null);
+
+    try {
+      const res = await fetch("/api/patrol/config-chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          message: userMsg,
+          history: newMessages.slice(-10).map((m) => ({
+            role: m.role,
+            content: m.content,
+          })),
+        }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setChatMessages((prev) => [
+          ...prev,
+          {
+            role: "assistant",
+            content: data.reply || "（无回复）",
+            suggestedRule: data.suggestedRule || null,
+          },
+        ]);
+        if (data.suggestedRule) {
+          setPendingRule(data.suggestedRule);
+        }
+      } else {
+        toast(data.error || "AI 对话失败", "error");
+      }
+    } catch {
+      toast("网络错误", "error");
+    } finally {
+      setChatLoading(false);
+    }
+  };
+
+  // 保存 AI 生成的规则草案
+  const savePendingRule = async () => {
+    if (!pendingRule) return;
+    setSavingRule(true);
+    try {
+      const res = await fetch("/api/patrol/rules", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(pendingRule),
+      });
+      if (res.ok) {
+        toast("规则已保存", "success");
+        setPendingRule(null);
+        loadRules();
+      } else {
+        const err = await res.json();
+        toast(err.error || "保存失败", "error");
+      }
+    } catch {
+      toast("网络错误", "error");
+    } finally {
+      setSavingRule(false);
+    }
+  };
+
+  return (
+    <div className="p-4 sm:p-8">
+      <PageHeader
+        title="AI 巡检"
+        subtitle="可配置的智能巡检：对象 + 时间 + 规则 + 通知"
+      />
+
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+        {/* 左侧：巡检规则列表 */}
+        <Card className="p-0">
+          <div className="flex items-center justify-between border-b border-border px-4 py-3">
+            <div className="flex items-center gap-2">
+              <Sparkles className="h-4 w-4 text-cognition" />
+              <h2 className="text-sm font-semibold">巡检规则</h2>
+              <span className="ml-1 rounded-full bg-muted px-2 py-0.5 text-[10px] text-muted-foreground">
+                {rules.length}
+              </span>
+            </div>
+            <Button size="sm" variant="ghost" onClick={() => setShowAddForm((v) => !v)}>
+              <Plus className="h-3.5 w-3.5" /> 新增
+            </Button>
+          </div>
+
+          <div className="max-h-[600px] space-y-2 overflow-y-auto p-3">
+            {loading ? (
+              <div className="flex h-32 items-center justify-center">
+                <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+              </div>
+            ) : rules.length === 0 ? (
+              <div className="flex h-32 flex-col items-center justify-center rounded-xl border border-dashed border-border bg-muted/30 text-center">
+                <span className="text-xs text-muted-foreground">
+                  暂无巡检规则
+                  <br />
+                  可在右侧通过 AI 对话快速创建
+                </span>
+              </div>
+            ) : (
+              rules.map((rule) => (
+                <div
+                  key={rule.id}
+                  className={cn(
+                    "rounded-xl border border-border bg-background p-3 transition-all",
+                    !rule.enabled && "opacity-60"
+                  )}
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2">
+                        <h3 className="text-xs font-semibold text-foreground">{rule.name}</h3>
+                        <Badge color="cognition">{SCOPE_LABELS[rule.scope] || rule.scope}</Badge>
+                        <span className="text-[10px] text-muted-foreground">
+                          {rule.triggerTime === "manual" ? "手动" : rule.triggerTime}
+                        </span>
+                      </div>
+                      {rule.description && (
+                        <p className="mt-1 text-[11px] text-muted-foreground line-clamp-2">
+                          {rule.description}
+                        </p>
+                      )}
+                      <div className="mt-1.5 flex flex-wrap items-center gap-1">
+                        {rule.notifyChannels.map((ch) => (
+                          <span
+                            key={ch}
+                            className="rounded bg-muted px-1.5 py-0.5 text-[9px] text-muted-foreground"
+                          >
+                            {CHANNEL_LABELS[ch] || ch}
+                          </span>
+                        ))}
+                        {rule.lastRunAt && (
+                          <span className="ml-auto text-[9px] text-muted-foreground/70">
+                            上次：{new Date(rule.lastRunAt).toLocaleString("zh-CN")}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="mt-2 flex items-center gap-1">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => runPatrol(rule)}
+                      disabled={running === rule.id}
+                    >
+                      {running === rule.id ? (
+                        <Loader2 className="h-3 w-3 animate-spin" />
+                      ) : (
+                        <Play className="h-3 w-3" />
+                      )}
+                      执行
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => toggleRule(rule)}
+                      title={rule.enabled ? "禁用" : "启用"}
+                    >
+                      <Power
+                        className={cn(
+                          "h-3 w-3",
+                          rule.enabled ? "text-task" : "text-muted-foreground"
+                        )}
+                      />
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => deleteRule(rule)}
+                      className="text-graveyard hover:bg-graveyard/10"
+                    >
+                      <Trash2 className="h-3 w-3" />
+                    </Button>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </Card>
+
+        {/* 右侧：AI 对话配置区 */}
+        <Card className="p-0">
+          <div className="flex items-center justify-between border-b border-border px-4 py-3">
+            <div className="flex items-center gap-2">
+              <Bot className="h-4 w-4 text-cognition" />
+              <h2 className="text-sm font-semibold">AI 对话配置</h2>
+            </div>
+            <span className="text-[10px] text-muted-foreground">自然语言描述需求</span>
+          </div>
+
+          <div className="flex h-[600px] flex-col">
+            {/* 消息列表 */}
+            <div className="flex-1 space-y-3 overflow-y-auto p-3">
+              {chatMessages.length === 0 ? (
+                <div className="flex h-full flex-col items-center justify-center text-center">
+                  <Bot className="mb-3 h-10 w-10 text-cognition/40" />
+                  <p className="text-xs text-muted-foreground">
+                    描述你的巡检需求，AI 会帮你生成规则
+                  </p>
+                  <p className="mt-1 text-[10px] text-muted-foreground/70">
+                    例如：每天 10 点检查灵感墓地，看是否有新灵感命中复活条件
+                  </p>
+                </div>
+              ) : (
+                chatMessages.map((msg, i) => (
+                  <div
+                    key={i}
+                    className={cn(
+                      "flex",
+                      msg.role === "user" ? "justify-end" : "justify-start"
+                    )}
+                  >
+                    <div
+                      className={cn(
+                        "max-w-[85%] rounded-xl px-3 py-2 text-xs",
+                        msg.role === "user"
+                          ? "bg-primary text-primary-foreground"
+                          : "bg-muted text-foreground"
+                      )}
+                    >
+                      <p className="whitespace-pre-wrap">{msg.content}</p>
+                    </div>
+                  </div>
+                ))
+              )}
+              {chatLoading && (
+                <div className="flex justify-start">
+                  <div className="rounded-xl bg-muted px-3 py-2">
+                    <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />
+                  </div>
+                </div>
+              )}
+              <div ref={chatEndRef} />
+            </div>
+
+            {/* 规则草案确认区 */}
+            {pendingRule && (
+              <div className="border-t border-border bg-cognition/5 p-3">
+                <div className="mb-2 flex items-center gap-1.5">
+                  <CheckCircle2 className="h-3.5 w-3.5 text-cognition" />
+                  <span className="text-[11px] font-medium text-cognition">AI 生成的规则草案</span>
+                </div>
+                <div className="mb-2 space-y-1 text-[11px] text-foreground/80">
+                  <div>
+                    <strong>名称：</strong>
+                    {pendingRule.name}
+                  </div>
+                  <div>
+                    <strong>对象：</strong>
+                    {SCOPE_LABELS[pendingRule.scope] || pendingRule.scope}
+                  </div>
+                  <div>
+                    <strong>时间：</strong>
+                    {pendingRule.triggerTime === "manual" ? "手动" : pendingRule.triggerTime}
+                  </div>
+                  <div>
+                    <strong>通知：</strong>
+                    {pendingRule.notifyChannels.map((ch) => CHANNEL_LABELS[ch] || ch).join("、")}
+                  </div>
+                  <div className="line-clamp-3">
+                    <strong>提示词：</strong>
+                    {pendingRule.prompt}
+                  </div>
+                </div>
+                <div className="flex gap-2">
+                  <Button size="sm" onClick={savePendingRule} disabled={savingRule}>
+                    {savingRule ? (
+                      <Loader2 className="h-3 w-3 animate-spin" />
+                    ) : (
+                      <CheckCircle2 className="h-3 w-3" />
+                    )}
+                    保存为规则
+                  </Button>
+                  <Button size="sm" variant="ghost" onClick={() => setPendingRule(null)}>
+                    丢弃
+                  </Button>
+                </div>
+              </div>
+            )}
+
+            {/* 输入区 */}
+            <div className="border-t border-border p-3">
+              <div className="flex items-end gap-2">
+                <textarea
+                  value={chatInput}
+                  onChange={(e) => setChatInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && !e.shiftKey) {
+                      e.preventDefault();
+                      sendChat();
+                    }
+                  }}
+                  placeholder="描述你的巡检需求..."
+                  rows={2}
+                  className="flex-1 resize-none rounded-xl border border-border bg-background px-3 py-2 text-xs outline-none transition-colors focus:border-primary"
+                />
+                <Button size="sm" onClick={sendChat} disabled={chatLoading || !chatInput.trim()}>
+                  {chatLoading ? (
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  ) : (
+                    <Send className="h-3.5 w-3.5" />
+                  )}
+                </Button>
+              </div>
+            </div>
+          </div>
+        </Card>
+      </div>
+
+      {/* 底部：巡检日志 */}
+      <Card className="mt-4 p-0">
+        <div className="flex items-center justify-between border-b border-border px-4 py-3">
+          <div className="flex items-center gap-2">
+            <Clock className="h-4 w-4 text-muted-foreground" />
+            <h2 className="text-sm font-semibold">巡检日志</h2>
+            <span className="ml-1 rounded-full bg-muted px-2 py-0.5 text-[10px] text-muted-foreground">
+              最近 {logs.length} 条
+            </span>
+          </div>
+        </div>
+
+        <div className="space-y-2 p-3">
+          {logs.length === 0 ? (
+            <div className="flex h-20 flex-col items-center justify-center rounded-xl border border-dashed border-border bg-muted/30 text-center">
+              <span className="text-xs text-muted-foreground">暂无巡检日志</span>
+            </div>
+          ) : (
+            logs.map((log) => {
+              const isExpanded = expandedLog === log.id;
+              return (
+                <div
+                  key={log.id}
+                  className="rounded-xl border border-border bg-background p-3"
+                >
+                  <button
+                    onClick={() => setExpandedLog(isExpanded ? null : log.id)}
+                    className="flex w-full items-center justify-between text-left"
+                  >
+                    <div className="flex items-center gap-2">
+                      {isExpanded ? (
+                        <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
+                      ) : (
+                        <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />
+                      )}
+                      {log.success ? (
+                        <CheckCircle2 className="h-3.5 w-3.5 text-task" />
+                      ) : (
+                        <XCircle className="h-3.5 w-3.5 text-graveyard" />
+                      )}
+                      <span className="text-xs font-medium text-foreground">
+                        {log.ruleName}
+                      </span>
+                      <Badge color="cognition">{SCOPE_LABELS[log.scope] || log.scope}</Badge>
+                      {log.hitCount > 0 && (
+                        <span className="rounded-full bg-campaign/10 px-2 py-0.5 text-[10px] font-medium text-campaign">
+                          命中 {log.hitCount}
+                        </span>
+                      )}
+                    </div>
+                    <span className="text-[10px] text-muted-foreground">
+                      {new Date(log.startedAt).toLocaleString("zh-CN")} · {log.durationMs}ms
+                    </span>
+                  </button>
+
+                  {isExpanded && (
+                    <div className="mt-2 space-y-2 border-t border-border pt-2">
+                      {log.error && (
+                        <div className="flex items-start gap-1.5 rounded-lg bg-graveyard/5 p-2 text-[11px] text-graveyard">
+                          <AlertCircle className="mt-0.5 h-3 w-3 shrink-0" />
+                          <span>{log.error}</span>
+                        </div>
+                      )}
+                      {Array.isArray(log.results) && log.results.length > 0 ? (
+                        log.results.map((r, i) => (
+                          <div
+                            key={i}
+                            className={cn(
+                              "rounded-lg border p-2 text-[11px]",
+                              r.matched
+                                ? "border-campaign/30 bg-campaign/5"
+                                : "border-border bg-muted/20"
+                            )}
+                          >
+                            <div className="flex items-center gap-1.5">
+                              {r.matched ? (
+                                <CheckCircle2 className="h-3 w-3 text-campaign" />
+                              ) : (
+                                <XCircle className="h-3 w-3 text-muted-foreground" />
+                              )}
+                              <span className="font-medium text-foreground">
+                                {r.content || r.itemId}
+                              </span>
+                            </div>
+                            {r.reason && (
+                              <p className="mt-1 text-muted-foreground">理由：{r.reason}</p>
+                            )}
+                            {r.suggestion && (
+                              <p className="mt-0.5 text-cognition">建议：{r.suggestion}</p>
+                            )}
+                          </div>
+                        ))
+                      ) : (
+                        !log.error && (
+                          <p className="text-[11px] text-muted-foreground">无巡检结果</p>
+                        )
+                      )}
+                    </div>
+                  )}
+                </div>
+              );
+            })
+          )}
+        </div>
+      </Card>
+
+      {/* 新增规则表单（折叠） */}
+      {showAddForm && (
+        <AddRuleForm
+          onClose={() => setShowAddForm(false)}
+          onSaved={() => {
+            setShowAddForm(false);
+            loadRules();
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+// 新增规则表单组件
+function AddRuleForm({
+  onClose,
+  onSaved,
+}: {
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const [form, setForm] = useState<PatrolRuleDraft>({
+    name: "",
+    description: "",
+    scope: "graveyard",
+    triggerTime: "manual",
+    prompt: "",
+    threshold: 0.75,
+    notifyChannels: ["toast", "notification"],
+    enabled: true,
+  });
+  const [saving, setSaving] = useState(false);
+
+  const handleSave = async () => {
+    if (!form.name.trim()) {
+      toast("规则名称不能为空", "error");
+      return;
+    }
+    if (!form.prompt.trim()) {
+      toast("巡检提示词不能为空", "error");
+      return;
+    }
+    setSaving(true);
+    try {
+      const res = await fetch("/api/patrol/rules", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(form),
+      });
+      if (res.ok) {
+        toast("规则已创建", "success");
+        onSaved();
+      } else {
+        const err = await res.json();
+        toast(err.error || "创建失败", "error");
+      }
+    } catch {
+      toast("网络错误", "error");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const toggleChannel = (ch: string) => {
+    setForm((prev) => ({
+      ...prev,
+      notifyChannels: prev.notifyChannels.includes(ch)
+        ? prev.notifyChannels.filter((c) => c !== ch)
+        : [...prev.notifyChannels, ch],
+    }));
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm">
+      <Card className="w-full max-w-lg">
+        <div className="mb-4 flex items-center justify-between">
+          <h2 className="text-sm font-semibold">新增巡检规则</h2>
+          <button onClick={onClose} className="text-muted-foreground hover:text-foreground">
+            <XCircle className="h-4 w-4" />
+          </button>
+        </div>
+
+        <div className="space-y-3">
+          <div>
+            <label className="mb-1 block text-[11px] text-muted-foreground">规则名称 *</label>
+            <input
+              value={form.name}
+              onChange={(e) => setForm({ ...form, name: e.target.value })}
+              placeholder="如：灵感墓地复活检查"
+              className="w-full rounded-lg border border-border bg-background px-3 py-2 text-xs outline-none focus:border-primary"
+            />
+          </div>
+
+          <div>
+            <label className="mb-1 block text-[11px] text-muted-foreground">描述</label>
+            <textarea
+              value={form.description}
+              onChange={(e) => setForm({ ...form, description: e.target.value })}
+              rows={2}
+              placeholder="规则详细说明"
+              className="w-full resize-none rounded-lg border border-border bg-background px-3 py-2 text-xs outline-none focus:border-primary"
+            />
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="mb-1 block text-[11px] text-muted-foreground">巡检对象 *</label>
+              <select
+                value={form.scope}
+                onChange={(e) => setForm({ ...form, scope: e.target.value })}
+                className="w-full rounded-lg border border-border bg-background px-3 py-2 text-xs outline-none focus:border-primary"
+              >
+                <option value="inbox">Inbox 灵感</option>
+                <option value="board">决策看板</option>
+                <option value="graveyard">灵感墓地</option>
+                <option value="all">全部范围</option>
+              </select>
+            </div>
+            <div>
+              <label className="mb-1 block text-[11px] text-muted-foreground">触发时间</label>
+              <input
+                value={form.triggerTime}
+                onChange={(e) => setForm({ ...form, triggerTime: e.target.value })}
+                placeholder="HH:mm 或 manual"
+                className="w-full rounded-lg border border-border bg-background px-3 py-2 text-xs outline-none focus:border-primary"
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="mb-1 block text-[11px] text-muted-foreground">巡检提示词 *</label>
+            <textarea
+              value={form.prompt}
+              onChange={(e) => setForm({ ...form, prompt: e.target.value })}
+              rows={4}
+              placeholder="AI 用于分析数据的系统提示词，描述判断逻辑和关注点"
+              className="w-full resize-none rounded-lg border border-border bg-background px-3 py-2 text-xs outline-none focus:border-primary"
+            />
+          </div>
+
+          <div>
+            <label className="mb-1 block text-[11px] text-muted-foreground">通知渠道</label>
+            <div className="flex flex-wrap gap-2">
+              {["toast", "notification", "push", "feishu"].map((ch) => (
+                <button
+                  key={ch}
+                  onClick={() => toggleChannel(ch)}
+                  className={cn(
+                    "rounded-lg border px-2.5 py-1 text-[11px] transition-colors",
+                    form.notifyChannels.includes(ch)
+                      ? "border-primary bg-primary/10 text-primary"
+                      : "border-border bg-transparent text-muted-foreground hover:bg-muted"
+                  )}
+                >
+                  {CHANNEL_LABELS[ch] || ch}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        <div className="mt-4 flex justify-end gap-2">
+          <Button variant="ghost" onClick={onClose}>
+            取消
+          </Button>
+          <Button onClick={handleSave} disabled={saving}>
+            {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
+            保存
+          </Button>
+        </div>
+      </Card>
+    </div>
+  );
+}

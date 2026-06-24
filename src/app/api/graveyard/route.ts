@@ -71,3 +71,84 @@ export async function PATCH(req: NextRequest) {
     return NextResponse.json({ error: "服务器错误" }, { status: 500 });
   }
 }
+
+// 彻底删除墓地记录 + 关联灵感（先删 Graveyard，再删 Idea）
+export async function DELETE(req: NextRequest) {
+  try {
+    const { user, error } = await requireAuth();
+    if (error) return error;
+
+    const { graveyardId } = await req.json();
+
+    // 验证墓地记录归属权（通过 Idea 关联）
+    const graveyard = await prisma.graveyard.findUnique({
+      where: { id: graveyardId },
+      include: { idea: { select: { userId: true } } },
+    });
+    if (!graveyard) {
+      return NextResponse.json({ error: "未找到" }, { status: 404 });
+    }
+    if (user.role !== "admin" && graveyard.idea?.userId !== user.id) {
+      return NextResponse.json({ error: "无权访问" }, { status: 403 });
+    }
+
+    const originalIdeaId = graveyard.originalIdeaId;
+
+    // 先删 Graveyard 记录（解除外键约束）
+    await prisma.graveyard.delete({ where: { id: graveyardId } });
+    // 再删关联的 Idea 记录
+    await prisma.idea.delete({ where: { id: originalIdeaId } });
+
+    return NextResponse.json({ success: true });
+  } catch (e) {
+    console.error("删除墓地失败:", e);
+    return NextResponse.json({ error: "服务器错误" }, { status: 500 });
+  }
+}
+
+// 编辑墓地记录的放弃原因和复活条件
+export async function PUT(req: NextRequest) {
+  try {
+    const { user, error } = await requireAuth();
+    if (error) return error;
+
+    const { graveyardId, reason, reviveCondition } = await req.json();
+
+    if (!graveyardId) {
+      return NextResponse.json({ error: "缺少 graveyardId" }, { status: 400 });
+    }
+    if (reason === undefined && reviveCondition === undefined) {
+      return NextResponse.json(
+        { error: "缺少需要更新的字段" },
+        { status: 400 }
+      );
+    }
+
+    // 验证墓地记录归属权（通过 Idea 关联）
+    const graveyard = await prisma.graveyard.findUnique({
+      where: { id: graveyardId },
+      include: { idea: { select: { userId: true } } },
+    });
+    if (!graveyard) {
+      return NextResponse.json({ error: "未找到" }, { status: 404 });
+    }
+    if (user.role !== "admin" && graveyard.idea?.userId !== user.id) {
+      return NextResponse.json({ error: "无权访问" }, { status: 403 });
+    }
+
+    // 仅更新提供的字段
+    const data: { reason?: string; reviveCondition?: string } = {};
+    if (reason !== undefined) data.reason = reason;
+    if (reviveCondition !== undefined) data.reviveCondition = reviveCondition;
+
+    await prisma.graveyard.update({
+      where: { id: graveyardId },
+      data,
+    });
+
+    return NextResponse.json({ success: true });
+  } catch (e) {
+    console.error("编辑墓地失败:", e);
+    return NextResponse.json({ error: "服务器错误" }, { status: 500 });
+  }
+}

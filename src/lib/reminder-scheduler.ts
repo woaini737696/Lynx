@@ -1,7 +1,8 @@
 // 灵感助理 - 提醒调度器
 // 前端定时检查（每分钟），根据规则触发双通道通知（应用内 + 浏览器 Notification）
+// 支持从数据库 PatrolRule 加载动态规则
 
-export type ReminderRuleId = "inbox-reminder" | "revive-check";
+export type ReminderRuleId = "inbox-reminder" | "revive-check" | `patrol:${string}`;
 
 export interface ReminderRule {
   id: ReminderRuleId;
@@ -12,6 +13,8 @@ export interface ReminderRule {
   time: string;
   // 上次触发日期（YYYY-MM-DD），避免一天内重复触发
   lastTriggered?: string;
+  // 动态规则关联的 PatrolRule ID（仅 patrol: 前缀的规则有值）
+  patrolRuleId?: string;
 }
 
 export const DEFAULT_RULES: ReminderRule[] = [
@@ -62,9 +65,12 @@ export function loadReminderRules(): ReminderRule[] {
     const raw = localStorage.getItem(REMINDER_RULES_KEY);
     if (!raw) return DEFAULT_RULES;
     const parsed = JSON.parse(raw) as ReminderRule[];
-    // 合并默认值（防止新增规则缺失）
+    // 合并默认值（防止新增规则缺失），仅保留默认规则和 patrol: 前缀的动态规则
     const map = new Map(parsed.map((r) => [r.id, r]));
-    return DEFAULT_RULES.map((d) => ({ ...d, ...map.get(d.id) }));
+    const defaultRules = DEFAULT_RULES.map((d) => ({ ...d, ...map.get(d.id) }));
+    // 保留动态规则（patrol: 前缀）
+    const dynamicRules = parsed.filter((r) => r.id.startsWith("patrol:"));
+    return [...defaultRules, ...dynamicRules];
   } catch {
     return DEFAULT_RULES;
   }
@@ -77,6 +83,62 @@ export function saveReminderRules(rules: ReminderRule[]): void {
   } catch {
     // ignore
   }
+}
+
+/**
+ * 从数据库 PatrolRule 加载动态规则，合并到本地规则列表
+ * 仅加载 enabled=true 且 triggerTime != "manual" 的规则
+ * 调用方应在合并后调用 saveReminderRules 持久化
+ */
+export async function loadDynamicPatrolRules(): Promise<ReminderRule[]> {
+  if (typeof window === "undefined") return [];
+  try {
+    const res = await fetch("/api/patrol/rules");
+    if (!res.ok) return [];
+    const data = await res.json();
+    const rules: Array<{
+      id: string;
+      name: string;
+      description: string;
+      triggerTime: string;
+      enabled: boolean;
+    }> = data.rules || [];
+    return rules
+      .filter((r) => r.enabled && r.triggerTime && r.triggerTime !== "manual")
+      .map((r) => ({
+        id: `patrol:${r.id}` as ReminderRuleId,
+        label: r.name,
+        description: r.description || "",
+        enabled: true,
+        time: r.triggerTime,
+        patrolRuleId: r.id,
+      }));
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * 合并本地规则与数据库动态规则
+ * 保留本地默认规则的 lastTriggered 状态，动态规则以数据库为准
+ */
+export async function mergeDynamicRules(
+  localRules: ReminderRule[]
+): Promise<ReminderRule[]> {
+  const dynamicRules = await loadDynamicPatrolRules();
+  // 保留本地默认规则
+  const defaultRules = localRules.filter((r) => !r.id.startsWith("patrol:"));
+  // 保留动态规则的 lastTriggered 状态
+  const localDynamicMap = new Map(
+    localRules
+      .filter((r) => r.id.startsWith("patrol:"))
+      .map((r) => [r.patrolRuleId, r.lastTriggered])
+  );
+  const mergedDynamic = dynamicRules.map((r) => ({
+    ...r,
+    lastTriggered: localDynamicMap.get(r.patrolRuleId),
+  }));
+  return [...defaultRules, ...mergedDynamic];
 }
 
 export function loadReminderHistory(): ReminderHistoryItem[] {
@@ -152,6 +214,19 @@ export function sendNotification(
       }
     }
   }
+
+  // 额外尝试 Web Push 推送：调用服务端 /api/push/test 触发，
+  // 服务端会向当前用户的所有订阅设备发送推送（即使本页面关闭，其他设备也能收到）
+  if (channels.includes("browser") && typeof window !== "undefined") {
+    // fire-and-forget，不阻塞调用方
+    fetch("/api/push/test", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ title, body: message }),
+    }).catch(() => {
+      // 推送失败静默忽略（可能未订阅或 VAPID 未配置）
+    });
+  }
 }
 
 // 请求浏览器通知权限
@@ -221,14 +296,53 @@ async function checkReviveReminder(): Promise<ReminderCheckResult> {
   }
 }
 
+// 检查动态巡检规则（调用 /api/patrol/run）
+async function checkPatrolRule(
+  rule: ReminderRule
+): Promise<ReminderCheckResult> {
+  if (!rule.patrolRuleId) {
+    return { ruleId: rule.id, triggered: false, message: "" };
+  }
+  try {
+    const res = await fetch("/api/patrol/run", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ruleId: rule.patrolRuleId }),
+    });
+    if (!res.ok) {
+      return { ruleId: rule.id, triggered: false, message: "" };
+    }
+    const data = await res.json();
+    const hitCount = data.hitCount || 0;
+    if (hitCount > 0) {
+      return {
+        ruleId: rule.id,
+        triggered: true,
+        message: `巡检「${rule.label}」命中 ${hitCount} 项，建议查看`,
+      };
+    }
+    return { ruleId: rule.id, triggered: false, message: "" };
+  } catch {
+    return { ruleId: rule.id, triggered: false, message: "" };
+  }
+}
+
 // 主检查函数：遍历所有规则，触发到期的检查
+// 同时检查数据库动态规则（patrol: 前缀）
 export async function runReminderCheck(
   rules: ReminderRule[]
 ): Promise<{ results: ReminderCheckResult[]; updatedRules: ReminderRule[] }> {
   const results: ReminderCheckResult[] = [];
   let updatedRules = rules;
 
-  for (const rule of rules) {
+  // 先合并数据库动态规则
+  try {
+    updatedRules = await mergeDynamicRules(updatedRules);
+  } catch {
+    // 合并失败时使用本地规则
+  }
+
+  for (const rule of updatedRules) {
     if (!shouldTrigger(rule)) continue;
 
     let result: ReminderCheckResult;
@@ -236,6 +350,8 @@ export async function runReminderCheck(
       result = await checkInboxReminder();
     } else if (rule.id === "revive-check") {
       result = await checkReviveReminder();
+    } else if (rule.id.startsWith("patrol:") && rule.patrolRuleId) {
+      result = await checkPatrolRule(rule);
     } else {
       continue;
     }
@@ -244,6 +360,9 @@ export async function runReminderCheck(
     updatedRules = markRuleTriggered(updatedRules, rule.id);
     results.push(result);
   }
+
+  // 持久化更新后的规则（含 lastTriggered 状态）
+  saveReminderRules(updatedRules);
 
   return { results, updatedRules };
 }

@@ -34,6 +34,7 @@ model User {
   flows         Flow[]
   flowExecutions FlowExecution[]
   pushSubscriptions PushSubscription[]
+  patrolRules PatrolRule[]
 }
 
 // 灵感 - 闪电输入源头
@@ -43,6 +44,7 @@ model Idea {
   source    String   @default("lightning") // lightning | conversation
   status    String   @default("inbox") // inbox | board | graveyard
   tags      Json     @default("[]")
+  attachments Json   @default("[]") // 附件数组 [{type:"image"|"file", name, url, size}]
   userId    String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -340,7 +342,76 @@ model AISetting {
   feishuNotify    Boolean  @default(false)
   updatedAt       DateTime @updatedAt
 
+  // LLM Provider 配置（数据库存储，优先级高于环境变量）
+  // 留空时回退到 .env 中的 DEEPSEEK_API_KEY / MIMO_API_KEY 等
+  defaultProvider String?  @db.VarChar(32) // deepseek | mimo | openai
+  // DeepSeek
+  deepseekApiKey  String?  @db.VarChar(255)
+  deepseekBaseUrl String?  @db.VarChar(255)
+  deepseekModel   String?  @db.VarChar(64)
+  // MiMo
+  mimoApiKey      String?  @db.VarChar(255)
+  mimoBaseUrl     String?  @db.VarChar(255)
+  mimoModel       String?  @db.VarChar(64)
+  // Embedding
+  embeddingApiKey String?  @db.VarChar(255)
+  embeddingBaseUrl String? @db.VarChar(255)
+  embeddingModel  String?  @db.VarChar(64)
+
   @@unique([id])
+}
+
+// AI 巡检规则（可配置）
+model PatrolRule {
+  id            String   @id @default(cuid())
+  name          String   @db.VarChar(200)
+  description   String   @db.Text
+  // 巡检对象：inbox | board | graveyard | all
+  scope         String   @default("graveyard")
+  // 触发时间：HH:mm 格式（如 "10:00"），或 "manual" 表示仅手动
+  triggerTime   String   @default("10:00") @db.VarChar(8)
+  // 巡检提示词（AI 用此 prompt 分析数据）
+  prompt        String   @db.LongText
+  // 匹配阈值（embedding 相似度阈值，0-1）
+  threshold     Float    @default(0.75)
+  // 通知渠道 JSON：["toast", "notification", "push", "feishu"]
+  notifyChannels Json    @default("[\"toast\",\"notification\"]")
+  // 是否启用
+  enabled       Boolean  @default(true)
+  lastRunAt     DateTime?
+  userId        String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  user User? @relation(fields: [userId], references: [id])
+  logs PatrolLog[]
+
+  @@index([scope])
+  @@index([enabled])
+  @@index([userId])
+}
+
+// AI 巡检执行日志
+model PatrolLog {
+  id          String   @id @default(cuid())
+  ruleId      String
+  ruleName    String   @db.VarChar(200)
+  scope       String   @db.VarChar(32)
+  success     Boolean
+  // 巡检结果 JSON：[{itemId, content, matched, reason, suggestion}]
+  results     Json     @default("[]")
+  // 命中数
+  hitCount    Int      @default(0)
+  // 耗时（毫秒）
+  durationMs  Int      @default(0)
+  error       String?  @db.Text
+  startedAt   DateTime @default(now())
+  finishedAt  DateTime?
+
+  rule PatrolRule @relation(fields: [ruleId], references: [id], onDelete: Cascade)
+
+  @@index([ruleId])
+  @@index([startedAt])
 }
 
 // Embedding 缓存：避免重复计算相同文本的向量

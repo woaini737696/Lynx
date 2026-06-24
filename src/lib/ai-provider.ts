@@ -194,14 +194,81 @@ const REASONING_MODE_META: ReasoningModeInfo[] = [
 
 /** 获取默认 provider（环境变量配置） */
 export function getDefaultProvider(): LLMProvider {
+  // 优先读数据库缓存
+  if (_dbSettingsCache?.defaultProvider) {
+    return _dbSettingsCache.defaultProvider === "mimo" ? "mimo" : "deepseek";
+  }
   const raw = (process.env.DEFAULT_LLM_PROVIDER || "deepseek").toLowerCase();
   return raw === "mimo" ? "mimo" : "deepseek";
 }
+
+// ============ 数据库 AISetting 缓存 ============
+
+/** 数据库 AISetting 缓存（优先级高于环境变量） */
+interface DBAISettings {
+  defaultProvider?: string;
+  deepseekApiKey?: string;
+  deepseekBaseUrl?: string;
+  deepseekModel?: string;
+  mimoApiKey?: string;
+  mimoBaseUrl?: string;
+  mimoModel?: string;
+  embeddingApiKey?: string;
+  embeddingBaseUrl?: string;
+  embeddingModel?: string;
+}
+
+let _dbSettingsCache: DBAISettings | null = null;
+let _dbSettingsLoaded = false;
+let _dbSettingsLoading: Promise<void> | null = null;
+
+/**
+ * 从数据库重新加载 AISetting 到内存缓存
+ * 设置页保存后调用此函数立即生效
+ */
+export async function refreshAISettings(): Promise<void> {
+  try {
+    const { prisma } = await import("@/lib/db");
+    const setting = await prisma.aISetting.findFirst();
+    if (setting) {
+      _dbSettingsCache = {
+        defaultProvider: setting.defaultProvider || undefined,
+        deepseekApiKey: setting.deepseekApiKey || undefined,
+        deepseekBaseUrl: setting.deepseekBaseUrl || undefined,
+        deepseekModel: setting.deepseekModel || undefined,
+        mimoApiKey: setting.mimoApiKey || undefined,
+        mimoBaseUrl: setting.mimoBaseUrl || undefined,
+        mimoModel: setting.mimoModel || undefined,
+        embeddingApiKey: setting.embeddingApiKey || undefined,
+        embeddingBaseUrl: setting.embeddingBaseUrl || undefined,
+        embeddingModel: setting.embeddingModel || undefined,
+      };
+    } else {
+      _dbSettingsCache = null;
+    }
+    _dbSettingsLoaded = true;
+  } catch (e) {
+    console.error("[ai-provider] 加载 AISetting 失败，回退到环境变量:", e);
+    _dbSettingsCache = null;
+    _dbSettingsLoaded = true;
+  }
+}
+
+/** 懒加载：首次调用时异步加载，后续直接读缓存 */
+function ensureSettingsLoaded(): void {
+  if (!_dbSettingsLoaded && !_dbSettingsLoading) {
+    _dbSettingsLoading = refreshAISettings();
+  }
+}
+
+// 模块加载时启动异步加载（不阻塞）
+ensureSettingsLoaded();
 
 // ============ 配置读取 ============
 
 /**
  * 获取指定 provider 的配置
+ * 优先级：数据库 AISetting > 环境变量
  * @param provider 不传则使用默认 provider
  */
 export function getLLMConfig(provider?: LLMProvider): ProviderConfig {
@@ -211,13 +278,19 @@ export function getLLMConfig(provider?: LLMProvider): ProviderConfig {
       : getDefaultProvider();
 
   const meta = PROVIDER_META[resolved];
-  const apiKey = process.env[meta.envKey] || "";
-  const baseUrl = process.env[meta.envBaseUrl] || "";
-  const model = process.env[meta.envModel] || "";
+
+  // 优先读数据库缓存
+  const dbKey = resolved === "deepseek" ? _dbSettingsCache?.deepseekApiKey : _dbSettingsCache?.mimoApiKey;
+  const dbBaseUrl = resolved === "deepseek" ? _dbSettingsCache?.deepseekBaseUrl : _dbSettingsCache?.mimoBaseUrl;
+  const dbModel = resolved === "deepseek" ? _dbSettingsCache?.deepseekModel : _dbSettingsCache?.mimoModel;
+
+  const apiKey = dbKey || process.env[meta.envKey] || "";
+  const baseUrl = dbBaseUrl || process.env[meta.envBaseUrl] || "";
+  const model = dbModel || process.env[meta.envModel] || "";
 
   if (!apiKey) {
     throw new Error(
-      `Provider "${resolved}" 未配置 API Key（环境变量 ${meta.envKey}）`
+      `Provider "${resolved}" 未配置 API Key（请在设置页配置，或设置环境变量 ${meta.envKey}）`
     );
   }
   if (!baseUrl) {

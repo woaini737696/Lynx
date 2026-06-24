@@ -23,6 +23,29 @@ export async function GET() {
       },
     });
 
+    // 修复历史数据：如果 items 数量 > 3，截断为前 3 个
+    if (dailyFocus && dailyFocus.items.length > 3) {
+      const keepItems = dailyFocus.items.slice(0, 3);
+      const keepIds = keepItems.map((i) => i.id);
+      const keepTaskIds = keepItems.map((i) => i.taskId);
+
+      // 删除多余的 items
+      await prisma.dailyFocusItem.deleteMany({
+        where: {
+          dailyFocusId: dailyFocus.id,
+          id: { notIn: keepIds },
+        },
+      });
+
+      // 更新 cardIds
+      await prisma.dailyFocus.update({
+        where: { id: dailyFocus.id },
+        data: { cardIds: keepTaskIds },
+      });
+
+      dailyFocus = { ...dailyFocus, items: keepItems, cardIds: keepTaskIds };
+    }
+
     // 如果今天还没生成，自动生成
     if (!dailyFocus) {
       const activeTasks = await prisma.task.findMany({
@@ -85,6 +108,12 @@ export async function PATCH(req: NextRequest) {
       data: { completed },
     });
 
+    // 即时同步对应 Task 的状态：完成→done，恢复→active
+    await prisma.task.update({
+      where: { id: item.taskId },
+      data: { status: completed ? "done" : "active" },
+    });
+
     // 检查是否全部完成
     const updatedItem = await prisma.dailyFocusItem.findUnique({
       where: { id: itemId },
@@ -98,14 +127,6 @@ export async function PATCH(req: NextRequest) {
           where: { id: updatedItem.dailyFocusId },
           data: { status: "completed" },
         });
-        // 同时把对应 task 标记为 done
-        const doneItems = updatedItem.dailyFocus.items;
-        for (const i of doneItems) {
-          await prisma.task.update({
-            where: { id: i.taskId },
-            data: { status: "done" },
-          });
-        }
       }
     }
 

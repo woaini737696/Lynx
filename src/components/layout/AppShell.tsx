@@ -48,7 +48,7 @@ function ConvergeReminder() {
         <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-northstar/10 text-3xl mx-auto">
           🌙
         </div>
-        <h2 className="text-lg font-semibold text-northstar">收敛仪式时间</h2>
+        <h2 className="text-lg font-semibold text-northstar">灵感收敛时间</h2>
         <p className="mt-2 text-sm text-muted-foreground">23:00-06:00 必须清空 Inbox</p>
         <p className="mt-1 text-xs text-muted-foreground/60">{remaining} 秒后自动跳转</p>
         <div className="mt-6 flex justify-center gap-3">

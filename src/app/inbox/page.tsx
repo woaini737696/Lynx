@@ -1,18 +1,27 @@
 "use client";
 
 import { useEffect, useState, useRef, useCallback } from "react";
-import { ArrowRight, Trash2, InboxIcon, Bot, Send, X, Sparkles, Check, Settings, Bell, AlertCircle } from "lucide-react";
+import { ArrowRight, Trash2, InboxIcon, Bot, Send, X, Sparkles, Check, Settings, Bell, AlertCircle, FileText } from "lucide-react";
 import { toast } from "@/components/ui/toast";
 import { PageHeader, Card, Button, Badge, Skeleton } from "@/components/layout/PageHeader";
 import { EmptyState } from "@/components/layout/EmptyState";
 import { cn } from "@/lib/utils";
 import type { ReviveSuggestion } from "@/lib/reminder-scheduler";
 
+/** 附件结构（与 Idea.attachments 字段一致） */
+interface Attachment {
+  type: "image" | "file";
+  name: string;
+  url: string;
+  size?: number;
+}
+
 interface Idea {
   id: string;
   content: string;
   source: string;
   tags: string[];
+  attachments?: Attachment[];
   createdAt: string;
 }
 
@@ -58,6 +67,9 @@ export default function InboxPage() {
   const [reviveSuggestions, setReviveSuggestions] = useState<ReviveSuggestion[]>([]);
   const [showRevivePanel, setShowRevivePanel] = useState(true);
   const [checkingRevive, setCheckingRevive] = useState(false);
+
+  // 图片放大查看 modal
+  const [previewImage, setPreviewImage] = useState<string | null>(null);
 
   useEffect(() => {
     let mounted = true;
@@ -477,6 +489,39 @@ export default function InboxPage() {
                         )
                       )}
                     </div>
+                    {/* 附件展示 */}
+                    {idea.attachments && idea.attachments.length > 0 && (
+                      <div className="mt-2 flex flex-wrap gap-2">
+                        {idea.attachments.map((att, ai) =>
+                          att.type === "image" ? (
+                            <button
+                              key={ai}
+                              onClick={() => setPreviewImage(att.url)}
+                              className="relative overflow-hidden rounded-lg border border-border transition-transform hover:scale-[1.02]"
+                              title={att.name}
+                            >
+                              <img
+                                src={att.url}
+                                alt={att.name}
+                                className="h-16 w-16 object-cover"
+                              />
+                            </button>
+                          ) : (
+                            <a
+                              key={ai}
+                              href={att.url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-muted/30 px-2 py-1 text-[10px] text-foreground/80 transition-colors hover:bg-muted"
+                              title={att.name}
+                            >
+                              <FileText className="h-3 w-3 text-muted-foreground" />
+                              <span className="max-w-[100px] truncate">{att.name}</span>
+                            </a>
+                          )
+                        )}
+                      </div>
+                    )}
                   </div>
                   <div className="flex shrink-0 items-center gap-1.5">
                     {isExpanding ? (
@@ -770,6 +815,28 @@ export default function InboxPage() {
               </>
             )}
           </div>
+        </div>
+      )}
+
+      {/* 图片放大查看 modal */}
+      {previewImage && (
+        <div
+          className="fixed inset-0 z-[90] flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm"
+          onClick={() => setPreviewImage(null)}
+        >
+          <button
+            onClick={() => setPreviewImage(null)}
+            className="absolute right-4 top-4 inline-flex h-10 w-10 items-center justify-center rounded-full bg-card/80 text-foreground transition-colors hover:bg-card"
+            aria-label="关闭"
+          >
+            <X className="h-5 w-5" />
+          </button>
+          <img
+            src={previewImage}
+            alt="预览"
+            className="max-h-[90vh] max-w-[90vw] rounded-lg object-contain shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          />
         </div>
       )}
     </div>
