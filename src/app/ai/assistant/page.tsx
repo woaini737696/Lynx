@@ -37,6 +37,7 @@ import { toast } from "@/components/ui/toast";
 import { cn } from "@/lib/utils";
 import type { LLMProvider } from "@/lib/ai-provider";
 import { QUICK_COMMANDS } from "@/lib/ai-assistant-tools";
+import { webmToWav } from "@/lib/audio-utils";
 
 interface TokenUsage {
   prompt_tokens?: number;
@@ -49,6 +50,33 @@ interface ToolCalled {
   tool: string;
   args: Record<string, any>;
   result: any;
+}
+
+/** 技能参数定义（与 @/lib/skill-parser 一致） */
+interface SkillParameter {
+  key: string;
+  label: string;
+  type: "text" | "textarea" | "select" | "date" | "number";
+  required: boolean;
+  placeholder?: string;
+  options?: string[];
+  defaultValue?: string;
+}
+
+/** 技能（用于技能选择面板） */
+interface Skill {
+  id: string;
+  name: string;
+  description: string;
+  category: string;
+  content: string;
+  parameters: SkillParameter[];
+  promptTemplate: string;
+  source: string;
+  tags: string[];
+  usageCount: number;
+  createdAt: string;
+  updatedAt: string;
 }
 
 interface Message {
@@ -357,6 +385,7 @@ export default function AIAssistantPage() {
 
   const [attachedImages, setAttachedImages] = useState<string[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
 
   const [cloneUploading, setCloneUploading] = useState(false);
   const [cloneTesting, setCloneTesting] = useState(false);
@@ -368,6 +397,16 @@ export default function AIAssistantPage() {
 
   // 工具调用卡片展开状态（按消息 ID 记录）
   const [expandedTools, setExpandedTools] = useState<Set<string>>(new Set());
+
+  // 技能选择面板相关状态
+  const [showSkillPanel, setShowSkillPanel] = useState(false);
+  const [skills, setSkills] = useState<Skill[]>([]);
+  const [selectedSkill, setSelectedSkill] = useState<Skill | null>(null);
+  const [skillParams, setSkillParams] = useState<Record<string, string>>({});
+  const [skillExecuting, setSkillExecuting] = useState(false);
+  const [skillSearch, setSkillSearch] = useState("");
+  const [skillCategory, setSkillCategory] = useState("all");
+  const [skillsLoading, setSkillsLoading] = useState(false);
 
   const toggleToolExpand = useCallback((msgId: string) => {
     setExpandedTools((prev) => {
@@ -988,8 +1027,16 @@ export default function AIAssistantPage() {
   const transcribeAudio = async (blob: Blob): Promise<string | null> => {
     setTranscribing(true);
     try {
+      // 将 webm 转为 wav（MiMo ASR 不支持 webm，仅支持 mp3/flac/m4a/wav/ogg）
+      let wavBlob: Blob;
+      try {
+        wavBlob = await webmToWav(blob);
+      } catch {
+        // 转换失败则用原始 blob
+        wavBlob = blob;
+      }
       const form = new FormData();
-      form.append("file", blob, "audio.webm");
+      form.append("file", wavBlob, "audio.wav");
       const res = await fetch("/api/ai/asr", { method: "POST", body: form });
       const data = await res.json().catch(() => null);
       if (!res.ok || !data) {
@@ -1390,9 +1437,117 @@ export default function AIAssistantPage() {
     }
   };
 
+  // 加载技能列表
+  const fetchSkills = async () => {
+    setSkillsLoading(true);
+    try {
+      const res = await fetch("/api/skills");
+      const data = await res.json();
+      if (Array.isArray(data.skills)) {
+        setSkills(data.skills);
+      } else if (Array.isArray(data)) {
+        setSkills(data);
+      }
+    } catch {
+      toast("加载技能失败", "error");
+    } finally {
+      setSkillsLoading(false);
+    }
+  };
+
+  // 执行选中的技能
+  const executeSkill = async () => {
+    if (!selectedSkill) return;
+    // 校验必填参数
+    for (const p of selectedSkill.parameters) {
+      if (p.required && !skillParams[p.key]?.trim()) {
+        toast(`请填写 ${p.label}`, "error");
+        return;
+      }
+    }
+    setSkillExecuting(true);
+    try {
+      const res = await fetch("/api/ai/distill", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          templateId: selectedSkill.id,
+          parameters: skillParams,
+          provider: modelConfig.provider === "mimo" ? "mimo" : undefined,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        toast(data.error || "执行失败", "error");
+        return;
+      }
+      // 将结果作为 assistant 消息添加到对话
+      const newMsg: Message = {
+        id: `msg-${Date.now()}`,
+        role: "assistant",
+        content: `**已执行技能：${selectedSkill.name}**\n\n${data.result}`,
+        time: new Date().toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit" }),
+      };
+      setMessages((prev) => [...prev, newMsg]);
+      // 持久化到数据库
+      if (currentSessionId) {
+        fetch(`/api/ai/chat/sessions/${currentSessionId}/messages`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            role: "assistant",
+            content: newMsg.content,
+          }),
+        }).catch(() => {});
+      }
+      setShowSkillPanel(false);
+      setSelectedSkill(null);
+      setSkillParams({});
+      toast("技能执行完成", "success");
+    } catch (e) {
+      toast("执行错误：" + (e as Error).message, "error");
+    } finally {
+      setSkillExecuting(false);
+    }
+  };
+
+  // 打开技能面板
+  const openSkillPanel = () => {
+    setShowSkillPanel(true);
+    setSelectedSkill(null);
+    setSkillParams({});
+    setSkillSearch("");
+    setSkillCategory("all");
+    fetchSkills();
+  };
+
+  // 选择技能时，用 defaultValue 初始化参数
+  const onSelectSkill = (skill: Skill) => {
+    setSelectedSkill(skill);
+    const initParams: Record<string, string> = {};
+    for (const p of skill.parameters) {
+      initParams[p.key] = p.defaultValue || "";
+    }
+    setSkillParams(initParams);
+  };
+
+  // 过滤后的技能列表
+  const filteredSkills = skills.filter((s) => {
+    const matchCategory = skillCategory === "all" || s.category === skillCategory;
+    const q = skillSearch.trim().toLowerCase();
+    const matchSearch = !q ||
+      s.name.toLowerCase().includes(q) ||
+      s.description.toLowerCase().includes(q) ||
+      s.tags.some((t) => t.toLowerCase().includes(q));
+    return matchCategory && matchSearch;
+  });
+
+  // 技能分类列表（从已加载技能中动态提取）
+  const skillCategories = Array.from(new Set(skills.map((s) => s.category).filter(Boolean)));
+
   return (
     <div className="flex h-[calc(100vh-3.5rem)] flex-col">
-      <div className="border-b border-border px-4 py-3 sm:px-8">
+      <div className="sticky top-0 z-20 shrink-0 border-b border-border bg-background/95 px-4 py-3 backdrop-blur sm:px-8">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-gradient-to-br from-cognition to-purple-600 text-white shadow-sm">
@@ -1500,7 +1655,7 @@ export default function AIAssistantPage() {
         </div>
       )}
 
-      <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 py-6 sm:px-8">
+      <div ref={scrollRef} className="min-h-0 flex-1 overflow-y-auto px-4 py-6 sm:px-8">
         <div className="mx-auto max-w-2xl space-y-4">
           {messages.map((msg) => (
             <div key={msg.id} className={cn("flex gap-3", msg.role === "user" && "flex-row-reverse")}>
@@ -1659,14 +1814,26 @@ export default function AIAssistantPage() {
         </div>
       </div>
 
-      <div className="border-t border-border px-4 py-3 sm:px-8">
+      <div className="shrink-0 border-t border-border px-4 py-3 sm:px-8">
         <div className="mx-auto max-w-2xl">
           {!thinking && !voiceCallActive && (
             <div className="mb-2 flex items-center gap-1.5 overflow-x-auto pb-1 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
+              <button
+                onClick={openSkillPanel}
+                title="选择技能执行"
+                className="inline-flex shrink-0 items-center gap-1 rounded-full border border-cognition/40 bg-cognition/5 px-2.5 py-1 text-[11px] text-cognition transition-all hover:bg-cognition/10"
+              >
+                <Wrench className="h-3 w-3" />
+                <span>技能</span>
+              </button>
               {QUICK_COMMANDS.map((cmd, i) => (
                 <button
                   key={i}
-                  onClick={() => send(cmd.message)}
+                  onClick={() => {
+                    setInput((prev) => prev ? `${prev}\n${cmd.message}` : cmd.message);
+                    // 聚焦输入框
+                    setTimeout(() => inputRef.current?.focus(), 0);
+                  }}
                   title={cmd.description}
                   className="inline-flex shrink-0 items-center gap-1 rounded-full border border-border bg-card px-2.5 py-1 text-[11px] transition-all hover:border-cognition/40 hover:bg-cognition/5"
                 >
@@ -1716,6 +1883,7 @@ export default function AIAssistantPage() {
                 </Button>
               )}
               <input
+                ref={inputRef}
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); } }}
@@ -1867,6 +2035,232 @@ export default function AIAssistantPage() {
                 </p>
               </div>
             </div>
+          </div>
+        </div>
+      )}
+
+      {showSkillPanel && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+          onClick={() => {
+            if (!skillExecuting) {
+              setShowSkillPanel(false);
+              setSelectedSkill(null);
+            }
+          }}
+        >
+          <div
+            className="flex max-h-[85vh] w-full max-w-lg flex-col rounded-2xl bg-card shadow-xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* 头部 */}
+            <div className="flex shrink-0 items-center justify-between border-b border-border px-5 py-3">
+              <div className="flex items-center gap-2">
+                {selectedSkill && (
+                  <button
+                    onClick={() => {
+                      setSelectedSkill(null);
+                      setSkillParams({});
+                    }}
+                    className="text-muted-foreground hover:text-foreground"
+                    title="返回技能列表"
+                  >
+                    <ChevronRight className="h-4 w-4 rotate-180" />
+                  </button>
+                )}
+                <Wrench className="h-4 w-4 text-cognition" />
+                <h2 className="text-sm font-semibold">
+                  {selectedSkill ? selectedSkill.name : "选择技能"}
+                </h2>
+              </div>
+              <button
+                onClick={() => {
+                  if (!skillExecuting) {
+                    setShowSkillPanel(false);
+                    setSelectedSkill(null);
+                  }
+                }}
+                className="rounded-full p-1 hover:bg-muted"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            {/* 内容区 */}
+            {!selectedSkill ? (
+              <div className="flex min-h-0 flex-1 flex-col">
+                {/* 搜索 + 分类筛选 */}
+                <div className="shrink-0 space-y-2 border-b border-border px-5 py-3">
+                  <input
+                    type="text"
+                    value={skillSearch}
+                    onChange={(e) => setSkillSearch(e.target.value)}
+                    placeholder="搜索技能名称、描述或标签..."
+                    className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:border-cognition"
+                  />
+                  {skillCategories.length > 0 && (
+                    <div className="flex flex-wrap gap-1.5">
+                      <button
+                        onClick={() => setSkillCategory("all")}
+                        className={cn(
+                          "rounded-full px-2.5 py-0.5 text-[11px] transition-colors",
+                          skillCategory === "all"
+                            ? "bg-cognition text-white"
+                            : "bg-muted text-muted-foreground hover:bg-muted/70"
+                        )}
+                      >
+                        全部
+                      </button>
+                      {skillCategories.map((cat) => (
+                        <button
+                          key={cat}
+                          onClick={() => setSkillCategory(cat)}
+                          className={cn(
+                            "rounded-full px-2.5 py-0.5 text-[11px] transition-colors",
+                            skillCategory === cat
+                              ? "bg-cognition text-white"
+                              : "bg-muted text-muted-foreground hover:bg-muted/70"
+                          )}
+                        >
+                          {cat}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* 技能列表 */}
+                <div className="min-h-0 flex-1 overflow-y-auto px-5 py-3">
+                  {skillsLoading ? (
+                    <div className="flex items-center justify-center py-10 text-muted-foreground">
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      <span className="text-sm">加载中...</span>
+                    </div>
+                  ) : filteredSkills.length === 0 ? (
+                    <div className="py-10 text-center text-sm text-muted-foreground">
+                      {skills.length === 0 ? "暂无可用技能" : "未找到匹配的技能"}
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      {filteredSkills.map((skill) => (
+                        <button
+                          key={skill.id}
+                          onClick={() => onSelectSkill(skill)}
+                          className="w-full rounded-xl border border-border bg-background p-3 text-left transition-all hover:border-cognition/40 hover:bg-cognition/5"
+                        >
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="min-w-0 flex-1">
+                              <div className="flex items-center gap-2">
+                                <span className="truncate text-sm font-medium">{skill.name}</span>
+                                {skill.category && (
+                                  <span className="shrink-0 rounded bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">
+                                    {skill.category}
+                                  </span>
+                                )}
+                              </div>
+                              <p className="mt-0.5 line-clamp-2 text-xs text-muted-foreground">
+                                {skill.description}
+                              </p>
+                              <div className="mt-1 flex items-center gap-2 text-[10px] text-muted-foreground/70">
+                                <span>{skill.parameters.length} 个参数</span>
+                                <span>·</span>
+                                <span>已使用 {skill.usageCount} 次</span>
+                              </div>
+                            </div>
+                            <ChevronRight className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            ) : (
+              <div className="flex min-h-0 flex-1 flex-col">
+                {/* 技能说明 */}
+                <div className="shrink-0 border-b border-border px-5 py-3">
+                  <p className="text-xs text-muted-foreground">{selectedSkill.description}</p>
+                  {selectedSkill.tags.length > 0 && (
+                    <div className="mt-1.5 flex flex-wrap gap-1">
+                      {selectedSkill.tags.map((tag, i) => (
+                        <span key={i} className="rounded bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">
+                          {tag}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* 参数表单 */}
+                <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">
+                  {selectedSkill.parameters.length === 0 ? (
+                    <p className="py-6 text-center text-sm text-muted-foreground">
+                      此技能无需填写参数，可直接执行。
+                    </p>
+                  ) : (
+                    <div className="space-y-3">
+                      {selectedSkill.parameters.map((param) => (
+                        <div key={param.key}>
+                          <label className="mb-1 block text-xs font-medium">
+                            {param.label}
+                            {param.required && <span className="ml-1 text-graveyard">*</span>}
+                          </label>
+                          {param.type === "textarea" ? (
+                            <textarea
+                              value={skillParams[param.key] || ""}
+                              onChange={(e) =>
+                                setSkillParams((prev) => ({ ...prev, [param.key]: e.target.value }))
+                              }
+                              placeholder={param.placeholder}
+                              rows={3}
+                              className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:border-cognition"
+                            />
+                          ) : param.type === "select" ? (
+                            <select
+                              value={skillParams[param.key] || ""}
+                              onChange={(e) =>
+                                setSkillParams((prev) => ({ ...prev, [param.key]: e.target.value }))
+                              }
+                              className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:border-cognition"
+                            >
+                              <option value="">请选择...</option>
+                              {(param.options || []).map((opt) => (
+                                <option key={opt} value={opt}>{opt}</option>
+                              ))}
+                            </select>
+                          ) : (
+                            <input
+                              type={param.type === "number" ? "number" : param.type === "date" ? "date" : "text"}
+                              value={skillParams[param.key] || ""}
+                              onChange={(e) =>
+                                setSkillParams((prev) => ({ ...prev, [param.key]: e.target.value }))
+                              }
+                              placeholder={param.placeholder}
+                              className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:border-cognition"
+                            />
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* 执行按钮 */}
+                <div className="shrink-0 border-t border-border px-5 py-3">
+                  <Button
+                    onClick={executeSkill}
+                    disabled={skillExecuting}
+                    className="w-full"
+                  >
+                    {skillExecuting ? (
+                      <><Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" /> 执行中...</>
+                    ) : (
+                      <><Zap className="mr-1 h-3.5 w-3.5" /> 执行技能</>
+                    )}
+                  </Button>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}

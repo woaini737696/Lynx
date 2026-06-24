@@ -16,7 +16,10 @@ import {
   List,
   Search,
   Copy,
+  Download,
   Edit3,
+  Settings,
+  Upload,
   X,
   ZoomIn,
   ZoomOut,
@@ -304,6 +307,12 @@ export default function AIFlowsPage() {
   // 缩放控制
   const [zoom, setZoom] = useState(1);
 
+  // 节点右键菜单
+  const [contextMenu, setContextMenu] = useState<{ x: number; y: number; nodeId: string } | null>(null);
+
+  // 画布平移
+  const [isPanning, setIsPanning] = useState(false);
+
   const canvasRef = useRef<HTMLDivElement>(null);
   // 节点拖动状态（ref 避免频繁重渲染）
   const dragNodeRef = useRef<{ id: string; offsetX: number; offsetY: number } | null>(null);
@@ -325,6 +334,10 @@ export default function AIFlowsPage() {
   modeRef.current = mode;
   const zoomRef = useRef(zoom);
   zoomRef.current = zoom;
+
+  // 画布平移相关 ref
+  const panStartRef = useRef<{ x: number; y: number; scrollLeft: number; scrollTop: number } | null>(null);
+  const spacePressedRef = useRef(false);
 
   const current = flows.find((f) => f.id === selectedFlow);
 
@@ -531,31 +544,81 @@ export default function AIFlowsPage() {
       toast("不能连接到自身", "info");
       return;
     }
+
+    const fromNode = nodesRef.current.find((n) => n.id === from);
+    const toNode = nodesRef.current.find((n) => n.id === to);
+
+    if (!fromNode || !toNode) return;
+
+    // output 节点不能有出边
+    if (fromNode.type === "output") {
+      toast("输出节点不能有出边", "info");
+      return;
+    }
+
+    // trigger 节点只能有 1 条出边（新连线替换旧连线）
+    if (fromNode.type === "trigger") {
+      setEdges((prev) => prev.filter((e) => e.from !== from));
+    }
+
+    // 简单环检测：目标节点的后续不能包含源节点
+    const visited = new Set<string>();
+    const checkCycle = (nodeId: string): boolean => {
+      if (nodeId === from) return true;
+      if (visited.has(nodeId)) return false;
+      visited.add(nodeId);
+      return edgesRef.current.some((e) => e.from === nodeId && checkCycle(e.to));
+    };
+    if (checkCycle(to)) {
+      toast("不能形成环路", "info");
+      return;
+    }
+
+    // 防重复
     if (edgesRef.current.some((e) => e.from === from && e.to === to)) {
       toast("该连线已存在", "info");
       return;
     }
+
     const id = `edge-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
-    // 检测源节点是否为 condition
-    const fromNode = nodesRef.current.find((n) => n.id === from);
     let condition: "true" | "false" | undefined;
-    if (fromNode?.type === "condition") {
+    if (fromNode.type === "condition") {
       const existingFromThis = edgesRef.current.filter((e) => e.from === from);
       const hasTrue = existingFromThis.some((e) => e.condition === "true");
       const hasFalse = existingFromThis.some((e) => e.condition === "false");
       if (!hasTrue) condition = "true";
       else if (!hasFalse) condition = "false";
-      // 若 true/false 都已存在，则不标记（作为默认分支）
     }
     setEdges((prev) => [...prev, { id, from, to, condition }]);
     toast(condition ? `已建立连接（${condition === "true" ? "成立" : "不成立"}分支）` : "已建立连接", "success");
   }, []);
+
 
   // 删除节点（同时清理关联连线）
   const deleteNode = useCallback((id: string) => {
     setNodes((prev) => prev.filter((n) => n.id !== id));
     setEdges((prev) => prev.filter((e) => e.from !== id && e.to !== id));
     setSelectedNodeId(null);
+  }, []);
+
+  // 复制节点（创建副本，偏移 40px）
+  const duplicateNode = useCallback((id: string) => {
+    const node = nodesRef.current.find((n) => n.id === id);
+    if (!node) return;
+    const newId = `node-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+    setNodes((prev) => [
+      ...prev,
+      {
+        ...node,
+        id: newId,
+        x: node.x + 40,
+        y: node.y + 40,
+        status: "idle",
+        label: `${node.label} (副本)`,
+      },
+    ]);
+    setSelectedNodeId(newId);
+    toast("已复制节点", "success");
   }, []);
 
   // 删除连线
@@ -619,6 +682,14 @@ export default function AIFlowsPage() {
   // 双击节点：打开配置面板
   const handleNodeDoubleClick = (node: CanvasNode) => {
     setConfigNodeId(node.id);
+  };
+
+  // 节点右键菜单
+  const handleNodeContextMenu = (e: React.MouseEvent, node: CanvasNode) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setSelectedNodeId(node.id);
+    setContextMenu({ x: e.clientX, y: e.clientY, nodeId: node.id });
   };
 
   // 单击节点标签进入编辑
@@ -720,6 +791,37 @@ export default function AIFlowsPage() {
       if (e.deltaY < 0) zoomIn();
       else zoomOut();
     }
+  };
+
+  // ============ 画布平移 ============
+
+  // 中键拖拽 或 空格+左键拖拽 平移画布
+  const handleCanvasMouseDown = (e: React.MouseEvent) => {
+    if (e.button === 1 || (e.button === 0 && spacePressedRef.current)) {
+      e.preventDefault();
+      const canvas = canvasRef.current;
+      if (!canvas) return;
+      panStartRef.current = {
+        x: e.clientX,
+        y: e.clientY,
+        scrollLeft: canvas.scrollLeft,
+        scrollTop: canvas.scrollTop,
+      };
+      setIsPanning(true);
+    }
+  };
+
+  const handleCanvasMouseMove = (e: React.MouseEvent) => {
+    if (!isPanning || !panStartRef.current || !canvasRef.current) return;
+    const dx = e.clientX - panStartRef.current.x;
+    const dy = e.clientY - panStartRef.current.y;
+    canvasRef.current.scrollLeft = panStartRef.current.scrollLeft - dx;
+    canvasRef.current.scrollTop = panStartRef.current.scrollTop - dy;
+  };
+
+  const handleCanvasMouseUp = () => {
+    setIsPanning(false);
+    panStartRef.current = null;
   };
 
   // ============ 运行日志 ============
@@ -974,6 +1076,55 @@ export default function AIFlowsPage() {
     toast("画布已清空", "info");
   };
 
+  // 导出当前工作流为 JSON
+  const exportFlow = () => {
+    if (nodes.length === 0) {
+      toast("画布为空", "info");
+      return;
+    }
+    const data = {
+      name: flows.find((f) => f.id === visualFlowId)?.name || "未命名工作流",
+      description: flows.find((f) => f.id === visualFlowId)?.description || "",
+      nodes: nodes.map(({ status, ...n }) => n),
+      edges,
+      exportedAt: new Date().toISOString(),
+    };
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${data.name}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+    toast("已导出工作流", "success");
+  };
+
+  // 导入工作流 JSON
+  const importFlow = () => {
+    const input = document.createElement("input");
+    input.type = "file";
+    input.accept = ".json";
+    input.onchange = async (e) => {
+      const file = (e.target as HTMLInputElement).files?.[0];
+      if (!file) return;
+      try {
+        const text = await file.text();
+        const data = JSON.parse(text);
+        if (!Array.isArray(data.nodes)) {
+          toast("无效的工作流文件", "error");
+          return;
+        }
+        setNodes(data.nodes.map((n: any) => ({ ...n, status: "idle" })));
+        setEdges(Array.isArray(data.edges) ? data.edges : []);
+        setVisualFlowId(null); // 新工作流
+        toast("已导入工作流", "success");
+      } catch (err) {
+        toast("导入失败：" + (err as Error).message, "error");
+      }
+    };
+    input.click();
+  };
+
   // ============ document 级事件 ============
 
   useEffect(() => {
@@ -1038,6 +1189,39 @@ export default function AIFlowsPage() {
     document.addEventListener("keydown", handleKeyDown);
     return () => document.removeEventListener("keydown", handleKeyDown);
   }, [deleteNode, deleteEdge]);
+
+  // 点击其他地方关闭右键菜单
+  useEffect(() => {
+    const close = () => setContextMenu(null);
+    if (contextMenu) {
+      document.addEventListener("click", close);
+      document.addEventListener("contextmenu", close);
+      return () => {
+        document.removeEventListener("click", close);
+        document.removeEventListener("contextmenu", close);
+      };
+    }
+  }, [contextMenu]);
+
+  // 空格键状态（用于画布平移）
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.code === "Space" && modeRef.current === "visual") {
+        const active = document.activeElement;
+        if (active && (active.tagName === "INPUT" || active.tagName === "TEXTAREA")) return;
+        spacePressedRef.current = true;
+      }
+    };
+    const handleKeyUp = (e: KeyboardEvent) => {
+      if (e.code === "Space") spacePressedRef.current = false;
+    };
+    document.addEventListener("keydown", handleKeyDown);
+    document.addEventListener("keyup", handleKeyUp);
+    return () => {
+      document.removeEventListener("keydown", handleKeyDown);
+      document.removeEventListener("keyup", handleKeyUp);
+    };
+  }, []);
 
   // ============ 节点配置面板 ============
 
@@ -1432,6 +1616,12 @@ export default function AIFlowsPage() {
                   </Button>
                 );
               })()}
+              <Button size="sm" variant="outline" onClick={exportFlow} title="导出为 JSON">
+                <Download className="h-3 w-3" /> 导出
+              </Button>
+              <Button size="sm" variant="outline" onClick={importFlow} title="从 JSON 导入">
+                <Upload className="h-3 w-3" /> 导入
+              </Button>
               <Button size="sm" variant="outline" onClick={handleClear}>
                 <Eraser className="h-3 w-3" /> 清空
               </Button>
@@ -1483,11 +1673,16 @@ export default function AIFlowsPage() {
                 onDrop={handleCanvasDrop}
                 onDragOver={handleCanvasDragOver}
                 onWheel={handleCanvasWheel}
+                onMouseDown={handleCanvasMouseDown}
+                onMouseMove={handleCanvasMouseMove}
+                onMouseUp={handleCanvasMouseUp}
+                onMouseLeave={handleCanvasMouseUp}
                 onClick={() => {
                   setSelectedNodeId(null);
                   setSelectedEdgeId(null);
                   setEditingNodeId(null);
                 }}
+                style={{ cursor: isPanning ? "grabbing" : spacePressedRef.current ? "grab" : "default" }}
                 className="relative h-[calc(100vh-280px)] min-h-[480px] overflow-auto rounded-2xl border border-border bg-card/40"
               >
                 <div
@@ -1663,6 +1858,7 @@ export default function AIFlowsPage() {
                         key={node.id}
                         onMouseDown={(e) => handleNodeMouseDown(e, node)}
                         onDoubleClick={() => handleNodeDoubleClick(node)}
+                        onContextMenu={(e) => handleNodeContextMenu(e, node)}
                         onClick={(e) => e.stopPropagation()}
                         className={cn(
                           "group absolute flex select-none items-center gap-2.5 rounded-xl border bg-card px-3 shadow-soft transition-shadow duration-200 hover:shadow-md",
@@ -1869,6 +2065,47 @@ export default function AIFlowsPage() {
           }
         />
       )}
+
+      {/* ============ 节点右键菜单 ============ */}
+      {contextMenu && (
+        <div
+          className="fixed z-50 min-w-[140px] rounded-xl border border-border bg-card p-1 shadow-lg"
+          style={{ left: contextMenu.x, top: contextMenu.y }}
+          onClick={(e) => e.stopPropagation()}
+          onContextMenu={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+          }}
+        >
+          <button
+            onClick={() => {
+              setConfigNodeId(contextMenu.nodeId);
+              setContextMenu(null);
+            }}
+            className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-xs text-foreground transition-colors hover:bg-muted"
+          >
+            <Settings className="h-3 w-3" /> 配置节点
+          </button>
+          <button
+            onClick={() => {
+              duplicateNode(contextMenu.nodeId);
+              setContextMenu(null);
+            }}
+            className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-xs text-foreground transition-colors hover:bg-muted"
+          >
+            <Copy className="h-3 w-3" /> 复制节点
+          </button>
+          <button
+            onClick={() => {
+              deleteNode(contextMenu.nodeId);
+              setContextMenu(null);
+            }}
+            className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-xs text-graveyard transition-colors hover:bg-graveyard/10"
+          >
+            <Trash2 className="h-3 w-3" /> 删除节点
+          </button>
+        </div>
+      )}
     </div>
   );
 }
@@ -1892,7 +2129,28 @@ function NodeConfigPanel({
   const Icon = style.icon;
 
   const handleSave = () => {
-    onUpdateLabel(label.trim() || node.label);
+    // 校验必填字段
+    if (node.type === "action" && !config.prompt?.trim()) {
+      toast("AI 提示词不能为空", "error");
+      return;
+    }
+    if (node.type === "condition" && !config.expression?.trim()) {
+      toast("条件表达式不能为空", "error");
+      return;
+    }
+    if (node.type === "trigger" && config.triggerType === "schedule" && !config.schedule?.trim()) {
+      toast("Cron 表达式不能为空", "error");
+      return;
+    }
+    if (node.type === "trigger" && config.triggerType === "event" && !config.eventType?.trim()) {
+      toast("事件类型不能为空", "error");
+      return;
+    }
+    if (!label.trim()) {
+      toast("节点名称不能为空", "error");
+      return;
+    }
+    onUpdateLabel(label.trim());
     onUpdateConfig(config);
     toast("节点配置已保存", "success");
     onClose();

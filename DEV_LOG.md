@@ -4,6 +4,55 @@
 
 ---
 
+## 迭代 20 - 2026-06-25
+
+### 任务概要
+完成 4 项 AI 中心功能深化任务：AI 工作流可视化编排完善（右键菜单+节点复制+连线规则+导入导出+参数验证+画布平移）、AI 工作空间蒸馏模板创建/编辑（复用 Skill 表+CRUD API+参数定义器）、AI 助理语音 ASR 报错修复（前端 AudioContext 转 WAV）、AI 助理体验优化（快捷指令插入输入框+顶部栏 sticky+技能选择面板）。
+
+### 完成内容
+
+#### 1. AI 工作流可视化编排完善
+- **节点右键菜单**：右键节点显示上下文菜单（配置节点/复制节点/删除节点）
+- **节点复制功能**：`duplicateNode` 创建副本（偏移 40px + 标签追加"(副本)"）
+- **连线规则约束**：`addEdge` 重写，禁止自连、output 禁出边、trigger 单出边、DFS 环检测、防重复
+- **工作流导入/导出**：`exportFlow` 导出 JSON 下载，`importFlow` 文件选择读取 JSON 还原画布
+- **节点参数验证**：`NodeConfigPanel.handleSave` 按节点类型校验必填字段（action prompt/condition expression/trigger schedule/eventType/节点名称）
+- **画布平移**：空格+左键拖拽或中键拖拽平移画布（修改 scrollLeft/scrollTop），动态 cursor
+
+#### 2. AI 工作空间蒸馏模板创建/编辑
+- **CRUD API**：`/api/ai/distill/templates` GET（返回内置+自定义）/ POST（创建）；`/api/ai/distill/templates/[id]` PATCH（更新）/ DELETE（删除）
+- **复用 Skill 表**：自定义模板存入 Skill 表（source: "distill"），内置模板只读
+- **创建/编辑 UI**：工作空间页面增加"新建模板"按钮 + TemplateEditor 组件
+- **参数定义器**：可视化添加/删除/编辑参数（key/label/type/required/placeholder/options/defaultValue）
+- **模板分类**：内置模板（只读）+ 自定义模板（可编辑/删除，显示"自定义"标签）
+- **执行兼容**：自定义模板可直接执行（后端 `/api/ai/distill` 已支持按 Skill.id 查找）
+
+#### 3. AI 助理语音 ASR 报错修复
+- **根因**：浏览器 MediaRecorder 输出 webm/opus，MiMo ASR 只支持 mp3/flac/m4a/wav/ogg；原 webm→wav MIME 重试只改 MIME 头不改数据
+- **前端 WAV 转换**：新建 `src/lib/audio-utils.ts`，`webmToWav` 函数用 AudioContext（16kHz）解码 webm → 取单声道 → 转 16bit PCM → 编码标准 WAV
+- **transcribeAudio 改造**：发送前先调用 `webmToWav(blob)` 转换为真实 WAV 数据，转换失败回退原始 blob
+- **后端简化**：移除 webm→wav MIME 重试逻辑，默认文件名改为 audio.wav
+
+#### 4. AI 助理体验优化
+- **快捷指令改为插入输入框**：点击快捷指令不再直接发送，而是追加到输入框（换行分隔）+ 聚焦输入框
+- **顶部信息栏 sticky**：`sticky top-0 z-20 shrink-0 bg-background/95 backdrop-blur`，滚动容器加 `min-h-0`，输入区加 `shrink-0`，解决 flex 压缩导致顶部栏被隐藏的问题
+- **技能选择面板**：输入框上方增加"技能"按钮（Wrench 图标），点击弹出技能选择面板
+  - 列表视图：搜索框 + 分类筛选 + 卡片式技能列表
+  - 参数视图：根据 parameters 定义动态渲染输入框（text/textarea/select/date/number）
+  - 执行技能：调用 `/api/ai/distill`，结果作为 assistant 消息插入对话并持久化
+
+### 自测结果
+- TypeScript 编译：`npx tsc --noEmit` 通过（exit 0）
+- Playwright E2E：19 个测试 18 passed / 1 skipped（14.3s）
+- 页面访问：/ai/flows、/ai/workspace、/ai/assistant、/skills、/skills/market 全部 200
+- API 验证：GET /api/ai/distill/templates 返回 200（内置+自定义模板），POST 创建模板返回 200
+
+### 涉及文件
+新增：`src/lib/audio-utils.ts`、`src/app/api/ai/distill/templates/route.ts`、`src/app/api/ai/distill/templates/[id]/route.ts`
+修改：`src/app/ai/flows/page.tsx`（右键菜单+节点复制+连线规则+导入导出+参数验证+画布平移）、`src/app/ai/workspace/page.tsx`（模板创建/编辑 UI）、`src/app/ai/assistant/page.tsx`（快捷指令+sticky+技能面板）、`src/app/api/ai/asr/route.ts`（简化后端）
+
+---
+
 ## 迭代 19 - 2026-06-25
 
 ### 任务概要

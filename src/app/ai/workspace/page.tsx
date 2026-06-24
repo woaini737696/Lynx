@@ -21,6 +21,9 @@ import {
   Star,
   Users,
   Package,
+  Plus,
+  Edit3,
+  Trash2,
 } from "lucide-react";
 import { PageHeader, Card, Button, Badge } from "@/components/layout/PageHeader";
 import { HelpButton } from "@/components/layout/HelpButton";
@@ -30,7 +33,15 @@ import {
   DISTILL_TEMPLATES,
   type DistillTemplate,
   type DistillCategory,
+  type DistillParameter,
+  type DistillParamType,
 } from "@/lib/distill-templates";
+
+// 工作空间模板类型：内置模板 + 自定义模板的合并类型
+type WorkspaceTemplate = DistillTemplate & {
+  _custom?: boolean;
+  _skillId?: string;
+};
 
 // 图标名 → 组件映射
 const ICON_MAP: Record<string, React.ElementType> = {
@@ -87,7 +98,7 @@ const RECENT_KEY = "lynnhub:distill-recent";
 const RECENT_LIMIT = 5;
 
 export default function AIWorkspacePage() {
-  const [selected, setSelected] = useState<DistillTemplate | null>(null);
+  const [selected, setSelected] = useState<WorkspaceTemplate | null>(null);
   const [params, setParams] = useState<Record<string, string>>({});
   const [executing, setExecuting] = useState(false);
   const [result, setResult] = useState<string | null>(null);
@@ -98,6 +109,20 @@ export default function AIWorkspacePage() {
   const [favorites, setFavorites] = useState<string[]>([]);
   const [recentIds, setRecentIds] = useState<string[]>([]);
   const [showFavoritesOnly, setShowFavoritesOnly] = useState(false);
+  const [customTemplates, setCustomTemplates] = useState<any[]>([]);
+  const [showTemplateEditor, setShowTemplateEditor] = useState(false);
+  const [editingTemplate, setEditingTemplate] = useState<any | null>(null);
+
+  // 加载自定义蒸馏模板
+  const fetchCustomTemplates = useCallback(async () => {
+    try {
+      const res = await fetch("/api/ai/distill/templates");
+      const data = await res.json();
+      if (data.customs) setCustomTemplates(data.customs);
+    } catch {
+      // ignore
+    }
+  }, []);
 
   // 加载历史记录、收藏、最近使用
   useEffect(() => {
@@ -117,11 +142,29 @@ export default function AIWorkspacePage() {
     } catch {
       // ignore
     }
-  }, []);
+    fetchCustomTemplates();
+  }, [fetchCustomTemplates]);
+
+  // 合并内置模板和自定义模板
+  const allTemplates = useMemo<WorkspaceTemplate[]>(() => {
+    const customsAsTemplates: WorkspaceTemplate[] = customTemplates.map((c) => ({
+      id: c.id,
+      name: c.name,
+      description: c.description,
+      icon: c.icon || "Sparkles",
+      category: c.category as DistillCategory,
+      parameters: (c.parameters || []) as DistillParameter[],
+      promptTemplate: c.promptTemplate,
+      steps: [],
+      _custom: true,
+      _skillId: c.id,
+    }));
+    return [...DISTILL_TEMPLATES, ...customsAsTemplates];
+  }, [customTemplates]);
 
   // 过滤 + 搜索
   const filteredTemplates = useMemo(() => {
-    let list = DISTILL_TEMPLATES;
+    let list: WorkspaceTemplate[] = allTemplates;
     if (categoryFilter !== "all") {
       list = list.filter((t) => t.category === categoryFilter);
     }
@@ -137,7 +180,7 @@ export default function AIWorkspacePage() {
       );
     }
     return list;
-  }, [categoryFilter, showFavoritesOnly, favorites, searchQuery]);
+  }, [allTemplates, categoryFilter, showFavoritesOnly, favorites, searchQuery]);
 
   // 收藏的模板
   const favoriteTemplates = useMemo(
@@ -167,7 +210,7 @@ export default function AIWorkspacePage() {
     });
   }, []);
 
-  const openTemplate = (template: DistillTemplate) => {
+  const openTemplate = (template: WorkspaceTemplate) => {
     setSelected(template);
     // 用 defaultValue 初始化参数
     const init: Record<string, string> = {};
@@ -263,24 +306,70 @@ export default function AIWorkspacePage() {
     toast("已清空历史", "info");
   }, []);
 
+  // 删除自定义模板
+  const deleteTemplate = async (id: string) => {
+    if (!confirm("确定删除此自定义模板？")) return;
+    try {
+      const res = await fetch(`/api/ai/distill/templates/${id}`, {
+        method: "DELETE",
+      });
+      if (res.ok) {
+        toast("已删除", "success");
+        fetchCustomTemplates();
+      } else {
+        const err = await res.json().catch(() => ({}));
+        toast(err.error || "删除失败", "error");
+      }
+    } catch (e) {
+      toast("删除失败：" + (e as Error).message, "error");
+    }
+  };
+
+  // 打开模板编辑器（新建或编辑）
+  const openTemplateEditor = (template: WorkspaceTemplate | null) => {
+    setEditingTemplate(template);
+    setShowTemplateEditor(true);
+  };
+
+  // 关闭模板编辑器
+  const closeTemplateEditor = () => {
+    setShowTemplateEditor(false);
+    setEditingTemplate(null);
+  };
+
+  // 保存模板后回调
+  const onTemplateSaved = () => {
+    fetchCustomTemplates();
+  };
+
   return (
     <div className="p-4 sm:p-8">
       <PageHeader
         title="AI 工作空间"
         subtitle="将重复性 AI 协同工作固化为参数化模板，一键启动蒸馏流程"
         action={
-          <HelpButton content={{
-            painPoint: "重复性AI任务（周报、代码审查、会议纪要）每次都要重新写prompt。",
-            need: "需要预设模板，填参数即可执行，结果可复用。",
-            solution: "AI工作空间提供7个蒸馏模板（财务预测/周报/代码审查/知识蒸馏/会议纪要/PRD/竞品分析），填参数一键执行。",
-            usage: [
-              "选择模板",
-              "填写参数",
-              "点击执行",
-              "查看结果可复制",
-              "执行历史可重跑"
-            ]
-          }} />
+          <div className="flex items-center gap-2">
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => openTemplateEditor(null)}
+            >
+              <Plus className="h-3.5 w-3.5" /> 新建模板
+            </Button>
+            <HelpButton content={{
+              painPoint: "重复性AI任务（周报、代码审查、会议纪要）每次都要重新写prompt。",
+              need: "需要预设模板，填参数即可执行，结果可复用。",
+              solution: "AI工作空间提供7个蒸馏模板（财务预测/周报/代码审查/知识蒸馏/会议纪要/PRD/竞品分析），填参数一键执行。支持创建自定义模板。",
+              usage: [
+                "选择模板",
+                "填写参数",
+                "点击执行",
+                "查看结果可复制",
+                "执行历史可重跑",
+                "点击「新建模板」创建自定义模板"
+              ]
+            }} />
+          </div>
         }
       />
 
@@ -424,6 +513,16 @@ export default function AIWorkspacePage() {
               isFavorite={favorites.includes(tpl.id)}
               onOpen={() => openTemplate(tpl)}
               onToggleFavorite={() => toggleFavorite(tpl.id)}
+              onEdit={
+                tpl._custom
+                  ? () => openTemplateEditor(tpl)
+                  : undefined
+              }
+              onDelete={
+                tpl._custom
+                  ? () => deleteTemplate(tpl._skillId || tpl.id)
+                  : undefined
+              }
             />
           ))}
         </div>
@@ -499,6 +598,15 @@ export default function AIWorkspacePage() {
           onClose={closeModal}
         />
       )}
+
+      {/* 模板编辑器（新建/编辑） */}
+      {showTemplateEditor && (
+        <TemplateEditor
+          template={editingTemplate}
+          onClose={closeTemplateEditor}
+          onSave={onTemplateSaved}
+        />
+      )}
     </div>
   );
 }
@@ -560,11 +668,15 @@ function CompactTemplateCard({
   isFavorite,
   onOpen,
   onToggleFavorite,
+  onEdit,
+  onDelete,
 }: {
-  template: DistillTemplate;
+  template: WorkspaceTemplate;
   isFavorite: boolean;
   onOpen: () => void;
   onToggleFavorite: () => void;
+  onEdit?: () => void;
+  onDelete?: () => void;
 }) {
   const Icon = ICON_MAP[template.icon] ?? Sparkles;
   return (
@@ -572,22 +684,52 @@ function CompactTemplateCard({
       onClick={onOpen}
       className="group relative cursor-pointer rounded-xl border border-border bg-card p-3 transition-all hover:-translate-y-0.5 hover:shadow-md"
     >
-      {/* 收藏按钮 */}
-      <button
-        onClick={(e) => {
-          e.stopPropagation();
-          onToggleFavorite();
-        }}
-        className={cn(
-          "absolute right-2 top-2 rounded-md p-1 transition-colors",
-          isFavorite
-            ? "text-northstar"
-            : "text-muted-foreground/40 opacity-0 group-hover:opacity-100 hover:text-northstar"
+      {/* 顶部右侧操作区 */}
+      <div className="absolute right-2 top-2 flex items-center gap-0.5">
+        {/* 自定义模板：编辑/删除按钮 */}
+        {template._custom && onEdit && (
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onEdit();
+            }}
+            className="rounded-md p-1 text-muted-foreground/60 opacity-0 transition-colors hover:text-cognition group-hover:opacity-100"
+            aria-label="编辑"
+            title="编辑"
+          >
+            <Edit3 className="h-3 w-3" />
+          </button>
         )}
-        aria-label="收藏"
-      >
-        <Star className={cn("h-3 w-3", isFavorite && "fill-current")} />
-      </button>
+        {template._custom && onDelete && (
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onDelete();
+            }}
+            className="rounded-md p-1 text-muted-foreground/60 opacity-0 transition-colors hover:text-graveyard group-hover:opacity-100"
+            aria-label="删除"
+            title="删除"
+          >
+            <Trash2 className="h-3 w-3" />
+          </button>
+        )}
+        {/* 收藏按钮 */}
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            onToggleFavorite();
+          }}
+          className={cn(
+            "rounded-md p-1 transition-colors",
+            isFavorite
+              ? "text-northstar"
+              : "text-muted-foreground/40 opacity-0 group-hover:opacity-100 hover:text-northstar"
+          )}
+          aria-label="收藏"
+        >
+          <Star className={cn("h-3 w-3", isFavorite && "fill-current")} />
+        </button>
+      </div>
 
       <div className="mb-2 flex items-center gap-2">
         <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-muted/60">
@@ -596,6 +738,9 @@ function CompactTemplateCard({
         <Badge color={CATEGORY_COLOR[template.category]}>
           {CATEGORY_LABEL[template.category]}
         </Badge>
+        {template._custom && (
+          <span className="text-[9px] text-cognition">自定义</span>
+        )}
       </div>
       <h3 className="mb-0.5 text-xs font-medium">{template.name}</h3>
       <p className="line-clamp-2 text-[10px] leading-relaxed text-muted-foreground">
@@ -623,7 +768,7 @@ function DistillModal({
   onExecute,
   onClose,
 }: {
-  template: DistillTemplate;
+  template: WorkspaceTemplate;
   params: Record<string, string>;
   setParams: (p: Record<string, string>) => void;
   executing: boolean;
@@ -774,6 +919,427 @@ function DistillModal({
             </div>
           </div>
         )}
+      </div>
+    </div>
+  );
+}
+
+// ============ 模板编辑器（新建/编辑自定义蒸馏模板） ============
+
+const PARAM_TYPE_OPTIONS: DistillParamType[] = [
+  "text",
+  "textarea",
+  "select",
+  "date",
+  "number",
+];
+
+const PARAM_TYPE_LABEL: Record<DistillParamType, string> = {
+  text: "单行文本",
+  textarea: "多行文本",
+  select: "下拉选择",
+  date: "日期",
+  number: "数字",
+};
+
+const ICON_OPTIONS = Object.keys(ICON_MAP);
+
+function TemplateEditor({
+  template,
+  onClose,
+  onSave,
+}: {
+  template: any | null; // null 表示新建
+  onClose: () => void;
+  onSave: () => void;
+}) {
+  const [name, setName] = useState<string>(template?.name || "");
+  const [description, setDescription] = useState<string>(
+    template?.description || ""
+  );
+  const [category, setCategory] = useState<DistillCategory>(
+    (template?.category as DistillCategory) || "knowledge"
+  );
+  const [icon, setIcon] = useState<string>(template?.icon || "Sparkles");
+  const [parameters, setParameters] = useState<DistillParameter[]>(
+    (template?.parameters as DistillParameter[]) || []
+  );
+  const [promptTemplate, setPromptTemplate] = useState<string>(
+    template?.promptTemplate || ""
+  );
+  const [steps, setSteps] = useState<string[]>(
+    template?.steps && template.steps.length > 0 ? [...template.steps] : [""]
+  );
+  const [saving, setSaving] = useState(false);
+
+  const isEdit = Boolean(template?._custom);
+
+  const handleSave = async () => {
+    if (!name.trim()) {
+      toast("名称不能为空", "error");
+      return;
+    }
+    if (!promptTemplate.trim()) {
+      toast("提示词模板不能为空", "error");
+      return;
+    }
+    setSaving(true);
+    try {
+      const payload = {
+        name,
+        description,
+        category,
+        icon,
+        parameters: parameters.filter((p) => p.key && p.label),
+        promptTemplate,
+        steps: steps.filter((s) => s.trim()),
+      };
+      const url = isEdit
+        ? `/api/ai/distill/templates/${template._skillId}`
+        : "/api/ai/distill/templates";
+      const method = isEdit ? "PATCH" : "POST";
+      const res = await fetch(url, {
+        method,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || "保存失败");
+      }
+      toast("模板已保存", "success");
+      onSave();
+      onClose();
+    } catch (e) {
+      toast("保存失败：" + (e as Error).message, "error");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // 参数操作
+  const addParameter = () => {
+    setParameters([
+      ...parameters,
+      {
+        key: "",
+        label: "",
+        type: "text",
+        required: false,
+        placeholder: "",
+        defaultValue: "",
+      },
+    ]);
+  };
+
+  const updateParameter = (index: number, patch: Partial<DistillParameter>) => {
+    setParameters(
+      parameters.map((p, i) => (i === index ? { ...p, ...patch } : p))
+    );
+  };
+
+  const removeParameter = (index: number) => {
+    setParameters(parameters.filter((_, i) => i !== index));
+  };
+
+  // 步骤操作
+  const addStep = () => setSteps([...steps, ""]);
+  const updateStep = (index: number, value: string) => {
+    setSteps(steps.map((s, i) => (i === index ? value : s)));
+  };
+  const removeStep = (index: number) => {
+    setSteps(steps.filter((_, i) => i !== index));
+  };
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-start justify-center bg-black/50 p-4 pt-[6vh] backdrop-blur-sm animate-in fade-in duration-200"
+      onClick={onClose}
+    >
+      <div
+        className="max-h-[88vh] w-full max-w-2xl overflow-y-auto rounded-3xl border border-border bg-card p-5 shadow-2xl transition-all animate-in zoom-in-95 duration-200 sm:p-6"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* 头部 */}
+        <div className="mb-5 flex items-start justify-between">
+          <div>
+            <h2 className="text-base font-semibold">
+              {isEdit ? "编辑模板" : "新建模板"}
+            </h2>
+            <p className="text-[11px] text-muted-foreground">
+              {isEdit ? "修改自定义蒸馏模板" : "创建自定义蒸馏模板，可填参数一键执行"}
+            </p>
+          </div>
+          <button
+            onClick={onClose}
+            className="rounded-lg p-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+            aria-label="关闭"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+
+        <div className="space-y-4">
+          {/* 名称 */}
+          <div>
+            <label className="mb-1.5 flex items-center gap-1.5 text-xs font-medium text-foreground/80">
+              名称 <span className="text-graveyard">*</span>
+            </label>
+            <input
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="如：用户调研报告"
+              className="w-full rounded-xl border border-border bg-background px-3 py-2 text-xs text-foreground placeholder:text-muted-foreground/60 focus:border-cognition/40 focus:outline-none focus:ring-2 focus:ring-cognition/20"
+            />
+          </div>
+
+          {/* 描述 */}
+          <div>
+            <label className="mb-1.5 block text-xs font-medium text-foreground/80">
+              描述
+            </label>
+            <input
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              placeholder="简要描述模板用途..."
+              className="w-full rounded-xl border border-border bg-background px-3 py-2 text-xs text-foreground placeholder:text-muted-foreground/60 focus:border-cognition/40 focus:outline-none focus:ring-2 focus:ring-cognition/20"
+            />
+          </div>
+
+          {/* 分类 + 图标 */}
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="mb-1.5 block text-xs font-medium text-foreground/80">
+                分类
+              </label>
+              <select
+                value={category}
+                onChange={(e) =>
+                  setCategory(e.target.value as DistillCategory)
+                }
+                className="w-full rounded-xl border border-border bg-background px-3 py-2 text-xs text-foreground focus:border-cognition/40 focus:outline-none focus:ring-2 focus:ring-cognition/20"
+              >
+                {(Object.keys(CATEGORY_LABEL) as DistillCategory[]).map((c) => (
+                  <option key={c} value={c}>
+                    {CATEGORY_LABEL[c]}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="mb-1.5 block text-xs font-medium text-foreground/80">
+                图标
+              </label>
+              <select
+                value={icon}
+                onChange={(e) => setIcon(e.target.value)}
+                className="w-full rounded-xl border border-border bg-background px-3 py-2 text-xs text-foreground focus:border-cognition/40 focus:outline-none focus:ring-2 focus:ring-cognition/20"
+              >
+                {ICON_OPTIONS.map((ic) => (
+                  <option key={ic} value={ic}>
+                    {ic}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          {/* 步骤 */}
+          <div>
+            <div className="mb-1.5 flex items-center justify-between">
+              <label className="text-xs font-medium text-foreground/80">
+                步骤
+              </label>
+              <button
+                onClick={addStep}
+                className="flex items-center gap-0.5 text-[11px] text-cognition hover:underline"
+              >
+                <Plus className="h-3 w-3" /> 添加步骤
+              </button>
+            </div>
+            <div className="space-y-1.5">
+              {steps.map((s, i) => (
+                <div key={i} className="flex items-center gap-1.5">
+                  <span className="w-5 shrink-0 text-[10px] text-muted-foreground">
+                    {i + 1}.
+                  </span>
+                  <input
+                    value={s}
+                    onChange={(e) => updateStep(i, e.target.value)}
+                    placeholder={`步骤 ${i + 1}`}
+                    className="flex-1 rounded-lg border border-border bg-background px-2.5 py-1.5 text-[11px] text-foreground placeholder:text-muted-foreground/60 focus:border-cognition/40 focus:outline-none focus:ring-1 focus:ring-cognition/20"
+                  />
+                  <button
+                    onClick={() => removeStep(i)}
+                    className="rounded-md p-1 text-muted-foreground hover:text-graveyard"
+                    aria-label="删除步骤"
+                  >
+                    <Trash2 className="h-3 w-3" />
+                  </button>
+                </div>
+              ))}
+              {steps.length === 0 && (
+                <p className="text-[10px] text-muted-foreground">
+                  暂无步骤，点击上方添加
+                </p>
+              )}
+            </div>
+          </div>
+
+          {/* 参数定义器 */}
+          <div>
+            <div className="mb-1.5 flex items-center justify-between">
+              <label className="text-xs font-medium text-foreground/80">
+                参数定义
+              </label>
+              <button
+                onClick={addParameter}
+                className="flex items-center gap-0.5 text-[11px] text-cognition hover:underline"
+              >
+                <Plus className="h-3 w-3" /> 添加参数
+              </button>
+            </div>
+            <div className="space-y-2">
+              {parameters.map((p, i) => (
+                <div
+                  key={i}
+                  className="rounded-xl border border-border bg-muted/20 p-2.5"
+                >
+                  <div className="mb-1.5 flex items-center justify-between">
+                    <span className="text-[10px] font-medium text-muted-foreground">
+                      参数 {i + 1}
+                    </span>
+                    <button
+                      onClick={() => removeParameter(i)}
+                      className="rounded-md p-0.5 text-muted-foreground hover:text-graveyard"
+                      aria-label="删除参数"
+                    >
+                      <Trash2 className="h-3 w-3" />
+                    </button>
+                  </div>
+                  <div className="grid grid-cols-2 gap-1.5">
+                    <input
+                      value={p.key}
+                      onChange={(e) =>
+                        updateParameter(i, { key: e.target.value })
+                      }
+                      placeholder="key（如：period）"
+                      className="rounded-lg border border-border bg-background px-2 py-1 text-[11px] focus:border-cognition/40 focus:outline-none"
+                    />
+                    <input
+                      value={p.label}
+                      onChange={(e) =>
+                        updateParameter(i, { label: e.target.value })
+                      }
+                      placeholder="label（如：预测周期）"
+                      className="rounded-lg border border-border bg-background px-2 py-1 text-[11px] focus:border-cognition/40 focus:outline-none"
+                    />
+                  </div>
+                  <div className="mt-1.5 grid grid-cols-3 gap-1.5">
+                    <select
+                      value={p.type}
+                      onChange={(e) =>
+                        updateParameter(i, {
+                          type: e.target.value as DistillParamType,
+                        })
+                      }
+                      className="rounded-lg border border-border bg-background px-2 py-1 text-[11px] focus:border-cognition/40 focus:outline-none"
+                    >
+                      {PARAM_TYPE_OPTIONS.map((t) => (
+                        <option key={t} value={t}>
+                          {PARAM_TYPE_LABEL[t]}
+                        </option>
+                      ))}
+                    </select>
+                    <input
+                      value={p.defaultValue || ""}
+                      onChange={(e) =>
+                        updateParameter(i, { defaultValue: e.target.value })
+                      }
+                      placeholder="默认值"
+                      className="rounded-lg border border-border bg-background px-2 py-1 text-[11px] focus:border-cognition/40 focus:outline-none"
+                    />
+                    <label className="flex items-center gap-1 text-[11px] text-muted-foreground">
+                      <input
+                        type="checkbox"
+                        checked={p.required}
+                        onChange={(e) =>
+                          updateParameter(i, { required: e.target.checked })
+                        }
+                        className="h-3 w-3"
+                      />
+                      必填
+                    </label>
+                  </div>
+                  <input
+                    value={p.placeholder || ""}
+                    onChange={(e) =>
+                      updateParameter(i, { placeholder: e.target.value })
+                    }
+                    placeholder="placeholder（输入提示）"
+                    className="mt-1.5 w-full rounded-lg border border-border bg-background px-2 py-1 text-[11px] focus:border-cognition/40 focus:outline-none"
+                  />
+                  {p.type === "select" && (
+                    <input
+                      value={(p.options || []).join(", ")}
+                      onChange={(e) =>
+                        updateParameter(i, {
+                          options: e.target.value
+                            .split(",")
+                            .map((s) => s.trim())
+                            .filter(Boolean),
+                        })
+                      }
+                      placeholder="选项（用英文逗号分隔，如：A, B, C）"
+                      className="mt-1.5 w-full rounded-lg border border-border bg-background px-2 py-1 text-[11px] focus:border-cognition/40 focus:outline-none"
+                    />
+                  )}
+                </div>
+              ))}
+              {parameters.length === 0 && (
+                <p className="text-[10px] text-muted-foreground">
+                  暂无参数，点击上方添加。参数可在提示词中用{" "}
+                  {"{{key}}"} 引用。
+                </p>
+              )}
+            </div>
+          </div>
+
+          {/* 提示词模板 */}
+          <div>
+            <label className="mb-1.5 flex items-center gap-1.5 text-xs font-medium text-foreground/80">
+              提示词模板 <span className="text-graveyard">*</span>
+            </label>
+            <p className="mb-1.5 text-[10px] text-muted-foreground">
+              用 {"{{paramKey}}"} 引用参数，如 {"{{period}}"}
+            </p>
+            <textarea
+              value={promptTemplate}
+              onChange={(e) => setPromptTemplate(e.target.value)}
+              placeholder={`你是一个专家。请基于以下信息生成报告：\n\n周期：{{period}}\n内容：{{content}}\n\n请输出：1.总结 2.分析 3.建议`}
+              rows={8}
+              className="w-full resize-y rounded-xl border border-border bg-background px-3 py-2 text-xs leading-relaxed text-foreground placeholder:text-muted-foreground/60 focus:border-cognition/40 focus:outline-none focus:ring-2 focus:ring-cognition/20"
+            />
+          </div>
+        </div>
+
+        {/* 底部操作 */}
+        <div className="mt-5 flex items-center justify-end gap-2">
+          <Button size="sm" variant="ghost" onClick={onClose}>
+            取消
+          </Button>
+          <Button size="sm" onClick={handleSave} disabled={saving}>
+            {saving ? (
+              <>
+                <Loader2 className="h-3.5 w-3.5 animate-spin" /> 保存中...
+              </>
+            ) : (
+              <>
+                <CheckCircle2 className="h-3.5 w-3.5" /> 保存
+              </>
+            )}
+          </Button>
+        </div>
       </div>
     </div>
   );

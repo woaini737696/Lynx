@@ -52,19 +52,17 @@ export async function POST(req: NextRequest) {
     const buffer = Buffer.from(arrayBuffer);
     const base64Audio = buffer.toString("base64");
 
-    // 根据文件名推断 MIME 类型
-    const fileName = file.name || "audio.webm";
+    // 根据文件名推断 MIME 类型（前端已将 webm 转为 wav，这里仅做兜底推断）
+    const fileName = file.name || "audio.wav";
     let mimeType = "audio/wav";
-    if (fileName.endsWith(".mp3")) {
-      mimeType = "audio/mpeg";
-    } else if (fileName.endsWith(".wav")) {
+    if (fileName.endsWith(".wav")) {
       mimeType = "audio/wav";
-    } else if (fileName.endsWith(".webm")) {
-      // 浏览器 MediaRecorder 默认 webm/opus
-      // MiMo ASR 可能不支持 webm，先尝试用原始 webm MIME，失败后回退 wav
-      mimeType = "audio/webm";
+    } else if (fileName.endsWith(".mp3")) {
+      mimeType = "audio/mpeg";
     } else if (fileName.endsWith(".m4a")) {
       mimeType = "audio/mp4";
+    } else if (fileName.endsWith(".flac")) {
+      mimeType = "audio/flac";
     } else if (fileName.endsWith(".ogg")) {
       mimeType = "audio/ogg";
     }
@@ -110,14 +108,6 @@ export async function POST(req: NextRequest) {
     let res: Response;
     try {
       res = await callAsr(asrBody);
-      // 如果 webm 格式失败，尝试用 wav MIME 重试
-      if (!res.ok && mimeType === "audio/webm") {
-        const errText = await res.text().catch(() => "");
-        const wavDataUrl = `data:audio/wav;base64,${base64Audio}`;
-        const wavBody = { ...asrBody };
-        (wavBody.messages as any[])[0].content[0].input_audio.data = wavDataUrl;
-        res = await callAsr(wavBody);
-      }
     } catch (e) {
       return NextResponse.json(
         { error: `调用 MiMo ASR 网络错误：${(e as Error).message}` },
