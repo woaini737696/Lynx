@@ -11,6 +11,7 @@ import {
   Zap,
 } from "lucide-react";
 import { PageHeader, Card, Button, LoadingState } from "@/components/layout/PageHeader";
+import { toast } from "@/components/ui/toast";
 
 type Settings = {
   db: {
@@ -47,6 +48,7 @@ export default function SettingsPage() {
       } catch (e: any) {
         if (!mounted) return;
         console.error("Settings load failed:", e);
+        toast("加载设置失败", "error");
         setLoading(false);
       }
     };
@@ -112,7 +114,7 @@ export default function SettingsPage() {
         <Row label="Base URL" value={settings.ai.chatBaseURL} />
         {!settings.ai.chatProvider && (
           <div className="mt-3 rounded-md border border-graveyard/30 bg-graveyard/5 p-3 text-xs text-graveyard">
-            ⚠️ 未配置 AI_API_KEY，对话资产和认知库的 AI 提取会跳过。
+            ⚠️ 未配置 LLM API Key（DEEPSEEK_API_KEY / MIMO_API_KEY / AI_API_KEY），对话资产和认知库的 AI 提取会跳过。
             <br />
             配置后重启 dev server 生效。
           </div>
@@ -135,7 +137,7 @@ export default function SettingsPage() {
           <div className="mt-3 rounded-md border border-campaign/30 bg-campaign/5 p-3 text-xs text-campaign">
             ℹ️ 未配置 embedding，记忆图谱使用 TF-IDF 关键词匹配（可用但精度较低）。
             <br />
-            配置 AI_API_KEY 或独立的 AI_EMBEDDING_API_KEY 后启用向量搜索。
+            配置 EMBEDDING_API_KEY 后启用向量搜索。
           </div>
         )}
       </Section>

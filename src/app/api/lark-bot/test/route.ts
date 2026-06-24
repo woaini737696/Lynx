@@ -1,8 +1,19 @@
 import { NextRequest, NextResponse } from "next/server";
+import { createHmac } from "crypto";
 import { requireAuth } from "@/lib/auth-utils";
 
+// 生成飞书自定义机器人签名校验
+// 算法：sign = base64(hmac_sha256(timestamp + "\n" + secret, ""))
+// 飞书文档：https://open.feishu.cn/document/client-docs/bot-v3/add-custom-bot
+function generateSign(timestamp: number, secret: string): string {
+  const stringToSign = `${timestamp}\n${secret}`;
+  const hmac = createHmac("sha256", stringToSign);
+  hmac.update("");
+  return hmac.digest("base64");
+}
+
 // POST /api/lark-bot/test - 向配置的飞书 Webhook 发送测试消息
-// body: { webhookUrl, message? }
+// body: { webhookUrl, message?, webhookToken? }
 // 返回发送结果
 export async function POST(req: NextRequest) {
   try {
@@ -10,9 +21,10 @@ export async function POST(req: NextRequest) {
     if (error) return error;
 
     const body = await req.json();
-    const { webhookUrl, message } = body as {
+    const { webhookUrl, message, webhookToken } = body as {
       webhookUrl: string;
       message?: string;
+      webhookToken?: string;
     };
 
     if (!webhookUrl || !webhookUrl.trim()) {
@@ -42,10 +54,18 @@ export async function POST(req: NextRequest) {
 
     // 发送测试消息（飞书自定义机器人消息格式）
     const text = message || "✅ LynnHub 飞书机器人测试消息：连接成功！";
-    const payload = {
+    const payload: Record<string, unknown> = {
       msg_type: "text",
       content: { text },
     };
+
+    // 如果配置了签名校验 secret，添加 timestamp 和 sign 字段
+    const token = (webhookToken || "").trim();
+    if (token) {
+      const timestamp = Math.floor(Date.now() / 1000);
+      payload.timestamp = String(timestamp);
+      payload.sign = generateSign(timestamp, token);
+    }
 
     const startTime = Date.now();
     const res = await fetch(parsedUrl.toString(), {
@@ -78,12 +98,13 @@ export async function POST(req: NextRequest) {
       (responseData as { code?: number; StatusCode?: number })?.code ??
       (responseData as { StatusCode?: number })?.StatusCode;
     if (code !== undefined && code !== 0) {
+      const msg = (responseData as { msg?: string })?.msg || "";
       return NextResponse.json({
         success: false,
         status: res.status,
         durationMs,
         response: responseData,
-        error: `飞书 Webhook 返回业务错误码：${code}`,
+        error: `飞书 Webhook 返回业务错误码：${code}${msg ? `（${msg}）` : ""}`,
       }, { status: 200 });
     }
 

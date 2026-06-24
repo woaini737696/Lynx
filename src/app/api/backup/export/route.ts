@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { requireAuth, buildUserFilter } from "@/lib/auth-utils";
 import { getLogger } from "@/lib/logger";
+import { rateLimit, getClientKey } from "@/lib/rate-limit";
 
 const logger = getLogger("backup-export-api");
 
@@ -21,8 +22,27 @@ const SINGLE_TYPES = [
 type ExportType = (typeof SINGLE_TYPES)[number];
 
 // GET /api/backup/export?type=all|ideas|tasks|conversations|cognitions|memories|skills|flows
+// 限流：5 次/分钟
 export async function GET(req: NextRequest) {
   try {
+    // ============ Rate Limiting ============
+    const ip = getClientKey(req);
+    const rl = rateLimit(`backup-export:${ip}`, 5, 60 * 1000);
+    if (!rl.success) {
+      return NextResponse.json(
+        { error: "导出请求过于频繁，请稍后再试" },
+        {
+          status: 429,
+          headers: {
+            "X-RateLimit-Limit": "5",
+            "X-RateLimit-Remaining": "0",
+            "X-RateLimit-Reset": String(Math.floor(rl.resetAt / 1000)),
+            "Retry-After": String(Math.ceil((rl.resetAt - Date.now()) / 1000)),
+          },
+        }
+      );
+    }
+
     // 鉴权：admin 可导出全部，普通用户只能导出自己的
     const auth = await requireAuth();
     if (auth.user === null) return auth.error;

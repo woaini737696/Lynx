@@ -31,8 +31,8 @@ import {
   Button,
   Badge,
   LoadingState,
-  EmptyState,
 } from "@/components/layout/PageHeader";
+import { EmptyState } from "@/components/layout/EmptyState";
 import { toast } from "@/components/ui/toast";
 import { cn } from "@/lib/utils";
 import { RichTextEditor } from "@/components/editor/RichTextEditor";
@@ -428,7 +428,7 @@ export default function SkillsPage() {
             <LoadingState title="技能管理" />
           ) : skills.length === 0 ? (
             <EmptyState
-              icon={<Wrench className="h-7 w-7" />}
+              icon={Wrench}
               title="暂无技能"
               description="创建你的第一个技能模板，或从 Markdown 导入，也可让 AI 帮你生成"
               action={
@@ -1035,7 +1035,7 @@ function VersionDetailModal({
           </div>
         ) : (
           <EmptyState
-            icon={<X className="h-7 w-7" />}
+            icon={X}
             title="加载失败"
             description="无法获取版本详情，请稍后重试"
           />

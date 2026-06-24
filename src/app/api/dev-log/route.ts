@@ -5,6 +5,7 @@ import { requireAuth } from "@/lib/auth-utils";
 
 // GET /api/dev-log
 // 读取项目根目录的 DEV_LOG.md 文件内容
+// 缓存 30 秒（stale-while-revalidate 60 秒）
 export async function GET() {
   try {
     const { error } = await requireAuth();
@@ -12,7 +13,14 @@ export async function GET() {
 
     const logPath = path.join(process.cwd(), "DEV_LOG.md");
     const content = fs.readFileSync(logPath, "utf-8");
-    return NextResponse.json({ content, path: "DEV_LOG.md" });
+    return NextResponse.json(
+      { content, path: "DEV_LOG.md" },
+      {
+        headers: {
+          "Cache-Control": "public, s-maxage=30, stale-while-revalidate=60",
+        },
+      }
+    );
   } catch (e) {
     return NextResponse.json(
       { error: "读取开发日志失败：" + (e as Error).message },

@@ -3,8 +3,13 @@ import { prisma } from "@/lib/db";
 import { writeMemoryForIdea } from "@/lib/memory-sync";
 import { requireAuth, buildUserFilter } from "@/lib/auth-utils";
 import { getLogger } from "@/lib/logger";
+import { validateString, validateEnum } from "@/lib/validate";
 
 const logger = getLogger("ideas-api");
+
+// 灵感来源与状态枚举（与 Prisma schema 注释保持一致）
+const IDEA_SOURCES = ["lightning", "conversation"] as const;
+const IDEA_STATUSES = ["inbox", "board", "graveyard"] as const;
 
 // 闪电输入 - 创建灵感
 export async function POST(req: NextRequest) {
@@ -12,16 +17,20 @@ export async function POST(req: NextRequest) {
     const { user, error } = await requireAuth();
     if (error) return error;
 
-    const { content } = await req.json();
-    if (!content || !content.trim()) {
+    const body = await req.json().catch(() => ({}));
+    // 输入校验：content max 5000，source/status 枚举
+    const content = validateString(body?.content, 5000);
+    if (!content) {
       return NextResponse.json({ error: "内容不能为空" }, { status: 400 });
     }
+    const source = validateEnum(body?.source, IDEA_SOURCES);
+    const status = validateEnum(body?.status, IDEA_STATUSES);
 
     const idea = await prisma.idea.create({
       data: {
-        content: content.trim(),
-        source: "lightning",
-        status: "inbox",
+        content,
+        source,
+        status,
         tags: [],
         userId: user.id,
       },

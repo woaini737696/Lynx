@@ -3,7 +3,8 @@
 import { useEffect, useState, useRef, useCallback } from "react";
 import { ArrowRight, Trash2, InboxIcon, Bot, Send, X, Sparkles, Check, Settings, Bell, AlertCircle } from "lucide-react";
 import { toast } from "@/components/ui/toast";
-import { PageHeader, EmptyState, Card, Button, LoadingState, Badge } from "@/components/layout/PageHeader";
+import { PageHeader, Card, Button, Badge, Skeleton } from "@/components/layout/PageHeader";
+import { EmptyState } from "@/components/layout/EmptyState";
 import { cn } from "@/lib/utils";
 import type { ReviveSuggestion } from "@/lib/reminder-scheduler";
 
@@ -72,6 +73,7 @@ export default function InboxPage() {
       } catch (e) {
         if (!mounted) return;
         console.error(e);
+        toast("加载灵感失败", "error");
       } finally {
         if (mounted) setLoading(false);
       }
@@ -412,10 +414,24 @@ export default function InboxPage() {
       )}
 
       {loading ? (
-        <LoadingState title="Inbox" />
+        <div className="space-y-3">
+          <PageHeader title="Inbox" subtitle="加载中..." />
+          {Array.from({ length: 4 }).map((_, i) => (
+            <Card key={i} className="p-3 sm:p-4">
+              <div className="flex items-center gap-3 sm:gap-4">
+                <Skeleton className="h-4 w-6" />
+                <div className="flex-1 space-y-2">
+                  <Skeleton className="h-4 w-3/4" />
+                  <Skeleton className="h-3 w-1/2" />
+                </div>
+                <Skeleton className="h-8 w-24" />
+              </div>
+            </Card>
+          ))}
+        </div>
       ) : ideas.length === 0 ? (
         <EmptyState
-          icon={<InboxIcon className="h-8 w-8 text-muted-foreground" />}
+          icon={InboxIcon}
           title="Inbox 已清空"
           description="所有灵感都已收敛到看板或墓地，可以安心工作了"
           action={

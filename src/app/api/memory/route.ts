@@ -69,19 +69,29 @@ export async function POST(req: NextRequest) {
     let processed = 0;
     let skipped = 0;
 
+    // 预取所有已存在的 Memory 记录，避免在循环中逐条 findFirst（N+1 → 1）
+    const existingMemories = await prisma.memory.findMany({
+      where: {
+        ...userFilter,
+        type: { in: ["idea", "conversation", "cognition"] },
+      },
+      select: { id: true, type: true, ideaId: true, conversationId: true, cognitionId: true, embedding: true },
+    });
+    // 构建查找表：按 type + sourceId 索引
+    const existingMap = new Map<string, (typeof existingMemories)[number]>();
+    for (const m of existingMemories) {
+      const key = `${m.type}:${m.ideaId || m.conversationId || m.cognitionId || ""}`;
+      existingMap.set(key, m);
+    }
+
+    // 收集需要执行的 create/update 操作，最后批量提交
+    const pendingUpdates: { id: string; embedding: Buffer; content: string }[] = [];
+    const pendingCreates: any[] = [];
+
     for (const src of sources) {
-      // 查是否已有 Memory 记录且非 force 模式
-      const existing = await prisma.memory.findFirst({
-        where: {
-          type: src.type,
-          OR: [
-            { ideaId: src.ideaId || undefined },
-            { conversationId: src.conversationId || undefined },
-            { cognitionId: src.cognitionId || undefined },
-          ].filter((c) => Object.values(c).some((v) => v)) as any,
-        },
-        select: { id: true, embedding: true },
-      });
+      // 从预取的 map 中查找（避免 N+1 查询）
+      const lookupKey = `${src.type}:${src.ideaId || src.conversationId || src.cognitionId || ""}`;
+      const existing = existingMap.get(lookupKey);
 
       if (existing && existing.embedding && !force) {
         embeddings.set(src.id, bufferToFloat32(existing.embedding));
@@ -89,15 +99,15 @@ export async function POST(req: NextRequest) {
         continue;
       }
 
-      // 生成 embedding
+      // 生成 embedding（API 调用，必须顺序执行）
       const vec = await embedText(src.content);
       embeddings.set(src.id, vec);
 
-      // upsert Memory 记录
+      const embeddingBuffer = float32ToBuffer(vec);
       const data: any = {
         type: src.type,
         content: src.content,
-        embedding: float32ToBuffer(vec),
+        embedding: embeddingBuffer,
         ideaId: src.ideaId || null,
         conversationId: src.conversationId || null,
         cognitionId: src.cognitionId || null,
@@ -105,14 +115,24 @@ export async function POST(req: NextRequest) {
       };
 
       if (existing) {
-        await prisma.memory.update({
-          where: { id: existing.id },
-          data: { embedding: data.embedding, content: data.content },
-        });
+        pendingUpdates.push({ id: existing.id, embedding: embeddingBuffer, content: src.content });
       } else {
-        await prisma.memory.create({ data });
+        pendingCreates.push(data);
       }
       processed++;
+    }
+
+    // 批量提交 create/update（使用 $transaction，避免 N 次 DB 往返）
+    if (pendingCreates.length > 0 || pendingUpdates.length > 0) {
+      await prisma.$transaction([
+        ...pendingCreates.map((data) => prisma.memory.create({ data })),
+        ...pendingUpdates.map((u) =>
+          prisma.memory.update({
+            where: { id: u.id },
+            data: { embedding: u.embedding, content: u.content },
+          })
+        ),
+      ]);
     }
 
     // 3. 计算相似度连边（>0.8 自动连边，AI 模式；TF-IDF 模式 >0.3）
@@ -122,30 +142,50 @@ export async function POST(req: NextRequest) {
       select: { id: true, embedding: true },
     });
 
+    // 预解码所有 embedding，避免在 O(n²) 循环中重复解码
+    const decoded = allMemories.map((m) => ({
+      id: m.id,
+      vec: m.embedding ? bufferToFloat32(m.embedding) : null,
+    }));
+
+    // 先在内存中计算所有 connections（O(n²) 但纯计算，无 DB IO）
+    const updates: { id: string; connections: string[]; strength: number }[] = [];
     let edgeCount = 0;
-    for (let i = 0; i < allMemories.length; i++) {
+    for (let i = 0; i < decoded.length; i++) {
       const connections: string[] = [];
-      const vecI = bufferToFloat32(allMemories[i].embedding!);
-      for (let j = 0; j < allMemories.length; j++) {
+      const vecI = decoded[i].vec;
+      if (!vecI) {
+        // 无 embedding 的节点：清空连边
+        updates.push({ id: decoded[i].id, connections: [], strength: 0 });
+        continue;
+      }
+      for (let j = 0; j < decoded.length; j++) {
         if (i === j) continue;
-        const vecJ = bufferToFloat32(allMemories[j].embedding!);
+        const vecJ = decoded[j].vec;
+        if (!vecJ) continue;
         const sim = cosineSimilarity(vecI, vecJ);
         if (sim >= threshold) {
-          connections.push(allMemories[j].id);
+          connections.push(decoded[j].id);
         }
       }
-      if (connections.length > 0) {
-        await prisma.memory.update({
-          where: { id: allMemories[i].id },
-          data: { connections, strength: connections.length },
-        });
-        edgeCount += connections.length;
-      } else {
-        await prisma.memory.update({
-          where: { id: allMemories[i].id },
-          data: { connections: [], strength: 0 },
-        });
-      }
+      edgeCount += connections.length;
+      updates.push({
+        id: decoded[i].id,
+        connections,
+        strength: connections.length,
+      });
+    }
+
+    // 批量 update：使用 $transaction 一次性提交所有连边更新，避免 N 次 DB 往返
+    if (updates.length > 0) {
+      await prisma.$transaction(
+        updates.map((u) =>
+          prisma.memory.update({
+            where: { id: u.id },
+            data: { connections: u.connections, strength: u.strength },
+          })
+        )
+      );
     }
 
     return NextResponse.json({

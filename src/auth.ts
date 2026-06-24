@@ -1,5 +1,11 @@
 // next-auth v5 (Auth.js) 配置
 // Credentials Provider：用户名密码登录，bcrypt 哈希验证
+
+// 启动检查：生产环境必须配置 AUTH_SECRET，否则抛出错误阻止启动
+if (!process.env.AUTH_SECRET && process.env.NODE_ENV === "production") {
+  throw new Error("AUTH_SECRET 环境变量未配置，请运行 `openssl rand -base64 32` 生成并配置到 .env");
+}
+
 import NextAuth from "next-auth";
 import Credentials from "next-auth/providers/credentials";
 import bcrypt from "bcryptjs";

@@ -5,7 +5,7 @@ import { Check, Plus, RotateCcw, X, Target, Swords, ListChecks } from "lucide-re
 import { cn } from "@/lib/utils";
 import { BOARD_COLUMNS, type BoardColumn } from "@/lib/utils";
 import { toast } from "@/components/ui/toast";
-import { PageHeader, EmptyState, Card, Button, LoadingState } from "@/components/layout/PageHeader";
+import { PageHeader, Card, Button, Skeleton } from "@/components/layout/PageHeader";
 
 interface Task {
   id: string;
@@ -57,6 +57,7 @@ export default function BoardPage() {
       } catch (e) {
         if (!mounted) return;
         console.error(e);
+        toast("加载看板失败", "error");
       } finally {
         if (mounted) setLoading(false);
       }
@@ -133,7 +134,28 @@ export default function BoardPage() {
     { label: string; limit: number }
   ][];
 
-  if (loading) return <LoadingState title="决策看板" />;
+  if (loading) {
+    return (
+      <div className="p-4 sm:p-8">
+        <PageHeader title="决策看板" subtitle="加载中..." />
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+          {columnEntries.map(([key, meta]) => (
+            <Card key={key} className="flex min-h-[360px] flex-col border-t-4 p-0" style={{ borderTopColor: `hsl(var(--${key}))` }}>
+              <div className="flex items-center justify-between border-b border-border px-4 py-3">
+                <Skeleton className="h-4 w-24" />
+                <Skeleton className="h-7 w-7 rounded-lg" />
+              </div>
+              <div className="flex-1 space-y-2 p-3">
+                {Array.from({ length: 3 }).map((_, i) => (
+                  <Skeleton key={i} className="h-12 w-full rounded-xl" />
+                ))}
+              </div>
+            </Card>
+          ))}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="p-4 sm:p-8">

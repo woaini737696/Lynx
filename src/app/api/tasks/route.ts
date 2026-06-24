@@ -2,8 +2,13 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { requireAuth, buildUserFilter } from "@/lib/auth-utils";
 import { getLogger } from "@/lib/logger";
+import { validateString, validateEnum } from "@/lib/validate";
 
 const logger = getLogger("tasks-api");
+
+// 看板列枚举（与 Prisma schema 注释保持一致）
+const TASK_COLUMNS = ["northstar", "campaign", "task"] as const;
+type TaskColumn = (typeof TASK_COLUMNS)[number];
 
 // 获取看板任务
 export async function GET() {
@@ -28,9 +33,14 @@ export async function POST(req: NextRequest) {
     const { user, error } = await requireAuth();
     if (error) return error;
 
-    const { content, column } = await req.json();
-    const col = column as "northstar" | "campaign" | "task";
-    const limits = { northstar: 3, campaign: 5, task: 10 };
+    const body = await req.json().catch(() => ({}));
+    // 输入校验：content max 5000，column 枚举
+    const content = validateString(body?.content, 5000);
+    if (!content) {
+      return NextResponse.json({ error: "内容不能为空" }, { status: 400 });
+    }
+    const col = validateEnum<TaskColumn>(body?.column, TASK_COLUMNS);
+    const limits: Record<TaskColumn, number> = { northstar: 3, campaign: 5, task: 10 };
 
     const count = await prisma.task.count({
       where: { column: col, status: "active" },

@@ -4,6 +4,79 @@
 
 ---
 
+## 迭代 17 - 2026-06-24
+
+### 任务概要
+完成全部质量保障与生产准备任务：E2E 测试（Playwright）、页面 UI 自测修复、AI 功能验证、安全加固（rate limiting + 输入校验 + AUTH_SECRET 检查）、性能优化（N+1 查询 + API 缓存）、错误监控（Error Boundary + Sentry 准备）、UI/UX 打磨（骨架屏 + 空状态 + toast 统一）、API 文档与用户手册。修复三个具体 bug：飞书机器人位置/签名/前端传参、设置页 AI key 多 Provider 兼容、向量模型环境变量名。
+
+### 完成内容
+
+#### 1. Bug 修复（3 项）
+- **飞书机器人挪到系统菜单**：`src/components/layout/Sidebar.tsx` 删除"集成"分组，将飞书机器人移入"系统"分组
+- **飞书机器人测试消息发送 bug 修复**：`src/app/api/lark-bot/test/route.ts` 新增 `generateSign` 函数（HMAC-SHA256 签名校验），前端 `lark-bot/page.tsx` 传递 `webhookToken` 到测试 API
+- **设置页 AI key 未配置修复**：`src/app/api/settings/route.ts` 扩展 chatApiKey/chatModel/chatBaseURL 检查链为 `AI_API_KEY || OPENAI_API_KEY || DEEPSEEK_API_KEY || MIMO_API_KEY`；embeddingModel 从 `AI_EMBEDDING_MODEL` 改为 `EMBEDDING_MODEL`
+
+#### 2. E2E 测试（Playwright）
+- **配置**：`playwright.config.ts`，使用 Edge 浏览器（msedge channel），复用已运行 dev server，globalSetup 登录一次复用 storageState
+- **19 个测试全部通过**（5 个文件）：
+  - `auth-flow.spec.ts`：未登录重定向、登录页渲染、admin 登录、API 鉴权（5 个）
+  - `idea-flow.spec.ts`：创建灵感、流转到看板、API 结构（3 个）
+  - `board-flow.spec.ts`：看板加载、任务数据、数量统计（3 个）
+  - `search-flow.spec.ts`：搜索结果、空查询、total 字段、结果字段（4 个）
+  - `backup-flow.spec.ts`：全量导出、分类导出、version 字段（4 个）
+
+#### 3. 页面 UI 自测
+- 20 个页面全部返回 200 无运行时报错
+
+#### 4. AI 功能验证
+- 聊天（DeepSeek）、技能执行、工作流执行、记忆图谱重建、向量搜索、对话提取全部通过
+
+#### 5. 安全加固
+- **Rate Limiting**：`src/lib/rate-limit.ts` 内存滑动窗口，`rateLimit(key, limit, windowMs)` + `getClientKey(req)`
+  - 登录 API：10 次/分钟
+  - AI 聊天 API：20 次/分钟
+  - 备份导出 API：5 次/分钟
+  - 备份导入 API：3 次/分钟
+- **输入校验**：`src/lib/validate.ts` 导出 `validateString/validateInt/validateEnum/isNonEmptyString`，应用到 ideas/tasks/users API
+- **AUTH_SECRET 检查**：`src/auth.ts` 添加生产环境启动检查，缺失时抛错
+
+#### 6. 性能优化
+- **N+1 查询修复**：`src/app/api/memory/route.ts` POST 重建记忆图谱，预取所有 Memory 记录构建查找表，批量 create/update 使用 `prisma.$transaction`，连边计算纯内存 O(n²) 后批量 update
+- **API 响应缓存**：dev-log API `s-maxage=30`，settings 页 `no-store`
+- **前端懒加载**：记忆图谱 Web Worker 力导向计算
+
+#### 7. 错误监控
+- **全局 Error Boundary**：`src/app/global-error.tsx`（根级，自带 html/body）+ `src/app/not-found.tsx`（404）
+- **Sentry 准备**：`src/lib/sentry.ts` 配置模板，导出 `SENTRY_DSN/isSentryEnabled/reportError`，`.env.example` 添加 `SENTRY_DSN`（部署阶段启用）
+
+#### 8. UI/UX 打磨
+- **骨架屏**：inbox/board/assets/cognition 页面
+- **空状态组件**：`src/components/layout/EmptyState.tsx`，应用到 inbox/graveyard/skills 页面
+- **toast 统一**：多个页面 catch 块补充 toast 通知
+
+#### 9. 文档
+- **API 文档**：`docs/API.md`，覆盖 18 个 API 分组
+- **用户使用手册**：`docs/USER_GUIDE.md`，7 个章节
+
+#### 10. 记忆图谱/向量实现验证
+- `src/lib/embedding.ts`：AI embedding + TF-IDF 降级 + EmbeddingCache 缓存，实现正确
+- `src/lib/semantic-match.ts`：TF-IDF 降级逻辑正确
+- `src/lib/ai.ts`：多 Provider fallback（AI_* → DEEPSEEK_* → 默认值）正确
+- `src/app/memory/page.tsx`：3D 力导向图谱（Web Worker + Canvas）实现正确
+- `src/app/api/memory/route.ts`：记忆图谱重建逻辑正确
+- `src/app/api/memory/search/route.ts`：语义搜索分页查询正确
+
+### 自测结果
+- TypeScript 编译：`npx tsc --noEmit` 通过（exit 0）
+- Playwright E2E：19 个测试全部通过（8.5s）
+- 页面 UI：20 个页面全部返回 200
+- AI 功能：聊天/技能/工作流/向量搜索/对话提取全部通过
+
+### 涉及文件
+新增 15+ 文件（playwright.config.ts、e2e/ 7 文件、rate-limit.ts、validate.ts、sentry.ts、global-error.tsx、not-found.tsx、EmptyState.tsx、docs/API.md、docs/USER_GUIDE.md），修改 20+ 文件
+
+---
+
 ## 迭代 16 - 2026-06-24
 
 ### 任务概要

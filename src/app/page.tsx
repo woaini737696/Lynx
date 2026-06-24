@@ -52,6 +52,7 @@ export default function FocusPage() {
       } catch (e) {
         if (!mounted) return;
         console.error(e);
+        toast("加载今日聚焦失败", "error");
       } finally {
         if (mounted) setLoading(false);
       }

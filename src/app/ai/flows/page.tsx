@@ -234,7 +234,10 @@ export default function AIFlowsPage() {
           }
         }
       })
-      .catch((e) => console.error("获取工作流列表失败:", e))
+      .catch((e) => {
+        console.error("获取工作流列表失败:", e);
+        toast("获取工作流列表失败", "error");
+      })
       .finally(() => setLoading(false));
   }, [selectedFlow]);
 

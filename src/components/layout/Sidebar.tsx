@@ -20,7 +20,6 @@ import {
   LayoutGrid,
   Workflow,
   Bot,
-  Plug,
   MessageCircle,
   ListTodo,
   Wrench,
@@ -106,21 +105,13 @@ const NAV_GROUPS: NavGroup[] = [
     ],
   },
   {
-    id: "integrations",
-    label: "集成",
-    icon: Plug,
-    color: "text-campaign",
-    items: [
-      { href: "/settings/lark-bot", label: "飞书机器人", icon: MessageCircle, color: "text-campaign" },
-    ],
-  },
-  {
     id: "system",
     label: "系统",
     icon: Settings,
     color: "text-muted-foreground",
     items: [
       { href: "/settings", label: "设置", icon: Settings, color: "text-muted-foreground" },
+      { href: "/settings/lark-bot", label: "飞书机器人", icon: MessageCircle, color: "text-campaign" },
       { href: "/settings/push", label: "通知设置", icon: Bell, color: "text-muted-foreground" },
       { href: "/settings/users", label: "用户管理", icon: Users, color: "text-muted-foreground" },
       { href: "/settings/diagnostics", label: "性能监控", icon: Activity, color: "text-task" },

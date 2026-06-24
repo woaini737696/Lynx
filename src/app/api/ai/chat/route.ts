@@ -7,14 +7,34 @@ import {
   type LLMProvider,
   type ReasoningMode,
 } from "@/lib/ai-provider";
+import { rateLimit, getClientKey } from "@/lib/rate-limit";
 
 // POST /api/ai/chat
 // Request: { messages, provider?, model?, reasoningMode?, temperature?, maxTokens?, stream? }
 // - messages 中 content 可为字符串或多模态数组 [{ type: "text", text }, { type: "image_url", image_url: { url } }]
 // - stream 为 true 时返回 SSE 流式响应（逐字输出）
 // - 否则返回完整 JSON：{ content, provider, model, usage }
+// 限流：20 次/分钟
 export async function POST(req: NextRequest) {
   try {
+    // ============ Rate Limiting ============
+    const ip = getClientKey(req);
+    const rl = rateLimit(`ai-chat:${ip}`, 20, 60 * 1000);
+    if (!rl.success) {
+      return NextResponse.json(
+        { error: "请求过于频繁，请稍后再试" },
+        {
+          status: 429,
+          headers: {
+            "X-RateLimit-Limit": "20",
+            "X-RateLimit-Remaining": "0",
+            "X-RateLimit-Reset": String(Math.floor(rl.resetAt / 1000)),
+            "Retry-After": String(Math.ceil((rl.resetAt - Date.now()) / 1000)),
+          },
+        }
+      );
+    }
+
     const body = await req.json().catch(() => null);
     if (!body || typeof body !== "object") {
       return NextResponse.json(

@@ -49,3 +49,14 @@ next-env.d.ts
 
 # vitest
 coverage/
+
+# playwright
+/test-results/
+/playwright-report/
+/blob-report/
+/playwright/.cache/
+# storageState 含会话 cookie，禁止提交（覆盖任意嵌套路径）
+/.auth/
+/e2e/.auth/
+/e2e/**/.auth/
+**/storage-state.json

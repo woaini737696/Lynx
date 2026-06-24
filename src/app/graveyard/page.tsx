@@ -3,7 +3,8 @@
 import { useEffect, useState } from "react";
 import { RefreshCw, Skull, X, Eye } from "lucide-react";
 import { toast } from "@/components/ui/toast";
-import { PageHeader, EmptyState, Card, Button, Badge, LoadingState } from "@/components/layout/PageHeader";
+import { PageHeader, Card, Button, Badge, LoadingState } from "@/components/layout/PageHeader";
+import { EmptyState } from "@/components/layout/EmptyState";
 
 interface GraveyardItem {
   id: string;
@@ -36,6 +37,7 @@ export default function GraveyardPage() {
       } catch (e) {
         if (!mounted) return;
         console.error(e);
+        toast("加载灵感墓地失败", "error");
       } finally {
         if (mounted) setLoading(false);
       }
@@ -79,7 +81,7 @@ export default function GraveyardPage() {
         <LoadingState title="灵感墓地" />
       ) : items.length === 0 ? (
         <EmptyState
-          icon={<Skull className="h-8 w-8 text-graveyard" />}
+          icon={Skull}
           title="墓地空空如也"
           description="暂时没有放弃的灵感"
         />

@@ -5,7 +5,7 @@ import { MessageSquare, Plus, Sparkles, ChevronDown, ChevronUp, UploadCloud, Loa
 import { cn } from "@/lib/utils";
 import { CONVERSATION_SOURCES, type ConversationSource } from "@/lib/utils";
 import { toast } from "@/components/ui/toast";
-import { PageHeader, EmptyState, Card, Button, Badge, LoadingState } from "@/components/layout/PageHeader";
+import { PageHeader, EmptyState, Card, Button, Badge, Skeleton } from "@/components/layout/PageHeader";
 import {
   getFileType,
   fileTypeToSource,
@@ -118,6 +118,7 @@ export default function AssetsPage() {
       } catch (e) {
         if (!mounted) return;
         console.error(e);
+        toast("加载对话资产失败", "error");
       } finally {
         if (mounted) setLoading(false);
       }
@@ -517,7 +518,19 @@ export default function AssetsPage() {
       )}
 
       {loading ? (
-        <LoadingState title="对话资产" />
+        <div className="flex flex-col gap-3">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <Card key={i} className="p-0 overflow-hidden">
+              <div className="flex cursor-pointer items-center justify-between p-4">
+                <div className="flex items-center gap-3 min-w-0">
+                  <Skeleton className="h-5 w-16 rounded-full" />
+                  <Skeleton className="h-4 w-40" />
+                </div>
+                <Skeleton className="h-4 w-4" />
+              </div>
+            </Card>
+          ))}
+        </div>
       ) : conversations.length === 0 ? (
         <EmptyState
           icon={<MessageSquare className="h-8 w-8 text-campaign" />}

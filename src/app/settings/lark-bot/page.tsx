@@ -94,6 +94,7 @@ export default function LarkBotSettingsPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           webhookUrl: webhookUrl.trim(),
+          webhookToken: webhookToken.trim() || undefined,
           message: testMessage.trim() || undefined,
         }),
       });

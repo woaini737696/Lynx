@@ -5,7 +5,7 @@ import { BookOpen, Brain, Plus, Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { COGNITION_TYPES, type CognitionType } from "@/lib/utils";
 import { toast } from "@/components/ui/toast";
-import { PageHeader, EmptyState, Card, Button, Badge, LoadingState } from "@/components/layout/PageHeader";
+import { PageHeader, EmptyState, Card, Button, Badge, Skeleton } from "@/components/layout/PageHeader";
 
 interface Cognition {
   id: string;
@@ -37,6 +37,7 @@ export default function CognitionPage() {
       } catch (e) {
         if (!mounted) return;
         console.error(e);
+        toast("加载认知库失败", "error");
       } finally {
         if (mounted) setLoading(false);
       }
@@ -148,7 +149,17 @@ export default function CognitionPage() {
       </div>
 
       {loading ? (
-        <LoadingState title="认知库" />
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          {Array.from({ length: 6 }).map((_, i) => (
+            <Card key={i} className="flex flex-col">
+              <div className="mb-3 flex items-center justify-between">
+                <Skeleton className="h-5 w-16 rounded-full" />
+                <Skeleton className="h-3 w-12" />
+              </div>
+              <Skeleton className="h-16 w-full" />
+            </Card>
+          ))}
+        </div>
       ) : filtered.length === 0 ? (
         <EmptyState
           icon={<BookOpen className="h-8 w-8 text-cognition" />}

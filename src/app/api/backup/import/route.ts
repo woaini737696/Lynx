@@ -3,6 +3,7 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { requireAdmin } from "@/lib/auth-utils";
 import { getLogger } from "@/lib/logger";
+import { rateLimit, getClientKey } from "@/lib/rate-limit";
 
 const logger = getLogger("backup-import-api");
 
@@ -10,8 +11,27 @@ const logger = getLogger("backup-import-api");
 // body: { data: { ideas?, tasks?, conversations?, cognitions?, memories?, skills?, flows? } }
 // 仅 admin 可访问；导入时跳过已存在的 ID（upsert）
 // 返回导入统计：{ ideas: 10, tasks: 15, ... }
+// 限流：3 次/分钟
 export async function POST(req: NextRequest) {
   try {
+    // ============ Rate Limiting ============
+    const ip = getClientKey(req);
+    const rl = rateLimit(`backup-import:${ip}`, 3, 60 * 1000);
+    if (!rl.success) {
+      return NextResponse.json(
+        { error: "导入请求过于频繁，请稍后再试" },
+        {
+          status: 429,
+          headers: {
+            "X-RateLimit-Limit": "3",
+            "X-RateLimit-Remaining": "0",
+            "X-RateLimit-Reset": String(Math.floor(rl.resetAt / 1000)),
+            "Retry-After": String(Math.ceil((rl.resetAt - Date.now()) / 1000)),
+          },
+        }
+      );
+    }
+
     // 鉴权：仅 admin
     const auth = await requireAdmin();
     if (auth.user === null) return auth.error;

@@ -45,6 +45,7 @@ export default function ConvergePage() {
       } catch (e) {
         if (!mounted) return;
         console.error(e);
+        toast("加载灵感失败", "error");
       } finally {
         if (mounted) setLoading(false);
       }
