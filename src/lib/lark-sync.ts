@@ -15,6 +15,11 @@ const tasklistNameCache = new Map<string, string>();
 // 模块级缓存：tasklists 列表 + TTL（5分钟），避免频繁调用 lark-cli
 let tasklistsCache: { data: NormalizedTasklist[]; expiresAt: number } | null = null;
 const TASKLISTS_CACHE_TTL = 5 * 60 * 1000; // 5 分钟
+// 模块级缓存：当前用户信息
+let currentUserCache: { openId: string; name: string } | null = null;
+// 模块级缓存：全量任务数据 + TTL（30秒），避免短时间内重复拉取
+let allTasksCache: { data: NormalizedTask[]; myOpenId: string; expiresAt: number } | null = null;
+const ALL_TASKS_CACHE_TTL = 30 * 1000; // 30 秒
 
 // ==================== 类型定义 ====================
 
@@ -305,6 +310,22 @@ export function enrichDetailMemberNames(detail: LarkTaskItem): LarkTaskItem {
   return detail;
 }
 
+/**
+ * 获取当前认证用户的 open_id 和姓名。
+ * 调用 lark-cli contact +get-user（不传 user_id 时返回自己），结果缓存。
+ */
+export function getCurrentUser(): { openId: string; name: string } | null {
+  if (currentUserCache) return currentUserCache;
+  const res = runLarkCliService("contact", "+get-user");
+  if (!res.ok) return null;
+  const user = res.data?.data?.user;
+  if (!user?.open_id) return null;
+  const name = user.name || user.en_name || "我";
+  currentUserCache = { openId: user.open_id, name };
+  memberNameCache.set(user.open_id, name);
+  return currentUserCache;
+}
+
 // ==================== 归一化 ====================
 
 function extractTimestamp(
@@ -515,203 +536,290 @@ export function getTaskDetail(guid: string): LarkTaskItem | null {
 }
 
 /**
- * 批量解析任务列表中的成员昵称（in-place，性能优化版）。
- * 不再逐个调用 getTaskDetail（性能杀手），而是直接使用任务列表接口返回的基本信息。
- * 收集所有不重复的 open_id，逐个调用 resolveMemberName（有模块级缓存）。
- * 限制最多解析 50 个不重复的 open_id，避免过多 API 调用。
- * 同步前先获取任务清单列表（有 TTL 缓存），用于解析 tasklist 名称。
+ * 从单个任务清单获取任务（todo + done），使用 tasklists tasks 端点。
+ * 该端点返回丰富字段：members, subtask_count, completed_at, due 等。
  */
-function enrichTasksWithBatchNamesInPlace(items: LarkTaskItem[]): LarkTaskItem[] {
-  // 先获取任务清单列表，填充 tasklistNameCache 供后续归一化使用
-  getTasklists();
+function fetchTasksFromTasklist(tasklistGuid: string): LarkTaskItem[] {
+  const all: LarkTaskItem[] = [];
 
-  // 收集所有不重复的 open_id
-  const openIds = new Set<string>();
+  // 获取未完成任务（不带 --completed 标志默认返回未完成）
+  const todoRes = runLarkCli(`tasklists tasks --tasklist-guid ${shellQuote(tasklistGuid)} --page-all`);
+  if (todoRes.ok) {
+    for (const item of extractItems(todoRes)) {
+      const adapted: LarkTaskItem = {
+        ...item,
+        status: "incomplete",
+        _fromTasklist: tasklistGuid,
+      } as any;
+      all.push(adapted);
+    }
+  }
+
+  // 获取已完成任务（带 --completed 标志）
+  const doneRes = runLarkCli(`tasklists tasks --tasklist-guid ${shellQuote(tasklistGuid)} --completed --page-all`);
+  if (doneRes.ok) {
+    for (const item of extractItems(doneRes)) {
+      const adapted: LarkTaskItem = {
+        ...item,
+        status: "done",
+        _fromTasklist: tasklistGuid,
+      } as any;
+      all.push(adapted);
+    }
+  }
+
+  return all;
+}
+
+/**
+ * 为父任务获取子任务（subtasks list），子任务返回完整字段。
+ */
+function fetchSubtasksForTask(taskGuid: string): LarkTaskItem[] {
+  const res = runLarkCli(`subtasks list --task-guid ${shellQuote(taskGuid)} --page-all`);
+  if (!res.ok) return [];
+  return extractItems(res);
+}
+
+/**
+ * 从飞书拉取全量任务（从所有人的任务清单 + 子任务），解析成员姓名后返回归一化任务列表。
+ * 这是核心同步函数，结果会被缓存30秒以避免重复拉取。
+ */
+function fetchAllTasksFromSource(forceRefresh = false): { ok: boolean; tasks: NormalizedTask[]; myOpenId: string; error?: string } {
+  // 检查缓存
+  if (!forceRefresh && allTasksCache && Date.now() < allTasksCache.expiresAt) {
+    return { ok: true, tasks: allTasksCache.data, myOpenId: allTasksCache.myOpenId };
+  }
+
+  // 确保当前用户已知
+  const me = getCurrentUser();
+  if (!me) {
+    return { ok: false, tasks: [], myOpenId: "", error: "无法获取当前用户身份，请检查飞书凭证" };
+  }
+
+  // 获取所有任务清单
+  const listsRes = getTasklists();
+  if (!listsRes.ok || listsRes.tasklists.length === 0) {
+    return { ok: false, tasks: [], myOpenId: me.openId, error: "无法获取任务清单：" + listsRes.error };
+  }
+
+  // 第一步：从每个清单拉取任务
+  const allItems = new Map<string, LarkTaskItem>();
+  for (const list of listsRes.tasklists) {
+    if (!list.guid) continue;
+    const tasks = fetchTasksFromTasklist(list.guid);
+    for (const item of tasks) {
+      if (!item.guid) continue;
+      // 标记来源清单名称
+      (item as any)._tasklistName = list.name;
+      if (!allItems.has(item.guid)) {
+        allItems.set(item.guid, item);
+      } else {
+        // 合并：如果已存在，补充缺失的 _fromTasklist 信息
+        const existing = allItems.get(item.guid)!;
+        if (!(existing as any)._tasklistName && list.name) {
+          (existing as any)._tasklistName = list.name;
+        }
+      }
+    }
+  }
+
+  // 第二步：为有子任务的父任务拉取子任务，并标记 parent_task_guid
+  const items = Array.from(allItems.values());
   for (const item of items) {
+    if (item.subtask_count && item.subtask_count > 0 && item.guid) {
+      const subtasks = fetchSubtasksForTask(item.guid);
+      for (const sub of subtasks) {
+        if (!sub.guid) continue;
+        // 标记父子关系
+        (sub as any).parent_task_guid = item.guid;
+        if (!allItems.has(sub.guid)) {
+          allItems.set(sub.guid, sub);
+        } else {
+          // 已存在则补充 parent_task_guid
+          const existing = allItems.get(sub.guid)!;
+          if (!existing.parent_task_guid) {
+            (existing as any).parent_task_guid = item.guid;
+          }
+        }
+      }
+    }
+  }
+
+  // 第三步：收集所有不重复的 open_id，批量解析成员姓名
+  const allItemsWithSubs = Array.from(allItems.values());
+  const openIds = new Set<string>();
+  for (const item of allItemsWithSubs) {
     if (Array.isArray(item.members)) {
       for (const m of item.members) {
         const id = m.open_id || m.id;
         if (id) openIds.add(id);
       }
     }
-    if (item.creator?.id) {
-      openIds.add(item.creator.id);
-    }
+    if (item.creator?.id) openIds.add(item.creator.id);
     if (Array.isArray(item.assignees)) {
       for (const a of item.assignees) {
         const id = a.open_id || a.id;
         if (id) openIds.add(id);
       }
     }
-    if (Array.isArray(item.collaborators)) {
-      for (const c of item.collaborators) {
-        const id = c.open_id || c.id;
-        if (id) openIds.add(id);
-      }
-    }
   }
-
-  // 限制最多解析 50 个 open_id（有缓存，不会重复调用）
-  const idsToResolve = Array.from(openIds).slice(0, 50);
-  for (const id of idsToResolve) {
+  // 自己肯定要解析
+  openIds.add(me.openId);
+  for (const id of openIds) {
     resolveMemberName(id);
   }
 
-  // 为每个任务的成员填充 name（in-place）
-  for (const item of items) {
+  // 第四步：填充成员姓名、构造URL、设置tasklist名称
+  for (const item of allItemsWithSubs) {
+    // 填充 members 姓名
     if (Array.isArray(item.members)) {
       for (const m of item.members) {
         const id = m.open_id || m.id;
         if (id && !m.name) {
-          const name = memberNameCache.get(id);
-          if (name) m.name = name;
+          m.name = memberNameCache.get(id) || undefined;
         }
       }
     }
+    // 填充 creator 姓名
     if (item.creator?.id && !item.creator.name) {
-      const name = memberNameCache.get(item.creator.id);
-      if (name) item.creator.name = name;
+      item.creator.name = memberNameCache.get(item.creator.id) || undefined;
     }
-    if (Array.isArray(item.assignees)) {
-      for (const a of item.assignees) {
-        const id = a.open_id || a.id;
-        if (id && !a.name) {
-          const name = memberNameCache.get(id);
-          if (name) a.name = name;
-        }
-      }
+    // 构造 URL（tasklists tasks 不返回 url，subtasks 有 url）
+    if (!item.url && item.guid) {
+      item.url = `https://applink.feishu.cn/client/todo/detail?guid=${item.guid}`;
     }
-    if (Array.isArray(item.collaborators)) {
-      for (const c of item.collaborators) {
-        const id = c.open_id || c.id;
-        if (id && !c.name) {
-          const name = memberNameCache.get(id);
-          if (name) c.name = name;
-        }
+    // 设置 tasklist 名称
+    const tlName = (item as any)._tasklistName;
+    if (tlName) {
+      if (!item.tasklists) item.tasklists = [];
+      // 查找对应 guid
+      const sourceList = listsRes.tasklists.find(l => l.name === tlName);
+      item.tasklist = { guid: sourceList?.guid, name: tlName };
+      // 添加到 tasklists 数组
+      if (!item.tasklists.some(tl => tl.guid === sourceList?.guid)) {
+        item.tasklists.push({ guid: sourceList?.guid, name: tlName });
       }
     }
   }
 
-  return items;
+  // 第五步：归一化
+  const tasks = allItemsWithSubs.map(normalizeTask);
+
+  // 写入缓存
+  allTasksCache = {
+    data: tasks,
+    myOpenId: me.openId,
+    expiresAt: Date.now() + ALL_TASKS_CACHE_TTL,
+  };
+
+  return { ok: true, tasks, myOpenId: me.openId };
 }
 
 /**
- * 将列表端点返回的极简字段适配为 normalizeTask 可处理的格式，并注入已知的完成状态。
- * 列表端点（+get-my-tasks / +get-related-tasks）只返回 guid/summary/created_at/url/due_at，
- * 不含 status/completed_at/members/creator 等详情字段。
- * 由于我们通过 --complete=true/false 让服务端过滤，所以我们明确知道每个任务的完成状态。
+ * 客户端过滤任务（关键词搜索、完成状态、负责人、清单）。
+ * 因为 lark-cli 的 --query 只支持 +get-my-tasks，统一用客户端过滤。
  */
-function adaptListItem(
-  item: Record<string, any>,
-  knownCompleted: boolean
-): LarkTaskItem {
-  const adapted: any = { ...item };
-  if (item.due_at && !item.due) {
-    adapted.due = item.due_at;
+function applyClientFilters(
+  tasks: NormalizedTask[],
+  opts: { complete?: boolean | null; q?: string | null; assignee?: string | null; tasklist?: string | null; myOpenId?: string; view?: "my" | "related" | "all" }
+): NormalizedTask[] {
+  let result = [...tasks];
+
+  // 视图过滤
+  if (opts.view === "my" && opts.myOpenId) {
+    result = result.filter(t =>
+      t.assignees.some(a => (a.open_id || a.id) === opts.myOpenId)
+    );
+  } else if (opts.view === "related" && opts.myOpenId) {
+    result = result.filter(t => {
+      const isAssignee = t.assignees.some(a => (a.open_id || a.id) === opts.myOpenId);
+      const isFollower = t.followers.some(a => (a.open_id || a.id) === opts.myOpenId);
+      return isFollower && !isAssignee;
+    });
   }
-  if (item.start_at && !item.start) {
-    adapted.start = item.start_at;
+
+  // 完成状态过滤
+  if (opts.complete === true) {
+    result = result.filter(t => t.completed);
+  } else if (opts.complete === false) {
+    result = result.filter(t => !t.completed);
   }
-  adapted.status = knownCompleted ? "done" : "incomplete";
-  if (knownCompleted && !item.completed_at) {
-    adapted.completed_at = item.completed_at || item.updated_at || item.created_at || null;
+
+  // 关键词搜索（模糊匹配标题和描述）
+  if (opts.q) {
+    const keyword = opts.q.toLowerCase();
+    result = result.filter(t =>
+      t.summary.toLowerCase().includes(keyword) ||
+      t.description.toLowerCase().includes(keyword)
+    );
   }
-  if (!Array.isArray(adapted.members)) adapted.members = [];
-  if (!adapted.creator) adapted.creator = null;
-  return adapted as LarkTaskItem;
+
+  // 负责人过滤
+  if (opts.assignee) {
+    result = result.filter(t =>
+      t.assignees.some(a =>
+        (a.open_id || a.id) === opts.assignee || a.name === opts.assignee
+      )
+    );
+  }
+
+  // 清单过滤
+  if (opts.tasklist) {
+    result = result.filter(t => t.tasklist?.guid === opts.tasklist);
+  }
+
+  return result;
 }
 
 /**
- * 调用列表端点（+get-my-tasks / +get-related-tasks），返回适配后的任务项。
- * 根据 complete 参数决定是单次过滤查询还是双次查询合并。
- * 优势：只需 1-2 次 lark-cli 调用，避免对每个任务调用 getTaskDetail（N次调用）。
+ * 清除全量任务缓存（强制下次重新拉取）
  */
-function fetchTaskList(
-  baseCmd: string,
-  opts?: { complete?: boolean | null; q?: string | null }
-): { ok: boolean; items: LarkTaskItem[]; error?: string } {
-  const queryPart = opts?.q ? ` --query ${shellQuote(opts.q)}` : "";
-
-  if (opts?.complete === true || opts?.complete === false) {
-    const args = `${baseCmd} --complete=${opts.complete}${queryPart}`;
-    const res = runLarkCli(args);
-    if (!res.ok) return { ok: false, items: [], error: res.error };
-    const rawItems = extractItems(res);
-    const items = rawItems.map((it) => adaptListItem(it, opts.complete as boolean));
-    return { ok: true, items };
-  }
-
-  const doneArgs = `${baseCmd} --complete=true${queryPart}`;
-  const todoArgs = `${baseCmd} --complete=false${queryPart}`;
-  const doneRes = runLarkCli(doneArgs);
-  const todoRes = runLarkCli(todoArgs);
-
-  if (!doneRes.ok && !todoRes.ok) {
-    return { ok: false, items: [], error: doneRes.error || todoRes.error };
-  }
-
-  const doneItems = doneRes.ok ? extractItems(doneRes).map((it) => adaptListItem(it, true)) : [];
-  const todoItems = todoRes.ok ? extractItems(todoRes).map((it) => adaptListItem(it, false)) : [];
-  return { ok: true, items: [...todoItems, ...doneItems] };
+export function invalidateTasksCache(): void {
+  allTasksCache = null;
+  tasklistsCache = null;
+  currentUserCache = null;
 }
 
-/** 我的任务（+get-my-tasks）- 性能优化版，不调用 getTaskDetail */
+/** 我的任务（我是负责人的）- 基于缓存的全量数据过滤 */
 export function getMyTasks(opts?: {
   complete?: boolean | null;
   q?: string | null;
-}): { ok: boolean; tasks: NormalizedTask[]; error?: string } {
-  const { ok, items, error } = fetchTaskList("+get-my-tasks --page-all", opts);
-  if (!ok) return { ok: false, tasks: [], error };
-  enrichTasksWithBatchNamesInPlace(items);
-  const tasks = items.map(normalizeTask);
-  return { ok: true, tasks };
+  assignee?: string | null;
+  tasklist?: string | null;
+  refresh?: boolean;
+}): { ok: boolean; tasks: NormalizedTask[]; allTasks: NormalizedTask[]; myOpenId: string; error?: string } {
+  const fetch = fetchAllTasksFromSource(opts?.refresh);
+  if (!fetch.ok) return { ok: false, tasks: [], allTasks: [], myOpenId: fetch.myOpenId, error: fetch.error };
+  const tasks = applyClientFilters(fetch.tasks, { ...opts, view: "my", myOpenId: fetch.myOpenId });
+  return { ok: true, tasks, allTasks: fetch.tasks, myOpenId: fetch.myOpenId };
 }
 
-/** 我关注的任务（+get-related-tasks）- 性能优化版，不调用 getTaskDetail */
+/** 我关注的任务（我是关注人但不是负责人）- 基于缓存的全量数据过滤 */
 export function getRelatedTasks(opts?: {
   complete?: boolean | null;
   q?: string | null;
-}): { ok: boolean; tasks: NormalizedTask[]; error?: string } {
-  const { ok, items, error } = fetchTaskList("+get-related-tasks --page-all", opts);
-  if (!ok) return { ok: false, tasks: [], error };
-  enrichTasksWithBatchNamesInPlace(items);
-  const tasks = items.map(normalizeTask);
-  return { ok: true, tasks };
+  assignee?: string | null;
+  tasklist?: string | null;
+  refresh?: boolean;
+}): { ok: boolean; tasks: NormalizedTask[]; allTasks: NormalizedTask[]; myOpenId: string; error?: string } {
+  const fetch = fetchAllTasksFromSource(opts?.refresh);
+  if (!fetch.ok) return { ok: false, tasks: [], allTasks: [], myOpenId: fetch.myOpenId, error: fetch.error };
+  const tasks = applyClientFilters(fetch.tasks, { ...opts, view: "related", myOpenId: fetch.myOpenId });
+  return { ok: true, tasks, allTasks: fetch.tasks, myOpenId: fetch.myOpenId };
 }
 
-/** 全部任务：合并我的 + 关注的，按 guid 去重 - 性能优化版 */
+/** 全部任务（含子任务，去重）- 基于缓存的全量数据 */
 export function getAllTasks(opts?: {
   complete?: boolean | null;
   q?: string | null;
-}): { ok: boolean; tasks: NormalizedTask[]; error?: string } {
-  getTasklists();
-
-  const myResult = fetchTaskList("+get-my-tasks --page-all", opts);
-  const relatedResult = fetchTaskList("+get-related-tasks --page-all", opts);
-
-  if (!myResult.ok && !relatedResult.ok) {
-    return { ok: false, tasks: [], error: myResult.error || relatedResult.error };
-  }
-
-  const map = new Map<string, LarkTaskItem>();
-  if (myResult.ok) {
-    for (const item of myResult.items) {
-      if (item.guid) map.set(item.guid, item);
-    }
-  }
-  if (relatedResult.ok) {
-    for (const item of relatedResult.items) {
-      if (item.guid && !map.has(item.guid)) map.set(item.guid, item);
-    }
-  }
-
-  const items = Array.from(map.values());
-
-  enrichTasksWithBatchNamesInPlace(items);
-
-  // 归一化
-  const tasks = items.map(normalizeTask);
-  return { ok: true, tasks };
+  assignee?: string | null;
+  tasklist?: string | null;
+  refresh?: boolean;
+}): { ok: boolean; tasks: NormalizedTask[]; allTasks: NormalizedTask[]; myOpenId: string; error?: string } {
+  const fetch = fetchAllTasksFromSource(opts?.refresh);
+  if (!fetch.ok) return { ok: false, tasks: [], allTasks: [], myOpenId: fetch.myOpenId, error: fetch.error };
+  const tasks = applyClientFilters(fetch.tasks, { ...opts, view: "all", myOpenId: fetch.myOpenId });
+  return { ok: true, tasks, allTasks: fetch.tasks, myOpenId: fetch.myOpenId };
 }
 
 // ==================== 任务 CRUD ====================
@@ -737,6 +845,8 @@ export function createTask(opts: {
   if (opts.tasklistId) args += ` --tasklist-id ${shellQuote(opts.tasklistId)}`;
   const res = runLarkCli(args);
   if (!res.ok) return { ok: false, error: res.error };
+  // 创建成功后清除缓存，下次获取将重新拉取
+  invalidateTasksCache();
   return { ok: true, task: res.data?.data };
 }
 
@@ -756,18 +866,21 @@ export function updateTask(opts: {
   if (opts.tasklistId !== undefined) args += ` --tasklist-id ${shellQuote(opts.tasklistId)}`;
   const res = runLarkCli(args);
   if (!res.ok) return { ok: false, error: res.error };
+  invalidateTasksCache();
   return { ok: true, task: res.data?.data };
 }
 
 export function completeTask(taskId: string): { ok: boolean; error?: string } {
   const res = runLarkCli(`+complete --task-id ${shellQuote(taskId)}`);
   if (!res.ok) return { ok: false, error: res.error };
+  invalidateTasksCache();
   return { ok: true };
 }
 
 export function reopenTask(taskId: string): { ok: boolean; error?: string } {
   const res = runLarkCli(`+reopen --task-id ${shellQuote(taskId)}`);
   if (!res.ok) return { ok: false, error: res.error };
+  invalidateTasksCache();
   return { ok: true };
 }
 
@@ -779,6 +892,7 @@ export function assignTask(
     `+assign --task-id ${shellQuote(taskId)} --add ${shellQuote(openId)}`
   );
   if (!res.ok) return { ok: false, error: res.error };
+  invalidateTasksCache();
   return { ok: true };
 }
 
@@ -787,6 +901,7 @@ export function updateAssignees(
   taskId: string,
   openIds: string[]
 ): { ok: boolean; error?: string; ignored?: boolean } {
+  let success = false;
   if (openIds.length === 0) {
     // 空列表时尝试清空负责人
     const res = runLarkCli(`+assign --task-id ${shellQuote(taskId)} --clear`);
@@ -794,14 +909,17 @@ export function updateAssignees(
       console.log(`[lark-sync] 清空负责人失败，已忽略: ${res.error}`);
       return { ok: true, ignored: true };
     }
-    return { ok: true };
+    success = true;
+  } else {
+    const ids = openIds.join(",");
+    const res = runLarkCli(`+assign --task-id ${shellQuote(taskId)} --add ${shellQuote(ids)}`);
+    if (!res.ok) {
+      console.log(`[lark-sync] 更新负责人失败，已忽略: ${res.error}`);
+      return { ok: true, ignored: true };
+    }
+    success = true;
   }
-  const ids = openIds.join(",");
-  const res = runLarkCli(`+assign --task-id ${shellQuote(taskId)} --add ${shellQuote(ids)}`);
-  if (!res.ok) {
-    console.log(`[lark-sync] 更新负责人失败，已忽略: ${res.error}`);
-    return { ok: true, ignored: true };
-  }
+  if (success) invalidateTasksCache();
   return { ok: true };
 }
 
@@ -810,24 +928,28 @@ export function updateFollowers(
   taskId: string,
   openIds: string[]
 ): { ok: boolean; error?: string; ignored?: boolean } {
+  let success = false;
   if (openIds.length === 0) {
     const res = runLarkCli(`+collaborator --task-id ${shellQuote(taskId)} --clear`);
     if (!res.ok) {
       console.log(`[lark-sync] 清空关注人失败，已忽略: ${res.error}`);
       return { ok: true, ignored: true };
     }
-    return { ok: true };
+    success = true;
+  } else {
+    const ids = openIds.join(",");
+    // 尝试多个可能的命令名
+    let res = runLarkCli(`+collaborator --task-id ${shellQuote(taskId)} --add ${shellQuote(ids)}`);
+    if (!res.ok) {
+      res = runLarkCli(`+follower --task-id ${shellQuote(taskId)} --add ${shellQuote(ids)}`);
+    }
+    if (!res.ok) {
+      console.log(`[lark-sync] 更新关注人失败，已忽略: ${res.error}`);
+      return { ok: true, ignored: true };
+    }
+    success = true;
   }
-  const ids = openIds.join(",");
-  // 尝试多个可能的命令名
-  let res = runLarkCli(`+collaborator --task-id ${shellQuote(taskId)} --add ${shellQuote(ids)}`);
-  if (!res.ok) {
-    res = runLarkCli(`+follower --task-id ${shellQuote(taskId)} --add ${shellQuote(ids)}`);
-  }
-  if (!res.ok) {
-    console.log(`[lark-sync] 更新关注人失败，已忽略: ${res.error}`);
-    return { ok: true, ignored: true };
-  }
+  if (success) invalidateTasksCache();
   return { ok: true };
 }
 
@@ -841,6 +963,7 @@ export function updateTasklist(
     console.log(`[lark-sync] 更新任务清单失败，已忽略: ${res.error}`);
     return { ok: true, ignored: true };
   }
+  invalidateTasksCache();
   return { ok: true };
 }
 
@@ -1034,7 +1157,7 @@ export function writeSyncState(state: SyncState): void {
  * 同步后将所有任务 upsert 到数据库 LarkTask 表。
  */
 export function runSync(): { ok: boolean; state: SyncState; error?: string } {
-  const result = getAllTasks();
+  const result = getAllTasks({ refresh: true });
   const state: SyncState = {
     lastSyncAt: new Date().toISOString(),
     lastError: result.ok ? null : result.error || "同步失败",
@@ -1088,6 +1211,7 @@ function normalizedTaskToDbData(task: NormalizedTask): any {
     commentCount: task.commentCount ?? 0,
     followerCount: task.followerCount ?? 0,
     subtaskCount: task.subtaskCount ?? 0,
+    parentTaskGuid: task.parentTaskGuid || null,
     syncedAt: new Date(),
   };
 }
@@ -1125,8 +1249,8 @@ export function dbRowToNormalizedTask(row: any): NormalizedTask {
     customCompleteRule: row.customCompleteRule || null,
     customCompleted: row.customCompleted ?? false,
     originPlugin: row.originPlugin || null,
-    // parentTaskGuid 未持久化到数据库，从 DB 读取时为 null
-    parentTaskGuid: null,
+    // parentTaskGuid 从数据库读取
+    parentTaskGuid: row.parentTaskGuid || null,
     commentCount: row.commentCount ?? 0,
     followerCount: row.followerCount ?? 0,
     subtaskCount: row.subtaskCount ?? 0,

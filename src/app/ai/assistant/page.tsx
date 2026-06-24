@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect, Fragment } from "react";
+import { useState, useRef, useEffect, Fragment, useCallback } from "react";
 import {
   Bot,
   Send,
@@ -21,14 +21,18 @@ import {
   MessageSquare,
   Image as ImageIcon,
   X,
+  Settings,
+  UserCircle,
+  Mic2,
+  Phone,
+  PhoneOff,
+  RefreshCw,
 } from "lucide-react";
 import { Button } from "@/components/layout/PageHeader";
 import { ModelSwitcher, type ModelSwitcherValue } from "@/components/ui/ModelSwitcher";
 import { toast } from "@/components/ui/toast";
 import { cn } from "@/lib/utils";
 import type { LLMProvider } from "@/lib/ai-provider";
-
-// ============ 类型定义 ============
 
 interface TokenUsage {
   prompt_tokens?: number;
@@ -41,34 +45,36 @@ interface Message {
   role: "user" | "assistant";
   content: string;
   time: string;
-  /** 该条回复使用的 provider（仅 assistant 消息） */
   provider?: LLMProvider;
-  /** 该条回复使用的模型名（仅 assistant 消息） */
   model?: string;
-  /** 是否为错误消息 */
   error?: boolean;
-  /** token 使用量（仅 assistant 消息） */
   usage?: TokenUsage;
-  /** 是否正在流式输出中 */
   streaming?: boolean;
-  /** 用户消息附带的图片（base64 data URL 列表） */
   images?: string[];
 }
 
-// ============ 常量 ============
+interface AISettings {
+  assistantName: string;
+  clonedVoiceId: string | null;
+  clonedVoiceName: string | null;
+  clonedAt: string | null;
+  defaultVoice: string;
+  autoSpeak: boolean;
+  voiceMode: boolean;
+  feishuNotify: boolean;
+}
 
-const SYSTEM_PROMPT =
-  "你是 LynnHub 的 AI 专属助理，专注于帮助用户管理灵感、分析任务、整理认知。回答简洁友好，必要时主动提问引导思考。支持 Markdown 格式输出。";
-
-const WELCOME_MESSAGE: Message = {
-  id: "m1",
-  role: "assistant",
-  content:
-    "你好！我是你的 AI 专属助理。我可以帮你管理灵感、分析任务、整理认知，也可以直接对话讨论问题。有什么我能帮你的？",
-  time: "刚刚",
+const DEFAULT_SETTINGS: AISettings = {
+  assistantName: "Lynn",
+  clonedVoiceId: null,
+  clonedVoiceName: null,
+  clonedAt: null,
+  defaultVoice: "mimo_default",
+  autoSpeak: false,
+  voiceMode: false,
+  feishuNotify: false,
 };
 
-// 快捷指令（输入框上方）
 const QUICK_COMMANDS = [
   { icon: ListChecks, text: "总结今日", prompt: "帮我总结一下今天的工作进展和待办事项", color: "text-northstar" },
   { icon: Brain, text: "分析灵感", prompt: "帮我分析最近的灵感趋势，找出有价值的方向", color: "text-cognition" },
@@ -76,7 +82,6 @@ const QUICK_COMMANDS = [
   { icon: MessageSquare, text: "对话蒸馏", prompt: "帮我从最近的对话中提取关键结论和待办", color: "text-task" },
 ];
 
-// 建议提示（首次进入）
 const SUGGESTIONS = [
   { icon: Target, text: "今天有哪些任务需要聚焦？", color: "text-northstar" },
   { icon: Brain, text: "帮我分析最近的灵感趋势", color: "text-cognition" },
@@ -84,12 +89,6 @@ const SUGGESTIONS = [
   { icon: Zap, text: "快速捕获一条灵感", color: "text-northstar" },
 ];
 
-// ============ 简易 Markdown 渲染 ============
-
-/**
- * 将 Markdown 文本渲染为 React 节点
- * 支持：代码块、行内代码、加粗、斜体、标题、无序/有序列表、链接、引用
- */
 function renderMarkdown(text: string): React.ReactNode {
   const blocks = splitMarkdownBlocks(text);
   return blocks.map((block, i) => {
@@ -108,12 +107,10 @@ function renderMarkdown(text: string): React.ReactNode {
         </pre>
       );
     }
-    // 普通文本块：按行渲染
     return <Fragment key={i}>{renderInlineBlock(block.content)}</Fragment>;
   });
 }
 
-/** 将 Markdown 拆分为代码块和文本块 */
 function splitMarkdownBlocks(text: string): Array<{ type: "text" | "code"; content: string; lang?: string }> {
   const blocks: Array<{ type: "text" | "code"; content: string; lang?: string }> = [];
   const codeBlockRe = /```(\w*)\n?([\s\S]*?)```/g;
@@ -132,7 +129,6 @@ function splitMarkdownBlocks(text: string): Array<{ type: "text" | "code"; conte
   return blocks;
 }
 
-/** 渲染文本块：逐行处理标题、列表、引用、加粗、行内代码、链接 */
 function renderInlineBlock(text: string): React.ReactNode {
   const lines = text.split("\n");
   const nodes: React.ReactNode[] = [];
@@ -165,12 +161,10 @@ function renderInlineBlock(text: string): React.ReactNode {
 
   lines.forEach((line, idx) => {
     const trimmed = line.trim();
-    // 空行
     if (!trimmed) {
       flushList(`fl-${idx}`);
       return;
     }
-    // 标题
     const headingMatch = trimmed.match(/^(#{1,4})\s+(.*)$/);
     if (headingMatch) {
       flushList(`fl-${idx}`);
@@ -183,7 +177,6 @@ function renderInlineBlock(text: string): React.ReactNode {
       );
       return;
     }
-    // 引用
     if (trimmed.startsWith("> ")) {
       flushList(`fl-${idx}`);
       nodes.push(
@@ -193,7 +186,6 @@ function renderInlineBlock(text: string): React.ReactNode {
       );
       return;
     }
-    // 有序列表
     const olMatch = trimmed.match(/^(\d+)\.\s+(.*)$/);
     if (olMatch) {
       if (!currentOrdered || listItems.length === 0) {
@@ -204,7 +196,6 @@ function renderInlineBlock(text: string): React.ReactNode {
       listItems[listItems.length - 1].items.push(olMatch[2]);
       return;
     }
-    // 无序列表
     const ulMatch = trimmed.match(/^[-*+]\s+(.*)$/);
     if (ulMatch) {
       if (currentOrdered || listItems.length === 0) {
@@ -215,7 +206,6 @@ function renderInlineBlock(text: string): React.ReactNode {
       listItems[listItems.length - 1].items.push(ulMatch[1]);
       return;
     }
-    // 普通段落
     flushList(`fl-${idx}`);
     nodes.push(
       <p key={`p-${idx}`} className="text-sm leading-relaxed">
@@ -227,9 +217,7 @@ function renderInlineBlock(text: string): React.ReactNode {
   return nodes;
 }
 
-/** 渲染行内元素：加粗、斜体、行内代码、链接 */
 function renderInline(text: string): React.ReactNode {
-  // 按 `code`、**bold**、*italic*、[link](url) 顺序处理
   const parts: React.ReactNode[] = [];
   const regex = /(`[^`]+`|\*\*[^*]+\*\*|\*[^*]+\*|\[[^\]]+\]\([^)]+\))/g;
   let lastIndex = 0;
@@ -247,28 +235,14 @@ function renderInline(text: string): React.ReactNode {
         </code>
       );
     } else if (token.startsWith("**")) {
-      parts.push(
-        <strong key={key++} className="font-semibold text-foreground">
-          {token.slice(2, -2)}
-        </strong>
-      );
+      parts.push(<strong key={key++} className="font-semibold text-foreground">{token.slice(2, -2)}</strong>);
     } else if (token.startsWith("*")) {
-      parts.push(
-        <em key={key++} className="italic">
-          {token.slice(1, -1)}
-        </em>
-      );
+      parts.push(<em key={key++} className="italic">{token.slice(1, -1)}</em>);
     } else if (token.startsWith("[")) {
       const linkMatch = token.match(/^\[([^\]]+)\]\(([^)]+)\)$/);
       if (linkMatch) {
         parts.push(
-          <a
-            key={key++}
-            href={linkMatch[2]}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-cognition underline hover:opacity-80"
-          >
+          <a key={key++} href={linkMatch[2]} target="_blank" rel="noopener noreferrer" className="text-cognition underline hover:opacity-80">
             {linkMatch[1]}
           </a>
         );
@@ -284,52 +258,52 @@ function renderInline(text: string): React.ReactNode {
   return parts;
 }
 
-// ============ 主组件 ============
-
 export default function AIAssistantPage() {
-  const [messages, setMessages] = useState<Message[]>([WELCOME_MESSAGE]);
+  const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [thinking, setThinking] = useState(false);
-  // 模型选择：Provider + 模型变体 + 推理模式
   const [modelConfig, setModelConfig] = useState<ModelSwitcherValue>({
     provider: "deepseek",
     model: "deepseek-chat",
     reasoningMode: "standard",
   });
   const scrollRef = useRef<HTMLDivElement>(null);
-  // 用于中断流式请求的 AbortController
   const abortRef = useRef<AbortController | null>(null);
 
-  // 录音相关状态
+  const [settings, setSettings] = useState<AISettings>(DEFAULT_SETTINGS);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+
   const [recording, setRecording] = useState(false);
   const [transcribing, setTranscribing] = useState(false);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
+  const voiceModeActiveRef = useRef(false);
 
-  // 语音播报相关状态
+  const [voiceCallActive, setVoiceCallActive] = useState(false);
+  const [voiceCallListening, setVoiceCallListening] = useState(false);
+  const voiceCallStreamRef = useRef<MediaStream | null>(null);
+  const voiceCallRecorderRef = useRef<MediaRecorder | null>(null);
+  const voiceCallSilenceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const isProcessingVoiceRef = useRef(false);
+
   const [speakingId, setSpeakingId] = useState<string | null>(null);
   const [ttsLoadingId, setTtsLoadingId] = useState<string | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
-  // 复制状态
   const [copiedId, setCopiedId] = useState<string | null>(null);
-
-  // 确认清空对话
   const [confirmClear, setConfirmClear] = useState(false);
 
-  // 图片附件（base64 data URL 列表）
   const [attachedImages, setAttachedImages] = useState<string[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // 模型目录（用于判断多模态能力）
+  const [cloneUploading, setCloneUploading] = useState(false);
+  const [cloneTesting, setCloneTesting] = useState(false);
+  const cloneFileRef = useRef<HTMLInputElement>(null);
+
   const [modelCatalog, setModelCatalog] = useState<{
-    providers: Array<{
-      id: LLMProvider;
-      models: Array<{ id: string; multimodal?: boolean }>;
-    }>;
+    providers: Array<{ id: LLMProvider; models: Array<{ id: string; multimodal?: boolean }> }>;
   } | null>(null);
 
-  // 拉取模型目录
   useEffect(() => {
     fetch("/api/ai/models")
       .then((r) => r.json())
@@ -337,9 +311,62 @@ export default function AIAssistantPage() {
         if (data.catalog) setModelCatalog(data.catalog);
       })
       .catch(() => {});
+    fetchSettings();
   }, []);
 
-  // 当前模型是否支持多模态
+  useEffect(() => {
+    setMessages([{
+      id: "m1",
+      role: "assistant",
+      content: `你好！我是你的 AI 专属助理${settings.assistantName !== "Lynn" ? ` ${settings.assistantName}` : ""}。我可以帮你管理灵感、分析任务、整理认知，也可以直接对话讨论问题。有什么我能帮你的？`,
+      time: "刚刚",
+    }]);
+  }, [settings.assistantName]);
+
+  const fetchSettings = async () => {
+    try {
+      const res = await fetch("/api/ai/settings");
+      const data = await res.json();
+      if (data.settings) {
+        setSettings({
+          assistantName: data.settings.assistantName || "Lynn",
+          clonedVoiceId: data.settings.clonedVoiceId || null,
+          clonedVoiceName: data.settings.clonedVoiceName || null,
+          clonedAt: data.settings.clonedAt || null,
+          defaultVoice: data.settings.defaultVoice || "mimo_default",
+          autoSpeak: data.settings.autoSpeak ?? false,
+          voiceMode: data.settings.voiceMode ?? false,
+          feishuNotify: data.settings.feishuNotify ?? false,
+        });
+      }
+    } catch {}
+  };
+
+  const updateSettings = async (partial: Partial<AISettings>) => {
+    try {
+      const res = await fetch("/api/ai/settings", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(partial),
+      });
+      const data = await res.json();
+      if (data.settings) {
+        setSettings({
+          assistantName: data.settings.assistantName || "Lynn",
+          clonedVoiceId: data.settings.clonedVoiceId || null,
+          clonedVoiceName: data.settings.clonedVoiceName || null,
+          clonedAt: data.settings.clonedAt || null,
+          defaultVoice: data.settings.defaultVoice || "mimo_default",
+          autoSpeak: data.settings.autoSpeak ?? false,
+          voiceMode: data.settings.voiceMode ?? false,
+          feishuNotify: data.settings.feishuNotify ?? false,
+        });
+      }
+    } catch (e) {
+      toast("保存设置失败", "error");
+    }
+  };
+
   const isMultimodal = (() => {
     if (!modelCatalog) return false;
     const provider = modelCatalog.providers.find((p) => p.id === modelConfig.provider);
@@ -352,7 +379,6 @@ export default function AIAssistantPage() {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
   }, [messages, thinking]);
 
-  // 组件卸载时清理音频资源 + 中断流式请求
   useEffect(() => {
     return () => {
       if (audioRef.current) {
@@ -362,13 +388,11 @@ export default function AIAssistantPage() {
       if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
         mediaRecorderRef.current.stop();
       }
+      stopVoiceCall();
       abortRef.current?.abort();
     };
   }, []);
 
-  // ============ 流式发送 ============
-
-  // 处理图片上传
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files || files.length === 0) return;
@@ -398,7 +422,6 @@ export default function AIAssistantPage() {
       reader.onerror = () => toast("图片读取失败", "error");
       reader.readAsDataURL(file);
     }
-    // 清空 input 以便重复选择同一文件
     e.target.value = "";
   };
 
@@ -406,9 +429,62 @@ export default function AIAssistantPage() {
     setAttachedImages((prev) => prev.filter((_, i) => i !== index));
   };
 
+  const stopSpeaking = useCallback(() => {
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current = null;
+    }
+    setSpeakingId(null);
+  }, []);
+
+  const speak = useCallback(async (text: string, msgId?: string) => {
+    stopSpeaking();
+    const loadingId = msgId || `tts-${Date.now()}`;
+    setTtsLoadingId(loadingId);
+    try {
+      const res = await fetch("/api/ai/tts", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => null);
+        const errMsg = data?.error || `语音合成失败（${res.status}）`;
+        toast(errMsg, "error");
+        return;
+      }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const audio = new Audio(url);
+      audioRef.current = audio;
+      if (msgId) setSpeakingId(msgId);
+      audio.onended = () => {
+        URL.revokeObjectURL(url);
+        audioRef.current = null;
+        setSpeakingId(null);
+      };
+      audio.onerror = () => {
+        URL.revokeObjectURL(url);
+        audioRef.current = null;
+        setSpeakingId(null);
+      };
+      await audio.play().catch(() => {
+        URL.revokeObjectURL(url);
+        audioRef.current = null;
+        setSpeakingId(null);
+      });
+    } catch (e) {
+      toast("语音合成错误：" + (e as Error).message, "error");
+    } finally {
+      setTtsLoadingId(null);
+    }
+  }, [stopSpeaking]);
+
   const send = async (text?: string) => {
     const content = (text || input).trim();
     if ((!content && attachedImages.length === 0) || thinking) return;
+
+    stopSpeaking();
 
     const userMsg: Message = {
       id: `u-${Date.now()}`,
@@ -423,7 +499,6 @@ export default function AIAssistantPage() {
     setAttachedImages([]);
     setThinking(true);
 
-    // 创建 AI 占位消息（流式追加内容）
     const aiMsgId = `a-${Date.now()}`;
     const aiPlaceholder: Message = {
       id: aiMsgId,
@@ -434,27 +509,23 @@ export default function AIAssistantPage() {
     };
     setMessages((prev) => [...prev, aiPlaceholder]);
 
-    // 中断上一次请求
     abortRef.current?.abort();
     const controller = new AbortController();
     abortRef.current = controller;
 
     try {
-      // 构造发送给 API 的消息：system 提示词 + 历史对话（不含错误消息和占位消息）
-      // 支持多模态：如果消息有图片，content 为数组格式
+      const systemPrompt = `你是 ${settings.assistantName}，LynnHub 的 AI 专属助理，专注于帮助用户管理灵感、分析任务、整理认知。回答简洁友好，必要时主动提问引导思考。支持 Markdown 格式输出。`;
+
       const apiMessages = [
-        { role: "system" as const, content: SYSTEM_PROMPT },
+        { role: "system" as const, content: systemPrompt },
         ...nextMessages
           .filter((m) => !m.error)
           .map((m) => {
             if (m.images && m.images.length > 0) {
-              // 多模态消息：文本 + 图片
               const parts: Array<
                 { type: "text"; text: string } | { type: "image_url"; image_url: { url: string } }
               > = [];
-              if (m.content) {
-                parts.push({ type: "text", text: m.content });
-              }
+              if (m.content) parts.push({ type: "text", text: m.content });
               for (const img of m.images) {
                 parts.push({ type: "image_url", image_url: { url: img } });
               }
@@ -478,34 +549,20 @@ export default function AIAssistantPage() {
       });
 
       if (!res.ok) {
-        // 非流式错误：尝试解析 JSON
         const data = await res.json().catch(() => null);
         const errMsg = data?.error || `请求失败（${res.status}）`;
-        setMessages((prev) =>
-          prev.map((m) =>
-            m.id === aiMsgId
-              ? { ...m, content: errMsg, error: true, streaming: false }
-              : m
-          )
-        );
+        setMessages((prev) => prev.map((m) => m.id === aiMsgId ? { ...m, content: errMsg, error: true, streaming: false } : m));
         toast(errMsg, "error");
         return;
       }
 
       if (!res.body) {
         const errMsg = "服务器未返回流式数据";
-        setMessages((prev) =>
-          prev.map((m) =>
-            m.id === aiMsgId
-              ? { ...m, content: errMsg, error: true, streaming: false }
-              : m
-          )
-        );
+        setMessages((prev) => prev.map((m) => m.id === aiMsgId ? { ...m, content: errMsg, error: true, streaming: false } : m));
         toast(errMsg, "error");
         return;
       }
 
-      // 读取 SSE 流
       const reader = res.body.getReader();
       const decoder = new TextDecoder("utf-8");
       let buffer = "";
@@ -518,8 +575,6 @@ export default function AIAssistantPage() {
         const { done, value } = await reader.read();
         if (done) break;
         buffer += decoder.decode(value, { stream: true });
-
-        // 按双换行分割 SSE 事件
         const events = buffer.split("\n\n");
         buffer = events.pop() || "";
 
@@ -542,64 +597,37 @@ export default function AIAssistantPage() {
               metaModel = evtData.model;
             } else if (evtData.type === "delta" && evtData.content) {
               accumulated += evtData.content;
-              setMessages((prev) =>
-                prev.map((m) =>
-                  m.id === aiMsgId ? { ...m, content: accumulated } : m
-                )
-              );
+              setMessages((prev) => prev.map((m) => m.id === aiMsgId ? { ...m, content: accumulated } : m));
             } else if (evtData.type === "done") {
               usage = evtData.usage;
             } else if (evtData.type === "error") {
               const errMsg = evtData.message || "流式响应错误";
-              setMessages((prev) =>
-                prev.map((m) =>
-                  m.id === aiMsgId
-                    ? { ...m, content: accumulated || errMsg, error: !accumulated, streaming: false }
-                    : m
-                )
-              );
+              setMessages((prev) => prev.map((m) => m.id === aiMsgId ? { ...m, content: accumulated || errMsg, error: !accumulated, streaming: false } : m));
               if (!accumulated) toast(errMsg, "error");
               return;
             }
-          } catch {
-            // 忽略解析错误
-          }
+          } catch {}
         }
       }
 
-      // 流结束：更新最终消息
       setMessages((prev) =>
         prev.map((m) =>
           m.id === aiMsgId
-            ? {
-                ...m,
-                content: accumulated || "(空回复)",
-                streaming: false,
-                provider: metaProvider,
-                model: metaModel,
-                usage,
-              }
+            ? { ...m, content: accumulated || "(空回复)", streaming: false, provider: metaProvider, model: metaModel, usage }
             : m
         )
       );
+
+      if ((settings.autoSpeak || settings.voiceMode) && accumulated) {
+        setTimeout(() => speak(accumulated, aiMsgId), 300);
+      }
     } catch (e) {
       const err = e as Error;
       if (err.name === "AbortError") {
-        // 用户主动中断，保留已生成内容
-        setMessages((prev) =>
-          prev.map((m) =>
-            m.id === aiMsgId ? { ...m, streaming: false } : m
-          )
-        );
+        setMessages((prev) => prev.map((m) => m.id === aiMsgId ? { ...m, streaming: false } : m));
       } else {
         const msg = "网络错误：" + err.message;
-        setMessages((prev) =>
-          prev.map((m) =>
-            m.id === aiMsgId
-              ? { ...m, content: msg, error: true, streaming: false }
-              : m
-          )
-        );
+        setMessages((prev) => prev.map((m) => m.id === aiMsgId ? { ...m, content: msg, error: true, streaming: false } : m));
         toast(msg, "error");
       }
     } finally {
@@ -608,12 +636,9 @@ export default function AIAssistantPage() {
     }
   };
 
-  // 中断当前流式生成
   const stopGeneration = () => {
     abortRef.current?.abort();
   };
-
-  // ============ 清空对话（确认后执行）============
 
   const clearConversation = () => {
     if (!confirmClear) {
@@ -623,12 +648,15 @@ export default function AIAssistantPage() {
     }
     stopSpeaking();
     abortRef.current?.abort();
-    setMessages([WELCOME_MESSAGE]);
+    setMessages([{
+      id: "m1",
+      role: "assistant",
+      content: `你好！我是你的 AI 专属助理${settings.assistantName !== "Lynn" ? ` ${settings.assistantName}` : ""}。有什么我能帮你的？`,
+      time: "刚刚",
+    }]);
     setConfirmClear(false);
     toast("已开启新对话", "info");
   };
-
-  // ============ 复制消息 ============
 
   const copyMessage = async (msg: Message) => {
     try {
@@ -641,7 +669,26 @@ export default function AIAssistantPage() {
     }
   };
 
-  // ============ 语音输入（录音 → ASR → 填入输入框）============
+  const transcribeAudio = async (blob: Blob): Promise<string | null> => {
+    setTranscribing(true);
+    try {
+      const form = new FormData();
+      form.append("file", blob, "audio.webm");
+      const res = await fetch("/api/ai/asr", { method: "POST", body: form });
+      const data = await res.json().catch(() => null);
+      if (!res.ok || !data) {
+        toast(data?.error || `语音识别失败（${res.status}）`, "error");
+        return null;
+      }
+      const text = (data as { text?: string }).text?.trim();
+      return text || null;
+    } catch (e) {
+      toast("语音识别错误：" + (e as Error).message, "error");
+      return null;
+    } finally {
+      setTranscribing(false);
+    }
+  };
 
   const startRecording = async () => {
     try {
@@ -652,21 +699,20 @@ export default function AIAssistantPage() {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       const recorder = new MediaRecorder(stream);
       audioChunksRef.current = [];
-
-      recorder.ondataavailable = (e) => {
-        if (e.data.size > 0) {
-          audioChunksRef.current.push(e.data);
-        }
-      };
-
+      recorder.ondataavailable = (e) => { if (e.data.size > 0) audioChunksRef.current.push(e.data); };
       recorder.onstop = async () => {
         stream.getTracks().forEach((t) => t.stop());
-        const blob = new Blob(audioChunksRef.current, {
-          type: recorder.mimeType || "audio/webm",
-        });
-        await transcribeAudio(blob);
+        const blob = new Blob(audioChunksRef.current, { type: recorder.mimeType || "audio/webm" });
+        const text = await transcribeAudio(blob);
+        if (text) {
+          if (voiceModeActiveRef.current && voiceCallActive) {
+            send(text);
+          } else {
+            setInput((prev) => (prev ? `${prev} ${text}` : text));
+            toast("语音识别完成", "info");
+          }
+        }
       };
-
       recorder.start();
       mediaRecorderRef.current = recorder;
       setRecording(true);
@@ -677,104 +723,151 @@ export default function AIAssistantPage() {
 
   const stopRecording = () => {
     const recorder = mediaRecorderRef.current;
-    if (recorder && recorder.state !== "inactive") {
-      recorder.stop();
-    }
+    if (recorder && recorder.state !== "inactive") recorder.stop();
     setRecording(false);
   };
 
-  const transcribeAudio = async (blob: Blob) => {
-    setTranscribing(true);
+  const startVoiceCall = async () => {
     try {
-      const form = new FormData();
-      form.append("file", blob, "audio.webm");
-      const res = await fetch("/api/ai/asr", {
-        method: "POST",
-        body: form,
-      });
-      const data = await res.json().catch(() => null);
-      if (!res.ok || !data) {
-        const errMsg = data?.error || `语音识别失败（${res.status}）`;
-        toast(errMsg, "error");
+      if (!navigator.mediaDevices?.getUserMedia) {
+        toast("当前环境不支持语音对话", "error");
         return;
       }
-      const text = (data as { text?: string }).text?.trim();
-      if (text) {
-        setInput((prev) => (prev ? `${prev} ${text}` : text));
-        toast("语音识别完成", "info");
-      } else {
-        toast("未识别到内容", "info");
-      }
-    } catch (e) {
-      toast("语音识别错误：" + (e as Error).message, "error");
-    } finally {
-      setTranscribing(false);
-    }
-  };
-
-  // ============ 语音播报（TTS 播放 AI 回复）============
-
-  const stopSpeaking = () => {
-    if (audioRef.current) {
-      audioRef.current.pause();
-      audioRef.current = null;
-    }
-    setSpeakingId(null);
-  };
-
-  const speak = async (msg: Message) => {
-    if (speakingId === msg.id) {
       stopSpeaking();
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      voiceCallStreamRef.current = stream;
+      voiceModeActiveRef.current = true;
+      setVoiceCallActive(true);
+      setVoiceCallListening(true);
+      isProcessingVoiceRef.current = false;
+      toast("语音对话已开启，开始说话即可", "success");
+      startVoiceChunkRecording();
+    } catch (e) {
+      toast("无法访问麦克风：" + (e as Error).message, "error");
+    }
+  };
+
+  const startVoiceChunkRecording = () => {
+    if (!voiceCallStreamRef.current || !voiceModeActiveRef.current) return;
+    try {
+      const recorder = new MediaRecorder(voiceCallStreamRef.current);
+      const chunks: Blob[] = [];
+      recorder.ondataavailable = (e) => { if (e.data.size > 0) chunks.push(e.data); };
+      recorder.onstop = async () => {
+        if (chunks.length === 0 || isProcessingVoiceRef.current || !voiceModeActiveRef.current) {
+          if (voiceModeActiveRef.current && !isProcessingVoiceRef.current) startVoiceChunkRecording();
+          return;
+        }
+        const blob = new Blob(chunks, { type: "audio/webm" });
+        if (blob.size < 2000) {
+          if (voiceModeActiveRef.current) startVoiceChunkRecording();
+          return;
+        }
+        isProcessingVoiceRef.current = true;
+        setVoiceCallListening(false);
+        const text = await transcribeAudio(blob);
+        if (text && voiceModeActiveRef.current) {
+          await send(text);
+        }
+        isProcessingVoiceRef.current = false;
+        if (voiceModeActiveRef.current) {
+          setVoiceCallListening(true);
+          startVoiceChunkRecording();
+        }
+      };
+      recorder.start();
+      voiceCallRecorderRef.current = recorder;
+      if (voiceCallSilenceRef.current) clearTimeout(voiceCallSilenceRef.current);
+      voiceCallSilenceRef.current = setTimeout(() => {
+        if (recorder.state !== "inactive") recorder.stop();
+      }, 3000);
+    } catch {}
+  };
+
+  const stopVoiceCall = () => {
+    voiceModeActiveRef.current = false;
+    if (voiceCallSilenceRef.current) {
+      clearTimeout(voiceCallSilenceRef.current);
+      voiceCallSilenceRef.current = null;
+    }
+    if (voiceCallRecorderRef.current && voiceCallRecorderRef.current.state !== "inactive") {
+      voiceCallRecorderRef.current.stop();
+    }
+    if (voiceCallStreamRef.current) {
+      voiceCallStreamRef.current.getTracks().forEach((t) => t.stop());
+      voiceCallStreamRef.current = null;
+    }
+    setVoiceCallActive(false);
+    setVoiceCallListening(false);
+    stopSpeaking();
+  };
+
+  const handleVoiceCloneUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 10 * 1024 * 1024) {
+      toast("音频文件不能超过 10MB（60秒以内）", "error");
+      e.target.value = "";
       return;
     }
-    stopSpeaking();
-    setTtsLoadingId(msg.id);
+    setCloneUploading(true);
     try {
-      const res = await fetch("/api/ai/tts", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text: msg.content }),
-      });
+      const form = new FormData();
+      form.append("file", file);
+      form.append("name", `${settings.assistantName}的音色`);
+      const res = await fetch("/api/ai/voice-clone", { method: "POST", body: form });
+      const data = await res.json();
       if (!res.ok) {
-        const data = await res.json().catch(() => null);
-        const errMsg = data?.error || `语音合成失败（${res.status}）`;
-        toast(errMsg, "error");
-        return;
+        toast(data.error || "音色复刻失败", "error");
+      } else {
+        toast(data.message || "音色复刻成功！", "success");
+        await fetchSettings();
       }
-      const blob = await res.blob();
-      const url = URL.createObjectURL(blob);
-      const audio = new Audio(url);
-      audioRef.current = audio;
-      setSpeakingId(msg.id);
-      audio.onended = () => {
-        URL.revokeObjectURL(url);
-        audioRef.current = null;
-        setSpeakingId(null);
-      };
-      audio.onerror = () => {
-        URL.revokeObjectURL(url);
-        audioRef.current = null;
-        setSpeakingId(null);
-        toast("音频播放失败", "error");
-      };
-      await audio.play().catch(() => {
-        toast("音频播放被浏览器阻止", "error");
-        URL.revokeObjectURL(url);
-        audioRef.current = null;
-        setSpeakingId(null);
-      });
     } catch (e) {
-      toast("语音合成错误：" + (e as Error).message, "error");
+      toast("音色复刻错误：" + (e as Error).message, "error");
     } finally {
-      setTtsLoadingId(null);
+      setCloneUploading(false);
+      e.target.value = "";
     }
   };
 
-  // ============ 渲染 ============
+  const testClonedVoice = async () => {
+    if (!settings.clonedVoiceId) return;
+    setCloneTesting(true);
+    await speak(`你好，我是${settings.assistantName}，这是我的复刻声音。`);
+    setCloneTesting(false);
+  };
+
+  const deleteClonedVoice = async () => {
+    try {
+      await fetch("/api/ai/voice-clone", { method: "DELETE" });
+      toast("已清除复刻音色", "info");
+      await fetchSettings();
+    } catch {
+      toast("清除失败", "error");
+    }
+  };
+
+  const sendFeishuTest = async () => {
+    try {
+      const res = await fetch("/api/ai/notify-feishu", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ message: `这是来自${settings.assistantName}的测试通知，飞书紧急通知功能已正常开启。`, urgent: false }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        toast(data.error || "发送失败", "error");
+      } else {
+        toast("测试消息已发送到飞书", "success");
+      }
+    } catch (e) {
+      toast("发送错误：" + (e as Error).message, "error");
+    }
+  };
 
   return (
     <div className="flex h-[calc(100vh-3.5rem)] flex-col">
-      {/* 顶部标题 */}
       <div className="border-b border-border px-4 py-3 sm:px-8">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
@@ -782,11 +875,14 @@ export default function AIAssistantPage() {
               <Bot className="h-4 w-4" />
             </div>
             <div>
-              <h1 className="text-sm font-semibold">AI 专属助理</h1>
+              <h1 className="text-sm font-semibold">AI 专属助理 {settings.assistantName !== "Lynn" && <span className="text-cognition">· {settings.assistantName}</span>}</h1>
               <p className="text-[10px] text-muted-foreground">基于你的记忆图谱和认知库提供个性化协助</p>
             </div>
           </div>
           <div className="flex items-center gap-2">
+            <Button variant="ghost" size="sm" onClick={() => setSettingsOpen(true)} title="设置">
+              <Settings className="h-3.5 w-3.5" />
+            </Button>
             <ModelSwitcher value={modelConfig} onChange={setModelConfig} />
             <Button
               size="sm"
@@ -794,143 +890,104 @@ export default function AIAssistantPage() {
               onClick={clearConversation}
               title="清空对话"
             >
-              {confirmClear ? (
-                <>
-                  <Check className="h-3 w-3" /> 确认清空
-                </>
-              ) : (
-                <>
-                  <Trash2 className="h-3 w-3" /> 清空
-                </>
-              )}
+              {confirmClear ? <><Check className="h-3 w-3" /> 确认清空</> : <><Trash2 className="h-3 w-3" /> 清空</>}
             </Button>
           </div>
         </div>
       </div>
 
-      {/* 消息区域 */}
+      {voiceCallActive && (
+        <div className="border-b border-cognition/20 bg-cognition/5 px-4 py-2 sm:px-8">
+          <div className="mx-auto flex max-w-2xl items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className={cn("flex h-10 w-10 items-center justify-center rounded-full", voiceCallListening ? "bg-northstar animate-pulse" : "bg-muted")}>
+                <Mic2 className={cn("h-5 w-5", voiceCallListening ? "text-white" : "text-muted-foreground")} />
+              </div>
+              <div>
+                <p className="text-sm font-medium">语音对话中</p>
+                <p className="text-[10px] text-muted-foreground">
+                  {voiceCallListening ? "正在聆听..." : thinking ? "思考中..." : "AI回复中..."}
+                </p>
+              </div>
+            </div>
+            <Button variant="danger" size="sm" onClick={stopVoiceCall}>
+              <PhoneOff className="h-4 w-4" /> 挂断
+            </Button>
+          </div>
+        </div>
+      )}
+
       <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 py-6 sm:px-8">
         <div className="mx-auto max-w-2xl space-y-4">
           {messages.map((msg) => (
-            <div
-              key={msg.id}
-              className={cn(
-                "flex gap-3",
-                msg.role === "user" && "flex-row-reverse"
-              )}
-            >
-              {/* 头像 */}
-              <div
-                className={cn(
-                  "flex h-8 w-8 shrink-0 items-center justify-center rounded-xl text-white shadow-sm",
-                  msg.role === "assistant"
-                    ? msg.error
-                      ? "bg-gradient-to-br from-graveyard to-red-700"
-                      : "bg-gradient-to-br from-cognition to-purple-600"
-                    : "bg-gradient-to-br from-northstar to-orange-600"
-                )}
-              >
-                {msg.role === "assistant" ? (
-                  msg.error ? (
-                    <AlertCircle className="h-4 w-4" />
-                  ) : (
-                    <Bot className="h-4 w-4" />
-                  )
-                ) : (
-                  <span className="text-xs font-bold">L</span>
-                )}
+            <div key={msg.id} className={cn("flex gap-3", msg.role === "user" && "flex-row-reverse")}>
+              <div className={cn("flex h-8 w-8 shrink-0 items-center justify-center rounded-xl text-white shadow-sm",
+                msg.role === "assistant"
+                  ? msg.error ? "bg-gradient-to-br from-graveyard to-red-700" : "bg-gradient-to-br from-cognition to-purple-600"
+                  : "bg-gradient-to-br from-northstar to-orange-600"
+              )}>
+                {msg.role === "assistant"
+                  ? msg.error ? <AlertCircle className="h-4 w-4" /> : <Bot className="h-4 w-4" />
+                  : <UserCircle className="h-4 w-4" />}
               </div>
 
-              {/* 消息气泡 */}
               <div className="min-w-0 flex-1">
-                <div
-                  className={cn(
-                    "group relative max-w-[85%] rounded-2xl px-4 py-2.5 text-sm leading-relaxed",
-                    msg.role === "assistant"
-                      ? msg.error
-                        ? "border border-graveyard/30 bg-graveyard/5 text-graveyard"
-                        : "bg-card border border-border"
-                      : "bg-primary text-primary-foreground"
-                  )}
-                >
-                  {/* 消息内容：AI 支持 Markdown，用户纯文本 */}
+                <div className={cn("group relative max-w-[85%] rounded-2xl px-4 py-2.5 text-sm leading-relaxed",
+                  msg.role === "assistant"
+                    ? msg.error ? "border border-graveyard/30 bg-graveyard/5 text-graveyard" : "bg-card border border-border"
+                    : "bg-primary text-primary-foreground"
+                )}>
                   {msg.role === "assistant" && !msg.error ? (
                     <div className="space-y-0.5">
                       {msg.content ? renderMarkdown(msg.content) : null}
-                      {/* 流式光标 */}
-                      {msg.streaming && (
-                        <span className="ml-0.5 inline-block h-3.5 w-1.5 animate-pulse bg-cognition align-middle" />
-                      )}
+                      {msg.streaming && <span className="ml-0.5 inline-block h-3.5 w-1.5 animate-pulse bg-cognition align-middle" />}
                     </div>
                   ) : (
                     <div className="space-y-2">
-                      {/* 用户消息中的图片 */}
                       {msg.images && msg.images.length > 0 && (
                         <div className="flex flex-wrap gap-2">
                           {msg.images.map((img, i) => (
-                            <img
-                              key={i}
-                              src={img}
-                              alt={`图片 ${i + 1}`}
-                              className="max-h-32 rounded-lg border border-primary-foreground/20 object-cover"
-                            />
+                            <img key={i} src={img} alt={`图片 ${i + 1}`} className="max-h-32 rounded-lg border border-primary-foreground/20 object-cover" />
                           ))}
                         </div>
                       )}
-                      {msg.content && (
-                        <span className="whitespace-pre-wrap">{msg.content}</span>
-                      )}
+                      {msg.content && <span className="whitespace-pre-wrap">{msg.content}</span>}
                     </div>
                   )}
-
-                  {/* 复制按钮（hover 显示） */}
                   {!msg.streaming && msg.content && (
                     <button
                       type="button"
                       onClick={() => copyMessage(msg)}
                       title="复制消息"
-                      className={cn(
-                        "absolute -top-2 -right-2 flex h-6 w-6 items-center justify-center rounded-full border border-border bg-card shadow-sm transition-all opacity-0 group-hover:opacity-100",
+                      className={cn("absolute -top-2 -right-2 flex h-6 w-6 items-center justify-center rounded-full border border-border bg-card shadow-sm transition-all opacity-0 group-hover:opacity-100",
                         msg.role === "user" && "bg-primary text-primary-foreground border-primary"
                       )}
                     >
-                      {copiedId === msg.id ? (
-                        <Check className="h-3 w-3" />
-                      ) : (
-                        <Copy className="h-3 w-3" />
-                      )}
+                      {copiedId === msg.id ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
                     </button>
                   )}
                 </div>
 
-                {/* 元信息：模型 + token + 语音播报 */}
                 {msg.role === "assistant" && !msg.error && !msg.streaming && (msg.provider || msg.model || msg.usage) && (
                   <div className="mt-1 ml-1 flex flex-wrap items-center gap-2 text-[10px] text-muted-foreground/70">
-                    {msg.provider && (
-                      <span className="uppercase">{msg.provider}</span>
-                    )}
+                    {msg.provider && <span className="uppercase">{msg.provider}</span>}
                     {msg.model && <span>· {msg.model}</span>}
                     {msg.usage?.total_tokens != null && (
                       <span className="rounded bg-muted px-1 py-0.5">
                         {msg.usage.total_tokens} tokens
                         {msg.usage.prompt_tokens != null && msg.usage.completion_tokens != null && (
-                          <span className="text-muted-foreground/50">
-                            {" "}(↑{msg.usage.prompt_tokens} ↓{msg.usage.completion_tokens})
-                          </span>
+                          <span className="text-muted-foreground/50"> (↑{msg.usage.prompt_tokens} ↓{msg.usage.completion_tokens})</span>
                         )}
                       </span>
                     )}
                     <button
                       type="button"
-                      onClick={() => speak(msg)}
+                      onClick={() => { if (speakingId === msg.id) stopSpeaking(); else speak(msg.content, msg.id); }}
                       title={speakingId === msg.id ? "停止播报" : "语音播报"}
                       className="inline-flex items-center gap-1 rounded-md px-1 py-0.5 transition-colors hover:bg-muted hover:text-foreground"
                     >
-                      {ttsLoadingId === msg.id ? (
-                        <Loader2 className="h-3 w-3 animate-spin" />
-                      ) : (
-                        <Volume2 className={cn("h-3 w-3", speakingId === msg.id && "text-cognition")} />
-                      )}
+                      {ttsLoadingId === msg.id ? <Loader2 className="h-3 w-3 animate-spin" />
+                        : <Volume2 className={cn("h-3 w-3", speakingId === msg.id && "text-cognition")} />}
                       {speakingId === msg.id && <span>停止</span>}
                     </button>
                   </div>
@@ -939,7 +996,6 @@ export default function AIAssistantPage() {
             </div>
           ))}
 
-          {/* 打字指示器（思考中且 AI 消息尚无内容） */}
           {thinking && messages[messages.length - 1]?.streaming && messages[messages.length - 1]?.content === "" && (
             <div className="flex gap-3">
               <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-cognition to-purple-600 text-white shadow-sm">
@@ -953,7 +1009,6 @@ export default function AIAssistantPage() {
             </div>
           )}
 
-          {/* 建议提示 */}
           {messages.length <= 1 && !thinking && (
             <div className="space-y-2 pt-4">
               <p className="text-center text-[11px] text-muted-foreground">试试这些问题</p>
@@ -977,11 +1032,9 @@ export default function AIAssistantPage() {
         </div>
       </div>
 
-      {/* 输入区域 */}
       <div className="border-t border-border px-4 py-3 sm:px-8">
         <div className="mx-auto max-w-2xl">
-          {/* 快捷指令 */}
-          {!thinking && (
+          {!thinking && !voiceCallActive && (
             <div className="mb-2 flex flex-wrap items-center gap-1.5">
               {QUICK_COMMANDS.map((cmd, i) => {
                 const Icon = cmd.icon;
@@ -999,21 +1052,12 @@ export default function AIAssistantPage() {
             </div>
           )}
 
-          {/* 图片预览区 */}
           {attachedImages.length > 0 && (
             <div className="mb-2 flex flex-wrap gap-2">
               {attachedImages.map((img, i) => (
                 <div key={i} className="relative">
-                  <img
-                    src={img}
-                    alt={`附件 ${i + 1}`}
-                    className="h-16 w-16 rounded-lg border border-border object-cover"
-                  />
-                  <button
-                    onClick={() => removeImage(i)}
-                    className="absolute -right-1 -top-1 rounded-full bg-destructive p-0.5 text-destructive-foreground shadow-sm"
-                    title="移除图片"
-                  >
+                  <img src={img} alt={`附件 ${i + 1}`} className="h-16 w-16 rounded-lg border border-border object-cover" />
+                  <button onClick={() => removeImage(i)} className="absolute -right-1 -top-1 rounded-full bg-destructive p-0.5 text-destructive-foreground shadow-sm" title="移除图片">
                     <X className="h-3 w-3" />
                   </button>
                 </div>
@@ -1021,88 +1065,186 @@ export default function AIAssistantPage() {
             </div>
           )}
 
-          {/* 隐藏的文件输入 */}
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept="image/*"
-            multiple
-            onChange={handleImageUpload}
-            className="hidden"
-          />
+          <input ref={fileInputRef} type="file" accept="image/*" multiple onChange={handleImageUpload} className="hidden" />
 
-          <div className="flex items-center gap-2">
-            {/* 语音输入按钮 */}
-            <Button
-              variant={recording ? "danger" : "outline"}
-              size="md"
-              onClick={recording ? stopRecording : startRecording}
-              disabled={thinking || transcribing}
-              title={recording ? "停止录音" : "语音输入"}
-            >
-              {recording ? (
-                <Square className="h-3.5 w-3.5" />
-              ) : transcribing ? (
-                <Loader2 className="h-3.5 w-3.5 animate-spin" />
-              ) : (
-                <Mic className="h-3.5 w-3.5" />
-              )}
-            </Button>
-            {/* 图片上传按钮（仅多模态模型显示） */}
-            {isMultimodal && (
+          {!voiceCallActive ? (
+            <div className="flex items-center gap-2">
               <Button
-                variant="outline"
+                variant={recording ? "danger" : settings.voiceMode ? "primary" : "outline"}
                 size="md"
-                onClick={() => fileInputRef.current?.click()}
-                disabled={thinking || attachedImages.length >= 4}
-                title="上传图片"
+                onClick={recording ? stopRecording : startRecording}
+                disabled={thinking || transcribing}
+                title={recording ? "停止录音" : settings.voiceMode ? "语音输入（语音模式已开启）" : "语音输入"}
               >
-                <ImageIcon className="h-3.5 w-3.5" />
+                {recording ? <Square className="h-3.5 w-3.5" />
+                  : transcribing ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  : <Mic className="h-3.5 w-3.5" />}
               </Button>
-            )}
-            <input
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" && !e.shiftKey) {
-                  e.preventDefault();
-                  send();
+              {settings.voiceMode && (
+                <Button variant="primary" size="md" onClick={startVoiceCall} title="开启全双工语音对话">
+                  <Phone className="h-3.5 w-3.5" />
+                </Button>
+              )}
+              {isMultimodal && (
+                <Button variant="outline" size="md" onClick={() => fileInputRef.current?.click()} disabled={thinking || attachedImages.length >= 4} title="上传图片">
+                  <ImageIcon className="h-3.5 w-3.5" />
+                </Button>
+              )}
+              <input
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); } }}
+                placeholder={
+                  recording ? "录音中..." : transcribing ? "识别中..."
+                    : isMultimodal ? "输入消息或上传图片，Enter 发送..." : "输入消息，Enter 发送..."
                 }
-              }}
-              placeholder={
-                recording
-                  ? "录音中..."
-                  : transcribing
-                  ? "识别中..."
-                  : isMultimodal
-                  ? "输入消息或上传图片，Enter 发送..."
-                  : "输入消息，Enter 发送..."
-              }
-              className="flex-1 rounded-xl border border-border bg-background px-4 py-2.5 text-sm outline-none transition-colors focus:border-cognition"
-            />
-            {/* 发送 / 停止生成 */}
-            {thinking ? (
-              <Button variant="danger" onClick={stopGeneration} title="停止生成">
-                <Square className="h-3.5 w-3.5" />
-              </Button>
-            ) : (
-              <Button
-                onClick={() => send()}
-                disabled={!input.trim() && attachedImages.length === 0}
+                className="flex-1 rounded-xl border border-border bg-background px-4 py-2.5 text-sm outline-none transition-colors focus:border-cognition"
+              />
+              {thinking ? (
+                <Button variant="danger" onClick={stopGeneration} title="停止生成"><Square className="h-3.5 w-3.5" /></Button>
+              ) : (
+                <Button onClick={() => send()} disabled={!input.trim() && attachedImages.length === 0}>
+                  <Send className="h-3.5 w-3.5" />
+                </Button>
+              )}
+            </div>
+          ) : (
+            <div className="flex items-center justify-center py-4">
+              <button
+                onClick={recording ? stopRecording : startRecording}
+                className={cn(
+                  "flex h-16 w-16 items-center justify-center rounded-full shadow-lg transition-all",
+                  recording ? "bg-destructive animate-pulse" : "bg-northstar hover:bg-northstar/90"
+                )}
               >
-                <Send className="h-3.5 w-3.5" />
-              </Button>
-            )}
-          </div>
+                {recording ? <Square className="h-6 w-6 text-white" /> : <Mic className="h-6 w-6 text-white" />}
+              </button>
+            </div>
+          )}
           <p className="mt-2 text-center text-[10px] text-muted-foreground/60">
-            {modelConfig.provider === "deepseek" ? "DeepSeek" : "小米 MiMo"} · {modelConfig.model} · {modelConfig.reasoningMode === "fast" ? "快速" : modelConfig.reasoningMode === "deep" ? "深度推理" : "标准"}模式
+            {modelConfig.provider === "deepseek" ? "DeepSeek" : "小米 MiMo"} · {modelConfig.model}
             {isMultimodal && " · 多模态"}
+            {settings.autoSpeak && " · 自动播报"}
+            {settings.voiceMode && " · 语音模式"}
             {recording && " · 录音中"}
             {transcribing && " · 语音识别中"}
             {thinking && " · 生成中..."}
           </p>
         </div>
       </div>
+
+      {settingsOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={() => setSettingsOpen(false)}>
+          <div className="w-full max-w-md rounded-2xl bg-card p-6 shadow-xl" onClick={(e) => e.stopPropagation()}>
+            <div className="mb-4 flex items-center justify-between">
+              <h2 className="text-lg font-semibold">助理设置</h2>
+              <button onClick={() => setSettingsOpen(false)} className="rounded-full p-1 hover:bg-muted">
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <div className="space-y-5">
+              <div>
+                <label className="mb-1.5 block text-xs font-medium">助理名称</label>
+                <input
+                  type="text"
+                  value={settings.assistantName}
+                  onChange={(e) => setSettings((s) => ({ ...s, assistantName: e.target.value }))}
+                  onBlur={() => updateSettings({ assistantName: settings.assistantName })}
+                  maxLength={20}
+                  className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:border-cognition"
+                  placeholder="给你的AI助理取个名字"
+                />
+              </div>
+
+              <div className="space-y-3 rounded-xl border border-border p-4">
+                <h3 className="text-sm font-medium">🔊 语音设置</h3>
+
+                <div>
+                  <p className="mb-2 text-xs text-muted-foreground">音色复刻：上传60秒内的说话录音，让AI用你的声音说话</p>
+                  {settings.clonedVoiceId ? (
+                    <div className="flex items-center justify-between rounded-lg bg-muted/50 p-3">
+                      <div>
+                        <p className="text-xs font-medium">{settings.clonedVoiceName || "自定义音色"}</p>
+                        <p className="text-[10px] text-muted-foreground">
+                          {settings.clonedAt ? new Date(settings.clonedAt).toLocaleString("zh-CN") : "已复刻"}
+                        </p>
+                      </div>
+                      <div className="flex gap-1">
+                        <Button size="sm" variant="outline" onClick={testClonedVoice} disabled={cloneTesting}>
+                          {cloneTesting ? <Loader2 className="h-3 w-3 animate-spin" /> : <Volume2 className="h-3 w-3" />}
+                        </Button>
+                        <Button size="sm" variant="ghost" onClick={deleteClonedVoice} title="删除复刻音色">
+                          <Trash2 className="h-3 w-3" />
+                        </Button>
+                      </div>
+                    </div>
+                  ) : (
+                    <>
+                      <input ref={cloneFileRef} type="file" accept="audio/*" onChange={handleVoiceCloneUpload} className="hidden" />
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => cloneFileRef.current?.click()}
+                        disabled={cloneUploading}
+                        className="w-full"
+                      >
+                        {cloneUploading ? <Loader2 className="mr-1 h-3 w-3 animate-spin" /> : <Mic2 className="mr-1 h-3 w-3" />}
+                        {cloneUploading ? "复刻中..." : "上传录音复刻音色"}
+                      </Button>
+                    </>
+                  )}
+                </div>
+
+                <label className="flex cursor-pointer items-center justify-between">
+                  <span className="text-xs">AI回复后自动语音播报</span>
+                  <input
+                    type="checkbox"
+                    checked={settings.autoSpeak}
+                    onChange={(e) => { setSettings((s) => ({ ...s, autoSpeak: e.target.checked })); updateSettings({ autoSpeak: e.target.checked }); }}
+                    className="h-4 w-4 rounded accent-cognition"
+                  />
+                </label>
+
+                <label className="flex cursor-pointer items-center justify-between">
+                  <span className="text-xs">开启全双工语音对话模式</span>
+                  <input
+                    type="checkbox"
+                    checked={settings.voiceMode}
+                    onChange={(e) => { setSettings((s) => ({ ...s, voiceMode: e.target.checked })); updateSettings({ voiceMode: e.target.checked }); }}
+                    className="h-4 w-4 rounded accent-cognition"
+                  />
+                </label>
+              </div>
+
+              <div className="space-y-3 rounded-xl border border-border p-4">
+                <h3 className="text-sm font-medium">🔔 飞书通知</h3>
+                <label className="flex cursor-pointer items-center justify-between">
+                  <span className="text-xs">紧急事项通过飞书机器人通知我</span>
+                  <input
+                    type="checkbox"
+                    checked={settings.feishuNotify}
+                    onChange={(e) => { setSettings((s) => ({ ...s, feishuNotify: e.target.checked })); updateSettings({ feishuNotify: e.target.checked }); }}
+                    className="h-4 w-4 rounded accent-cognition"
+                  />
+                </label>
+                {settings.feishuNotify && (
+                  <Button size="sm" variant="outline" onClick={sendFeishuTest} className="w-full">
+                    <RefreshCw className="mr-1 h-3 w-3" /> 发送测试通知
+                  </Button>
+                )}
+              </div>
+
+              <div className="rounded-xl bg-muted/30 p-3">
+                <p className="text-[10px] text-muted-foreground">
+                  MiMo API Key 状态：<span className="text-northstar">已配置</span><br />
+                  TTS模型：mimo-v2.5-tts · 音色复刻：mimo-v2.5-tts-voiceclone
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

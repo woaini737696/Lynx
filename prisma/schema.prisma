@@ -234,9 +234,31 @@ model LarkTask {
   commentCount Int     @default(0)
   followerCount Int    @default(0)
   subtaskCount Int     @default(0)
+  parentTaskGuid String? @db.VarChar(64)
   syncedAt    DateTime @default(now())
 
   @@index([completed])
   @@index([status])
   @@index([dueAt])
+}
+
+// AI 助理设置
+model AISetting {
+  id              String   @id @default(cuid())
+  assistantName   String   @default("Lynn")
+  // 音色复刻：克隆后的 voice_id（MiMo TTS VoiceClone 返回）
+  clonedVoiceId   String?  @db.VarChar(255)
+  clonedVoiceName String?  @db.VarChar(100)
+  clonedAt        DateTime?
+  // 默认 TTS 音色（未复刻时使用 mimo_default）
+  defaultVoice    String   @default("mimo_default")
+  // 是否开启语音自动播报（AI回复后自动朗读）
+  autoSpeak       Boolean  @default(false)
+  // 是否开启全双工语音对话模式
+  voiceMode       Boolean  @default(false)
+  // 飞书通知：是否启用紧急通知
+  feishuNotify    Boolean  @default(false)
+  updatedAt       DateTime @updatedAt
+
+  @@unique([id])
 }

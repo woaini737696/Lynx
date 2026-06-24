@@ -93,22 +93,24 @@ export async function GET(req: NextRequest) {
   try {
     // 始终优先从 lark-cli 拉取最新数据，确保与飞书完全同步
     // DB 仅作为 lark-cli 失败时的降级缓存
-    let result: { ok: boolean; tasks: NormalizedTask[]; error?: string };
+    let result: { ok: boolean; tasks: NormalizedTask[]; allTasks: NormalizedTask[]; myOpenId: string; error?: string };
 
     if (view === "my") {
-      result = getMyTasks({ complete, q });
+      result = getMyTasks({ complete, q, assignee, tasklist, refresh });
     } else if (view === "related") {
-      result = getRelatedTasks({ complete, q });
+      result = getRelatedTasks({ complete, q, assignee, tasklist, refresh });
     } else {
       // all
-      result = getAllTasks({ complete, q });
+      result = getAllTasks({ complete, q, assignee, tasklist, refresh });
     }
 
     if (!result.ok) {
       // lark-cli 失败时回退到数据库缓存，避免前端报错
       const dbTasks = await getTasksFromDb({ complete, assignee, tasklist });
       if (dbTasks.length > 0) {
-        return NextResponse.json({ tasks: dbTasks, source: "db-fallback" });
+        const assignees = extractAssignees(dbTasks);
+        const tasklists = extractTasklists(dbTasks);
+        return NextResponse.json({ tasks: dbTasks, assignees, tasklists, myOpenId: result.myOpenId, source: "db-fallback" });
       }
       return NextResponse.json(
         { error: "lark-cli 不可用：" + result.error },
@@ -116,36 +118,27 @@ export async function GET(req: NextRequest) {
       );
     }
 
-    let tasks = result.tasks;
+    const tasks = result.tasks;
+    // 从全量数据聚合assignees和tasklists（过滤条件不影响筛选下拉选项）
+    const allAssignees = extractAssignees(result.allTasks);
+    const allTasklists = extractTasklists(result.allTasks);
 
     // 同步后写入数据库（upsert，后台执行不阻塞响应）
-    if (tasks.length > 0) {
-      upsertTasksToDb(tasks).catch((e) => {
+    if (result.allTasks.length > 0) {
+      upsertTasksToDb(result.allTasks).catch((e) => {
         console.error("[lark-tasks] 同步写入数据库失败:", e);
       });
     }
 
-    // 负责人筛选
-    if (assignee) {
-      tasks = tasks.filter((t) =>
-        t.assignees.some(
-          (a) => a.open_id === assignee || a.id === assignee || a.name === assignee
-        )
-      );
-    }
-
-    // 任务清单筛选
-    if (tasklist) {
-      tasks = tasks.filter((t) => t.tasklist?.guid === tasklist);
-    }
-
-    return NextResponse.json({ tasks, source: "lark" });
+    return NextResponse.json({ tasks, assignees: allAssignees, tasklists: allTasklists, myOpenId: result.myOpenId, source: "lark" });
   } catch (e) {
     console.error("获取飞书任务失败:", e);
     // 异常时回退到数据库缓存
     const dbTasks = await getTasksFromDb({ complete, assignee, tasklist });
     if (dbTasks.length > 0) {
-      return NextResponse.json({ tasks: dbTasks, source: "db-fallback" });
+      const assignees = extractAssignees(dbTasks);
+      const tasklists = extractTasklists(dbTasks);
+      return NextResponse.json({ tasks: dbTasks, assignees, tasklists, source: "db-fallback" });
     }
     return NextResponse.json({ error: "服务器错误" }, { status: 500 });
   }

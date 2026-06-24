@@ -164,9 +164,11 @@ const MODEL_CATALOG: Record<LLMProvider, { name: string; models: ModelVariant[] 
   mimo: {
     name: "小米 MiMo",
     models: [
-      { id: "mimo-v2.5", name: "MiMo 2.5", desc: "标准版", multimodal: false },
-      { id: "mimo-v2.5-pro", name: "MiMo 2.5 Pro", desc: "增强版", multimodal: false },
+      { id: "mimo-v2.5", name: "MiMo 2.5", desc: "多模态标准版（支持图片/文件）", multimodal: true },
+      { id: "mimo-v2.5-pro", name: "MiMo 2.5 Pro", desc: "增强版", multimodal: true },
       { id: "mimo-vl-7b", name: "MiMo VL", desc: "视觉多模态", multimodal: true },
+      { id: "mimo-v2.5-tts", name: "MiMo TTS", desc: "语音合成", multimodal: false },
+      { id: "mimo-v2.5-tts-voiceclone", name: "MiMo 音色复刻", desc: "TTS音色克隆", multimodal: false },
     ],
   },
 };

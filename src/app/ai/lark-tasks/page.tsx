@@ -108,6 +108,8 @@ interface LarkTask {
   commentCount?: number;
   followerCount?: number;
   subtaskCount?: number;
+  // 父子任务关系
+  parentTaskGuid?: string | null;
 }
 
 interface LarkComment {
@@ -1131,27 +1133,51 @@ export default function LarkTasksPage() {
         />
       ) : (
         <>
-          <div className="mb-3 text-xs text-muted-foreground">
-            共 {tasks.length} 个任务
-            {incompleteCount > 0 && completeFilter !== "completed" && (
-              <span className="ml-1">· {incompleteCount} 个未完成</span>
-            )}
-          </div>
-          <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
-            {tasks.map((task) => (
-              <TaskCard
-                key={task.guid}
-                task={task}
-                expanded={expandedTasks.has(task.guid)}
-                onToggleExpand={() => toggleExpand(task.guid)}
-                onComplete={handleComplete}
-                onReopen={handleReopen}
-                onImport={handleImport}
-                onOpenDetail={() => setDetailTask(task)}
-                actionLoading={actionLoading}
-              />
-            ))}
-          </div>
+          {/* 构建父子任务结构：顶层任务（无 parentTaskGuid）+ 子任务映射 */}
+          {(() => {
+            const subtaskMap = new Map<string, LarkTask[]>();
+            for (const t of tasks) {
+              if (t.parentTaskGuid) {
+                const list = subtaskMap.get(t.parentTaskGuid) || [];
+                list.push(t);
+                subtaskMap.set(t.parentTaskGuid, list);
+              }
+            }
+            const rootTasks = tasks.filter(t => !t.parentTaskGuid);
+            const rootIncompleteCount = rootTasks.filter(t => !t.completed).length;
+            return (
+              <>
+                <div className="mb-3 text-xs text-muted-foreground">
+                  共 {rootTasks.length} 个主任务
+                  {rootIncompleteCount > 0 && completeFilter !== "completed" && (
+                    <span className="ml-1">· {rootIncompleteCount} 个未完成</span>
+                  )}
+                  {subtaskMap.size > 0 && (
+                    <span className="ml-1">
+                      · {tasks.length - rootTasks.length} 个子任务
+                    </span>
+                  )}
+                </div>
+                <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
+                  {rootTasks.map((task) => (
+                    <TaskCard
+                      key={task.guid}
+                      task={task}
+                      subtasks={subtaskMap.get(task.guid) || []}
+                      expanded={expandedTasks.has(task.guid)}
+                      onToggleExpand={() => toggleExpand(task.guid)}
+                      onComplete={handleComplete}
+                      onReopen={handleReopen}
+                      onImport={handleImport}
+                      onOpenDetail={() => setDetailTask(task)}
+                      actionLoading={actionLoading}
+                      onSubtaskStateChange={fetchTasks}
+                    />
+                  ))}
+                </div>
+              </>
+            );
+          })()}
         </>
       )}
 
@@ -1234,6 +1260,7 @@ function SyncStatus({
 
 function TaskCard({
   task,
+  subtasks = [],
   expanded,
   onToggleExpand,
   onComplete,
@@ -1241,8 +1268,10 @@ function TaskCard({
   onImport,
   onOpenDetail,
   actionLoading,
+  onSubtaskStateChange,
 }: {
   task: LarkTask;
+  subtasks?: LarkTask[];
   expanded: boolean;
   onToggleExpand: () => void;
   onComplete: (guid: string) => void;
@@ -1250,11 +1279,14 @@ function TaskCard({
   onImport: (task: LarkTask) => void;
   onOpenDetail: () => void;
   actionLoading: Record<string, boolean>;
+  onSubtaskStateChange?: () => void;
 }) {
   const completeLoading = actionLoading[`complete-${task.guid}`];
   const reopenLoading = actionLoading[`reopen-${task.guid}`];
   const importLoading = actionLoading[`import-${task.guid}`];
   const overdue = isOverdue(task.due, task.completed);
+  const totalSubtaskCount = task.subtaskCount ?? subtasks.length;
+  const completedSubtaskCount = subtasks.filter(s => s.completed).length;
 
   return (
     <Card hover className="flex flex-col">
@@ -1371,6 +1403,16 @@ function TaskCard({
             <ChevronRight className="h-3 w-3" />
           )}
           子任务
+          {totalSubtaskCount > 0 && (
+            <span className={cn(
+              "ml-1 rounded-full px-1.5 py-0 text-[9px]",
+              completedSubtaskCount === totalSubtaskCount
+                ? "bg-task/15 text-task"
+                : "bg-muted text-muted-foreground"
+            )}>
+              {completedSubtaskCount}/{totalSubtaskCount}
+            </span>
+          )}
         </Button>
         <Button
           size="sm"
@@ -1414,7 +1456,11 @@ function TaskCard({
 
       {/* 展开的子任务区域 */}
       {expanded && (
-        <SubtaskInline taskId={task.guid} />
+        <SubtaskInline
+          taskId={task.guid}
+          initialSubtasks={subtasks}
+          onStateChange={onSubtaskStateChange}
+        />
       )}
     </Card>
   );
@@ -1422,13 +1468,27 @@ function TaskCard({
 
 // ==================== 内联子任务列表 ====================
 
-function SubtaskInline({ taskId }: { taskId: string }) {
-  const [subtasks, setSubtasks] = useState<LarkTask[]>([]);
-  const [loading, setLoading] = useState(true);
+function SubtaskInline({
+  taskId,
+  initialSubtasks = [],
+  onStateChange,
+}: {
+  taskId: string;
+  initialSubtasks?: LarkTask[];
+  onStateChange?: () => void;
+}) {
+  const [subtasks, setSubtasks] = useState<LarkTask[]>(initialSubtasks);
+  const [loading, setLoading] = useState(initialSubtasks.length === 0);
   const [newSummary, setNewSummary] = useState("");
   const [creating, setCreating] = useState(false);
 
   const fetchSubtasks = useCallback(async () => {
+    // 如果已有预加载数据，不重复请求
+    if (initialSubtasks.length > 0) {
+      setSubtasks(initialSubtasks);
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     try {
       const res = await fetch(`/api/lark-tasks/${taskId}/subtasks`);
@@ -1441,7 +1501,7 @@ function SubtaskInline({ taskId }: { taskId: string }) {
     } finally {
       setLoading(false);
     }
-  }, [taskId]);
+  }, [taskId, initialSubtasks]);
 
   useEffect(() => {
     fetchSubtasks();
@@ -1463,6 +1523,7 @@ function SubtaskInline({ taskId }: { taskId: string }) {
       } else {
         toast("子任务已创建", "success");
         setNewSummary("");
+        onStateChange?.();
         fetchSubtasks();
       }
     } catch {
@@ -1489,17 +1550,27 @@ function SubtaskInline({ taskId }: { taskId: string }) {
             s.guid === subtaskId ? { ...s, completed: true } : s
           )
         );
+        onStateChange?.();
       }
     } catch {
       toast("网络错误", "error");
     }
   };
 
+  const completedCount = subtasks.filter(s => s.completed).length;
+
   return (
     <div className="mt-3 rounded-xl border border-border/60 bg-muted/30 p-3">
-      <div className="mb-2 flex items-center gap-1.5 text-[11px] font-medium text-muted-foreground">
-        <GitBranch className="h-3 w-3" />
-        子任务 ({subtasks.length})
+      <div className="mb-2 flex items-center justify-between">
+        <div className="flex items-center gap-1.5 text-[11px] font-medium text-muted-foreground">
+          <GitBranch className="h-3 w-3" />
+          子任务 ({subtasks.length})
+          {subtasks.length > 0 && (
+            <span className="text-task">
+              {completedCount === subtasks.length ? "全部完成" : `${completedCount}/${subtasks.length} 完成`}
+            </span>
+          )}
+        </div>
       </div>
 
       {/* 新建子任务 */}
@@ -1559,6 +1630,21 @@ function SubtaskInline({ taskId }: { taskId: string }) {
               >
                 {st.summary}
               </span>
+              {st.assignees && st.assignees.length > 0 && (
+                <span className="flex -space-x-1">
+                  {st.assignees.slice(0, 2).map((a, i) => (
+                    <MemberAvatar key={i} member={a} size="xs" className="ring-1 ring-background" />
+                  ))}
+                </span>
+              )}
+              {st.due && (
+                <span className={cn(
+                  "text-[10px]",
+                  isOverdue(st.due, st.completed) ? "text-graveyard" : "text-muted-foreground"
+                )}>
+                  {formatDateShort(st.due)}
+                </span>
+              )}
             </div>
           ))}
         </div>
