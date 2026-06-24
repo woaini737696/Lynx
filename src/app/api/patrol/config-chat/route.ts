@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/auth-utils";
 import { chat, type ChatMessage } from "@/lib/ai-provider";
 import { rateLimit, getClientKey } from "@/lib/rate-limit";
+import { prisma } from "@/lib/db";
 
 // 巡检规则配置助手系统提示词
 const PATROL_CONFIG_SYSTEM_PROMPT = `你是 LynnHub 的巡检规则配置助手，帮助用户通过自然语言配置 AI 巡检规则。
@@ -69,13 +70,81 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json().catch(() => ({}));
-    const { message, history } = body as {
+    const { message, history, editRuleId } = body as {
       message?: string;
       history?: ChatMessage[];
+      editRuleId?: string;
     };
 
     if (!message || typeof message !== "string" || !message.trim()) {
       return NextResponse.json({ error: "message 不能为空" }, { status: 400 });
+    }
+
+    // 构造系统提示词（编辑模式时追加编辑上下文）
+    let systemPrompt = PATROL_CONFIG_SYSTEM_PROMPT;
+    let editingRule: {
+      id: string;
+      name: string;
+      description: string;
+      scope: string;
+      triggerTime: string;
+      prompt: string;
+      threshold: number;
+      notifyChannels: string[];
+      enabled: boolean;
+    } | null = null;
+
+    // 如果传入 editRuleId，进入编辑模式：拉取规则详情并追加编辑提示
+    if (editRuleId && typeof editRuleId === "string") {
+      const existing = await prisma.patrolRule.findUnique({ where: { id: editRuleId } });
+      if (!existing) {
+        return NextResponse.json({ error: "待编辑的规则不存在" }, { status: 404 });
+      }
+      if (user.role !== "admin" && existing.userId !== user.id) {
+        return NextResponse.json({ error: "无权访问" }, { status: 403 });
+      }
+
+      editingRule = {
+        id: existing.id,
+        name: existing.name,
+        description: existing.description || "",
+        scope: existing.scope,
+        triggerTime: existing.triggerTime,
+        prompt: existing.prompt,
+        threshold: existing.threshold,
+        notifyChannels: Array.isArray(existing.notifyChannels)
+          ? (existing.notifyChannels as unknown as string[])
+          : [],
+        enabled: existing.enabled,
+      };
+
+      systemPrompt = `${PATROL_CONFIG_SYSTEM_PROMPT}
+
+## 当前模式：编辑现有规则
+
+用户正在编辑规则（ID: ${editingRule.id}），规则当前详情如下：
+${JSON.stringify(editingRule, null, 2)}
+
+请根据用户描述建议修改哪些字段。返回的 suggestedRule 必须包含完整规则（含 id 字段），即：
+- 保留用户未提及的字段为原值
+- 仅修改用户明确要求变更的字段
+- suggestedRule 中必须包含 "id": "${editingRule.id}"
+
+返回 JSON 格式：
+{
+  "reply": "给用户的回复（说明修改了哪些字段）",
+  "suggestedRule": {
+    "id": "${editingRule.id}",
+    "name": "...",
+    "description": "...",
+    "scope": "...",
+    "triggerTime": "...",
+    "prompt": "...",
+    "threshold": 0.75,
+    "notifyChannels": ["..."],
+    "enabled": true
+  }
+}`;
     }
 
     // 构造消息列表
@@ -93,7 +162,7 @@ export async function POST(req: NextRequest) {
 
     // 调用 AI
     const aiResp = await chat(messages, {
-      system: PATROL_CONFIG_SYSTEM_PROMPT,
+      system: systemPrompt,
       reasoningMode: "standard",
       temperature: 0.5,
     });
@@ -101,6 +170,7 @@ export async function POST(req: NextRequest) {
     // 解析 AI 返回的 JSON
     let reply = aiResp.content;
     let suggestedRule: {
+      id?: string;
       name: string;
       description: string;
       scope: string;
@@ -123,6 +193,8 @@ export async function POST(req: NextRequest) {
           // 校验必要字段
           if (sr.scope && sr.prompt) {
             suggestedRule = {
+              // 编辑模式：保留 id（前端据此区分创建/编辑）
+              id: typeof sr.id === "string" ? sr.id : undefined,
               name: String(sr.name || "未命名规则"),
               description: String(sr.description || ""),
               scope: String(sr.scope),

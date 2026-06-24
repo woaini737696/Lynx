@@ -2,7 +2,9 @@
   <view class="page">
     <view class="header">
       <text class="header-title">飞书任务</text>
-      <text class="sync-btn" @click="sync">{{ syncing ? "同步中..." : "↻ 同步" }}</text>
+      <view class="sync-btn" @click="sync">
+        <text class="sync-text">{{ syncing ? "同步中..." : "↻ 同步" }}</text>
+      </view>
     </view>
 
     <view v-if="loading && tasks.length === 0" class="loading">
@@ -114,11 +116,17 @@ onShow(loadTasks);
 .header-title {
   font-size: 48rpx;
   font-weight: 700;
-  color: #f5f5f5;
+  color: #1d1d1f;
 }
 .sync-btn {
-  color: #f6ad55;
-  font-size: 28rpx;
+  background-color: rgba(245, 158, 11, 0.12);
+  border-radius: 32rpx;
+  padding: 12rpx 28rpx;
+}
+.sync-text {
+  color: #f59e0b;
+  font-size: 26rpx;
+  font-weight: 600;
 }
 
 .loading,
@@ -133,7 +141,7 @@ onShow(loadTasks);
   margin-bottom: 24rpx;
 }
 .empty-text {
-  color: #525252;
+  color: #86868b;
   font-size: 28rpx;
 }
 
@@ -143,10 +151,11 @@ onShow(loadTasks);
 .task-item {
   display: flex;
   align-items: flex-start;
-  background-color: #171717;
+  background-color: #ffffff;
   border-radius: 16rpx;
   padding: 24rpx;
   margin-bottom: 16rpx;
+  box-shadow: 0 2rpx 8rpx rgba(0, 0, 0, 0.04);
 }
 .task-item.done {
   opacity: 0.5;
@@ -154,21 +163,22 @@ onShow(loadTasks);
 .task-check {
   width: 44rpx;
   height: 44rpx;
-  border-radius: 8rpx;
-  border: 3rpx solid #525252;
+  border-radius: 10rpx;
+  border: 3rpx solid #d1d1d6;
   display: flex;
   align-items: center;
   justify-content: center;
   margin-right: 20rpx;
   flex-shrink: 0;
   margin-top: 4rpx;
+  transition: all 0.2s;
 }
 .task-check.checked {
-  background-color: #68d391;
-  border-color: #68d391;
+  background-color: #10b981;
+  border-color: #10b981;
 }
 .check-icon {
-  color: #0a0a0a;
+  color: #ffffff;
   font-size: 24rpx;
   font-weight: 700;
 }
@@ -176,7 +186,7 @@ onShow(loadTasks);
   flex: 1;
 }
 .task-summary {
-  color: #f5f5f5;
+  color: #1d1d1f;
   font-size: 28rpx;
   line-height: 1.5;
 }
@@ -188,9 +198,9 @@ onShow(loadTasks);
 .meta-due,
 .meta-sub {
   font-size: 22rpx;
-  color: #737373;
+  color: #86868b;
 }
 .meta-sub {
-  color: #63b3ed;
+  color: #3b82f6;
 }
 </style>

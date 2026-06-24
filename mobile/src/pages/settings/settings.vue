@@ -21,7 +21,11 @@
           placeholder-class="placeholder"
         />
       </view>
-      <button class="save-btn" @click="saveBaseUrl">保存地址</button>
+      <view class="save-btn-wrap">
+        <view class="save-btn" @click="saveBaseUrl">
+          <text class="save-btn-text">保存地址</text>
+        </view>
+      </view>
     </view>
 
     <view class="section">
@@ -32,11 +36,13 @@
       </view>
       <view class="setting-item">
         <text class="setting-label">后端</text>
-        <text class="setting-value">{{ settingsStore.baseUrl }}</text>
+        <text class="setting-value">{{ settingsStore.baseUrl || "默认（同源代理）" }}</text>
       </view>
     </view>
 
-    <button class="logout-btn" @click="onLogout">退出登录</button>
+    <view class="logout-btn" @click="onLogout">
+      <text class="logout-text">退出登录</text>
+    </view>
   </view>
 </template>
 
@@ -69,6 +75,7 @@ function onLogout() {
   uni.showModal({
     title: "退出登录",
     content: "确定要退出吗？",
+    confirmColor: "#ef4444",
     success: (res) => {
       if (res.confirm) userStore.logout();
     },
@@ -85,91 +92,110 @@ function onLogout() {
 .profile {
   display: flex;
   align-items: center;
-  background-color: #171717;
+  background-color: #ffffff;
   border-radius: 20rpx;
   padding: 32rpx;
-  margin-bottom: 40rpx;
+  margin-bottom: 32rpx;
+  box-shadow: 0 2rpx 12rpx rgba(0, 0, 0, 0.04);
 }
 .avatar {
   width: 112rpx;
   height: 112rpx;
   border-radius: 50%;
-  background-color: #f6ad55;
+  background: linear-gradient(135deg, #f59e0b, #f97316);
   display: flex;
   align-items: center;
   justify-content: center;
   margin-right: 32rpx;
+  box-shadow: 0 4rpx 16rpx rgba(245, 158, 11, 0.2);
 }
 .avatar-text {
   font-size: 48rpx;
   font-weight: 700;
-  color: #0a0a0a;
+  color: #ffffff;
 }
 .profile-name {
   display: block;
   font-size: 36rpx;
   font-weight: 600;
-  color: #f5f5f5;
+  color: #1d1d1f;
 }
 .profile-role {
   display: block;
   font-size: 24rpx;
-  color: #a3a3a3;
+  color: #86868b;
   margin-top: 8rpx;
 }
 
 .section {
-  background-color: #171717;
+  background-color: #ffffff;
   border-radius: 20rpx;
   padding: 32rpx;
-  margin-bottom: 32rpx;
+  margin-bottom: 24rpx;
+  box-shadow: 0 2rpx 12rpx rgba(0, 0, 0, 0.04);
 }
 .section-title {
   display: block;
   font-size: 26rpx;
-  color: #737373;
+  color: #86868b;
   margin-bottom: 24rpx;
+  font-weight: 600;
 }
 .setting-item {
   display: flex;
   justify-content: space-between;
   align-items: center;
   padding: 20rpx 0;
-  border-bottom: 1rpx solid #262626;
+  border-bottom: 1rpx solid #f2f2f7;
 }
 .setting-label {
-  color: #d4d4d4;
+  color: #1d1d1f;
   font-size: 28rpx;
 }
 .setting-value {
-  color: #737373;
+  color: #86868b;
   font-size: 26rpx;
 }
 .setting-input {
   flex: 1;
   text-align: right;
-  color: #f5f5f5;
+  color: #1d1d1f;
   font-size: 26rpx;
 }
 .placeholder {
-  color: #525252;
+  color: #aeaeb2;
 }
 
-.save-btn {
-  background-color: #262626;
-  color: #f6ad55;
-  font-size: 28rpx;
-  border-radius: 12rpx;
+.save-btn-wrap {
   margin-top: 24rpx;
-  border: none;
+}
+.save-btn {
+  background-color: rgba(245, 158, 11, 0.12);
+  border-radius: 12rpx;
+  height: 80rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.save-btn-text {
+  color: #f59e0b;
+  font-size: 28rpx;
+  font-weight: 600;
 }
 
 .logout-btn {
-  background-color: #171717;
+  background-color: #ffffff;
+  border-radius: 16rpx;
+  height: 96rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-top: 32rpx;
+  box-shadow: 0 2rpx 12rpx rgba(0, 0, 0, 0.04);
+}
+.logout-text {
   color: #ef4444;
   font-size: 30rpx;
-  border-radius: 16rpx;
-  margin-top: 40rpx;
-  border: 1rpx solid #262626;
+  font-weight: 600;
 }
 </style>

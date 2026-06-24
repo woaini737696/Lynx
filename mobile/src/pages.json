@@ -40,19 +40,19 @@
     }
   ],
   "globalStyle": {
-    "navigationBarTextStyle": "white",
+    "navigationBarTextStyle": "black",
     "navigationBarTitleText": "LynnHub",
-    "navigationBarBackgroundColor": "#0a0a0a",
-    "backgroundColor": "#0a0a0a",
+    "navigationBarBackgroundColor": "#ffffff",
+    "backgroundColor": "#f5f5f7",
     "app-plus": {
-      "background": "#0a0a0a"
+      "background": "#f5f5f7"
     }
   },
   "tabBar": {
-    "color": "#737373",
-    "selectedColor": "#f6ad55",
-    "backgroundColor": "#0a0a0a",
-    "borderStyle": "black",
+    "color": "#86868b",
+    "selectedColor": "#f59e0b",
+    "backgroundColor": "#ffffff",
+    "borderStyle": "white",
     "list": [
       { "pagePath": "pages/index/index", "text": "聚焦" },
       { "pagePath": "pages/board/board", "text": "看板" },

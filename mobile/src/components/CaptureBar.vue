@@ -10,7 +10,9 @@
       <view class="popup" @click.stop>
         <view class="popup-header">
           <text class="popup-title">闪电输入</text>
-          <text class="popup-close" @click="close">×</text>
+          <view class="popup-close" @click="close">
+            <text class="close-icon">×</text>
+          </view>
         </view>
         <textarea
           v-model="content"
@@ -18,13 +20,19 @@
           placeholder="3 秒录入灵感，零分类..."
           placeholder-class="placeholder"
           :auto-focus="true"
+          :cursor-spacing="20"
+          :adjust-position="true"
           :maxlength="5000"
         />
         <view class="popup-footer">
           <text class="char-count">{{ content.length }}/5000</text>
-          <button class="save-btn" :disabled="saving || !content.trim()" @click="save">
-            {{ saving ? "保存中..." : "保存 (Enter)" }}
-          </button>
+          <view
+            class="save-btn"
+            :class="{ disabled: saving || !content.trim() }"
+            @click="save"
+          >
+            <text class="save-btn-text">{{ saving ? "保存中..." : "保存" }}</text>
+          </view>
         </view>
       </view>
     </view>
@@ -75,11 +83,11 @@ async function save() {
   width: 112rpx;
   height: 112rpx;
   border-radius: 50%;
-  background-color: #f6ad55;
+  background: linear-gradient(135deg, #f59e0b, #f97316);
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 8rpx 24rpx rgba(246, 173, 85, 0.4);
+  box-shadow: 0 8rpx 24rpx rgba(245, 158, 11, 0.35);
   z-index: 100;
 }
 .fab-icon {
@@ -92,14 +100,14 @@ async function save() {
   left: 0;
   right: 0;
   bottom: 0;
-  background-color: rgba(0, 0, 0, 0.7);
+  background-color: rgba(0, 0, 0, 0.4);
   z-index: 200;
   display: flex;
   align-items: flex-end;
 }
 .popup {
   width: 100%;
-  background-color: #171717;
+  background-color: #ffffff;
   border-radius: 32rpx 32rpx 0 0;
   padding: 32rpx;
   box-sizing: border-box;
@@ -113,26 +121,28 @@ async function save() {
 .popup-title {
   font-size: 32rpx;
   font-weight: 600;
-  color: #f6ad55;
+  color: #1d1d1f;
 }
 .popup-close {
+  padding: 8rpx 16rpx;
+}
+.close-icon {
   font-size: 48rpx;
-  color: #737373;
-  padding: 0 16rpx;
+  color: #86868b;
 }
 .textarea {
   width: 100%;
   height: 240rpx;
-  background-color: #0a0a0a;
-  border: 1rpx solid #262626;
+  background-color: #f2f2f7;
+  border: none;
   border-radius: 16rpx;
   padding: 24rpx;
-  color: #f5f5f5;
+  color: #1d1d1f;
   font-size: 30rpx;
   box-sizing: border-box;
 }
 .placeholder {
-  color: #525252;
+  color: #aeaeb2;
 }
 .popup-footer {
   display: flex;
@@ -141,21 +151,25 @@ async function save() {
   margin-top: 24rpx;
 }
 .char-count {
-  color: #525252;
+  color: #aeaeb2;
   font-size: 24rpx;
 }
 .save-btn {
-  background-color: #f6ad55;
-  color: #0a0a0a;
-  font-size: 28rpx;
-  font-weight: 600;
+  background: linear-gradient(135deg, #f59e0b, #f97316);
   border-radius: 12rpx;
   padding: 0 40rpx;
   height: 72rpx;
-  line-height: 72rpx;
-  border: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4rpx 12rpx rgba(245, 158, 11, 0.2);
 }
-.save-btn[disabled] {
+.save-btn.disabled {
   opacity: 0.4;
+}
+.save-btn-text {
+  color: #ffffff;
+  font-size: 28rpx;
+  font-weight: 600;
 }
 </style>

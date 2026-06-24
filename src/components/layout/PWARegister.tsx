@@ -4,14 +4,18 @@ import { useEffect } from "react";
 
 /**
  * PWA Service Worker 注册器
- * - 仅在生产环境注册（避免开发模式下缓存干扰）
+ * - 在所有环境注册 SW（开发环境也注册，以便调试 Web Push 等功能）
  * - 注册成功后监听更新，提示用户刷新
  */
 export function PWARegister() {
   useEffect(() => {
-    if (process.env.NODE_ENV !== "production") return;
     if (typeof window === "undefined") return;
     if (!("serviceWorker" in navigator)) return;
+
+    // 开发环境提示
+    if (process.env.NODE_ENV !== "production") {
+      console.log("[PWA] 开发环境：Service Worker 将正常注册（用于调试 Web Push 等功能）");
+    }
 
     const register = async () => {
       try {

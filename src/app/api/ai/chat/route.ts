@@ -8,6 +8,13 @@ import {
   type ReasoningMode,
 } from "@/lib/ai-provider";
 import { rateLimit, getClientKey } from "@/lib/rate-limit";
+import { requireAuth } from "@/lib/auth-utils";
+import {
+  AI_ASSISTANT_SYSTEM_PROMPT,
+  parseAction,
+  stripAction,
+} from "@/lib/ai-assistant-tools";
+import { executeTool } from "../assistant/tool-executor";
 
 // POST /api/ai/chat
 // Request: { messages, provider?, model?, reasoningMode?, temperature?, maxTokens?, stream? }
@@ -51,6 +58,7 @@ export async function POST(req: NextRequest) {
       temperature,
       maxTokens,
       stream,
+      assistantMode,
     } = body as {
       messages?: unknown;
       provider?: string;
@@ -59,6 +67,7 @@ export async function POST(req: NextRequest) {
       temperature?: number;
       maxTokens?: number;
       stream?: boolean;
+      assistantMode?: boolean;
     };
 
     // 校验 messages
@@ -181,6 +190,96 @@ export async function POST(req: NextRequest) {
         { error: "maxTokens 需为正整数" },
         { status: 400 }
       );
+    }
+
+    // ============ AI 助理模式（Function Calling）============
+    // 启用后：用 AI_ASSISTANT_SYSTEM_PROMPT 作为系统提示词，
+    // 解析 AI 回复中的 action JSON 块，执行对应工具，
+    // 再基于工具结果生成最终回复。返回 { content, toolCalled }
+    if (assistantMode === true) {
+      // 工具执行需要登录用户
+      const auth = await requireAuth();
+      if (auth.error) return auth.error;
+      const user = auth.user;
+
+      // 注入 AI 助理系统提示词（替换或前置到 messages）
+      const assistantMessages: ChatMessage[] = [
+        { role: "system", content: AI_ASSISTANT_SYSTEM_PROMPT },
+        ...cleanMessages.filter((m) => m.role !== "system"),
+      ];
+
+      // 第一轮：调用 AI 决定是否需要调用工具
+      const firstResult = await chat(assistantMessages, {
+        provider: resolvedProvider,
+        model,
+        reasoningMode: resolvedReasoningMode,
+        temperature,
+        maxTokens,
+      });
+
+      // 解析 action
+      const action = parseAction(firstResult.content);
+
+      // 无 action：直接返回回复（去除可能的 action 块）
+      if (!action) {
+        return NextResponse.json({
+          content: stripAction(firstResult.content),
+          provider: firstResult.provider,
+          model: firstResult.model,
+          usage: firstResult.usage,
+          toolCalled: null,
+        });
+      }
+
+      // 有 action：执行工具
+      const toolResult = await executeTool(action.tool, action.args, user);
+
+      // 第二轮：把工具结果拼成新消息，让 AI 生成最终回复
+      const toolResultStr = JSON.stringify(toolResult).slice(0, 8000);
+      const secondMessages: ChatMessage[] = [
+        ...assistantMessages,
+        { role: "assistant", content: firstResult.content },
+        {
+          role: "user",
+          content: `工具 ${action.tool} 执行完成，结果如下：
+
+\`\`\`json
+${toolResultStr}
+\`\`\`
+
+请基于以上工具结果，给出有价值的总结和建议。如果工具执行失败，告知用户原因并给出建议。`,
+        },
+      ];
+
+      const secondResult = await chat(secondMessages, {
+        provider: resolvedProvider,
+        model,
+        reasoningMode: resolvedReasoningMode,
+        temperature,
+        maxTokens,
+      });
+
+      return NextResponse.json({
+        content: stripAction(secondResult.content),
+        provider: secondResult.provider,
+        model: secondResult.model,
+        usage: {
+          prompt_tokens:
+            (firstResult.usage?.prompt_tokens || 0) +
+            (secondResult.usage?.prompt_tokens || 0),
+          completion_tokens:
+            (firstResult.usage?.completion_tokens || 0) +
+            (secondResult.usage?.completion_tokens || 0),
+          total_tokens:
+            (firstResult.usage?.total_tokens || 0) +
+            (secondResult.usage?.total_tokens || 0),
+        },
+        toolCalled: {
+          tool: action.tool,
+          args: action.args,
+          result: toolResult,
+        },
+      });
     }
 
     // ============ 流式响应（SSE）============

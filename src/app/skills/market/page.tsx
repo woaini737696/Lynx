@@ -24,6 +24,7 @@ import {
   LoadingState,
   EmptyState,
 } from "@/components/layout/PageHeader";
+import { HelpButton } from "@/components/layout/HelpButton";
 import { toast } from "@/components/ui/toast";
 import { cn } from "@/lib/utils";
 import type { SkillParameter } from "@/lib/skill-parser";
@@ -331,9 +332,22 @@ function SkillMarketContent() {
         title="Skill 市场"
         subtitle="导入、导出、分享 Skill：通过 JSON 文件或分享码交换技能"
         action={
-          <Button onClick={() => setImportModal(true)}>
-            <Upload className="h-3.5 w-3.5" /> 导入 JSON
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button onClick={() => setImportModal(true)}>
+              <Upload className="h-3.5 w-3.5" /> 导入 JSON
+            </Button>
+            <HelpButton content={{
+              painPoint: "好技能只能自己用，无法分享给团队或社区。",
+              need: "需要一个市场浏览、分享、评分技能。",
+              solution: "Skill市场支持分享码导入导出、1-5星评分评论、分类浏览。",
+              usage: [
+                "浏览所有公开技能",
+                "生成分享码一键分享",
+                "输入分享码导入他人技能",
+                "为技能评分评论"
+              ]
+            }} />
+          </div>
         }
       />
 

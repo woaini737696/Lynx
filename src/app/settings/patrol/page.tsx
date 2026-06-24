@@ -16,8 +16,10 @@ import {
   XCircle,
   Clock,
   AlertCircle,
+  Pencil,
 } from "lucide-react";
 import { PageHeader, Card, Button, Badge } from "@/components/layout/PageHeader";
+import { HelpButton } from "@/components/layout/HelpButton";
 import { toast } from "@/components/ui/toast";
 import { cn } from "@/lib/utils";
 
@@ -64,8 +66,9 @@ interface ChatMessage {
   suggestedRule?: PatrolRuleDraft | null;
 }
 
-// 规则草案类型
+// 规则草案类型（编辑模式下可携带 id）
 interface PatrolRuleDraft {
+  id?: string;
   name: string;
   description: string;
   scope: string;
@@ -98,6 +101,9 @@ export default function PatrolSettingsPage() {
   const [expandedLog, setExpandedLog] = useState<string | null>(null);
   const [showAddForm, setShowAddForm] = useState(false);
 
+  // 编辑弹窗状态：editingRule 不为 null 时显示编辑弹窗
+  const [editingRule, setEditingRule] = useState<PatrolRule | null>(null);
+
   // 聊天状态
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [chatInput, setChatInput] = useState("");
@@ -105,6 +111,11 @@ export default function PatrolSettingsPage() {
   const [pendingRule, setPendingRule] = useState<PatrolRuleDraft | null>(null);
   const [savingRule, setSavingRule] = useState(false);
   const chatEndRef = useRef<HTMLDivElement>(null);
+
+  // AI 对话模式：create=创建新规则，edit=编辑现有规则
+  const [chatMode, setChatMode] = useState<"create" | "edit">("create");
+  // 编辑模式下选中的规则 ID
+  const [editTargetRuleId, setEditTargetRuleId] = useState<string>("");
 
   // 加载规则列表
   const loadRules = useCallback(async () => {
@@ -220,6 +231,10 @@ export default function PatrolSettingsPage() {
     setChatLoading(true);
     setPendingRule(null);
 
+    // 编辑模式下需要选中规则
+    const editRuleId =
+      chatMode === "edit" && editTargetRuleId ? editTargetRuleId : undefined;
+
     try {
       const res = await fetch("/api/patrol/config-chat", {
         method: "POST",
@@ -230,6 +245,7 @@ export default function PatrolSettingsPage() {
             role: m.role,
             content: m.content,
           })),
+          editRuleId,
         }),
       });
       const data = await res.json();
@@ -255,18 +271,23 @@ export default function PatrolSettingsPage() {
     }
   };
 
-  // 保存 AI 生成的规则草案
+  // 保存 AI 生成的规则草案（有 id 走 PATCH 编辑，无 id 走 POST 创建）
   const savePendingRule = async () => {
     if (!pendingRule) return;
     setSavingRule(true);
     try {
-      const res = await fetch("/api/patrol/rules", {
-        method: "POST",
+      const isEdit = !!pendingRule.id;
+      const url = isEdit
+        ? `/api/patrol/rules/${pendingRule.id}`
+        : "/api/patrol/rules";
+      const method = isEdit ? "PATCH" : "POST";
+      const res = await fetch(url, {
+        method,
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(pendingRule),
       });
       if (res.ok) {
-        toast("规则已保存", "success");
+        toast(isEdit ? "规则已更新" : "规则已保存", "success");
         setPendingRule(null);
         loadRules();
       } else {
@@ -285,6 +306,20 @@ export default function PatrolSettingsPage() {
       <PageHeader
         title="AI 巡检"
         subtitle="可配置的智能巡检：对象 + 时间 + 规则 + 通知"
+        action={
+          <HelpButton content={{
+            painPoint: "灵感进墓地后就忘了，看板任务停滞没人管，缺乏定期检查机制。",
+            need: "需要可配置的AI巡检，定期检查灵感/看板/墓地并主动提醒。",
+            solution: "AI巡检支持自定义规则（对象+时间+prompt+通知渠道），AI对话配置，定时或手动执行。",
+            usage: [
+              "左侧创建规则或用AI对话配置",
+              "设置巡检对象(inbox/board/graveyard)和触发时间",
+              "配置通知渠道(桌面/推送/飞书)",
+              "手动执行或等待定时触发",
+              "查看巡检日志了解结果"
+            ]
+          }} />
+        }
       />
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
@@ -374,6 +409,14 @@ export default function PatrolSettingsPage() {
                     <Button
                       size="sm"
                       variant="ghost"
+                      onClick={() => setEditingRule(rule)}
+                      title="编辑"
+                    >
+                      <Pencil className="h-3 w-3" />
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="ghost"
                       onClick={() => toggleRule(rule)}
                       title={rule.enabled ? "禁用" : "启用"}
                     >
@@ -409,18 +452,93 @@ export default function PatrolSettingsPage() {
             <span className="text-[10px] text-muted-foreground">自然语言描述需求</span>
           </div>
 
+          {/* 模式切换：创建新规则 / 编辑现有规则 */}
+          <div className="flex items-center gap-2 border-b border-border bg-muted/20 px-4 py-2">
+            <button
+              onClick={() => {
+                setChatMode("create");
+                setEditTargetRuleId("");
+                setPendingRule(null);
+                setChatMessages([]);
+              }}
+              className={cn(
+                "rounded-lg px-2.5 py-1 text-[11px] font-medium transition-colors",
+                chatMode === "create"
+                  ? "bg-primary text-primary-foreground"
+                  : "text-muted-foreground hover:bg-muted"
+              )}
+            >
+              创建新规则
+            </button>
+            <button
+              onClick={() => {
+                setChatMode("edit");
+                setPendingRule(null);
+                setChatMessages([]);
+              }}
+              className={cn(
+                "rounded-lg px-2.5 py-1 text-[11px] font-medium transition-colors",
+                chatMode === "edit"
+                  ? "bg-primary text-primary-foreground"
+                  : "text-muted-foreground hover:bg-muted"
+              )}
+            >
+              编辑现有规则
+            </button>
+          </div>
+
+          {/* 编辑模式：选择要编辑的规则 */}
+          {chatMode === "edit" && (
+            <div className="flex items-center gap-2 border-b border-border bg-cognition/5 px-4 py-2">
+              <span className="text-[11px] text-muted-foreground">选择规则：</span>
+              <select
+                value={editTargetRuleId}
+                onChange={(e) => {
+                  setEditTargetRuleId(e.target.value);
+                  setPendingRule(null);
+                  setChatMessages([]);
+                }}
+                className="flex-1 rounded-lg border border-border bg-background px-2 py-1 text-[11px] outline-none focus:border-primary"
+              >
+                <option value="">请选择要编辑的规则</option>
+                {rules.map((r) => (
+                  <option key={r.id} value={r.id}>
+                    {r.name}（{SCOPE_LABELS[r.scope] || r.scope}）
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+
           <div className="flex h-[600px] flex-col">
             {/* 消息列表 */}
             <div className="flex-1 space-y-3 overflow-y-auto p-3">
               {chatMessages.length === 0 ? (
                 <div className="flex h-full flex-col items-center justify-center text-center">
                   <Bot className="mb-3 h-10 w-10 text-cognition/40" />
-                  <p className="text-xs text-muted-foreground">
-                    描述你的巡检需求，AI 会帮你生成规则
-                  </p>
-                  <p className="mt-1 text-[10px] text-muted-foreground/70">
-                    例如：每天 10 点检查灵感墓地，看是否有新灵感命中复活条件
-                  </p>
+                  {chatMode === "create" ? (
+                    <>
+                      <p className="text-xs text-muted-foreground">
+                        描述你的巡检需求，AI 会帮你生成规则
+                      </p>
+                      <p className="mt-1 text-[10px] text-muted-foreground/70">
+                        例如：每天 10 点检查灵感墓地，看是否有新灵感命中复活条件
+                      </p>
+                    </>
+                  ) : editTargetRuleId ? (
+                    <>
+                      <p className="text-xs text-muted-foreground">
+                        描述你想如何修改这条规则，AI 会给出修改建议
+                      </p>
+                      <p className="mt-1 text-[10px] text-muted-foreground/70">
+                        例如：把触发时间改成每天 14:00，并增加飞书通知
+                      </p>
+                    </>
+                  ) : (
+                    <p className="text-xs text-muted-foreground">
+                      请先在上方选择要编辑的规则
+                    </p>
+                  )}
                 </div>
               ) : (
                 chatMessages.map((msg, i) => (
@@ -459,7 +577,9 @@ export default function PatrolSettingsPage() {
               <div className="border-t border-border bg-cognition/5 p-3">
                 <div className="mb-2 flex items-center gap-1.5">
                   <CheckCircle2 className="h-3.5 w-3.5 text-cognition" />
-                  <span className="text-[11px] font-medium text-cognition">AI 生成的规则草案</span>
+                  <span className="text-[11px] font-medium text-cognition">
+                    {pendingRule.id ? "AI 建议的修改方案" : "AI 生成的规则草案"}
+                  </span>
                 </div>
                 <div className="mb-2 space-y-1 text-[11px] text-foreground/80">
                   <div>
@@ -490,7 +610,7 @@ export default function PatrolSettingsPage() {
                     ) : (
                       <CheckCircle2 className="h-3 w-3" />
                     )}
-                    保存为规则
+                    {pendingRule.id ? "应用修改" : "保存为规则"}
                   </Button>
                   <Button size="sm" variant="ghost" onClick={() => setPendingRule(null)}>
                     丢弃
@@ -511,11 +631,25 @@ export default function PatrolSettingsPage() {
                       sendChat();
                     }
                   }}
-                  placeholder="描述你的巡检需求..."
+                  placeholder={
+                    chatMode === "edit" && !editTargetRuleId
+                      ? "请先选择要编辑的规则..."
+                      : chatMode === "edit"
+                      ? "描述你想如何修改这条规则..."
+                      : "描述你的巡检需求..."
+                  }
                   rows={2}
                   className="flex-1 resize-none rounded-xl border border-border bg-background px-3 py-2 text-xs outline-none transition-colors focus:border-primary"
                 />
-                <Button size="sm" onClick={sendChat} disabled={chatLoading || !chatInput.trim()}>
+                <Button
+                  size="sm"
+                  onClick={sendChat}
+                  disabled={
+                    chatLoading ||
+                    !chatInput.trim() ||
+                    (chatMode === "edit" && !editTargetRuleId)
+                  }
+                >
                   {chatLoading ? (
                     <Loader2 className="h-3.5 w-3.5 animate-spin" />
                   ) : (
@@ -644,28 +778,57 @@ export default function PatrolSettingsPage() {
           }}
         />
       )}
+
+      {/* 编辑规则弹窗 */}
+      {editingRule && (
+        <AddRuleForm
+          initialRule={editingRule}
+          onClose={() => setEditingRule(null)}
+          onSaved={() => {
+            setEditingRule(null);
+            loadRules();
+          }}
+        />
+      )}
     </div>
   );
 }
 
-// 新增规则表单组件
+// 规则表单组件（同时支持新增与编辑：传入 initialRule 即为编辑模式）
 function AddRuleForm({
   onClose,
   onSaved,
+  initialRule,
 }: {
   onClose: () => void;
   onSaved: () => void;
+  initialRule?: PatrolRule | null;
 }) {
-  const [form, setForm] = useState<PatrolRuleDraft>({
-    name: "",
-    description: "",
-    scope: "graveyard",
-    triggerTime: "manual",
-    prompt: "",
-    threshold: 0.75,
-    notifyChannels: ["toast", "notification"],
-    enabled: true,
-  });
+  const isEdit = !!initialRule;
+  const [form, setForm] = useState<PatrolRuleDraft>(
+    initialRule
+      ? {
+          id: initialRule.id,
+          name: initialRule.name,
+          description: initialRule.description,
+          scope: initialRule.scope,
+          triggerTime: initialRule.triggerTime,
+          prompt: initialRule.prompt,
+          threshold: initialRule.threshold,
+          notifyChannels: initialRule.notifyChannels,
+          enabled: initialRule.enabled,
+        }
+      : {
+          name: "",
+          description: "",
+          scope: "graveyard",
+          triggerTime: "manual",
+          prompt: "",
+          threshold: 0.75,
+          notifyChannels: ["toast", "notification"],
+          enabled: true,
+        }
+  );
   const [saving, setSaving] = useState(false);
 
   const handleSave = async () => {
@@ -679,17 +842,20 @@ function AddRuleForm({
     }
     setSaving(true);
     try {
-      const res = await fetch("/api/patrol/rules", {
-        method: "POST",
+      // 编辑模式走 PATCH，创建模式走 POST
+      const url = isEdit ? `/api/patrol/rules/${form.id}` : "/api/patrol/rules";
+      const method = isEdit ? "PATCH" : "POST";
+      const res = await fetch(url, {
+        method,
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(form),
       });
       if (res.ok) {
-        toast("规则已创建", "success");
+        toast(isEdit ? "规则已更新" : "规则已创建", "success");
         onSaved();
       } else {
         const err = await res.json();
-        toast(err.error || "创建失败", "error");
+        toast(err.error || (isEdit ? "更新失败" : "创建失败"), "error");
       }
     } catch {
       toast("网络错误", "error");
@@ -711,7 +877,9 @@ function AddRuleForm({
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm">
       <Card className="w-full max-w-lg">
         <div className="mb-4 flex items-center justify-between">
-          <h2 className="text-sm font-semibold">新增巡检规则</h2>
+          <h2 className="text-sm font-semibold">
+            {isEdit ? "编辑巡检规则" : "新增巡检规则"}
+          </h2>
           <button onClick={onClose} className="text-muted-foreground hover:text-foreground">
             <XCircle className="h-4 w-4" />
           </button>
@@ -802,7 +970,7 @@ function AddRuleForm({
           </Button>
           <Button onClick={handleSave} disabled={saving}>
             {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
-            保存
+            {isEdit ? "保存修改" : "保存"}
           </Button>
         </div>
       </Card>

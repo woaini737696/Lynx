@@ -7,6 +7,7 @@
   "background_color": "#0a0a0a",
   "theme_color": "#f6ad55",
   "orientation": "any",
+  "gcm_sender_id": "103953800507",
   "icons": [
     {
       "src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 192 192'%3E%3Crect width='192' height='192' rx='32' fill='%23f6ad55'/%3E%3Ctext x='96' y='130' text-anchor='middle' font-size='110' font-weight='bold' fill='%23000'%3EL%3C/text%3E%3C/svg%3E",

@@ -6,6 +6,7 @@ import { cn } from "@/lib/utils";
 import { BOARD_COLUMNS, type BoardColumn } from "@/lib/utils";
 import { toast } from "@/components/ui/toast";
 import { PageHeader, EmptyState, Card, Badge, Button, LoadingState } from "@/components/layout/PageHeader";
+import { HelpButton } from "@/components/layout/HelpButton";
 
 interface FocusItem {
   id: string;
@@ -120,6 +121,19 @@ export default function FocusPage() {
           allDone
             ? "今日目标已完成"
             : `每天 3 张卡片 · 已完成 ${completedCount}/${items.length}`
+        }
+        action={
+          <HelpButton content={{
+            painPoint: "每天面对大量任务，不知道今天该先做什么，注意力被分散。",
+            need: "需要一个每日聚焦机制，从所有任务中选出最重要的3个，集中精力完成。",
+            solution: "今日聚焦每天自动从看板active任务中选3张卡片，完成一张即时同步看板状态，全部完成解锁成就。",
+            usage: [
+              "打开首页自动生成今日3张卡片",
+              "点击卡片勾选完成",
+              "全部完成后看板对应任务自动标记done",
+              "看板完成任务也会同步到聚焦页"
+            ]
+          }} />
         }
       />
 

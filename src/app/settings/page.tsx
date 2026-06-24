@@ -13,6 +13,7 @@ import {
   Save,
 } from "lucide-react";
 import { PageHeader, Card, Button, LoadingState } from "@/components/layout/PageHeader";
+import { HelpButton } from "@/components/layout/HelpButton";
 import { toast } from "@/components/ui/toast";
 
 /** 单个字段的数据库配置状态 */
@@ -82,6 +83,19 @@ export default function SettingsPage() {
       <PageHeader
         title="设置"
         subtitle="系统配置状态 · 点击文件路径可直接打开编辑"
+        action={
+          <HelpButton content={{
+            painPoint: "AI模型配置散落在环境变量中，无法在界面修改。",
+            need: "需要在设置页集中管理所有配置项。",
+            solution: "设置页支持数据库存储AI Key，无需改.env即可切换Provider和模型。",
+            usage: [
+              "配置DeepSeek/MiMo/Embedding的API Key和模型",
+              "选择默认Provider",
+              "保存后立即生效无需重启",
+              "已配置的Key显示为掩码格式"
+            ]
+          }} />
+        }
       />
 
       {/* AI 模型配置（数据库存储，优先级高于环境变量） */}

@@ -15,6 +15,7 @@ import {
   Radar,
 } from "lucide-react";
 import { PageHeader, Card, Button } from "@/components/layout/PageHeader";
+import { HelpButton } from "@/components/layout/HelpButton";
 import { toast } from "@/components/ui/toast";
 
 type SubStatus = "checking" | "subscribed" | "unsubscribed" | "unsupported";
@@ -97,7 +98,26 @@ export default function PushSettingsPage() {
   const handleSubscribe = async () => {
     setSubscribing(true);
     try {
-      // 获取 VAPID 公钥
+      // 1. 检查浏览器是否支持 Service Worker / Push
+      if (typeof navigator === "undefined" || !("serviceWorker" in navigator)) {
+        toast("当前浏览器不支持 Service Worker，无法订阅推送", "error");
+        setSubscribing(false);
+        return;
+      }
+      if (!("PushManager" in window)) {
+        toast("当前浏览器不支持 Web Push，无法订阅", "error");
+        setSubscribing(false);
+        return;
+      }
+
+      // 2. 检查通知权限（订阅前最好先请求权限，避免后续被拒绝）
+      if ("Notification" in window && Notification.permission === "denied") {
+        toast("通知权限已被拒绝，请在浏览器设置中恢复后重试", "error");
+        setSubscribing(false);
+        return;
+      }
+
+      // 3. 检查服务端 VAPID 配置
       const cfgRes = await fetch("/api/push/test");
       const cfgData = await cfgRes.json();
       if (!cfgData.configured || !cfgData.publicKey) {
@@ -106,21 +126,65 @@ export default function PushSettingsPage() {
         return;
       }
 
-      // 注册/获取 Service Worker
-      const reg = await navigator.serviceWorker.ready;
+      // 4. 确保 Service Worker 已注册（开发环境可能尚未注册）
+      let reg: ServiceWorkerRegistration;
+      try {
+        // 先尝试等待已注册的 SW 就绪
+        reg = await navigator.serviceWorker.ready;
+      } catch {
+        // ready 失败：尝试主动注册
+        try {
+          reg = await navigator.serviceWorker.register("/sw.js", { scope: "/" });
+          // 等待注册完成激活
+          await navigator.serviceWorker.ready;
+        } catch (registerErr) {
+          const msg = registerErr instanceof Error ? registerErr.message : "未知错误";
+          toast(`Service Worker 注册失败: ${msg}`, "error");
+          setSubscribing(false);
+          return;
+        }
+      }
 
-      // 订阅推送
-      const subscription = await reg.pushManager.subscribe({
-        userVisibleOnly: true,
-        applicationServerKey: urlBase64ToUint8Array(cfgData.publicKey) as BufferSource,
-      });
+      // 再次确认 SW 已就绪（兜底）
+      if (!reg) {
+        try {
+          reg = await navigator.serviceWorker.ready;
+        } catch {
+          toast("Service Worker 未就绪，请刷新页面后重试", "error");
+          setSubscribing(false);
+          return;
+        }
+      }
+
+      // 5. 订阅推送
+      let subscription: PushSubscription;
+      try {
+        subscription = await reg.pushManager.subscribe({
+          userVisibleOnly: true,
+          applicationServerKey: urlBase64ToUint8Array(cfgData.publicKey) as BufferSource,
+        });
+      } catch (subscribeErr: unknown) {
+        // 区分权限被拒绝与其他订阅错误
+        if (subscribeErr instanceof DOMException && subscribeErr.name === "NotAllowedError") {
+          toast("用户拒绝了通知权限，无法订阅推送", "error");
+        } else if (subscribeErr instanceof DOMException && subscribeErr.name === "AbortError") {
+          toast("订阅被中止，可能是 VAPID 公钥无效或网络问题", "error");
+        } else {
+          const msg = subscribeErr instanceof Error ? subscribeErr.message : "未知错误";
+          toast(`订阅推送失败: ${msg}`, "error");
+        }
+        setSubscribing(false);
+        return;
+      }
 
       const subObj = subscription.toJSON();
       if (!subObj.endpoint || !subObj.keys?.p256dh || !subObj.keys?.auth) {
-        throw new Error("订阅数据不完整");
+        toast("订阅数据不完整，请重试", "error");
+        setSubscribing(false);
+        return;
       }
 
-      // 发送到服务端保存
+      // 6. 发送到服务端保存
       const saveRes = await fetch("/api/push/subscribe", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -247,6 +311,19 @@ export default function PushSettingsPage() {
       <PageHeader
         title="通知设置"
         subtitle="统一管理通知渠道 · 巡检结果与灵感提醒将通过选定渠道推送"
+        action={
+          <HelpButton content={{
+            painPoint: "重要事项没有提醒，关了浏览器就收不到通知。",
+            need: "需要多渠道通知，即使关闭浏览器也能收到推送。",
+            solution: "通知设置支持浏览器推送(Web Push)、桌面通知、飞书通知三渠道统一管理。",
+            usage: [
+              "配置VAPID密钥后订阅浏览器推送",
+              "开启桌面通知",
+              "配置飞书机器人后启用飞书通知",
+              "巡检和提醒会通过选定渠道推送"
+            ]
+          }} />
+        }
       />
 
       {/* 浏览器支持检查 */}

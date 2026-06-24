@@ -1,33 +1,44 @@
 <template>
   <view class="login-page">
     <view class="login-header">
+      <view class="logo-circle">
+        <text class="logo-text">L</text>
+      </view>
       <text class="login-title">LynnHub</text>
       <text class="login-subtitle">灵感收敛 · 工作聚焦 · 记忆复利</text>
     </view>
 
     <view class="login-form">
       <view class="input-group">
+        <text class="input-label">用户名</text>
         <input
           v-model="form.username"
           class="input"
           type="text"
-          placeholder="用户名"
+          placeholder="请输入用户名"
           placeholder-class="placeholder"
+          :adjust-position="true"
+          :cursor-spacing="20"
           @confirm="onLogin"
         />
       </view>
       <view class="input-group">
-        <input
-          v-model="form.password"
-          class="input"
-          :password="!showPassword"
-          placeholder="密码"
-          placeholder-class="placeholder"
-          @confirm="onLogin"
-        />
-        <text class="toggle-eye" @click="showPassword = !showPassword">
-          {{ showPassword ? "隐藏" : "显示" }}
-        </text>
+        <text class="input-label">密码</text>
+        <view class="password-wrapper">
+          <input
+            v-model="form.password"
+            class="input"
+            :password="!showPassword"
+            placeholder="请输入密码"
+            placeholder-class="placeholder"
+            :adjust-position="true"
+            :cursor-spacing="20"
+            @confirm="onLogin"
+          />
+          <view class="toggle-eye" @click="showPassword = !showPassword">
+            <text class="eye-icon">{{ showPassword ? "🙈" : "👁" }}</text>
+          </view>
+        </view>
       </view>
 
       <button
@@ -40,10 +51,11 @@
 
       <view class="server-config" @click="showServerConfig = !showServerConfig">
         <text class="server-config-text">
-          {{ showServerConfig ? "▼" : "▶" }} 服务器地址（H5 测试留空即可，App 需填后端 IP）
+          {{ showServerConfig ? "▼" : "▶" }} 服务器地址（H5 测试留空，App 需填后端 IP）
         </text>
       </view>
       <view v-if="showServerConfig" class="input-group">
+        <text class="input-label">API 地址</text>
         <input
           v-model="form.baseUrl"
           class="input"
@@ -103,8 +115,8 @@ async function onLogin() {
 <style scoped>
 .login-page {
   min-height: 100vh;
-  background-color: #0a0a0a;
-  padding: 0 60rpx;
+  background-color: #f5f5f7;
+  padding: 0 56rpx;
   display: flex;
   flex-direction: column;
   justify-content: center;
@@ -112,20 +124,36 @@ async function onLogin() {
 
 .login-header {
   text-align: center;
-  margin-bottom: 80rpx;
+  margin-bottom: 72rpx;
+}
+.logo-circle {
+  width: 128rpx;
+  height: 128rpx;
+  border-radius: 32rpx;
+  background: linear-gradient(135deg, #f59e0b, #f97316);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto 24rpx;
+  box-shadow: 0 12rpx 32rpx rgba(245, 158, 11, 0.3);
+}
+.logo-text {
+  font-size: 64rpx;
+  font-weight: 800;
+  color: #ffffff;
 }
 .login-title {
   display: block;
-  font-size: 64rpx;
+  font-size: 56rpx;
   font-weight: 700;
-  color: #f6ad55;
-  letter-spacing: 4rpx;
+  color: #1d1d1f;
+  letter-spacing: 2rpx;
 }
 .login-subtitle {
   display: block;
   font-size: 24rpx;
-  color: #737373;
-  margin-top: 16rpx;
+  color: #86868b;
+  margin-top: 12rpx;
 }
 
 .login-form {
@@ -133,43 +161,60 @@ async function onLogin() {
 }
 
 .input-group {
-  position: relative;
-  margin-bottom: 32rpx;
+  margin-bottom: 28rpx;
+}
+.input-label {
+  display: block;
+  font-size: 26rpx;
+  font-weight: 600;
+  color: #1d1d1f;
+  margin-bottom: 12rpx;
 }
 .input {
   width: 100%;
   height: 96rpx;
-  background-color: #171717;
-  border: 1rpx solid #262626;
-  border-radius: 16rpx;
+  background-color: #ffffff;
+  border: 2rpx solid #e5e5ea;
+  border-radius: 20rpx;
   padding: 0 28rpx;
-  color: #f5f5f5;
-  font-size: 30rpx;
+  color: #1d1d1f;
+  font-size: 32rpx;
   box-sizing: border-box;
+  transition: border-color 0.2s;
+}
+.input:focus {
+  border-color: #f59e0b;
 }
 .placeholder {
-  color: #525252;
+  color: #aeaeb2;
+  font-size: 30rpx;
+}
+
+.password-wrapper {
+  position: relative;
 }
 .toggle-eye {
   position: absolute;
-  right: 28rpx;
+  right: 20rpx;
   top: 50%;
   transform: translateY(-50%);
-  color: #737373;
-  font-size: 24rpx;
-  padding: 10rpx;
+  padding: 12rpx;
+}
+.eye-icon {
+  font-size: 36rpx;
 }
 
 .login-btn {
   width: 100%;
-  height: 96rpx;
-  background-color: #f6ad55;
-  color: #0a0a0a;
-  font-size: 32rpx;
+  height: 100rpx;
+  background: linear-gradient(135deg, #f59e0b, #f97316);
+  color: #ffffff;
+  font-size: 34rpx;
   font-weight: 600;
-  border-radius: 16rpx;
+  border-radius: 20rpx;
   border: none;
   margin-top: 16rpx;
+  box-shadow: 0 8rpx 24rpx rgba(245, 158, 11, 0.25);
 }
 .login-btn[disabled] {
   opacity: 0.5;
@@ -177,10 +222,10 @@ async function onLogin() {
 
 .server-config {
   text-align: center;
-  margin-top: 48rpx;
+  margin-top: 40rpx;
 }
 .server-config-text {
-  color: #525252;
+  color: #86868b;
   font-size: 24rpx;
 }
 </style>

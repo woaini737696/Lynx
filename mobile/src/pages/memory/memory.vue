@@ -12,9 +12,13 @@
         placeholder="语义搜索记忆..."
         placeholder-class="placeholder"
         confirm-type="search"
+        :cursor-spacing="20"
+        :adjust-position="true"
         @confirm="search"
       />
-      <text class="search-btn" @click="search">搜索</text>
+      <view class="search-btn" @click="search">
+        <text class="search-btn-text">搜索</text>
+      </view>
     </view>
 
     <view v-if="loading" class="loading">
@@ -124,11 +128,11 @@ onShow(loadMemories);
 .header-title {
   font-size: 48rpx;
   font-weight: 700;
-  color: #f5f5f5;
+  color: #1d1d1f;
 }
 .header-stats {
   font-size: 24rpx;
-  color: #737373;
+  color: #86868b;
 }
 
 .search-bar {
@@ -139,24 +143,30 @@ onShow(loadMemories);
 .search-input {
   flex: 1;
   height: 80rpx;
-  background-color: #171717;
-  border: 1rpx solid #262626;
+  background-color: #ffffff;
+  border: 2rpx solid #e5e5ea;
   border-radius: 40rpx;
   padding: 0 28rpx;
-  color: #f5f5f5;
+  color: #1d1d1f;
   font-size: 28rpx;
 }
 .placeholder {
-  color: #525252;
+  color: #aeaeb2;
 }
 .search-btn {
-  background-color: #f6ad55;
-  color: #0a0a0a;
-  font-size: 28rpx;
-  font-weight: 600;
+  background: linear-gradient(135deg, #f59e0b, #f97316);
   border-radius: 40rpx;
   padding: 0 32rpx;
-  line-height: 80rpx;
+  height: 80rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4rpx 12rpx rgba(245, 158, 11, 0.2);
+}
+.search-btn-text {
+  color: #ffffff;
+  font-size: 28rpx;
+  font-weight: 600;
 }
 
 .loading,
@@ -171,20 +181,21 @@ onShow(loadMemories);
   margin-bottom: 24rpx;
 }
 .empty-text {
-  color: #a3a3a3;
+  color: #86868b;
   font-size: 30rpx;
   margin-bottom: 8rpx;
 }
 .empty-hint {
-  color: #525252;
+  color: #aeaeb2;
   font-size: 24rpx;
 }
 
 .result-card {
-  background-color: #171717;
+  background-color: #ffffff;
   border-radius: 16rpx;
   padding: 24rpx;
   margin-bottom: 16rpx;
+  box-shadow: 0 2rpx 8rpx rgba(0, 0, 0, 0.04);
 }
 .result-header {
   display: flex;
@@ -198,28 +209,28 @@ onShow(loadMemories);
   border-radius: 8rpx;
 }
 .type-idea {
-  background-color: rgba(246, 173, 85, 0.15);
-  color: #f6ad55;
+  background-color: rgba(245, 158, 11, 0.12);
+  color: #f59e0b;
 }
 .type-conversation {
-  background-color: rgba(99, 179, 237, 0.15);
-  color: #63b3ed;
+  background-color: rgba(59, 130, 246, 0.12);
+  color: #3b82f6;
 }
 .type-cognition {
-  background-color: rgba(104, 211, 145, 0.15);
-  color: #68d391;
+  background-color: rgba(16, 185, 129, 0.12);
+  color: #10b981;
 }
 .result-score {
   font-size: 22rpx;
-  color: #737373;
+  color: #86868b;
 }
 .result-content {
-  color: #d4d4d4;
+  color: #1d1d1f;
   font-size: 28rpx;
   line-height: 1.6;
 }
 .result-full {
-  color: #737373;
+  color: #86868b;
   font-size: 24rpx;
   line-height: 1.5;
   margin-top: 8rpx;

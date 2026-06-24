@@ -30,8 +30,11 @@ import {
   AlertCircle,
   ChevronDown,
   Loader2,
+  History,
+  ChevronRight,
 } from "lucide-react";
 import { PageHeader, Card, Button, Badge } from "@/components/layout/PageHeader";
+import { HelpButton } from "@/components/layout/HelpButton";
 import { cn } from "@/lib/utils";
 import { toast } from "@/components/ui/toast";
 
@@ -91,6 +94,28 @@ interface RunLog {
   status: FlowNode["status"];
   message: string;
   time: string;
+}
+
+// 执行历史条目
+interface ExecutionHistoryItem {
+  id: string;
+  flowId: string;
+  flowName: string;
+  success: boolean;
+  startedAt: string;
+  finishedAt: string | null;
+  totalDurationMs: number;
+  finalOutput: string | null;
+  nodeResults: Array<{
+    nodeId: string;
+    nodeLabel: string;
+    status: "done" | "error" | "skipped";
+    output?: string;
+    durationMs: number;
+    error?: string;
+    message: string;
+  }>;
+  error: string | null;
 }
 
 // ============ 常量 ============
@@ -265,6 +290,16 @@ export default function AIFlowsPage() {
   const [running, setRunning] = useState(false);
   // 当前可视化编排的工作流 ID（用于保存和执行）
   const [visualFlowId, setVisualFlowId] = useState<string | null>(null);
+
+  // 执行历史
+  const [showHistory, setShowHistory] = useState(false);
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [historyList, setHistoryList] = useState<ExecutionHistoryItem[]>([]);
+  const [historyPage, setHistoryPage] = useState(1);
+  const [historyTotalPages, setHistoryTotalPages] = useState(1);
+  const [historyTotal, setHistoryTotal] = useState(0);
+  const [expandedHistoryId, setExpandedHistoryId] = useState<string | null>(null);
+  const historyPageSize = 10;
 
   // 缩放控制
   const [zoom, setZoom] = useState(1);
@@ -832,6 +867,43 @@ export default function AIFlowsPage() {
     }
   };
 
+  // ============ 执行历史 ============
+
+  // 获取执行历史列表
+  const fetchHistory = async (page: number = 1) => {
+    if (!visualFlowId) {
+      toast("请先选择工作流", "info");
+      return;
+    }
+    setHistoryLoading(true);
+    try {
+      const res = await fetch(
+        `/api/ai/flows/${visualFlowId}/executions?page=${page}&pageSize=${historyPageSize}`
+      );
+      if (!res.ok) throw new Error("获取历史失败");
+      const data = await res.json();
+      setHistoryList(data.executions || []);
+      setHistoryPage(data.pagination?.page || 1);
+      setHistoryTotalPages(data.pagination?.totalPages || 1);
+      setHistoryTotal(data.pagination?.total || 0);
+    } catch (e) {
+      toast("获取执行历史失败：" + (e as Error).message, "error");
+    } finally {
+      setHistoryLoading(false);
+    }
+  };
+
+  // 打开历史 modal
+  const openHistory = () => {
+    if (!visualFlowId) {
+      toast("请先选择或创建工作流", "info");
+      return;
+    }
+    setShowHistory(true);
+    setExpandedHistoryId(null);
+    fetchHistory(1);
+  };
+
   // ============ 工具栏操作 ============
 
   const handleSave = async () => {
@@ -1035,6 +1107,19 @@ export default function AIFlowsPage() {
                 <Plus className="h-3.5 w-3.5" /> 新建工作流
               </Button>
             )}
+            <HelpButton content={{
+              painPoint: "多步骤AI任务需要手动一步步执行，每次重复输入参数，无法自动化串联。",
+              need: "需要一个可视化编排工具，把多个AI步骤串联成自动化流程，一次编排反复执行。",
+              solution: "AI工作流是可视化编排画布，支持拖拽节点、连线分支、配置参数，一键执行多步骤AI任务链。",
+              usage: [
+                "从左侧面板拖拽节点到画布（trigger触发器→action AI任务→condition条件分支→output输出）",
+                "从节点右侧端口拖线到下一个节点左侧端口，建立执行顺序",
+                "双击节点配置参数（action节点填prompt，condition节点填表达式）",
+                "点击工具栏'保存'按钮保存工作流",
+                "点击'运行测试'执行，底部面板查看每个节点的实时执行日志",
+                "点击'历史'查看过往执行记录和结果"
+              ]
+            }} />
           </div>
         }
       />
@@ -1352,6 +1437,9 @@ export default function AIFlowsPage() {
               </Button>
               <Button size="sm" variant="outline" onClick={handleSave}>
                 <Save className="h-3 w-3" /> 保存
+              </Button>
+              <Button size="sm" variant="outline" onClick={openHistory} title="查看执行历史">
+                <History className="h-3 w-3" /> 历史
               </Button>
               <Button size="sm" onClick={handleRunTest} disabled={running}>
                 <Play className="h-3 w-3" /> {running ? "运行中..." : "运行测试"}
@@ -1764,6 +1852,23 @@ export default function AIFlowsPage() {
           onSelect={createFromTemplate}
         />
       )}
+
+      {/* ============ 执行历史面板（弹窗）============ */}
+      {showHistory && (
+        <ExecutionHistoryModal
+          loading={historyLoading}
+          list={historyList}
+          page={historyPage}
+          totalPages={historyTotalPages}
+          total={historyTotal}
+          expandedId={expandedHistoryId}
+          onClose={() => setShowHistory(false)}
+          onPageChange={(p) => fetchHistory(p)}
+          onToggleExpand={(id) =>
+            setExpandedHistoryId(expandedHistoryId === id ? null : id)
+          }
+        />
+      )}
     </div>
   );
 }
@@ -2010,6 +2115,266 @@ function TemplatePanel({
             );
           })}
         </div>
+      </div>
+    </div>
+  );
+}
+
+// ============ 执行历史面板组件 ============
+
+function ExecutionHistoryModal({
+  loading,
+  list,
+  page,
+  totalPages,
+  total,
+  expandedId,
+  onClose,
+  onPageChange,
+  onToggleExpand,
+}: {
+  loading: boolean;
+  list: ExecutionHistoryItem[];
+  page: number;
+  totalPages: number;
+  total: number;
+  expandedId: string | null;
+  onClose: () => void;
+  onPageChange: (page: number) => void;
+  onToggleExpand: (id: string) => void;
+}) {
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+      onClick={onClose}
+    >
+      <div
+        className="flex max-h-[85vh] w-full max-w-3xl flex-col rounded-2xl border border-border bg-card shadow-lg"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* 头部 */}
+        <div className="flex items-center justify-between border-b border-border px-5 py-4">
+          <div className="flex items-center gap-2">
+            <History className="h-4 w-4 text-cognition" />
+            <h3 className="text-sm font-semibold">执行历史</h3>
+            <span className="ml-1 rounded-full bg-muted px-2 py-0.5 text-[10px] text-muted-foreground">
+              共 {total} 条
+            </span>
+          </div>
+          <button
+            onClick={onClose}
+            className="rounded-md p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+
+        {/* 列表区域 */}
+        <div className="flex-1 overflow-y-auto px-5 py-4">
+          {loading ? (
+            <div className="flex items-center justify-center py-12">
+              <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+              <span className="ml-2 text-sm text-muted-foreground">加载中...</span>
+            </div>
+          ) : list.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-12 text-center">
+              <History className="mb-3 h-10 w-10 text-muted-foreground/25" />
+              <p className="text-sm text-muted-foreground">暂无执行历史</p>
+              <p className="mt-1 text-[11px] text-muted-foreground/60">
+                运行工作流后会在此处显示执行记录
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {list.map((item) => {
+                const isExpanded = expandedId === item.id;
+                const nodeCount = Array.isArray(item.nodeResults)
+                  ? item.nodeResults.length
+                  : 0;
+                const truncatedOutput = item.finalOutput
+                  ? item.finalOutput.slice(0, 200)
+                  : "";
+                const hasMore = item.finalOutput && item.finalOutput.length > 200;
+                return (
+                  <div
+                    key={item.id}
+                    className="rounded-xl border border-border bg-background overflow-hidden"
+                  >
+                    {/* 概要行 */}
+                    <button
+                      onClick={() => onToggleExpand(item.id)}
+                      className="flex w-full items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-muted/30"
+                    >
+                      {/* 成功/失败状态 */}
+                      {item.success ? (
+                        <CheckCircle2 className="h-4 w-4 shrink-0 text-task" />
+                      ) : (
+                        <AlertCircle className="h-4 w-4 shrink-0 text-graveyard" />
+                      )}
+
+                      {/* 执行时间 */}
+                      <span className="shrink-0 text-[11px] tabular-nums text-muted-foreground">
+                        {new Date(item.startedAt).toLocaleString("zh-CN")}
+                      </span>
+
+                      {/* 耗时 */}
+                      <span className="shrink-0 text-[11px] text-muted-foreground">
+                        {item.totalDurationMs}ms
+                      </span>
+
+                      {/* 节点数 */}
+                      <span className="shrink-0 text-[11px] text-muted-foreground">
+                        {nodeCount} 节点
+                      </span>
+
+                      {/* 成功/失败标签 */}
+                      <span
+                        className={cn(
+                          "shrink-0 rounded-full px-1.5 py-0.5 text-[10px] font-medium",
+                          item.success
+                            ? "bg-task/10 text-task"
+                            : "bg-graveyard/10 text-graveyard"
+                        )}
+                      >
+                        {item.success ? "成功" : "失败"}
+                      </span>
+
+                      <div className="flex-1" />
+
+                      {/* 最终输出预览 */}
+                      {truncatedOutput && (
+                        <span className="hidden max-w-[300px] truncate text-[11px] text-muted-foreground sm:inline">
+                          {truncatedOutput}
+                          {hasMore ? "..." : ""}
+                        </span>
+                      )}
+
+                      {/* 展开图标 */}
+                      <ChevronRight
+                        className={cn(
+                          "h-4 w-4 shrink-0 text-muted-foreground transition-transform",
+                          isExpanded && "rotate-90"
+                        )}
+                      />
+                    </button>
+
+                    {/* 展开详情 */}
+                    {isExpanded && (
+                      <div className="border-t border-border bg-muted/20 px-4 py-3 space-y-3">
+                        {/* 最终输出 */}
+                        {item.finalOutput && (
+                          <div>
+                            <div className="mb-1 text-[11px] font-medium text-foreground">
+                              最终输出
+                            </div>
+                            <pre className="max-h-40 overflow-y-auto whitespace-pre-wrap rounded-lg bg-background p-2.5 text-[11px] leading-relaxed text-muted-foreground">
+                              {item.finalOutput}
+                            </pre>
+                          </div>
+                        )}
+
+                        {/* 错误信息 */}
+                        {item.error && (
+                          <div>
+                            <div className="mb-1 text-[11px] font-medium text-graveyard">
+                              错误信息
+                            </div>
+                            <pre className="whitespace-pre-wrap rounded-lg bg-graveyard/5 p-2.5 text-[11px] text-graveyard">
+                              {item.error}
+                            </pre>
+                          </div>
+                        )}
+
+                        {/* 节点执行结果 */}
+                        {Array.isArray(item.nodeResults) &&
+                          item.nodeResults.length > 0 && (
+                            <div>
+                              <div className="mb-1.5 text-[11px] font-medium text-foreground">
+                                节点执行结果（{item.nodeResults.length}）
+                              </div>
+                              <div className="space-y-1.5">
+                                {item.nodeResults.map((nr, i) => (
+                                  <div
+                                    key={i}
+                                    className={cn(
+                                      "flex items-start gap-2 rounded-lg px-2.5 py-1.5 text-[11px]",
+                                      nr.status === "done" && "bg-task/5",
+                                      nr.status === "error" && "bg-graveyard/5",
+                                      nr.status === "skipped" && "bg-muted/30"
+                                    )}
+                                  >
+                                    {nr.status === "done" && (
+                                      <CheckCircle2 className="mt-0.5 h-3 w-3 shrink-0 text-task" />
+                                    )}
+                                    {nr.status === "error" && (
+                                      <AlertCircle className="mt-0.5 h-3 w-3 shrink-0 text-graveyard" />
+                                    )}
+                                    {nr.status === "skipped" && (
+                                      <span className="mt-0.5 h-3 w-3 shrink-0 text-center text-[10px] text-muted-foreground">→</span>
+                                    )}
+                                    <div className="min-w-0 flex-1">
+                                      <div className="flex items-center gap-2">
+                                        <span className="font-medium text-foreground">
+                                          {nr.nodeLabel}
+                                        </span>
+                                        <span className="text-[10px] text-muted-foreground">
+                                          {nr.durationMs}ms
+                                        </span>
+                                      </div>
+                                      <div className="mt-0.5 text-muted-foreground">
+                                        {nr.message}
+                                      </div>
+                                      {nr.output && (
+                                        <pre className="mt-1 max-h-24 overflow-y-auto whitespace-pre-wrap rounded bg-background p-1.5 text-[10px] text-muted-foreground/80">
+                                          {nr.output}
+                                        </pre>
+                                      )}
+                                      {nr.error && (
+                                        <div className="mt-1 text-[10px] text-graveyard">
+                                          {nr.error}
+                                        </div>
+                                      )}
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
+        {/* 分页 */}
+        {totalPages > 1 && (
+          <div className="flex items-center justify-between border-t border-border px-5 py-3">
+            <span className="text-[11px] text-muted-foreground">
+              第 {page} / {totalPages} 页
+            </span>
+            <div className="flex items-center gap-2">
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={page <= 1}
+                onClick={() => onPageChange(page - 1)}
+              >
+                上一页
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={page >= totalPages}
+                onClick={() => onPageChange(page + 1)}
+              >
+                下一页
+              </Button>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

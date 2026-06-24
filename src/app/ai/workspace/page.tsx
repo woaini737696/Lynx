@@ -23,6 +23,7 @@ import {
   Package,
 } from "lucide-react";
 import { PageHeader, Card, Button, Badge } from "@/components/layout/PageHeader";
+import { HelpButton } from "@/components/layout/HelpButton";
 import { toast } from "@/components/ui/toast";
 import { cn } from "@/lib/utils";
 import {
@@ -267,6 +268,20 @@ export default function AIWorkspacePage() {
       <PageHeader
         title="AI 工作空间"
         subtitle="将重复性 AI 协同工作固化为参数化模板，一键启动蒸馏流程"
+        action={
+          <HelpButton content={{
+            painPoint: "重复性AI任务（周报、代码审查、会议纪要）每次都要重新写prompt。",
+            need: "需要预设模板，填参数即可执行，结果可复用。",
+            solution: "AI工作空间提供7个蒸馏模板（财务预测/周报/代码审查/知识蒸馏/会议纪要/PRD/竞品分析），填参数一键执行。",
+            usage: [
+              "选择模板",
+              "填写参数",
+              "点击执行",
+              "查看结果可复制",
+              "执行历史可重跑"
+            ]
+          }} />
+        }
       />
 
       {/* 快速入口 */}

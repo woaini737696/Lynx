@@ -135,3 +135,47 @@ self.addEventListener("message", (event) => {
     });
   }
 });
+
+// ============ Web Push 通知 ============
+self.addEventListener("push", (event) => {
+  let data = { title: "LynnHub 通知", body: "你有新消息" };
+  try {
+    if (event.data) data = event.data.json();
+  } catch (e) {
+    if (event.data) data.body = event.data.text();
+  }
+  event.waitUntil(
+    self.registration.showNotification(data.title || "LynnHub 通知", {
+      body: data.body || "",
+      icon: "/icon-192.png",
+      badge: "/icon-192.png",
+      tag: data.tag || "lynnhub-notification",
+      data: data.data || {},
+    })
+  );
+});
+
+// 通知点击：聚焦/打开窗口
+self.addEventListener("notificationclick", (event) => {
+  event.notification.close();
+  const targetUrl = event.notification.data?.url || "/";
+  event.waitUntil(
+    self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((clientList) => {
+      // 如果已有窗口，聚焦它
+      for (const client of clientList) {
+        if (client.url.includes(targetUrl) && "focus" in client) {
+          return client.focus();
+        }
+      }
+      // 否则打开新窗口
+      if (self.clients.openWindow) {
+        return self.clients.openWindow(targetUrl);
+      }
+    })
+  );
+});
+
+// 通知关闭
+self.addEventListener("notificationclose", (event) => {
+  // 可用于分析通知效果
+});

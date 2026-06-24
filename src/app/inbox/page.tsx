@@ -4,6 +4,7 @@ import { useEffect, useState, useRef, useCallback } from "react";
 import { ArrowRight, Trash2, InboxIcon, Bot, Send, X, Sparkles, Check, Settings, Bell, AlertCircle, FileText } from "lucide-react";
 import { toast } from "@/components/ui/toast";
 import { PageHeader, Card, Button, Badge, Skeleton } from "@/components/layout/PageHeader";
+import { HelpButton } from "@/components/layout/HelpButton";
 import { EmptyState } from "@/components/layout/EmptyState";
 import { cn } from "@/lib/utils";
 import type { ReviveSuggestion } from "@/lib/reminder-scheduler";
@@ -363,6 +364,19 @@ export default function InboxPage() {
             >
               <Settings className="h-3.5 w-3.5" />
             </a>
+            <HelpButton content={{
+              painPoint: "灵感稍纵即逝，想到时没地方记，记下来后又忘了分类和跟进。",
+              need: "需要一个快速捕获+智能分类+定期收敛的灵感管理系统。",
+              solution: "闪电输入(Ctrl+J)秒记灵感，AI自动分类建议，每晚23点收敛仪式强制归类到看板或墓地。",
+              usage: [
+                "按Ctrl+J或点击底部捕获条快速记录灵感",
+                "灵感自动进入Inbox等待处理",
+                "可上传图片/文件附件辅助说明",
+                "点击灵感与AI讨论完善",
+                "拖入看板或送入墓地",
+                "23点收敛仪式统一处理"
+              ]
+            }} />
           </div>
         }
       />

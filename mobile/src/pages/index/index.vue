@@ -90,9 +90,9 @@ async function loadFocus() {
 
 async function toggle(item) {
   try {
-    const res = await toggleFocusItem(item.id, !item.completed);
+    await toggleFocusItem(item.id, !item.completed);
     item.completed = !item.completed;
-    if (res.allDone) {
+    if (completedCount.value === focus.value.items.length) {
       uni.showToast({ title: "全部完成！🎉", icon: "none" });
     }
   } catch (e) {
@@ -117,12 +117,12 @@ onShow(loadFocus);
   display: block;
   font-size: 48rpx;
   font-weight: 700;
-  color: #f5f5f5;
+  color: #1d1d1f;
 }
 .header-date {
   display: block;
   font-size: 26rpx;
-  color: #737373;
+  color: #86868b;
   margin-top: 8rpx;
 }
 
@@ -140,12 +140,12 @@ onShow(loadFocus);
 }
 .empty-text {
   font-size: 32rpx;
-  color: #a3a3a3;
+  color: #86868b;
   margin-bottom: 12rpx;
 }
 .empty-hint {
   font-size: 24rpx;
-  color: #525252;
+  color: #aeaeb2;
   text-align: center;
   padding: 0 60rpx;
 }
@@ -156,33 +156,35 @@ onShow(loadFocus);
 .focus-card {
   display: flex;
   align-items: center;
-  background-color: #171717;
+  background-color: #ffffff;
   border-radius: 20rpx;
   padding: 32rpx;
-  margin-bottom: 24rpx;
-  border-left: 6rpx solid #f6ad55;
+  margin-bottom: 20rpx;
+  border-left: 8rpx solid #f59e0b;
+  box-shadow: 0 2rpx 12rpx rgba(0, 0, 0, 0.04);
 }
 .focus-card.completed {
-  opacity: 0.5;
-  border-left-color: #68d391;
+  opacity: 0.55;
+  border-left-color: #10b981;
 }
 .card-check {
   width: 48rpx;
   height: 48rpx;
   border-radius: 50%;
-  border: 3rpx solid #525252;
+  border: 3rpx solid #d1d1d6;
   display: flex;
   align-items: center;
   justify-content: center;
   margin-right: 24rpx;
   flex-shrink: 0;
+  transition: all 0.2s;
 }
 .card-check.checked {
-  background-color: #68d391;
-  border-color: #68d391;
+  background-color: #10b981;
+  border-color: #10b981;
 }
 .check-icon {
-  color: #0a0a0a;
+  color: #ffffff;
   font-size: 28rpx;
   font-weight: 700;
 }
@@ -192,14 +194,14 @@ onShow(loadFocus);
   align-items: flex-start;
 }
 .card-index {
-  color: #f6ad55;
+  color: #f59e0b;
   font-size: 28rpx;
   font-weight: 700;
   margin-right: 16rpx;
   flex-shrink: 0;
 }
 .card-content {
-  color: #f5f5f5;
+  color: #1d1d1f;
   font-size: 30rpx;
   line-height: 1.5;
 }
@@ -211,16 +213,16 @@ onShow(loadFocus);
   flex-shrink: 0;
 }
 .tag-northstar {
-  background-color: rgba(246, 173, 85, 0.15);
-  color: #f6ad55;
+  background-color: rgba(245, 158, 11, 0.12);
+  color: #f59e0b;
 }
 .tag-campaign {
-  background-color: rgba(99, 179, 237, 0.15);
-  color: #63b3ed;
+  background-color: rgba(59, 130, 246, 0.12);
+  color: #3b82f6;
 }
 .tag-task {
-  background-color: rgba(104, 211, 145, 0.15);
-  color: #68d391;
+  background-color: rgba(16, 185, 129, 0.12);
+  color: #10b981;
 }
 
 .progress-bar {
@@ -230,20 +232,20 @@ onShow(loadFocus);
 }
 .progress-track {
   flex: 1;
-  height: 12rpx;
-  background-color: #262626;
-  border-radius: 6rpx;
+  height: 16rpx;
+  background-color: #e5e5ea;
+  border-radius: 8rpx;
   overflow: hidden;
   margin-right: 20rpx;
 }
 .progress-fill {
   height: 100%;
-  background-color: #68d391;
-  border-radius: 6rpx;
+  background: linear-gradient(90deg, #10b981, #34d399);
+  border-radius: 8rpx;
   transition: width 0.3s;
 }
 .progress-text {
   font-size: 24rpx;
-  color: #a3a3a3;
+  color: #86868b;
 }
 </style>

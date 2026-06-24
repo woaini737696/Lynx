@@ -6,6 +6,7 @@ import { cn } from "@/lib/utils";
 import { BOARD_COLUMNS, type BoardColumn } from "@/lib/utils";
 import { toast } from "@/components/ui/toast";
 import { PageHeader, Card, Button, Skeleton } from "@/components/layout/PageHeader";
+import { HelpButton } from "@/components/layout/HelpButton";
 
 interface Task {
   id: string;
@@ -237,25 +238,38 @@ export default function BoardPage() {
         title="决策看板"
         subtitle="北极星 ≤3 · 战役 ≤5 · 任务 ≤10，满额阻断"
         action={
-          stats ? (
-            <div className="flex items-center gap-3 rounded-xl border border-border bg-card px-3 py-1.5 text-xs">
-              <div className="flex items-center gap-1.5">
-                <TrendingUp className="h-3.5 w-3.5 text-task" />
-                <span className="text-muted-foreground">累计完成</span>
-                <span className="font-semibold text-task">{stats.totalCompleted}</span>
+          <div className="flex items-center gap-2">
+            {stats ? (
+              <div className="flex items-center gap-3 rounded-xl border border-border bg-card px-3 py-1.5 text-xs">
+                <div className="flex items-center gap-1.5">
+                  <TrendingUp className="h-3.5 w-3.5 text-task" />
+                  <span className="text-muted-foreground">累计完成</span>
+                  <span className="font-semibold text-task">{stats.totalCompleted}</span>
+                </div>
+                <div className="h-3 w-px bg-border" />
+                <div className="flex items-center gap-1.5">
+                  <span className="text-muted-foreground">本周</span>
+                  <span className="font-semibold text-cognition">{stats.thisWeekCompleted}</span>
+                </div>
+                <div className="h-3 w-px bg-border" />
+                <div className="flex items-center gap-1.5">
+                  <span className="text-muted-foreground">进行中</span>
+                  <span className="font-semibold text-northstar">{stats.totalActive}</span>
+                </div>
               </div>
-              <div className="h-3 w-px bg-border" />
-              <div className="flex items-center gap-1.5">
-                <span className="text-muted-foreground">本周</span>
-                <span className="font-semibold text-cognition">{stats.thisWeekCompleted}</span>
-              </div>
-              <div className="h-3 w-px bg-border" />
-              <div className="flex items-center gap-1.5">
-                <span className="text-muted-foreground">进行中</span>
-                <span className="font-semibold text-northstar">{stats.totalActive}</span>
-              </div>
-            </div>
-          ) : null
+            ) : null}
+            <HelpButton content={{
+              painPoint: "任务混在一起分不清优先级，不知道什么该做什么该放弃。",
+              need: "需要一个分层看板，按战略-战役-任务三级管理，限制数量强制聚焦。",
+              solution: "决策看板分北极星(≤3)/战役(≤5)/任务(≤10)三列，完成时AI自动提取认知写入认知库。",
+              usage: [
+                "从Inbox拖灵感到看板自动创建任务",
+                "点击卡片标记完成，AI提取经验入库",
+                "查看完成统计了解进度",
+                "今日聚焦与看板状态双向同步"
+              ]
+            }} />
+          </div>
         }
       />
 

@@ -16,8 +16,6 @@ import {
   Copy,
   Check,
   Trash2,
-  FileText,
-  ListChecks,
   MessageSquare,
   Image as ImageIcon,
   X,
@@ -28,17 +26,29 @@ import {
   PhoneOff,
   RefreshCw,
   Plus,
+  ChevronDown,
+  ChevronRight,
+  Wrench,
 } from "lucide-react";
 import { Button } from "@/components/layout/PageHeader";
+import { HelpButton } from "@/components/layout/HelpButton";
 import { ModelSwitcher, type ModelSwitcherValue } from "@/components/ui/ModelSwitcher";
 import { toast } from "@/components/ui/toast";
 import { cn } from "@/lib/utils";
 import type { LLMProvider } from "@/lib/ai-provider";
+import { QUICK_COMMANDS } from "@/lib/ai-assistant-tools";
 
 interface TokenUsage {
   prompt_tokens?: number;
   completion_tokens?: number;
   total_tokens?: number;
+}
+
+/** 工具调用信息（后端 assistantMode 返回） */
+interface ToolCalled {
+  tool: string;
+  args: Record<string, any>;
+  result: any;
 }
 
 interface Message {
@@ -52,6 +62,7 @@ interface Message {
   usage?: TokenUsage;
   streaming?: boolean;
   images?: string[];
+  toolCalled?: ToolCalled | null;
 }
 
 interface AISettings {
@@ -76,12 +87,7 @@ const DEFAULT_SETTINGS: AISettings = {
   feishuNotify: false,
 };
 
-const QUICK_COMMANDS = [
-  { icon: ListChecks, text: "总结今日", prompt: "帮我总结一下今天的工作进展和待办事项", color: "text-northstar" },
-  { icon: Brain, text: "分析灵感", prompt: "帮我分析最近的灵感趋势，找出有价值的方向", color: "text-cognition" },
-  { icon: FileText, text: "生成报告", prompt: "请根据近期数据生成一份工作复盘报告", color: "text-campaign" },
-  { icon: MessageSquare, text: "对话蒸馏", prompt: "帮我从最近的对话中提取关键结论和待办", color: "text-task" },
-];
+// 快捷指令从 @/lib/ai-assistant-tools 导入（与后端工具定义同源）
 
 const SUGGESTIONS = [
   { icon: Target, text: "今天有哪些任务需要聚焦？", color: "text-northstar" },
@@ -259,6 +265,34 @@ function renderInline(text: string): React.ReactNode {
   return parts;
 }
 
+/** 生成工具调用结果的简短摘要（用于卡片标题） */
+function summarizeToolResult(result: any): string {
+  if (!result) return "无结果";
+  if (result.error) return `失败：${String(result.error).slice(0, 30)}`;
+  // 常见字段优先
+  if (typeof result.total === "number") return `${result.total} 项`;
+  if (typeof result.success === "boolean" && result.success) {
+    if (typeof result.count === "number") return `${result.count} 项`;
+    if (typeof result.sentCount === "number") return `已发送 ${result.sentCount}`;
+    if (typeof result.cognitionCount === "number") return `提取 ${result.cognitionCount} 条认知`;
+    if (typeof result.edges === "number") return `${result.edges} 条边`;
+    return "成功";
+  }
+  if (Array.isArray(result.ideas)) return `${result.ideas.length} 条灵感`;
+  if (Array.isArray(result.tasks)) return `${result.tasks.length} 条任务`;
+  if (Array.isArray(result.cognitions)) return `${result.cognitions.length} 条认知`;
+  if (Array.isArray(result.skills)) return `${result.skills.length} 个技能`;
+  if (Array.isArray(result.flows)) return `${result.flows.length} 个工作流`;
+  if (Array.isArray(result.rules)) return `${result.rules.length} 条规则`;
+  if (Array.isArray(result.logs)) return `${result.logs.length} 条日志`;
+  if (Array.isArray(result.results)) return `${result.results.length} 项结果`;
+  if (result.totalCompleted != null && result.totalActive != null) {
+    return `完成 ${result.totalCompleted} / 进行中 ${result.totalActive}`;
+  }
+  if (result.output) return String(result.output).slice(0, 30);
+  return "已执行";
+}
+
 export default function AIAssistantPage() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
@@ -331,6 +365,21 @@ export default function AIAssistantPage() {
   const [modelCatalog, setModelCatalog] = useState<{
     providers: Array<{ id: LLMProvider; models: Array<{ id: string; multimodal?: boolean }> }>;
   } | null>(null);
+
+  // 工具调用卡片展开状态（按消息 ID 记录）
+  const [expandedTools, setExpandedTools] = useState<Set<string>>(new Set());
+
+  const toggleToolExpand = useCallback((msgId: string) => {
+    setExpandedTools((prev) => {
+      const next = new Set(prev);
+      if (next.has(msgId)) {
+        next.delete(msgId);
+      } else {
+        next.add(msgId);
+      }
+      return next;
+    });
+  }, []);
 
   useEffect(() => {
     fetch("/api/ai/models")
@@ -802,27 +851,24 @@ export default function AIAssistantPage() {
     abortRef.current = controller;
 
     try {
-      const systemPrompt = `你是 ${settings.assistantName}，LynnHub 的 AI 专属助理，专注于帮助用户管理灵感、分析任务、整理认知。回答简洁友好，必要时主动提问引导思考。支持 Markdown 格式输出。`;
-
-      const apiMessages = [
-        { role: "system" as const, content: systemPrompt },
-        ...nextMessages
-          .filter((m) => !m.error)
-          .map((m) => {
-            if (m.images && m.images.length > 0) {
-              const parts: Array<
-                { type: "text"; text: string } | { type: "image_url"; image_url: { url: string } }
-              > = [];
-              if (m.content) parts.push({ type: "text", text: m.content });
-              for (const img of m.images) {
-                parts.push({ type: "image_url", image_url: { url: img } });
-              }
-              return { role: m.role, content: parts };
+      // 构建 API 消息（保留历史对话上下文，过滤错误消息和工具卡片消息）
+      const apiMessages = nextMessages
+        .filter((m) => !m.error)
+        .map((m) => {
+          if (m.images && m.images.length > 0) {
+            const parts: Array<
+              { type: "text"; text: string } | { type: "image_url"; image_url: { url: string } }
+            > = [];
+            if (m.content) parts.push({ type: "text", text: m.content });
+            for (const img of m.images) {
+              parts.push({ type: "image_url", image_url: { url: img } });
             }
-            return { role: m.role, content: m.content };
-          }),
-      ];
+            return { role: m.role, content: parts };
+          }
+          return { role: m.role, content: m.content };
+        });
 
+      // 调用 AI 助理模式（非流式，支持 Function Calling）
       const res = await fetch("/api/ai/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -831,7 +877,8 @@ export default function AIAssistantPage() {
           provider: modelConfig.provider,
           model: modelConfig.model,
           reasoningMode: modelConfig.reasoningMode,
-          stream: true,
+          stream: false,
+          assistantMode: true,
         }),
         signal: controller.signal,
       });
@@ -844,87 +891,55 @@ export default function AIAssistantPage() {
         return;
       }
 
-      if (!res.body) {
-        const errMsg = "服务器未返回流式数据";
+      const data = await res.json().catch(() => null);
+      if (!data || typeof data !== "object") {
+        const errMsg = "服务器返回数据格式异常";
         setMessages((prev) => prev.map((m) => m.id === aiMsgId ? { ...m, content: errMsg, error: true, streaming: false } : m));
         toast(errMsg, "error");
         return;
       }
 
-      const reader = res.body.getReader();
-      const decoder = new TextDecoder("utf-8");
-      let buffer = "";
-      let accumulated = "";
-      let metaProvider: LLMProvider | undefined;
-      let metaModel: string | undefined;
-      let usage: TokenUsage | undefined;
-
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        buffer += decoder.decode(value, { stream: true });
-        const events = buffer.split("\n\n");
-        buffer = events.pop() || "";
-
-        for (const evt of events) {
-          const line = evt.trim();
-          if (!line.startsWith("data:")) continue;
-          const dataStr = line.slice(5).trim();
-          if (!dataStr) continue;
-          try {
-            const evtData = JSON.parse(dataStr) as {
-              type: "meta" | "delta" | "done" | "error";
-              provider?: LLMProvider;
-              model?: string;
-              content?: string;
-              message?: string;
-              usage?: TokenUsage;
-            };
-            if (evtData.type === "meta") {
-              metaProvider = evtData.provider;
-              metaModel = evtData.model;
-            } else if (evtData.type === "delta" && evtData.content) {
-              accumulated += evtData.content;
-              setMessages((prev) => prev.map((m) => m.id === aiMsgId ? { ...m, content: accumulated } : m));
-            } else if (evtData.type === "done") {
-              usage = evtData.usage;
-            } else if (evtData.type === "error") {
-              const errMsg = evtData.message || "流式响应错误";
-              setMessages((prev) => prev.map((m) => m.id === aiMsgId ? { ...m, content: accumulated || errMsg, error: !accumulated, streaming: false } : m));
-              if (!accumulated) toast(errMsg, "error");
-              return;
-            }
-          } catch {}
-        }
-      }
+      const aiContent: string = data.content || "(空回复)";
+      const aiProvider: LLMProvider | undefined = data.provider;
+      const aiModel: string | undefined = data.model;
+      const aiUsage: TokenUsage | undefined = data.usage;
+      const toolCalled: ToolCalled | null = data.toolCalled || null;
 
       setMessages((prev) =>
         prev.map((m) =>
           m.id === aiMsgId
-            ? { ...m, content: accumulated || "(空回复)", streaming: false, provider: metaProvider, model: metaModel, usage }
+            ? {
+                ...m,
+                content: aiContent,
+                streaming: false,
+                provider: aiProvider,
+                model: aiModel,
+                usage: aiUsage,
+                toolCalled,
+              }
             : m
         )
       );
 
       // 持久化 AI 回复到数据库
-      if (currentSessionId && accumulated) {
+      if (currentSessionId && aiContent) {
         fetch(`/api/ai/chat/sessions/${currentSessionId}/messages`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             role: "assistant",
-            content: accumulated,
-            provider: metaProvider,
-            model: metaModel,
-            tokens: usage?.total_tokens,
+            content: aiContent,
+            provider: aiProvider,
+            model: aiModel,
+            tokens: aiUsage?.total_tokens,
           }),
         }).catch(() => {});
         // 刷新会话列表（标题可能已自动更新）
         fetchSessions();
       }
 
-      if ((settings.autoSpeak || settings.voiceMode) && accumulated) {
-        setTimeout(() => speak(accumulated, aiMsgId), 300);
+      if ((settings.autoSpeak || settings.voiceMode) && aiContent) {
+        setTimeout(() => speak(aiContent, aiMsgId), 300);
       }
     } catch (e) {
       const err = e as Error;
@@ -1399,6 +1414,22 @@ export default function AIAssistantPage() {
               <Settings className="h-3.5 w-3.5" />
             </Button>
             <ModelSwitcher value={modelConfig} onChange={setModelConfig} />
+            <HelpButton
+              content={{
+                painPoint:
+                  "AI助理只能聊天，无法直接操作灵感、看板、记忆等功能，需要来回切换页面。",
+                need: "需要一个能主动访问和操作所有功能的AI助理，对话即可完成创建、搜索、执行等操作。",
+                solution:
+                  "AI助理支持Function Calling，能调用18个工具覆盖灵感/看板/记忆/认知/技能/工作流/巡检/通知全功能，同时提供6个快捷指令一键触发。",
+                usage: [
+                  "直接对话描述需求，AI自动判断是否需要调用工具",
+                  "点击快捷指令按钮快速触发常用操作",
+                  "AI调用工具后会在聊天中显示工具调用卡片",
+                  "可展开卡片查看完整工具执行结果",
+                  "支持'帮我创建灵感''搜索记忆''执行巡检'等自然语言指令",
+                ],
+              }}
+            />
             <Button
               size="sm"
               variant={confirmClear ? "danger" : "ghost"}
@@ -1520,6 +1551,50 @@ export default function AIAssistantPage() {
                   )}
                 </div>
 
+                {/* 工具调用卡片（可展开查看完整结果） */}
+                {msg.role === "assistant" && !msg.error && !msg.streaming && msg.toolCalled && (
+                  <div className="mt-2 max-w-[85%] rounded-xl border border-cognition/30 bg-cognition/5 overflow-hidden">
+                    <button
+                      type="button"
+                      onClick={() => toggleToolExpand(msg.id)}
+                      className="flex w-full items-center gap-2 px-3 py-2 text-left transition-colors hover:bg-cognition/10"
+                    >
+                      <Wrench className="h-3.5 w-3.5 shrink-0 text-cognition" />
+                      <span className="text-xs font-medium text-cognition">
+                        工具调用：{msg.toolCalled.tool}
+                      </span>
+                      <span className="ml-auto text-[10px] text-muted-foreground">
+                        {summarizeToolResult(msg.toolCalled.result)}
+                      </span>
+                      {expandedTools.has(msg.id) ? (
+                        <ChevronDown className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                      ) : (
+                        <ChevronRight className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                      )}
+                    </button>
+                    {expandedTools.has(msg.id) && (
+                      <div className="border-t border-cognition/20 px-3 py-2">
+                        <div className="mb-1.5 text-[10px] text-muted-foreground">
+                          参数：
+                        </div>
+                        <pre className="mb-2 overflow-x-auto rounded-lg bg-muted/50 p-2 text-[11px] leading-relaxed">
+                          <code className="font-mono text-foreground">
+                            {JSON.stringify(msg.toolCalled.args, null, 2)}
+                          </code>
+                        </pre>
+                        <div className="mb-1.5 text-[10px] text-muted-foreground">
+                          结果：
+                        </div>
+                        <pre className="overflow-x-auto rounded-lg bg-muted/50 p-2 text-[11px] leading-relaxed max-h-60">
+                          <code className="font-mono text-foreground">
+                            {JSON.stringify(msg.toolCalled.result, null, 2)}
+                          </code>
+                        </pre>
+                      </div>
+                    )}
+                  </div>
+                )}
+
                 {msg.role === "assistant" && !msg.error && !msg.streaming && (msg.provider || msg.model || msg.usage) && (
                   <div className="mt-1 ml-1 flex flex-wrap items-center gap-2 text-[10px] text-muted-foreground/70">
                     {msg.provider && <span className="uppercase">{msg.provider}</span>}
@@ -1587,20 +1662,18 @@ export default function AIAssistantPage() {
       <div className="border-t border-border px-4 py-3 sm:px-8">
         <div className="mx-auto max-w-2xl">
           {!thinking && !voiceCallActive && (
-            <div className="mb-2 flex flex-wrap items-center gap-1.5">
-              {QUICK_COMMANDS.map((cmd, i) => {
-                const Icon = cmd.icon;
-                return (
-                  <button
-                    key={i}
-                    onClick={() => send(cmd.prompt)}
-                    className="inline-flex items-center gap-1 rounded-full border border-border bg-card px-2.5 py-1 text-[11px] transition-all hover:border-cognition/40 hover:bg-cognition/5"
-                  >
-                    <Icon className={cn("h-3 w-3", cmd.color)} />
-                    <span>{cmd.text}</span>
-                  </button>
-                );
-              })}
+            <div className="mb-2 flex items-center gap-1.5 overflow-x-auto pb-1 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
+              {QUICK_COMMANDS.map((cmd, i) => (
+                <button
+                  key={i}
+                  onClick={() => send(cmd.message)}
+                  title={cmd.description}
+                  className="inline-flex shrink-0 items-center gap-1 rounded-full border border-border bg-card px-2.5 py-1 text-[11px] transition-all hover:border-cognition/40 hover:bg-cognition/5"
+                >
+                  <span className="text-xs">{cmd.icon}</span>
+                  <span>{cmd.label}</span>
+                </button>
+              ))}
             </div>
           )}
 

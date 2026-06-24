@@ -21,8 +21,12 @@
         <view class="idea-footer">
           <text class="idea-time">{{ formatTime(idea.createdAt) }}</text>
           <view class="idea-actions">
-            <text class="action" @click="moveToBoard(idea)">→看板</text>
-            <text class="action danger" @click="abandon(idea)">放弃</text>
+            <view class="action-btn board-btn" @click="moveToBoard(idea)">
+              <text class="action-text">→看板</text>
+            </view>
+            <view class="action-btn danger-btn" @click="abandon(idea)">
+              <text class="action-text danger-text">放弃</text>
+            </view>
           </view>
         </view>
       </view>
@@ -36,7 +40,6 @@
 import { ref, onMounted } from "vue";
 import { onShow } from "@dcloudio/uni-app";
 import { getInboxIdeas } from "@/api/ideas.js";
-import { updateTask } from "@/api/tasks.js";
 import CaptureBar from "@/components/CaptureBar.vue";
 
 const ideas = ref([]);
@@ -63,7 +66,6 @@ function moveToBoard(idea) {
       try {
         const { createTask } = await import("@/api/tasks.js");
         await createTask({ content: idea.content, column });
-        // 灵感状态改为 board
         const { put } = await import("@/api/request.js");
         await put(`/api/ideas/${idea.id}`, { status: "board" });
         uni.showToast({ title: "已移入看板", icon: "success" });
@@ -78,9 +80,10 @@ function moveToBoard(idea) {
 async function abandon(idea) {
   uni.showModal({
     title: "放弃这个灵感？",
-    content: idea.content,
+    content: idea.content.slice(0, 50),
     editable: true,
     placeholderText: "请输入放弃原因（必填）",
+    confirmColor: "#ef4444",
     success: async (res) => {
       if (res.confirm && res.content) {
         try {
@@ -123,11 +126,11 @@ onShow(loadIdeas);
 .header-title {
   font-size: 48rpx;
   font-weight: 700;
-  color: #f5f5f5;
+  color: #1d1d1f;
 }
 .header-count {
   font-size: 26rpx;
-  color: #737373;
+  color: #86868b;
 }
 
 .loading,
@@ -142,12 +145,12 @@ onShow(loadIdeas);
   margin-bottom: 24rpx;
 }
 .empty-text {
-  color: #a3a3a3;
+  color: #86868b;
   font-size: 30rpx;
   margin-bottom: 8rpx;
 }
 .empty-hint {
-  color: #525252;
+  color: #aeaeb2;
   font-size: 24rpx;
 }
 
@@ -155,13 +158,14 @@ onShow(loadIdeas);
   height: calc(100vh - 200rpx);
 }
 .idea-card {
-  background-color: #171717;
+  background-color: #ffffff;
   border-radius: 16rpx;
   padding: 24rpx;
   margin-bottom: 16rpx;
+  box-shadow: 0 2rpx 8rpx rgba(0, 0, 0, 0.04);
 }
 .idea-content {
-  color: #f5f5f5;
+  color: #1d1d1f;
   font-size: 30rpx;
   line-height: 1.6;
 }
@@ -173,18 +177,28 @@ onShow(loadIdeas);
 }
 .idea-time {
   font-size: 22rpx;
-  color: #525252;
+  color: #aeaeb2;
 }
 .idea-actions {
   display: flex;
-  gap: 24rpx;
+  gap: 16rpx;
 }
-.action {
+.action-btn {
+  border-radius: 20rpx;
+  padding: 8rpx 20rpx;
+}
+.board-btn {
+  background-color: rgba(245, 158, 11, 0.12);
+}
+.danger-btn {
+  background-color: rgba(239, 68, 68, 0.1);
+}
+.action-text {
   font-size: 24rpx;
-  color: #f6ad55;
-  padding: 4rpx 12rpx;
+  color: #f59e0b;
+  font-weight: 600;
 }
-.action.danger {
+.danger-text {
   color: #ef4444;
 }
 </style>

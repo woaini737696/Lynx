@@ -3,6 +3,8 @@
 
 import { chat, type LLMProvider } from "@/lib/ai-provider";
 import type { Flow, FlowNode } from "@/lib/flow-store";
+import { prisma } from "@/lib/db";
+import { sendPushNotification } from "@/lib/push";
 
 // ============ 类型定义 ============
 
@@ -154,10 +156,12 @@ function executeTriggerNode(node: FlowNode): NodeExecutionResult {
   };
 }
 
-function executeOutputNode(
+async function executeOutputNode(
   node: FlowNode,
-  upstreamOutput: string
-): NodeExecutionResult {
+  upstreamOutput: string,
+  userId?: string
+): Promise<NodeExecutionResult> {
+  const start = Date.now();
   const target = node.config?.outputTarget || "notification";
   const targetLabels: Record<string, string> = {
     notification: "通知",
@@ -166,13 +170,106 @@ function executeOutputNode(
     "idea.tags": "灵感标签",
     chat: "对话消息",
   };
+  const label = targetLabels[target] || target;
+
+  // 执行真实副作用（失败不阻断工作流执行，仅记录错误日志）
+  let sideEffectMsg = "";
+  try {
+    switch (target) {
+      case "cognition": {
+        // 写入认知库：type=experience, source=flow
+        await prisma.cognition.create({
+          data: {
+            type: "experience",
+            content: upstreamOutput,
+            source: "flow",
+            userId: userId ?? null,
+          },
+        });
+        sideEffectMsg = "已写入认知库";
+        break;
+      }
+      case "skills": {
+        // 创建新技能：name=前20字, content=完整输出, category=general, source=ai-generated
+        const name = upstreamOutput.slice(0, 20) || "未命名技能";
+        await prisma.skill.create({
+          data: {
+            name,
+            description: upstreamOutput.slice(0, 200),
+            content: upstreamOutput,
+            promptTemplate: upstreamOutput,
+            category: "general",
+            source: "ai-generated",
+            userId: userId ?? null,
+          },
+        });
+        sideEffectMsg = `已创建技能「${name}」`;
+        break;
+      }
+      case "idea.tags": {
+        // 无具体 ideaId，仅记录日志
+        sideEffectMsg = "无具体 ideaId，仅记录";
+        break;
+      }
+      case "notification": {
+        // 推送通知：查询当前用户的 PushSubscription 发送
+        if (!userId) {
+          sideEffectMsg = "无用户信息，跳过推送";
+          break;
+        }
+        const subs = await prisma.pushSubscription.findMany({
+          where: { userId },
+        });
+        if (subs.length === 0) {
+          sideEffectMsg = "无推送订阅，跳过";
+          break;
+        }
+        const payload = {
+          title: `工作流输出：${node.label}`,
+          body: upstreamOutput.slice(0, 200),
+        };
+        let sentCount = 0;
+        for (const sub of subs) {
+          const result = await sendPushNotification(
+            {
+              endpoint: sub.endpoint,
+              keys: sub.keys as { p256dh: string; auth: string },
+            },
+            payload
+          );
+          if (result.success) sentCount++;
+        }
+        sideEffectMsg = `已推送（${sentCount}/${subs.length}）`;
+        break;
+      }
+      case "chat": {
+        // 仅记录日志，结果在执行结果中返回给前端显示
+        sideEffectMsg = "结果在执行结果中返回";
+        break;
+      }
+      default:
+        sideEffectMsg = `未知输出目标：${target}`;
+    }
+  } catch (e) {
+    // 副作用失败不阻断工作流执行，仅记录错误日志
+    console.error(`[flow-engine] 输出节点「${node.label}」副作用失败:`, e);
+    return {
+      nodeId: node.id,
+      nodeLabel: node.label,
+      status: "done",
+      output: upstreamOutput,
+      durationMs: Date.now() - start,
+      message: `已输出到「${label}」（副作用失败：${(e as Error).message}）`,
+    };
+  }
+
   return {
     nodeId: node.id,
     nodeLabel: node.label,
     status: "done",
     output: upstreamOutput,
-    durationMs: 0,
-    message: `已输出到「${targetLabels[target] || target}」`,
+    durationMs: Date.now() - start,
+    message: `已输出到「${label}」${sideEffectMsg ? "· " + sideEffectMsg : ""}`,
   };
 }
 
@@ -222,7 +319,7 @@ async function executeFlow(flow: Flow): Promise<FlowExecutionResult> {
         break;
       }
       case "output":
-        result = executeOutputNode(node, upstreamOutput);
+        result = await executeOutputNode(node, upstreamOutput, flow.userId);
         if (result.status === "done" && result.output) {
           finalOutput = result.output;
         }
@@ -319,7 +416,7 @@ async function executeFlowWithEdges(
         break;
       }
       case "output":
-        result = executeOutputNode(node, upstreamOutput);
+        result = await executeOutputNode(node, upstreamOutput, flow.userId);
         if (result.status === "done" && result.output) {
           finalOutput = result.output;
         }
@@ -439,7 +536,7 @@ export async function executeFlowInternal(
         break;
       }
       case "output":
-        result = executeOutputNode(node, upstreamOutput);
+        result = await executeOutputNode(node, upstreamOutput, flow.userId);
         if (result.status === "done" && result.output) {
           finalOutput = result.output;
         }
