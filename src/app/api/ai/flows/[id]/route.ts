@@ -1,27 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { promises as fs } from "fs";
-import path from "path";
-import type { Flow, FlowNode } from "../route";
-
-// JSON 文件路径（与 route.ts 一致）
-const FLOWS_FILE = path.join(process.cwd(), ".ai-flows.json");
-
-// 读取工作流列表
-async function readFlows(): Promise<Flow[]> {
-  try {
-    const raw = await fs.readFile(FLOWS_FILE, "utf-8");
-    const data = JSON.parse(raw);
-    if (Array.isArray(data)) return data as Flow[];
-    return [];
-  } catch {
-    return [];
-  }
-}
-
-// 写入工作流列表
-async function writeFlows(flows: Flow[]): Promise<void> {
-  await fs.writeFile(FLOWS_FILE, JSON.stringify(flows, null, 2), "utf-8");
-}
+import { readFlows, writeFlows, type Flow, type FlowNode, type FlowEdge } from "@/lib/flow-store";
 
 // GET /api/ai/flows/[id] - 获取单个工作流
 export async function GET(
@@ -47,17 +25,18 @@ export async function GET(
 }
 
 // PUT /api/ai/flows/[id] - 更新工作流
-// body: { name?, description?, nodes?, enabled?, lastRun? }
+// body: { name?, description?, nodes?, edges?, enabled?, lastRun? }
 export async function PUT(
   req: NextRequest,
   { params }: { params: { id: string } }
 ) {
   try {
     const body = await req.json();
-    const { name, description, nodes, enabled, lastRun } = body as {
+    const { name, description, nodes, edges, enabled, lastRun } = body as {
       name?: string;
       description?: string;
       nodes?: FlowNode[];
+      edges?: FlowEdge[];
       enabled?: boolean;
       lastRun?: string;
     };
@@ -77,6 +56,7 @@ export async function PUT(
       ...(typeof name === "string" ? { name } : {}),
       ...(typeof description === "string" ? { description } : {}),
       ...(Array.isArray(nodes) ? { nodes } : {}),
+      ...(Array.isArray(edges) ? { edges } : {}),
       ...(typeof enabled === "boolean" ? { enabled } : {}),
       ...(typeof lastRun === "string" ? { lastRun } : {}),
     };

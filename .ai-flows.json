@@ -3,7 +3,7 @@
     "id": "flow-1",
     "name": "灵感自动分类",
     "description": "新灵感入库后，AI 自动判断归属并打标签",
-    "lastRun": "10分钟前",
+    "lastRun": "刚刚",
     "enabled": true,
     "nodes": [
       {
@@ -36,7 +36,7 @@
     "id": "flow-2",
     "name": "对话资产自动提取",
     "description": "粘贴对话后，AI 提取结论、待办、提示词",
-    "lastRun": "1小时前",
+    "lastRun": "刚刚",
     "enabled": true,
     "nodes": [
       {

@@ -2,20 +2,20 @@
 
 import { useEffect, useState, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import { Search, Command, ArrowRight, Target, Inbox, Brain, BookOpen, KanbanSquare, Skull, Moon, Settings, Sparkles, LayoutGrid, Workflow, Bot, Clock, TrendingUp, Zap, Terminal } from "lucide-react";
+import { Search, Command, ArrowRight, Target, Inbox, Brain, BookOpen, KanbanSquare, Skull, Moon, Settings, Sparkles, LayoutGrid, Workflow, Bot, Clock, TrendingUp, Zap, Terminal, Star } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 type SearchResult = {
   id: string;
   title: string;
   subtitle?: string;
-  type: "task" | "idea" | "cognition" | "memory" | "nav";
+  type: "task" | "idea" | "cognition" | "memory" | "skill" | "nav";
   href: string;
   icon: React.ElementType;
   color: string;
 };
 
-type FilterTab = "all" | "nav" | "task" | "idea" | "cognition" | "memory";
+type FilterTab = "all" | "nav" | "task" | "idea" | "cognition" | "memory" | "skill";
 
 type QuickCommand = {
   id: string;
@@ -38,6 +38,7 @@ const NAV_RESULTS: SearchResult[] = [
   { id: "nav-graveyard", title: "灵感墓地", type: "nav", href: "/graveyard", icon: Skull, color: "text-graveyard" },
   { id: "nav-converge", title: "收敛仪式", type: "nav", href: "/converge", icon: Moon, color: "text-northstar" },
   { id: "nav-settings", title: "设置", type: "nav", href: "/settings", icon: Settings, color: "text-muted-foreground" },
+  { id: "nav-skills", title: "技能库", type: "nav", href: "/skills", icon: Star, color: "text-campaign" },
   { id: "nav-ai-workspace", title: "AI 工作空间", type: "nav", href: "/ai/workspace", icon: LayoutGrid, color: "text-cognition" },
   { id: "nav-ai-flows", title: "AI 工作流", type: "nav", href: "/ai/flows", icon: Workflow, color: "text-cognition" },
   { id: "nav-ai-assistant", title: "AI 专属助理", type: "nav", href: "/ai/assistant", icon: Bot, color: "text-cognition" },
@@ -48,6 +49,7 @@ const TYPE_LABELS: Record<SearchResult["type"], string> = {
   idea: "灵感",
   cognition: "认知",
   memory: "记忆",
+  skill: "技能",
   nav: "页面",
 };
 
@@ -58,6 +60,7 @@ const TABS: { key: FilterTab; label: string }[] = [
   { key: "idea", label: "灵感" },
   { key: "cognition", label: "认知" },
   { key: "memory", label: "记忆" },
+  { key: "skill", label: "技能" },
 ];
 
 const RECENT_KEY = "lynnhub:recent-searches";
@@ -86,6 +89,7 @@ const QUICK_COMMANDS: QuickCommand[] = [
   { id: "cmd-flows", input: "flows", label: "跳转到 AI 工作流", description: "/ai/flows", icon: Workflow, color: "text-cognition", kind: "navigate", target: "/ai/flows" },
   { id: "cmd-assistant", input: "assistant", label: "跳转到 AI 专属助理", description: "/ai/assistant", icon: Bot, color: "text-cognition", kind: "navigate", target: "/ai/assistant" },
   { id: "cmd-lark", input: "lark", label: "跳转到 飞书任务", description: "/ai/lark-tasks", icon: Bot, color: "text-cognition", kind: "navigate", target: "/ai/lark-tasks" },
+  { id: "cmd-skills", input: "skills", label: "跳转到 技能库", description: "/skills", icon: Star, color: "text-campaign", kind: "navigate", target: "/skills" },
   { id: "cmd-new", input: "new", label: "打开闪电输入", description: "触发闪电输入", icon: Zap, color: "text-northstar", kind: "event", target: "lynnhub:open-lightning" },
   { id: "cmd-search", input: "search", label: "全局搜索", description: ">search 关键词", icon: Search, color: "text-foreground", kind: "search" },
 ];
@@ -330,6 +334,7 @@ export function CommandPalette() {
       { url: "/api/ideas", type: "idea" as const, icon: Inbox, color: "text-foreground", dataKey: "ideas", titleKey: "content" },
       { url: "/api/cognitions", type: "cognition" as const, icon: BookOpen, color: "text-cognition", dataKey: "cognitions", titleKey: "content" },
       { url: "/api/memory", type: "memory" as const, icon: Brain, color: "text-cognition", dataKey: "nodes", titleKey: "label" },
+      { url: "/api/skills", type: "skill" as const, icon: Star, color: "text-campaign", dataKey: "skills", titleKey: "name" },
     ];
 
     await Promise.allSettled(
@@ -341,13 +346,15 @@ export function CommandPalette() {
           const items = data[api.dataKey] || [];
           items.forEach((item: any) => {
             const title = item[api.titleKey] || "";
-            if (fuzzyMatch(lower, title)) {
+            // 技能额外匹配 description
+            const desc = api.type === "skill" ? (item.description || "") : "";
+            if (fuzzyMatch(lower, title) || (desc && fuzzyMatch(lower, desc))) {
               fetchResults.push({
                 id: `${api.type}-${item.id}`,
                 title: title.length > 60 ? title.slice(0, 60) + "…" : title,
-                subtitle: TYPE_LABELS[api.type],
+                subtitle: api.type === "skill" ? (desc || TYPE_LABELS[api.type]) : TYPE_LABELS[api.type],
                 type: api.type,
-                href: api.type === "task" ? "/board" : api.type === "idea" ? "/inbox" : api.type === "cognition" ? "/cognition" : "/memory",
+                href: api.type === "task" ? "/board" : api.type === "idea" ? "/inbox" : api.type === "cognition" ? "/cognition" : api.type === "memory" ? "/memory" : api.type === "skill" ? "/skills" : "/",
                 icon: api.icon,
                 color: api.color,
               });

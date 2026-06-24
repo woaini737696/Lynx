@@ -27,6 +27,7 @@ import {
   Wrench,
   Store,
   ScrollText,
+  Activity,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "@/components/ui/toast";
@@ -119,6 +120,7 @@ const NAV_GROUPS: NavGroup[] = [
     color: "text-muted-foreground",
     items: [
       { href: "/settings", label: "设置", icon: Settings, color: "text-muted-foreground" },
+      { href: "/settings/diagnostics", label: "性能监控", icon: Activity, color: "text-task" },
       { href: "/dev-log", label: "开发日志", icon: ScrollText, color: "text-muted-foreground" },
     ],
   },

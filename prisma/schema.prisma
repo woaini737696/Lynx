@@ -294,3 +294,52 @@ model AISetting {
 
   @@unique([id])
 }
+
+// Embedding 缓存：避免重复计算相同文本的向量
+// key 为文本内容的 SHA-256 哈希，value 为 Float32Array 的 Buffer
+model EmbeddingCache {
+  id        String   @id @default(cuid())
+  textHash  String   @unique @db.VarChar(64) // SHA-256 hex
+  embedding Bytes    @db.LongBlob
+  provider  String   @default("tfidf") // ai | tfidf
+  dim       Int      // 向量维度
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([provider])
+}
+
+// AI 助理对话会话
+model ChatSession {
+  id        String   @id @default(cuid())
+  title     String   @default("新对话") @db.VarChar(200)
+  provider  String   @default("deepseek") @db.VarChar(32)
+  model     String?  @db.VarChar(64)
+  pinned    Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  messages ChatMessage[]
+
+  @@index([pinned])
+  @@index([updatedAt])
+}
+
+// AI 助理对话消息
+model ChatMessage {
+  id        String   @id @default(cuid())
+  sessionId String   @db.VarChar(64)
+  role      String   @db.VarChar(16) // user | assistant | system
+  content   String   @db.LongText
+  images    Json?    // 图片 URL 数组（多模态）
+  provider  String?  @db.VarChar(32) // 生成该消息的 provider
+  model     String?  @db.VarChar(64)
+  tokens    Int?     // 消耗的 token 数
+  durationMs Int?    // 生成耗时（毫秒）
+  createdAt DateTime @default(now())
+
+  session ChatSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@index([sessionId])
+  @@index([createdAt])
+}

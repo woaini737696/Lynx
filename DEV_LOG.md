@@ -4,6 +4,85 @@
 
 ---
 
+## 迭代 15 - 2026-06-24
+
+### 任务概要
+完成所有高/中/低优先级任务：Flows 条件分支可视化编排与图遍历执行、全局搜索扩展至技能库、PWA 离线支持、性能监控面板、代码重构（route.ts 抽离 lib）。
+
+### 完成内容
+
+#### 1. Flows 条件分支可视化编排（高优先级）
+- **类型扩展**：`FlowEdge` 新增 `condition?: "true" | "false"` 字段，标记连线是 condition 节点的哪个分支
+- **执行引擎重构**：新增 `src/lib/flow-engine.ts`，实现 `executeFlowWithEdges` BFS 图遍历
+  - condition 节点根据求值结果选择匹配的 edge（true/false 分支）
+  - 支持节点去重（executedSet），避免环路重复执行
+  - 无 edges 时降级为顺序执行模式
+- **前端 UI**：`src/app/ai/flows/page.tsx` 大幅增强
+  - condition 节点出发的连线自动分配 true/false 标记（第一条→true，第二条→false）
+  - 新增 `toggleEdgeCondition`：循环切换 undefined → "true" → "false" → undefined
+  - SVG defs 新增 `flow-arrow-true`（绿色）和 `flow-arrow-false`（红色）marker
+  - 边渲染：根据 condition 显示不同颜色 + 中点显示 TRUE/FALSE 标签
+  - 工具栏：选中 condition 节点出发的连线时显示分支切换按钮
+- **测试验证**：flow-1 执行成功，n3 condition 节点走 true 分支到 n4，总耗时 1570ms
+
+#### 2. 代码重构：route.ts 抽离 lib（高优先级）
+- **问题**：Next.js 路由文件不允许导出非 HTTP 方法函数，`.next/types` 类型检查报错
+- **新增**：`src/lib/flow-store.ts`（数据层：FlowNode/FlowEdge/Flow 接口 + readFlows/writeFlows/generateFlowId + DEFAULT_FLOWS）
+- **新增**：`src/lib/flow-engine.ts`（执行层：executeConditionNode + executeFlowWithEdges + executeFlowInternal）
+- **精简**：`flows/route.ts`、`flows/[id]/route.ts`、`flows/[id]/execute/route.ts` 改为纯 API 路由，从 lib 导入
+- **更新**：`flow-scheduler.ts` 导入路径从 `@/app/api/ai/flows/route` 改为 `@/lib/flow-store` 和 `@/lib/flow-engine`
+
+#### 3. 全局搜索扩展至技能库（高优先级）
+- **Command Palette 增强**：`src/components/layout/CommandPalette.tsx`
+  - SearchResult type 添加 `"skill"` 类型
+  - FilterTab 添加 `"skill"`，TYPE_LABELS 添加 `skill: "技能"`
+  - TABS 添加 `{ key: "skill", label: "技能" }`
+  - NAV_RESULTS 添加技能库导航项，QUICK_COMMANDS 添加 `cmd-skills`
+  - doSearch 的 apis 数组添加 `/api/skills`，技能额外匹配 description 字段
+
+#### 4. PWA 离线支持（中优先级）
+- **manifest**：`public/manifest.webmanifest`，含 name/short_name/icons（SVG data URI）
+- **Service Worker**：`public/sw.js`，三种缓存策略
+  - 静态资源（_next/static, 图片字体）：cacheFirst
+  - API 请求：networkFirst（5s 超时）
+  - 页面导航：networkFirst（8s 超时）
+  - install 时预缓存核心路由，activate 时清理旧缓存
+- **注册器**：`src/components/layout/PWARegister.tsx`，仅生产环境注册，监听 updatefound
+- **集成**：`src/app/layout.tsx` 添加 manifest link、appleWebApp 配置、apple-touch-icon、PWARegister 组件
+
+#### 5. 性能监控面板（中优先级）
+- **API**：`src/app/api/settings/diagnostics/route.ts`
+  - 返回 14 个数据库表计数
+  - 灵感/任务状态分布（Prisma groupBy 统计）
+  - Embedding 缓存统计、Flows 调度器状态
+  - 进程内存（rss/heapUsed/heapTotal/external）、运行时间、Node 版本/平台
+- **页面**：`src/app/settings/diagnostics/page.tsx`
+  - API 响应时间、运行时间、堆内存使用率（带进度条）
+  - Flows 调度器状态、数据库表统计网格
+  - Embedding 缓存详情、灵感状态分布、任务看板分布
+  - 定时调度任务列表，每 30 秒自动刷新
+- **入口**：`src/components/layout/Sidebar.tsx` 系统组添加"性能监控"（Activity 图标）
+
+#### 6. Prisma JsonNull 类型修复
+- **问题**：`images: images || null` 在 Prisma `Json?` 字段上报类型错误
+- **修复**：`src/app/api/ai/chat/sessions/[id]/messages/route.ts` 改为 `images: images && images.length > 0 ? images : Prisma.JsonNull`
+
+### 自测结果
+- ✅ TypeScript 编译 0 错误
+- ✅ `/api/ai/flows` GET — 返回 3 个工作流
+- ✅ `/api/ai/flows/flow-1/execute` POST — 条件分支执行成功（n1→n2→n3 true→n4，1570ms）
+- ✅ `/api/skills` GET — 返回 10 个技能
+- ✅ `/api/settings/diagnostics` GET — 返回完整诊断数据
+- ✅ `/api/ai/chat/sessions` GET/POST — 列表/创建正常
+- ✅ `/api/ai/chat/sessions/[id]/messages` POST — 消息创建成功
+- ✅ `/api/ai/flows/scheduler/status` GET — 返回 running: false
+
+### 文件变更
+- 新增：`src/lib/flow-store.ts`、`src/lib/flow-engine.ts`、`public/manifest.webmanifest`、`public/sw.js`、`src/components/layout/PWARegister.tsx`、`src/app/api/settings/diagnostics/route.ts`、`src/app/settings/diagnostics/page.tsx`
+- 修改：`src/app/api/ai/flows/route.ts`、`src/app/api/ai/flows/[id]/route.ts`、`src/app/api/ai/flows/[id]/execute/route.ts`、`src/lib/flow-scheduler.ts`、`src/app/ai/flows/page.tsx`、`src/components/layout/CommandPalette.tsx`、`src/app/layout.tsx`、`src/components/layout/Sidebar.tsx`、`src/app/api/ai/chat/sessions/[id]/messages/route.ts`
+
+---
+
 ## 迭代 14 - 2026-06-24
 
 ### 任务概要

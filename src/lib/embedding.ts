@@ -1,13 +1,16 @@
 // Embedding 生成 + 相似度计算
 // 有 AI key 时使用 Vercel AI SDK embed；无 key 时降级为 TF-IDF 向量
 // 两种模式产出相同结构的 Float32Array，下游统一处理
+// 支持 EmbeddingCache 数据库缓存，避免重复计算相同文本的向量
 
+import { createHash } from "crypto";
 import { embed } from "ai";
 import {
   embeddingProvider,
   embeddingModel,
   hasAIEmbedding,
 } from "./ai";
+import { prisma } from "./db";
 
 // ============ 中文分词（简易版）============
 // 按字符 bigram + 英文单词拆分，足够做关键词相似度
@@ -69,25 +72,77 @@ export function tfidfVector(text: string): Float32Array {
   return vec;
 }
 
-// ============ 统一 embedText 接口 ============
+// ============ 统一 embedText 接口（带数据库缓存）============
 // 有 AI key：调用 Vercel AI SDK embed（返回 1536 维或更多）
 // 无 AI key：降级为 TF-IDF（256 维）
 // 返回 Float32Array，存储为 Buffer
+// 优先从 EmbeddingCache 表读取（按文本 SHA-256 哈希），避免重复计算
+
+/** 计算文本的 SHA-256 哈希（用于缓存键） */
+function textHash(text: string): string {
+  return createHash("sha256").update(text, "utf-8").digest("hex");
+}
+
+/** 当前 embedding provider 名称（用于缓存隔离） */
+function currentProvider(): string {
+  return hasAIEmbedding ? "ai" : "tfidf";
+}
 
 export async function embedText(text: string): Promise<Float32Array> {
+  const truncated = text.slice(0, 8000); // 防止超长
+  const hash = textHash(truncated);
+  const provider = currentProvider();
+
+  // 1. 查缓存
+  try {
+    const cached = await prisma.embeddingCache.findUnique({
+      where: { textHash: hash },
+    });
+    if (cached && cached.provider === provider && cached.dim > 0) {
+      return bufferToFloat32(cached.embedding);
+    }
+  } catch {
+    // DB 查询失败（如 prisma 未初始化），降级为直接计算
+  }
+
+  // 2. 计算向量
+  let vec: Float32Array;
   if (hasAIEmbedding) {
     try {
       const { embedding } = await embed({
         model: embeddingProvider.embedding(embeddingModel),
-        value: text.slice(0, 8000), // 防止超长
+        value: truncated,
       });
-      return Float32Array.from(embedding);
+      vec = Float32Array.from(embedding);
     } catch (e) {
       console.error("AI embedding 失败，降级为 TF-IDF:", e);
-      return tfidfVector(text);
+      vec = tfidfVector(truncated);
     }
+  } else {
+    vec = tfidfVector(truncated);
   }
-  return tfidfVector(text);
+
+  // 3. 写入缓存（异步，不阻塞返回）
+  try {
+    await prisma.embeddingCache.upsert({
+      where: { textHash: hash },
+      create: {
+        textHash: hash,
+        embedding: float32ToBuffer(vec),
+        provider: currentProvider(),
+        dim: vec.length,
+      },
+      update: {
+        embedding: float32ToBuffer(vec),
+        provider: currentProvider(),
+        dim: vec.length,
+      },
+    });
+  } catch {
+    // 缓存写入失败不影响主流程
+  }
+
+  return vec;
 }
 
 // ============ 余弦相似度 ============

@@ -65,6 +65,7 @@ interface Flow {
   name: string;
   description: string;
   nodes: FlowNode[];
+  edges?: CanvasEdge[];
   lastRun: string;
   enabled: boolean;
 }
@@ -79,6 +80,8 @@ interface CanvasEdge {
   id: string;
   from: string;
   to: string;
+  /** 条件分支标记：condition 节点求值为 true 时走 "true" 分支，false 时走 "false" 分支；未标记则为普通顺序连线 */
+  condition?: "true" | "false";
 }
 
 // 运行日志条目
@@ -257,6 +260,8 @@ export default function AIFlowsPage() {
   const [runLogs, setRunLogs] = useState<RunLog[]>([]);
   const [showLogs, setShowLogs] = useState(false);
   const [running, setRunning] = useState(false);
+  // 当前可视化编排的工作流 ID（用于保存和执行）
+  const [visualFlowId, setVisualFlowId] = useState<string | null>(null);
 
   // 缩放控制
   const [zoom, setZoom] = useState(1);
@@ -269,6 +274,9 @@ export default function AIFlowsPage() {
   // edges 的 ref，供 document 级事件读取最新值
   const edgesRef = useRef<CanvasEdge[]>([]);
   edgesRef.current = edges;
+  // nodes 的 ref，供 addEdge 读取最新节点类型
+  const nodesRef = useRef<CanvasNode[]>([]);
+  nodesRef.current = nodes;
 
   // 选中状态 ref，供 document 级键盘事件读取
   const selectedNodeIdRef = useRef<string | null>(null);
@@ -476,6 +484,10 @@ export default function AIFlowsPage() {
   };
 
   // 添加连线（防重复 / 防自连）
+  // 若源节点是 condition 类型，自动分配 condition 标记：
+  //   - 第一条从 condition 出发的连线默认标记为 "true"
+  //   - 第二条标记为 "false"
+  //   - 后续连线不标记（用户可在选中连线后通过工具栏切换）
   const addEdge = useCallback((from: string, to: string) => {
     if (from === to) {
       toast("不能连接到自身", "info");
@@ -486,8 +498,19 @@ export default function AIFlowsPage() {
       return;
     }
     const id = `edge-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
-    setEdges((prev) => [...prev, { id, from, to }]);
-    toast("已建立连接", "success");
+    // 检测源节点是否为 condition
+    const fromNode = nodesRef.current.find((n) => n.id === from);
+    let condition: "true" | "false" | undefined;
+    if (fromNode?.type === "condition") {
+      const existingFromThis = edgesRef.current.filter((e) => e.from === from);
+      const hasTrue = existingFromThis.some((e) => e.condition === "true");
+      const hasFalse = existingFromThis.some((e) => e.condition === "false");
+      if (!hasTrue) condition = "true";
+      else if (!hasFalse) condition = "false";
+      // 若 true/false 都已存在，则不标记（作为默认分支）
+    }
+    setEdges((prev) => [...prev, { id, from, to, condition }]);
+    toast(condition ? `已建立连接（${condition === "true" ? "成立" : "不成立"}分支）` : "已建立连接", "success");
   }, []);
 
   // 删除节点（同时清理关联连线）
@@ -501,6 +524,20 @@ export default function AIFlowsPage() {
   const deleteEdge = useCallback((id: string) => {
     setEdges((prev) => prev.filter((e) => e.id !== id));
     setSelectedEdgeId(null);
+  }, []);
+
+  // 切换连线的条件标记（仅在源节点为 condition 时可用）
+  // 循环：undefined → "true" → "false" → undefined
+  const toggleEdgeCondition = useCallback((id: string) => {
+    setEdges((prev) =>
+      prev.map((e) => {
+        if (e.id !== id) return e;
+        const next: "true" | "false" | undefined =
+          e.condition === undefined ? "true" :
+          e.condition === "true" ? "false" : undefined;
+        return { ...e, condition: next };
+      })
+    );
   }, []);
 
   // 面板拖拽起始（HTML5 拖拽）
@@ -649,68 +686,204 @@ export default function AIFlowsPage() {
 
   // ============ 运行日志 ============
 
-  // 工具栏：运行测试（节点依次执行 + 日志）
-  const handleRunTest = () => {
+  // 进入可视化编排模式：加载指定工作流的节点和连线到画布
+  const enterVisualMode = (flowId: string) => {
+    const flow = flows.find((f) => f.id === flowId);
+    if (!flow) {
+      toast("未找到工作流", "error");
+      return;
+    }
+    setVisualFlowId(flowId);
+    // 加载节点：若已有坐标则保留，否则自动布局（从左到右排列）
+    const loadedNodes: CanvasNode[] = flow.nodes.map((n, i) => {
+      // 兼容已保存坐标的节点（CanvasNode 序列化后含 x/y）
+      const saved = n as CanvasNode;
+      if (typeof saved.x === "number" && typeof saved.y === "number") {
+        return { ...n, x: saved.x, y: saved.y, status: "idle" as const };
+      }
+      // 自动布局：每列间距 260px，每行间距 100px，最多 4 行一列
+      const col = Math.floor(i / 4);
+      const row = i % 4;
+      return { ...n, x: 80 + col * 260, y: 80 + row * 100, status: "idle" as const };
+    });
+    setNodes(loadedNodes);
+    // 加载连线
+    setEdges(Array.isArray(flow.edges) ? flow.edges : []);
+    setSelectedNodeId(null);
+    setSelectedEdgeId(null);
+    setRunLogs([]);
+    setMode("visual");
+  };
+
+  // 工具栏：运行测试（调用真实执行引擎 + 节点状态可视化）
+  const handleRunTest = async () => {
     if (nodes.length === 0) {
       toast("画布为空，请先添加节点", "info");
       return;
     }
     if (running) return;
+
+    // 若画布有未保存的节点，先保存再执行
+    const flowId = visualFlowId;
+    if (!flowId) {
+      toast("请先保存工作流后再运行", "info");
+      return;
+    }
+
     setRunning(true);
     setShowLogs(true);
     setRunLogs([]);
+    // 重置所有节点状态为 idle
+    setNodes((prev) => prev.map((n) => ({ ...n, status: "idle" as const })));
     toast("开始运行测试...", "info");
 
-    const snapshot = nodes;
-    setNodes((prev) => prev.map((n) => ({ ...n, status: "idle" as const })));
+    try {
+      // 先保存最新画布到后端，确保执行引擎读取到最新节点配置
+      const flow = flows.find((f) => f.id === flowId);
+      const saveRes = await fetch(`/api/ai/flows/${flowId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          nodes: nodes.map(({ x, y, ...rest }) => rest),
+          edges,
+        }),
+      });
+      if (!saveRes.ok) {
+        throw new Error("保存工作流失败，无法执行");
+      }
 
-    snapshot.forEach((node, idx) => {
-      window.setTimeout(() => {
+      // 调用执行引擎
+      const res = await fetch(`/api/ai/flows/${flowId}/execute`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ input: "" }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || `执行失败（${res.status}）`);
+      }
+      const data = await res.json();
+      const result = data.result as {
+        success: boolean;
+        nodes: Array<{
+          nodeId: string;
+          nodeLabel: string;
+          status: "done" | "error" | "skipped";
+          output?: string;
+          durationMs: number;
+          error?: string;
+          message: string;
+        }>;
+        totalDurationMs: number;
+        finalOutput?: string;
+      };
+
+      // 逐个更新节点状态 + 追加日志
+      for (const nodeResult of result.nodes) {
+        const status: FlowNode["status"] =
+          nodeResult.status === "done" ? "done" :
+          nodeResult.status === "skipped" ? "idle" :
+          "error";
         setNodes((prev) =>
-          prev.map((n) => (n.id === node.id ? { ...n, status: "running" as const } : n))
+          prev.map((n) =>
+            n.id === nodeResult.nodeId ? { ...n, status } : n
+          )
         );
         setRunLogs((prev) => [
           ...prev,
           {
-            nodeId: node.id,
-            nodeLabel: node.label,
-            status: "running",
-            message: `开始执行：${node.label}`,
+            nodeId: nodeResult.nodeId,
+            nodeLabel: nodeResult.nodeLabel,
+            status,
+            message: nodeResult.message,
             time: new Date().toLocaleTimeString("zh-CN"),
           },
         ]);
-      }, idx * 800);
+      }
 
-      window.setTimeout(() => {
-        setNodes((prev) =>
-          prev.map((n) => (n.id === node.id ? { ...n, status: "done" as const } : n))
-        );
-        setRunLogs((prev) => [
-          ...prev,
-          {
-            nodeId: node.id,
-            nodeLabel: node.label,
-            status: "done",
-            message: `执行完成：${node.label} ✓`,
-            time: new Date().toLocaleTimeString("zh-CN"),
-          },
-        ]);
-        if (idx === snapshot.length - 1) {
-          setRunning(false);
-          toast("运行测试完成", "success");
-        }
-      }, idx * 800 + 600);
-    });
+      // 更新最后运行时间
+      if (flow) {
+        const updated = { ...flow, lastRun: "刚刚" };
+        setFlows((prev) => prev.map((f) => (f.id === flowId ? updated : f)));
+      }
+
+      if (result.success) {
+        toast(`运行完成（${result.totalDurationMs}ms）`, "success");
+      } else {
+        toast("运行过程中有节点出错", "error");
+      }
+    } catch (e) {
+      toast("运行失败：" + (e as Error).message, "error");
+      setRunLogs((prev) => [
+        ...prev,
+        {
+          nodeId: "error",
+          nodeLabel: "执行错误",
+          status: "error",
+          message: (e as Error).message,
+          time: new Date().toLocaleTimeString("zh-CN"),
+        },
+      ]);
+    } finally {
+      setRunning(false);
+    }
   };
 
   // ============ 工具栏操作 ============
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (nodes.length === 0) {
       toast("画布为空，无需保存", "info");
       return;
     }
-    toast(`已保存编排（${nodes.length} 节点 / ${edges.length} 连线）`, "success");
+    // 若无关联工作流，创建新工作流
+    if (!visualFlowId) {
+      const name = `编排_${new Date().toLocaleString("zh-CN")}`;
+      try {
+        const res = await fetch("/api/ai/flows", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            name,
+            description: "可视化编排创建",
+            nodes: nodes.map(({ x, y, ...rest }) => rest),
+            edges,
+            enabled: true,
+          }),
+        });
+        if (!res.ok) throw new Error("创建失败");
+        const data = await res.json();
+        setVisualFlowId(data.flow.id);
+        setFlows((prev) => [...prev, data.flow]);
+        toast(`已创建并保存工作流「${name}」`, "success");
+      } catch (e) {
+        toast("保存失败：" + (e as Error).message, "error");
+      }
+      return;
+    }
+    // 更新已有工作流
+    try {
+      const res = await fetch(`/api/ai/flows/${visualFlowId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          nodes: nodes.map(({ x, y, ...rest }) => rest),
+          edges,
+        }),
+      });
+      if (!res.ok) throw new Error("保存失败");
+      // 同步本地 flows 状态
+      setFlows((prev) =>
+        prev.map((f) =>
+          f.id === visualFlowId
+            ? { ...f, nodes: nodes.map(({ x, y, ...rest }) => rest), edges }
+            : f
+        )
+      );
+      toast(`已保存编排（${nodes.length} 节点 / ${edges.length} 连线）`, "success");
+    } catch (e) {
+      toast("保存失败：" + (e as Error).message, "error");
+    }
   };
 
   const handleClear = () => {
@@ -830,7 +1003,20 @@ export default function AIFlowsPage() {
                 <List className="h-3.5 w-3.5" /> 列表
               </button>
               <button
-                onClick={() => setMode("visual")}
+                onClick={() => {
+                  // 切换到可视化模式：若无选中工作流则进入空白画布
+                  if (!visualFlowId && flows.length > 0) {
+                    enterVisualMode(flows[0].id);
+                  } else if (visualFlowId) {
+                    setMode("visual");
+                  } else {
+                    // 无工作流，进入空白画布
+                    setNodes([]);
+                    setEdges([]);
+                    setVisualFlowId(null);
+                    setMode("visual");
+                  }
+                }}
                 className={cn(
                   "flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-all",
                   mode === "visual"
@@ -987,7 +1173,7 @@ export default function AIFlowsPage() {
                           variant="ghost"
                           onClick={(e) => {
                             e.stopPropagation();
-                            setMode("visual");
+                            enterVisualMode(flow.id);
                           }}
                           title="编辑"
                         >
@@ -1080,6 +1266,11 @@ export default function AIFlowsPage() {
           {/* 工具栏 */}
           <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-border bg-card p-3 shadow-soft">
             <div className="flex items-center gap-2">
+              {visualFlowId && (
+                <span className="text-xs font-medium text-foreground">
+                  {flows.find((f) => f.id === visualFlowId)?.name || "未命名"}
+                </span>
+              )}
               <Badge color="cognition">{nodes.length} 节点</Badge>
               <Badge color="default">{edges.length} 连线</Badge>
               {(selectedNodeId || selectedEdgeId) && (
@@ -1134,6 +1325,25 @@ export default function AIFlowsPage() {
                   <Trash2 className="h-3 w-3" /> 删除选中
                 </Button>
               )}
+              {/* 条件分支切换：仅当选中的连线源节点为 condition 时显示 */}
+              {selectedEdgeId && (() => {
+                const edge = edges.find((e) => e.id === selectedEdgeId);
+                if (!edge) return null;
+                const fromNode = nodes.find((n) => n.id === edge.from);
+                if (!fromNode || fromNode.type !== "condition") return null;
+                return (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => toggleEdgeCondition(selectedEdgeId)}
+                    title="循环切换：成立 / 不成立 / 默认"
+                  >
+                    <GitBranch className="h-3 w-3" />
+                    {edge.condition === "true" ? "成立分支" :
+                     edge.condition === "false" ? "不成立分支" : "默认分支"}
+                  </Button>
+                );
+              })()}
               <Button size="sm" variant="outline" onClick={handleClear}>
                 <Eraser className="h-3 w-3" /> 清空
               </Button>
@@ -1229,6 +1439,28 @@ export default function AIFlowsPage() {
                       >
                         <path d="M0,0 L8,4 L0,8 Z" className="fill-cognition" />
                       </marker>
+                      <marker
+                        id="flow-arrow-true"
+                        markerWidth="10"
+                        markerHeight="8"
+                        refX="8"
+                        refY="4"
+                        orient="auto"
+                        markerUnits="strokeWidth"
+                      >
+                        <path d="M0,0 L8,4 L0,8 Z" className="fill-task" />
+                      </marker>
+                      <marker
+                        id="flow-arrow-false"
+                        markerWidth="10"
+                        markerHeight="8"
+                        refX="8"
+                        refY="4"
+                        orient="auto"
+                        markerUnits="strokeWidth"
+                      >
+                        <path d="M0,0 L8,4 L0,8 Z" className="fill-graveyard" />
+                      </marker>
                     </defs>
 
                     {edges.map((edge) => {
@@ -1239,6 +1471,18 @@ export default function AIFlowsPage() {
                       const tp = getInputPort(to);
                       const isActive = selectedEdgeId === edge.id;
                       const d = bezierPath(fp.x, fp.y, tp.x, tp.y);
+                      // 条件分支颜色：true=绿色（task），false=红色（graveyard），普通=灰色
+                      const edgeColor =
+                        edge.condition === "true" ? "stroke-task" :
+                        edge.condition === "false" ? "stroke-graveyard" :
+                        isActive ? "stroke-cognition" : "stroke-muted-foreground/50";
+                      const arrowMarker =
+                        edge.condition === "true" ? "url(#flow-arrow-true)" :
+                        edge.condition === "false" ? "url(#flow-arrow-false)" :
+                        isActive ? "url(#flow-arrow-active)" : "url(#flow-arrow)";
+                      // 中点（用于显示条件标签）
+                      const midX = (fp.x + tp.x) / 2;
+                      const midY = (fp.y + tp.y) / 2;
                       return (
                         <g key={edge.id}>
                           <path
@@ -1259,15 +1503,40 @@ export default function AIFlowsPage() {
                           <path
                             d={d}
                             fill="none"
-                            className={cn(
-                              isActive ? "stroke-cognition" : "stroke-muted-foreground/50"
-                            )}
+                            className={cn(edgeColor)}
                             strokeWidth={isActive ? 2.5 : 2}
-                            markerEnd={
-                              isActive ? "url(#flow-arrow-active)" : "url(#flow-arrow)"
-                            }
+                            strokeDasharray={edge.condition ? undefined : undefined}
+                            markerEnd={arrowMarker}
                             style={{ pointerEvents: "none" }}
                           />
+                          {/* 条件标签 */}
+                          {edge.condition && (
+                            <g style={{ pointerEvents: "none" }}>
+                              <rect
+                                x={midX - 14}
+                                y={midY - 9}
+                                width={28}
+                                height={18}
+                                rx={9}
+                                className={cn(
+                                  edge.condition === "true" ? "fill-task/15" : "fill-graveyard/15"
+                                )}
+                                stroke={edge.condition === "true" ? "currentColor" : "currentColor"}
+                                strokeWidth={0.5}
+                              />
+                              <text
+                                x={midX}
+                                y={midY + 3}
+                                textAnchor="middle"
+                                className={cn(
+                                  "text-[9px] font-medium",
+                                  edge.condition === "true" ? "fill-task" : "fill-graveyard"
+                                )}
+                              >
+                                {edge.condition === "true" ? "TRUE" : "FALSE"}
+                              </text>
+                            </g>
+                          )}
                         </g>
                       );
                     })}

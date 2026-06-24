@@ -27,6 +27,7 @@ import {
   Phone,
   PhoneOff,
   RefreshCw,
+  Plus,
 } from "lucide-react";
 import { Button } from "@/components/layout/PageHeader";
 import { ModelSwitcher, type ModelSwitcherValue } from "@/components/ui/ModelSwitcher";
@@ -270,6 +271,17 @@ export default function AIAssistantPage() {
   const scrollRef = useRef<HTMLDivElement>(null);
   const abortRef = useRef<AbortController | null>(null);
 
+  // 对话会话持久化
+  const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
+  const [sessions, setSessions] = useState<Array<{
+    id: string;
+    title: string;
+    updatedAt: string;
+    messageCount: number;
+    pinned: boolean;
+  }>>([]);
+  const [showSessionList, setShowSessionList] = useState(false);
+
   const [settings, setSettings] = useState<AISettings>(DEFAULT_SETTINGS);
   const [settingsOpen, setSettingsOpen] = useState(false);
 
@@ -330,14 +342,88 @@ export default function AIAssistantPage() {
     fetchSettings();
   }, []);
 
-  useEffect(() => {
-    setMessages([{
-      id: "m1",
-      role: "assistant",
-      content: `你好！我是你的 AI 专属助理${settings.assistantName !== "Lynn" ? ` ${settings.assistantName}` : ""}。我可以帮你管理灵感、分析任务、整理认知，也可以直接对话讨论问题。有什么我能帮你的？`,
-      time: "刚刚",
-    }]);
+  // 加载对话会话列表
+  const fetchSessions = useCallback(async () => {
+    try {
+      const res = await fetch("/api/ai/chat/sessions?limit=30");
+      const data = await res.json();
+      if (data.sessions) {
+        setSessions(data.sessions);
+        return data.sessions as Array<{ id: string; title: string; updatedAt: string; messageCount: number; pinned: boolean }>;
+      }
+    } catch {}
+    return [];
+  }, []);
+
+  // 加载指定会话的消息
+  const loadSession = useCallback(async (sessionId: string) => {
+    try {
+      const res = await fetch(`/api/ai/chat/sessions/${sessionId}`);
+      if (!res.ok) return;
+      const data = await res.json();
+      if (data.session) {
+        setCurrentSessionId(sessionId);
+        const loadedMessages: Message[] = data.session.messages.map((m: any) => ({
+          id: m.id,
+          role: m.role,
+          content: m.content,
+          time: new Date(m.createdAt).toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit" }),
+          provider: m.provider,
+          model: m.model,
+          images: m.images || undefined,
+        }));
+        // 若会话为空，添加欢迎消息
+        if (loadedMessages.length === 0) {
+          loadedMessages.push({
+            id: "welcome",
+            role: "assistant",
+            content: `你好！我是你的 AI 专属助理${settings.assistantName !== "Lynn" ? ` ${settings.assistantName}` : ""}。我可以帮你管理灵感、分析任务、整理认知，也可以直接对话讨论问题。有什么我能帮你的？`,
+            time: "刚刚",
+          });
+        }
+        setMessages(loadedMessages);
+      }
+    } catch {}
   }, [settings.assistantName]);
+
+  // 创建新对话
+  const createNewSession = useCallback(async () => {
+    try {
+      const res = await fetch("/api/ai/chat/sessions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title: "新对话",
+          provider: modelConfig.provider,
+          model: modelConfig.model,
+        }),
+      });
+      const data = await res.json();
+      if (data.session) {
+        setCurrentSessionId(data.session.id);
+        setMessages([{
+          id: "welcome",
+          role: "assistant",
+          content: `你好！我是你的 AI 专属助理${settings.assistantName !== "Lynn" ? ` ${settings.assistantName}` : ""}。我可以帮你管理灵感、分析任务、整理认知，也可以直接对话讨论问题。有什么我能帮你的？`,
+          time: "刚刚",
+        }]);
+        fetchSessions();
+      }
+    } catch {}
+  }, [modelConfig.provider, modelConfig.model, settings.assistantName, fetchSessions]);
+
+  // 初始化：加载会话列表，若有会话则加载最近一个，否则创建新会话
+  useEffect(() => {
+    (async () => {
+      const sessionList = await fetchSessions();
+      if (sessionList.length > 0) {
+        await loadSession(sessionList[0].id);
+      } else {
+        await createNewSession();
+      }
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const fetchSettings = async () => {
     try {
@@ -688,6 +774,19 @@ export default function AIAssistantPage() {
     setAttachedImages([]);
     setThinking(true);
 
+    // 持久化用户消息到数据库
+    if (currentSessionId) {
+      fetch(`/api/ai/chat/sessions/${currentSessionId}/messages`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          role: "user",
+          content,
+          images: attachedImages.length > 0 ? attachedImages : undefined,
+        }),
+      }).catch(() => {});
+    }
+
     const aiMsgId = `a-${Date.now()}`;
     const aiPlaceholder: Message = {
       id: aiMsgId,
@@ -807,6 +906,23 @@ export default function AIAssistantPage() {
         )
       );
 
+      // 持久化 AI 回复到数据库
+      if (currentSessionId && accumulated) {
+        fetch(`/api/ai/chat/sessions/${currentSessionId}/messages`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            role: "assistant",
+            content: accumulated,
+            provider: metaProvider,
+            model: metaModel,
+            tokens: usage?.total_tokens,
+          }),
+        }).catch(() => {});
+        // 刷新会话列表（标题可能已自动更新）
+        fetchSessions();
+      }
+
       if ((settings.autoSpeak || settings.voiceMode) && accumulated) {
         setTimeout(() => speak(accumulated, aiMsgId), 300);
       }
@@ -837,13 +953,9 @@ export default function AIAssistantPage() {
     }
     stopSpeaking();
     abortRef.current?.abort();
-    setMessages([{
-      id: "m1",
-      role: "assistant",
-      content: `你好！我是你的 AI 专属助理${settings.assistantName !== "Lynn" ? ` ${settings.assistantName}` : ""}。有什么我能帮你的？`,
-      time: "刚刚",
-    }]);
     setConfirmClear(false);
+    // 创建新对话会话
+    createNewSession();
     toast("已开启新对话", "info");
   };
 
@@ -1277,6 +1389,12 @@ export default function AIAssistantPage() {
             </div>
           </div>
           <div className="flex items-center gap-2">
+            <Button variant="ghost" size="sm" onClick={() => setShowSessionList((v) => !v)} title="历史对话">
+              <MessageSquare className="h-3.5 w-3.5" />
+            </Button>
+            <Button variant="ghost" size="sm" onClick={createNewSession} title="新对话">
+              <Plus className="h-3.5 w-3.5" />
+            </Button>
             <Button variant="ghost" size="sm" onClick={() => setSettingsOpen(true)} title="设置">
               <Settings className="h-3.5 w-3.5" />
             </Button>
@@ -1310,6 +1428,43 @@ export default function AIAssistantPage() {
             <Button variant="danger" size="sm" onClick={stopVoiceCall}>
               <PhoneOff className="h-4 w-4" /> 挂断
             </Button>
+          </div>
+        </div>
+      )}
+
+      {/* 历史对话侧边栏 */}
+      {showSessionList && (
+        <div className="border-b border-border bg-card/50 px-4 py-3 sm:px-8">
+          <div className="mx-auto max-w-2xl">
+            <div className="mb-2 flex items-center justify-between">
+              <h3 className="text-xs font-medium text-muted-foreground">历史对话</h3>
+              <button onClick={() => setShowSessionList(false)} className="text-muted-foreground hover:text-foreground">
+                <X className="h-3.5 w-3.5" />
+              </button>
+            </div>
+            <div className="max-h-64 space-y-1 overflow-y-auto">
+              {sessions.length === 0 ? (
+                <p className="py-4 text-center text-xs text-muted-foreground">暂无历史对话</p>
+              ) : (
+                sessions.map((s) => (
+                  <button
+                    key={s.id}
+                    onClick={() => {
+                      loadSession(s.id);
+                      setShowSessionList(false);
+                    }}
+                    className={cn(
+                      "flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-xs transition-colors hover:bg-muted/50",
+                      currentSessionId === s.id && "bg-cognition/10 text-cognition"
+                    )}
+                  >
+                    <MessageSquare className="h-3 w-3 shrink-0 text-muted-foreground" />
+                    <span className="flex-1 truncate">{s.title}</span>
+                    <span className="shrink-0 text-[10px] text-muted-foreground">{s.messageCount}条</span>
+                  </button>
+                ))
+              )}
+            </div>
           </div>
         </div>
       )}

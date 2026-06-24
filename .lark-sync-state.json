@@ -1,5 +1,5 @@
 {
-  "lastSyncAt": "2026-06-24T03:07:38.985Z",
-  "lastError": "{\n  \"ok\": false,\n  \"identity\": \"user\",\n  \"error\": {\n    \"type\": \"authentication\",\n    \"subtype\": \"token_expired\",\n    \"code\": 99991677,\n    \"message\": \"Authentication token expired. Please request a new one.\",\n    \"log_id\": \"202606241107362744C98EB30C341FD5AE\",\n    \"troubleshooter\": \"排查建议查看(Troubleshooting suggestions): https://open.feishu.cn/search?from=openapi&log_id=202606241107362744C98EB30C341FD5AE&code=99991677&method_id=7198349567927222276\"\n  }\n}\n",
-  "taskCount": 0
+  "lastSyncAt": "2026-06-24T06:23:28.472Z",
+  "lastError": null,
+  "taskCount": 219
 }
