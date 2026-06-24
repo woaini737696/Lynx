@@ -1,9 +1,22 @@
 <template>
   <view class="page">
+    <!-- 顶部模型切换栏 -->
+    <view class="model-bar">
+      <view
+        v-for="p in providers"
+        :key="p.key"
+        class="model-chip"
+        :class="{ active: currentProvider === p.key }"
+        @click="switchProvider(p.key)"
+      >
+        <text class="chip-label">{{ p.label }}</text>
+      </view>
+    </view>
+
     <scroll-view scroll-y class="msg-list" :scroll-top="scrollTop" :scroll-with-animation="true">
       <view v-if="messages.length === 0" class="empty">
         <text class="empty-icon">💬</text>
-        <text class="empty-text">和 Lynn 聊点什么</text>
+        <text class="empty-text">和 {{ currentProviderLabel }} 聊点什么</text>
         <text class="empty-hint">支持流式输出，实时响应</text>
       </view>
 
@@ -20,7 +33,7 @@
 
       <view v-if="loading" class="msg-row assistant">
         <view class="msg-bubble">
-          <text class="msg-text typing">{{ streamingText || "Lynn 正在思考..." }}</text>
+          <text class="msg-text typing">{{ streamingText || "思考中..." }}</text>
         </view>
       </view>
     </scroll-view>
@@ -48,15 +61,32 @@
 </template>
 
 <script setup>
-import { ref, nextTick } from "vue";
+import { ref, computed, nextTick } from "vue";
 import { onShow } from "@dcloudio/uni-app";
-import { chatStream } from "@/api/ai.js";
+import { chatStream, chat, AI_PROVIDERS } from "@/api/ai.js";
+
+const providers = AI_PROVIDERS;
+const currentProvider = ref(uni.getStorageSync("ai_provider") || "deepseek");
+const currentProviderLabel = computed(() => {
+  const p = providers.find((x) => x.key === currentProvider.value);
+  return p ? p.label : "AI";
+});
 
 const messages = ref([]);
 const input = ref("");
 const loading = ref(false);
 const scrollTop = ref(0);
 const streamingText = ref("");
+
+function switchProvider(key) {
+  currentProvider.value = key;
+  uni.setStorageSync("ai_provider", key);
+  uni.showToast({
+    title: `已切换到 ${providers.find((p) => p.key === key).label}`,
+    icon: "none",
+    duration: 1000,
+  });
+}
 
 async function send() {
   const content = input.value.trim();
@@ -68,24 +98,21 @@ async function send() {
   streamingText.value = "";
   await scrollToBottom();
 
-  // 构建历史消息（最近 10 条）
   const history = messages.value
     .slice(-10)
     .map((m) => ({ role: m.role, content: m.content }));
 
   try {
-    // 优先使用流式（H5），App 端 fetch 流式不可用时回退
     let reply = "";
     try {
-      reply = await chatStream(content, undefined, history.slice(0, -1), (chunk) => {
+      reply = await chatStream(content, currentProvider.value, history.slice(0, -1), (chunk) => {
         streamingText.value += chunk;
         scrollToBottom();
       });
     } catch (streamErr) {
       // 流式失败，回退到非流式
-      const { chat } = await import("@/api/ai.js");
-      const res = await chat(content, undefined, history.slice(0, -1));
-      reply = res.content || "（无回复）";
+      const res = await chat(content, currentProvider.value, history.slice(0, -1));
+      reply = res.content || "";
     }
 
     if (!reply && streamingText.value) reply = streamingText.value;
@@ -123,6 +150,30 @@ onShow(() => {
   flex-direction: column;
   height: 100vh;
 }
+.model-bar {
+  display: flex;
+  gap: 16rpx;
+  padding: 16rpx 24rpx;
+  background-color: #ffffff;
+  border-bottom: 1rpx solid #e5e5ea;
+}
+.model-chip {
+  padding: 12rpx 28rpx;
+  border-radius: 32rpx;
+  background-color: #f2f2f7;
+}
+.model-chip.active {
+  background: linear-gradient(135deg, #f59e0b, #f97316);
+}
+.chip-label {
+  font-size: 26rpx;
+  color: #86868b;
+  font-weight: 600;
+}
+.model-chip.active .chip-label {
+  color: #ffffff;
+}
+
 .msg-list {
   flex: 1;
   padding: 24rpx;
@@ -132,7 +183,7 @@ onShow(() => {
   display: flex;
   flex-direction: column;
   align-items: center;
-  padding: 160rpx 0;
+  padding: 120rpx 0;
 }
 .empty-icon {
   font-size: 80rpx;

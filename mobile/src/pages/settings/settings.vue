@@ -10,6 +10,21 @@
       </view>
     </view>
 
+    <!-- 功能入口 -->
+    <view class="section">
+      <text class="section-title">功能</text>
+      <view class="menu-item" @click="goInbox">
+        <text class="menu-icon">💡</text>
+        <text class="menu-label">灵感收件箱</text>
+        <text class="menu-arrow">›</text>
+      </view>
+      <view class="menu-item" @click="goMemory">
+        <text class="menu-icon">🧠</text>
+        <text class="menu-label">记忆认知</text>
+        <text class="menu-arrow">›</text>
+      </view>
+    </view>
+
     <view class="section">
       <text class="section-title">服务器配置</text>
       <view class="setting-item">
@@ -69,6 +84,14 @@ const roleLabel = computed(() => {
 function saveBaseUrl() {
   settingsStore.setBaseUrl(baseUrl.value);
   uni.showToast({ title: "已保存", icon: "success" });
+}
+
+function goInbox() {
+  uni.navigateTo({ url: "/pages/inbox/inbox" });
+}
+
+function goMemory() {
+  uni.navigateTo({ url: "/pages/memory/memory" });
 }
 
 function onLogout() {
@@ -141,6 +164,30 @@ function onLogout() {
   margin-bottom: 24rpx;
   font-weight: 600;
 }
+
+.menu-item {
+  display: flex;
+  align-items: center;
+  padding: 24rpx 0;
+  border-bottom: 1rpx solid #f2f2f7;
+}
+.menu-item:last-child {
+  border-bottom: none;
+}
+.menu-icon {
+  font-size: 36rpx;
+  margin-right: 20rpx;
+}
+.menu-label {
+  flex: 1;
+  color: #1d1d1f;
+  font-size: 30rpx;
+}
+.menu-arrow {
+  color: #c7c7cc;
+  font-size: 36rpx;
+}
+
 .setting-item {
   display: flex;
   justify-content: space-between;

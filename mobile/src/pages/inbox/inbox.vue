@@ -39,7 +39,7 @@
 <script setup>
 import { ref, onMounted } from "vue";
 import { onShow } from "@dcloudio/uni-app";
-import { getInboxIdeas } from "@/api/ideas.js";
+import { getInboxIdeas, moveIdeaToBoard, abandonIdea } from "@/api/ideas.js";
 import CaptureBar from "@/components/CaptureBar.vue";
 
 const ideas = ref([]);
@@ -64,10 +64,7 @@ function moveToBoard(idea) {
       const cols = ["northstar", "campaign", "task"];
       const column = cols[res.tapIndex];
       try {
-        const { createTask } = await import("@/api/tasks.js");
-        await createTask({ content: idea.content, column });
-        const { put } = await import("@/api/request.js");
-        await put(`/api/ideas/${idea.id}`, { status: "board" });
+        await moveIdeaToBoard(idea.id, column);
         uni.showToast({ title: "已移入看板", icon: "success" });
         loadIdeas();
       } catch (e) {
@@ -77,20 +74,17 @@ function moveToBoard(idea) {
   });
 }
 
-async function abandon(idea) {
+function abandon(idea) {
   uni.showModal({
     title: "放弃这个灵感？",
-    content: idea.content.slice(0, 50),
     editable: true,
     placeholderText: "请输入放弃原因（必填）",
     confirmColor: "#ef4444",
     success: async (res) => {
       if (res.confirm && res.content) {
         try {
-          const { post } = await import("@/api/request.js");
-          await post(`/api/ideas/${idea.id}/revive-check`, {
-            reason: res.content,
-          });
+          // reviveCondition 必填，默认简单条件
+          await abandonIdea(idea.id, res.content, "再次出现类似想法时复活");
           uni.showToast({ title: "已放入墓地", icon: "success" });
           loadIdeas();
         } catch (e) {

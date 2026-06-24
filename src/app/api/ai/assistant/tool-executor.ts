@@ -488,7 +488,7 @@ async function executeRebuildMemory(user: AuthUser) {
   }
 
   const pendingUpdates: { id: string; embedding: Buffer; content: string }[] = [];
-  const pendingCreates: Prisma.MemoryCreateInput[] = [];
+  const pendingCreates: Prisma.MemoryUncheckedCreateInput[] = [];
 
   for (const src of sources) {
     const lookupKey = `${src.type}:${src.ideaId || src.conversationId || src.cognitionId || ""}`;
@@ -505,14 +505,15 @@ async function executeRebuildMemory(user: AuthUser) {
     embeddings.set(src.id, vec);
 
     const embeddingBuffer = float32ToBuffer(vec);
-    const data: Prisma.MemoryCreateInput = {
+    // 使用 UncheckedCreateInput 以支持直接写入外键字段（ideaId/conversationId/cognitionId）
+    const data: Prisma.MemoryUncheckedCreateInput = {
       type: src.type,
       content: src.content,
       embedding: embeddingBuffer,
       ideaId: src.ideaId || null,
       conversationId: src.conversationId || null,
       cognitionId: src.cognitionId || null,
-      user: src.userId ? { connect: { id: src.userId } } : { connect: { id: user.id } },
+      userId: src.userId || user.id,
     };
 
     if (existing) {
@@ -1062,7 +1063,7 @@ async function executeGetPatrolResults(
     where: whereClause,
     take: limit,
     orderBy: { startedAt: "desc" },
-    include: { rule: { select: { name: true } } },
+    // ruleName 已冗余存储在 PatrolLog 上，无需 include rule 关联
     select: {
       id: true,
       ruleId: true,

@@ -15,6 +15,12 @@ export function getChatMessages(sessionId) {
   return get(`/api/ai/chat/sessions/${sessionId}/messages`);
 }
 
+/** 可用 AI 模型列表 */
+export const AI_PROVIDERS = [
+  { key: "deepseek", label: "DeepSeek", desc: "深度求索 · 推理强" },
+  { key: "mimo", label: "MiMo", desc: "小米 · 响应快" },
+];
+
 /**
  * 发送对话消息（非流式）
  * 后端契约：POST /api/ai/chat { messages, provider?, stream? }
@@ -64,14 +70,16 @@ export async function chatStream(content, provider, history, onChunk) {
       if (line.startsWith("data: ")) {
         try {
           const evt = JSON.parse(line.slice(6));
-          if (evt.type === "delta" && evt.text) {
-            full += evt.text;
-            onChunk && onChunk(evt.text);
+          // 后端 delta 事件字段为 content（不是 text）
+          if (evt.type === "delta" && evt.content) {
+            full += evt.content;
+            onChunk && onChunk(evt.content);
           } else if (evt.type === "done") {
             return full;
           } else if (evt.type === "error") {
             throw new Error(evt.message || "流式响应异常");
           }
+          // meta 事件忽略
         } catch (e) {
           // 忽略解析错误的行
         }

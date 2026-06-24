@@ -22,6 +22,10 @@ import { PageHeader, Card, Button, Badge } from "@/components/layout/PageHeader"
 import { HelpButton } from "@/components/layout/HelpButton";
 import { toast } from "@/components/ui/toast";
 import { cn } from "@/lib/utils";
+import {
+  PATROL_TEMPLATES,
+  type PatrolTemplate,
+} from "@/lib/patrol-templates";
 
 // 巡检规则类型
 interface PatrolRule {
@@ -47,6 +51,7 @@ interface PatrolLog {
   success: boolean;
   results: Array<{
     itemId: string;
+    itemType?: "idea" | "task" | "graveyard";
     content: string;
     matched: boolean;
     reason: string;
@@ -103,6 +108,12 @@ export default function PatrolSettingsPage() {
 
   // 编辑弹窗状态：editingRule 不为 null 时显示编辑弹窗
   const [editingRule, setEditingRule] = useState<PatrolRule | null>(null);
+
+  // 模板预填状态：使用模板时携带的初始数据
+  const [templateInitial, setTemplateInitial] = useState<PatrolTemplate | null>(null);
+
+  // 巡检结果操作中：记录正在处理的 itemId，避免重复点击
+  const [actingItemId, setActingItemId] = useState<string | null>(null);
 
   // 聊天状态
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
@@ -218,6 +229,111 @@ export default function PatrolSettingsPage() {
     }
   };
 
+  // 检查模板是否已被添加为规则（按 name 匹配）
+  const isTemplateAdded = (template: PatrolTemplate): boolean => {
+    return rules.some((r) => r.name === template.name);
+  };
+
+  // 使用模板：用模板数据预填创建表单
+  const useTemplate = (template: PatrolTemplate) => {
+    if (isTemplateAdded(template)) {
+      toast("该模板已添加为规则", "info");
+      return;
+    }
+    setEditingRule(null);
+    setTemplateInitial(template);
+    setShowAddForm(true);
+  };
+
+  // 处理巡检结果项的操作（拖入看板 / 送入墓地 / 完成 / 复活）
+  const handleResultAction = async (
+    item: {
+      itemId: string;
+      itemType?: "idea" | "task" | "graveyard";
+      suggestion: string;
+      reason: string;
+    },
+    action: "board" | "abandon" | "done" | "revive"
+  ) => {
+    setActingItemId(item.itemId);
+    try {
+      let res: Response;
+      if (action === "board") {
+        // inbox 灵感拖入看板
+        res = await fetch(`/api/ideas/${item.itemId}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action: "board", column: "task" }),
+        });
+      } else if (action === "abandon") {
+        // inbox 灵感送入墓地（reason/reviveCondition 用巡检建议或默认值）
+        const reason = item.reason || item.suggestion || "巡检建议送入墓地";
+        res = await fetch(`/api/ideas/${item.itemId}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            action: "abandon",
+            reason,
+            reviveCondition: "待补充复活条件",
+          }),
+        });
+      } else if (action === "done") {
+        // 看板任务标记完成
+        res = await fetch(`/api/tasks/${item.itemId}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ status: "done" }),
+        });
+      } else {
+        // 墓地灵感复活
+        res = await fetch(`/api/graveyard`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ graveyardId: item.itemId }),
+        });
+      }
+
+      if (res.ok) {
+        const actionLabels: Record<string, string> = {
+          board: "已拖入看板",
+          abandon: "已送入墓地",
+          done: "任务已完成",
+          revive: "已复活",
+        };
+        toast(actionLabels[action], "success");
+        loadLogs();
+      } else {
+        const err = await res.json().catch(() => ({}));
+        toast(err.error || "操作失败", "error");
+      }
+    } catch {
+      toast("网络错误", "error");
+    } finally {
+      setActingItemId(null);
+    }
+  };
+
+  // 根据巡检结果项的类型和建议推断可执行的操作
+  const inferResultAction = (
+    item: {
+      itemType?: "idea" | "task" | "graveyard";
+      suggestion: string;
+    }
+  ): "board" | "abandon" | "done" | "revive" | null => {
+    const sug = item.suggestion || "";
+    if (item.itemType === "idea") {
+      if (sug.includes("看板") || sug.includes("拖入")) return "board";
+      if (sug.includes("墓地") || sug.includes("放弃")) return "abandon";
+    }
+    if (item.itemType === "task") {
+      if (sug.includes("完成") || sug.includes("推进")) return "done";
+    }
+    if (item.itemType === "graveyard") {
+      if (sug.includes("复活") || sug.includes("恢复")) return "revive";
+    }
+    return null;
+  };
+
   // 发送聊天消息
   const sendChat = async () => {
     if (!chatInput.trim() || chatLoading) return;
@@ -321,6 +437,63 @@ export default function PatrolSettingsPage() {
           }} />
         }
       />
+
+      {/* 模板库：预置常用巡检规则模板 */}
+      <Card className="mb-4 p-0">
+        <div className="flex items-center justify-between border-b border-border px-4 py-3">
+          <div className="flex items-center gap-2">
+            <Sparkles className="h-4 w-4 text-cognition" />
+            <h2 className="text-sm font-semibold">模板库</h2>
+            <span className="ml-1 rounded-full bg-muted px-2 py-0.5 text-[10px] text-muted-foreground">
+              {PATROL_TEMPLATES.length} 个预置模板
+            </span>
+          </div>
+          <span className="text-[10px] text-muted-foreground">一键应用并自定义</span>
+        </div>
+        <div className="grid grid-cols-1 gap-2 p-3 sm:grid-cols-2">
+          {PATROL_TEMPLATES.map((tpl) => {
+            const added = isTemplateAdded(tpl);
+            return (
+              <div
+                key={tpl.id}
+                className="flex flex-col rounded-xl border border-border bg-background p-3 transition-all hover:border-primary/30"
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <div className="flex-1">
+                    <div className="flex items-center gap-1.5">
+                      <h3 className="text-xs font-semibold text-foreground">{tpl.name}</h3>
+                      <Badge color="cognition">{SCOPE_LABELS[tpl.scope] || tpl.scope}</Badge>
+                      <span className="text-[10px] text-muted-foreground">
+                        {tpl.triggerTime === "manual" ? "手动" : tpl.triggerTime}
+                      </span>
+                    </div>
+                    <p className="mt-1 text-[11px] text-muted-foreground line-clamp-2">
+                      {tpl.description}
+                    </p>
+                  </div>
+                </div>
+                <div className="mt-2 flex items-center justify-end gap-1.5">
+                  {added && (
+                    <span className="inline-flex items-center gap-1 rounded-full bg-task/10 px-2 py-0.5 text-[10px] font-medium text-task">
+                      <CheckCircle2 className="h-3 w-3" />
+                      已添加
+                    </span>
+                  )}
+                  <Button
+                    size="sm"
+                    variant={added ? "outline" : "primary"}
+                    onClick={() => useTemplate(tpl)}
+                    disabled={added}
+                  >
+                    <Plus className="h-3 w-3" />
+                    使用此模板
+                  </Button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </Card>
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         {/* 左侧：巡检规则列表 */}
@@ -726,34 +899,70 @@ export default function PatrolSettingsPage() {
                         </div>
                       )}
                       {Array.isArray(log.results) && log.results.length > 0 ? (
-                        log.results.map((r, i) => (
-                          <div
-                            key={i}
-                            className={cn(
-                              "rounded-lg border p-2 text-[11px]",
-                              r.matched
-                                ? "border-campaign/30 bg-campaign/5"
-                                : "border-border bg-muted/20"
-                            )}
-                          >
-                            <div className="flex items-center gap-1.5">
-                              {r.matched ? (
-                                <CheckCircle2 className="h-3 w-3 text-campaign" />
-                              ) : (
-                                <XCircle className="h-3 w-3 text-muted-foreground" />
+                        log.results.map((r, i) => {
+                          // 推断可执行的操作（仅命中的项才显示操作按钮）
+                          const action = r.matched ? inferResultAction(r) : null;
+                          const actionLabels: Record<string, string> = {
+                            board: "拖入看板",
+                            abandon: "送入墓地",
+                            done: "完成",
+                            revive: "复活",
+                          };
+                          return (
+                            <div
+                              key={i}
+                              className={cn(
+                                "rounded-lg border p-2 text-[11px]",
+                                r.matched
+                                  ? "border-campaign/30 bg-campaign/5"
+                                  : "border-border bg-muted/20"
                               )}
-                              <span className="font-medium text-foreground">
-                                {r.content || r.itemId}
-                              </span>
+                            >
+                              <div className="flex items-center gap-1.5">
+                                {r.matched ? (
+                                  <CheckCircle2 className="h-3 w-3 text-campaign" />
+                                ) : (
+                                  <XCircle className="h-3 w-3 text-muted-foreground" />
+                                )}
+                                <span className="font-medium text-foreground">
+                                  {r.content || r.itemId}
+                                </span>
+                                {r.itemType && (
+                                  <span className="rounded bg-muted px-1.5 py-0.5 text-[9px] text-muted-foreground">
+                                    {r.itemType === "idea"
+                                      ? "灵感"
+                                      : r.itemType === "task"
+                                      ? "任务"
+                                      : "墓地"}
+                                  </span>
+                                )}
+                              </div>
+                              {r.reason && (
+                                <p className="mt-1 text-muted-foreground">理由：{r.reason}</p>
+                              )}
+                              {r.suggestion && (
+                                <p className="mt-0.5 text-cognition">建议：{r.suggestion}</p>
+                              )}
+                              {action && (
+                                <div className="mt-1.5 flex justify-end">
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() => handleResultAction(r, action)}
+                                    disabled={actingItemId === r.itemId}
+                                  >
+                                    {actingItemId === r.itemId ? (
+                                      <Loader2 className="h-3 w-3 animate-spin" />
+                                    ) : (
+                                      <Play className="h-3 w-3" />
+                                    )}
+                                    {actionLabels[action]}
+                                  </Button>
+                                </div>
+                              )}
                             </div>
-                            {r.reason && (
-                              <p className="mt-1 text-muted-foreground">理由：{r.reason}</p>
-                            )}
-                            {r.suggestion && (
-                              <p className="mt-0.5 text-cognition">建议：{r.suggestion}</p>
-                            )}
-                          </div>
-                        ))
+                          );
+                        })
                       ) : (
                         !log.error && (
                           <p className="text-[11px] text-muted-foreground">无巡检结果</p>
@@ -771,9 +980,14 @@ export default function PatrolSettingsPage() {
       {/* 新增规则表单（折叠） */}
       {showAddForm && (
         <AddRuleForm
-          onClose={() => setShowAddForm(false)}
+          initialTemplate={templateInitial}
+          onClose={() => {
+            setShowAddForm(false);
+            setTemplateInitial(null);
+          }}
           onSaved={() => {
             setShowAddForm(false);
+            setTemplateInitial(null);
             loadRules();
           }}
         />
@@ -794,15 +1008,17 @@ export default function PatrolSettingsPage() {
   );
 }
 
-// 规则表单组件（同时支持新增与编辑：传入 initialRule 即为编辑模式）
+// 规则表单组件（同时支持新增与编辑：传入 initialRule 即为编辑模式，传入 initialTemplate 用模板预填）
 function AddRuleForm({
   onClose,
   onSaved,
   initialRule,
+  initialTemplate,
 }: {
   onClose: () => void;
   onSaved: () => void;
   initialRule?: PatrolRule | null;
+  initialTemplate?: PatrolTemplate | null;
 }) {
   const isEdit = !!initialRule;
   const [form, setForm] = useState<PatrolRuleDraft>(
@@ -817,6 +1033,18 @@ function AddRuleForm({
           threshold: initialRule.threshold,
           notifyChannels: initialRule.notifyChannels,
           enabled: initialRule.enabled,
+        }
+      : initialTemplate
+      ? {
+          // 用模板预填表单，用户可修改后保存
+          name: initialTemplate.name,
+          description: initialTemplate.description,
+          scope: initialTemplate.scope,
+          triggerTime: initialTemplate.triggerTime,
+          prompt: initialTemplate.prompt,
+          threshold: initialTemplate.threshold,
+          notifyChannels: initialTemplate.notifyChannels,
+          enabled: true,
         }
       : {
           name: "",
@@ -878,7 +1106,11 @@ function AddRuleForm({
       <Card className="w-full max-w-lg">
         <div className="mb-4 flex items-center justify-between">
           <h2 className="text-sm font-semibold">
-            {isEdit ? "编辑巡检规则" : "新增巡检规则"}
+            {isEdit
+              ? "编辑巡检规则"
+              : initialTemplate
+              ? "从模板创建巡检规则"
+              : "新增巡检规则"}
           </h2>
           <button onClick={onClose} className="text-muted-foreground hover:text-foreground">
             <XCircle className="h-4 w-4" />

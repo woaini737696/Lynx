@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Check, Plus, RotateCcw, X, Target, Swords, ListChecks, ChevronDown, ChevronRight, TrendingUp } from "lucide-react";
+import { Check, Plus, RotateCcw, X, Target, Swords, ListChecks, ChevronDown, ChevronRight, TrendingUp, Brain, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { BOARD_COLUMNS, type BoardColumn } from "@/lib/utils";
 import { toast } from "@/components/ui/toast";
@@ -15,6 +15,21 @@ interface Task {
   status: "active" | "done" | "dropped";
   position: number;
   updatedAt?: string;
+  sourceId?: string | null;
+}
+
+// AI 提取的认知数据项
+interface ExtractedCognition {
+  type: "method" | "experience" | "prompt";
+  content: string;
+}
+
+// 认知确认弹窗状态
+interface CognitionModalState {
+  taskId: string;
+  taskContent: string;
+  ideaId: string | null;
+  cognitions: ExtractedCognition[];
 }
 
 interface ColumnData {
@@ -49,6 +64,13 @@ export default function BoardPage() {
   const [error, setError] = useState<string | null>(null);
   const [stats, setStats] = useState<TaskStats | null>(null);
   const [showDone, setShowDone] = useState(false);
+
+  // 认知确认弹窗状态：非 null 时显示弹窗
+  const [cognitionModal, setCognitionModal] = useState<CognitionModalState | null>(null);
+  // 弹窗中可编辑的认知列表
+  const [editableCognitions, setEditableCognitions] = useState<ExtractedCognition[]>([]);
+  // 入库中状态
+  const [savingCognitions, setSavingCognitions] = useState(false);
 
   // 加载任务列表
   const loadTasks = async () => {

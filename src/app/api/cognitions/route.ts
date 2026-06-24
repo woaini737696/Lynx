@@ -23,18 +23,53 @@ export async function GET() {
   }
 }
 
-// 从内容提取认知（AI）
+// 从内容提取认知（AI）或直接写入单条认知（用户确认入库）
+// 当传入 type + content 时为直接写入模式（用于看板完成弹窗的用户确认）
+// 当仅传入 content 时为 AI 提取模式
 export async function POST(req: NextRequest) {
   try {
     const { user, error } = await requireAuth();
     if (error) return error;
 
-    const { content, source = "manual" } = await req.json();
+    const body = await req.json();
+    const {
+      content,
+      source = "manual",
+      type,
+      ideaId = null,
+    } = body as {
+      content: string;
+      source?: string;
+      type?: "method" | "experience" | "prompt";
+      ideaId?: string | null;
+    };
 
     if (!content) {
       return NextResponse.json({ error: "内容不能为空" }, { status: 400 });
     }
 
+    // 直接写入模式：用户在看板完成弹窗中确认入库
+    if (type) {
+      const c = await prisma.cognition.create({
+        data: {
+          type,
+          content,
+          source,
+          ideaId,
+          tags: [],
+          userId: user.id,
+        },
+      });
+      // 异步写入 Memory（不阻塞）
+      writeMemoryForCognition(c.id, c.content).catch(() => {});
+      return NextResponse.json({
+        created: [c],
+        count: 1,
+        success: true,
+      });
+    }
+
+    // AI 提取模式：从内容中提取多条认知
     let extracted: {
       method: Array<{ content: string }>;
       experience: Array<{ content: string }>;
