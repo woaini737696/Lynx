@@ -2,6 +2,7 @@
   <view class="page">
     <view class="header">
       <text class="header-title">记忆认知</text>
+      <text v-if="stats" class="header-stats">{{ stats.total }} 节点 · {{ stats.edges }} 连边</text>
     </view>
 
     <view class="search-bar">
@@ -17,10 +18,11 @@
     </view>
 
     <view v-if="loading" class="loading">
-      <text class="text-secondary">搜索中...</text>
+      <text class="text-secondary">{{ searched ? "搜索中..." : "加载中..." }}</text>
     </view>
 
-    <view v-else-if="results.length > 0" class="result-list">
+    <!-- 搜索结果 -->
+    <view v-else-if="searched && results.length > 0" class="result-list">
       <view v-for="item in results" :key="item.id" class="result-card">
         <view class="result-header">
           <text class="result-type" :class="`type-${item.type}`">{{ typeLabel(item.type) }}</text>
@@ -35,6 +37,18 @@
       <text class="empty-text">未找到相关记忆</text>
     </view>
 
+    <!-- 记忆节点列表（未搜索时） -->
+    <view v-else-if="memories.length > 0" class="result-list">
+      <view v-for="node in memories" :key="node.id" class="result-card">
+        <view class="result-header">
+          <text class="result-type" :class="`type-${node.type}`">{{ typeLabel(node.type) }}</text>
+          <text v-if="node.strength" class="result-score">⚡ {{ node.strength }}</text>
+        </view>
+        <text class="result-content">{{ node.label }}</text>
+        <text v-if="node.fullContent && node.fullContent !== node.label" class="result-full">{{ node.fullContent }}</text>
+      </view>
+    </view>
+
     <view v-else class="empty">
       <text class="empty-icon">🧠</text>
       <text class="empty-text">搜索你的记忆图谱</text>
@@ -45,12 +59,29 @@
 
 <script setup>
 import { ref } from "vue";
-import { searchMemory } from "@/api/memory.js";
+import { onShow } from "@dcloudio/uni-app";
+import { searchMemory, getMemoryGraph } from "@/api/memory.js";
 
 const query = ref("");
 const results = ref([]);
+const memories = ref([]);
+const stats = ref(null);
 const loading = ref(false);
 const searched = ref(false);
+
+async function loadMemories() {
+  if (searched.value) return;
+  loading.value = true;
+  try {
+    const res = await getMemoryGraph();
+    memories.value = res.nodes || [];
+    stats.value = res.stats || null;
+  } catch (e) {
+    // 静默失败，不影响搜索功能
+  } finally {
+    loading.value = false;
+  }
+}
 
 async function search() {
   if (!query.value.trim()) return;
@@ -74,6 +105,8 @@ const TYPE_LABELS = {
 function typeLabel(t) {
   return TYPE_LABELS[t] || t;
 }
+
+onShow(loadMemories);
 </script>
 
 <style scoped>
@@ -83,12 +116,19 @@ function typeLabel(t) {
   box-sizing: border-box;
 }
 .header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
   margin-bottom: 32rpx;
 }
 .header-title {
   font-size: 48rpx;
   font-weight: 700;
   color: #f5f5f5;
+}
+.header-stats {
+  font-size: 24rpx;
+  color: #737373;
 }
 
 .search-bar {
@@ -177,5 +217,11 @@ function typeLabel(t) {
   color: #d4d4d4;
   font-size: 28rpx;
   line-height: 1.6;
+}
+.result-full {
+  color: #737373;
+  font-size: 24rpx;
+  line-height: 1.5;
+  margin-top: 8rpx;
 }
 </style>

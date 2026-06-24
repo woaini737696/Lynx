@@ -1,4 +1,4 @@
-import { get, post } from "./request.js";
+import { get, post, patch } from "./request.js";
 
 /**
  * 获取飞书任务列表（快速模式：优先 DB 缓存，后台刷新）
@@ -19,6 +19,16 @@ export function refreshLarkTasks() {
 /** 获取单个飞书任务详情 */
 export function getLarkTask(id) {
   return get(`/api/lark-tasks/${id}`);
+}
+
+/**
+ * 切换飞书任务完成状态
+ * 后端契约：PATCH /api/lark-tasks/[id] { action: "complete" | "reopen" }
+ */
+export function toggleLarkTask(id, completed) {
+  return patch(`/api/lark-tasks/${id}`, {
+    action: completed ? "complete" : "reopen",
+  });
 }
 
 /** 创建飞书任务 */

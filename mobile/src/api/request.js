@@ -65,4 +65,5 @@ export function request(options) {
 export const get = (url, data) => request({ url, method: "GET", data });
 export const post = (url, data) => request({ url, method: "POST", data });
 export const put = (url, data) => request({ url, method: "PUT", data });
+export const patch = (url, data) => request({ url, method: "PATCH", data });
 export const del = (url, data) => request({ url, method: "DELETE", data });

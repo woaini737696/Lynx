@@ -39,7 +39,7 @@
 <script setup>
 import { ref, onMounted } from "vue";
 import { onShow } from "@dcloudio/uni-app";
-import { getLarkTasks, refreshLarkTasks } from "@/api/lark-tasks.js";
+import { getLarkTasks, refreshLarkTasks, toggleLarkTask } from "@/api/lark-tasks.js";
 
 const tasks = ref([]);
 const loading = ref(false);
@@ -71,12 +71,22 @@ async function sync() {
   }
 }
 
-function toggleTask(task) {
-  uni.showToast({
-    title: "任务状态请在飞书端操作",
-    icon: "none",
-    duration: 1500,
-  });
+async function toggleTask(task) {
+  const newCompleted = !task.completed;
+  // 乐观更新
+  task.completed = newCompleted;
+  try {
+    await toggleLarkTask(task.guid, newCompleted);
+    uni.showToast({
+      title: newCompleted ? "已完成" : "已重开",
+      icon: "success",
+      duration: 1000,
+    });
+  } catch (e) {
+    // 失败回滚
+    task.completed = !newCompleted;
+    uni.showToast({ title: e.message || "操作失败", icon: "none" });
+  }
 }
 
 function formatDate(d) {

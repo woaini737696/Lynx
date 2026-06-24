@@ -1,6 +1,15 @@
 import { get, post } from "./request.js";
 
 /**
+ * 获取记忆图谱数据（节点列表 + 连边 + 统计）
+ * 后端契约：GET /api/memory
+ * 返回 { nodes: [{ id, label, type, color, strength, connections, fullContent, createdAt }], edges, stats }
+ */
+export function getMemoryGraph() {
+  return get("/api/memory");
+}
+
+/**
  * 记忆语义搜索
  * 后端契约：GET /api/memory/search?q=关键词
  * 返回 { results: [{ id, label, source, score, type }], total }
