@@ -1,0 +1,64 @@
+{
+  "easycom": {
+    "autoscan": true,
+    "custom": {
+      "^uni-(.*)": "@dcloudio/uni-ui/lib/uni-$1/uni-$1.vue"
+    }
+  },
+  "pages": [
+    {
+      "path": "pages/index/index",
+      "style": { "navigationBarTitleText": "今日聚焦" }
+    },
+    {
+      "path": "pages/board/board",
+      "style": { "navigationBarTitleText": "决策看板" }
+    },
+    {
+      "path": "pages/ai/chat/chat",
+      "style": { "navigationBarTitleText": "AI 助理" }
+    },
+    {
+      "path": "pages/tasks/tasks",
+      "style": { "navigationBarTitleText": "飞书任务" }
+    },
+    {
+      "path": "pages/settings/settings",
+      "style": { "navigationBarTitleText": "我的" }
+    },
+    {
+      "path": "pages/login/login",
+      "style": { "navigationBarTitleText": "登录", "navigationStyle": "custom" }
+    },
+    {
+      "path": "pages/inbox/inbox",
+      "style": { "navigationBarTitleText": "灵感收件箱" }
+    },
+    {
+      "path": "pages/memory/memory",
+      "style": { "navigationBarTitleText": "记忆认知" }
+    }
+  ],
+  "globalStyle": {
+    "navigationBarTextStyle": "white",
+    "navigationBarTitleText": "LynnHub",
+    "navigationBarBackgroundColor": "#0a0a0a",
+    "backgroundColor": "#0a0a0a",
+    "app-plus": {
+      "background": "#0a0a0a"
+    }
+  },
+  "tabBar": {
+    "color": "#737373",
+    "selectedColor": "#f6ad55",
+    "backgroundColor": "#0a0a0a",
+    "borderStyle": "black",
+    "list": [
+      { "pagePath": "pages/index/index", "text": "聚焦" },
+      { "pagePath": "pages/board/board", "text": "看板" },
+      { "pagePath": "pages/ai/chat/chat", "text": "AI" },
+      { "pagePath": "pages/tasks/tasks", "text": "任务" },
+      { "pagePath": "pages/settings/settings", "text": "我的" }
+    ]
+  }
+}

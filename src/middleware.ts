@@ -1,4 +1,5 @@
 // NextAuth middleware：保护路由，未登录重定向到 /login
+// App 端通过 Authorization: Bearer <token> 访问 /api/*，由 route handler 的 requireAuth 校验
 import { auth } from "@/auth";
 import { NextResponse } from "next/server";
 
@@ -10,6 +11,14 @@ export default auth((req) => {
 
   // 公开路由放行
   if (publicPatterns.some((p) => p.test(pathname))) {
+    return NextResponse.next();
+  }
+
+  // API 路由携带 Bearer Token 时放行（App 端），由 route handler 校验 token 有效性
+  if (
+    pathname.startsWith("/api/") &&
+    req.headers.get("authorization")?.startsWith("Bearer ")
+  ) {
     return NextResponse.next();
   }
 

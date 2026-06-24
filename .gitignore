@@ -40,6 +40,11 @@ next-env.d.ts
 .idea/
 .vscode/
 
+# mobile (uniapp)
+/mobile/node_modules/
+/mobile/dist/
+/mobile/unpackage/
+
 # lark-cli local state
 .lark-sync-state.json
 .lark-task-comments.json
