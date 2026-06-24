@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
+import { requireAuth } from "@/lib/auth-utils";
 
 // 处理 Inbox 灵感：拖入看板 / 延后 / 放弃
 export async function PATCH(
@@ -7,8 +8,20 @@ export async function PATCH(
   { params }: { params: { id: string } }
 ) {
   try {
+    const { user, error } = await requireAuth();
+    if (error) return error;
+
     const { action, column, reason, reviveCondition } = await req.json();
     const { id } = params;
+
+    // 验证灵感归属权
+    const existing = await prisma.idea.findUnique({ where: { id } });
+    if (!existing) {
+      return NextResponse.json({ error: "未找到" }, { status: 404 });
+    }
+    if (user.role !== "admin" && existing.userId !== user.id) {
+      return NextResponse.json({ error: "无权访问" }, { status: 403 });
+    }
 
     if (action === "board") {
       // 拖入看板 - 检查满额阻断
@@ -35,6 +48,7 @@ export async function PATCH(
           position: count,
           status: "active",
           sourceId: id,
+          userId: user.id,
         },
       });
       return NextResponse.json({ task, success: true });

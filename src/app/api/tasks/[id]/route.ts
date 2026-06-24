@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
+import { requireAuth } from "@/lib/auth-utils";
 
 // 更新任务状态/位置
 export async function PATCH(
@@ -7,7 +8,20 @@ export async function PATCH(
   { params }: { params: { id: string } }
 ) {
   try {
+    const { user, error } = await requireAuth();
+    if (error) return error;
+
     const { id } = params;
+
+    // 验证任务归属权
+    const existing = await prisma.task.findUnique({ where: { id } });
+    if (!existing) {
+      return NextResponse.json({ error: "未找到" }, { status: 404 });
+    }
+    if (user.role !== "admin" && existing.userId !== user.id) {
+      return NextResponse.json({ error: "无权访问" }, { status: 403 });
+    }
+
     const { status, column, position } = await req.json();
 
     // 跨列移动 - 检查目标列满额
@@ -49,7 +63,20 @@ export async function DELETE(
   { params }: { params: { id: string } }
 ) {
   try {
+    const { user, error } = await requireAuth();
+    if (error) return error;
+
     const { id } = params;
+
+    // 验证任务归属权
+    const existing = await prisma.task.findUnique({ where: { id } });
+    if (!existing) {
+      return NextResponse.json({ error: "未找到" }, { status: 404 });
+    }
+    if (user.role !== "admin" && existing.userId !== user.id) {
+      return NextResponse.json({ error: "无权访问" }, { status: 403 });
+    }
+
     await prisma.task.update({
       where: { id },
       data: { status: "dropped" },

@@ -6,22 +6,24 @@ import { createOpenAI } from "@ai-sdk/openai";
 
 // ============ Provider 配置 ============
 // 主 Provider（用于 chat 和 embedding）
-const baseURL = process.env.AI_BASE_URL || "https://api.openai.com/v1";
-const apiKey = process.env.AI_API_KEY || process.env.OPENAI_API_KEY || "";
+// 兼容 AI_* 和 DEEPSEEK_* 两套环境变量
+const baseURL = process.env.AI_BASE_URL || process.env.DEEPSEEK_BASE_URL || "https://api.openai.com/v1";
+const apiKey = process.env.AI_API_KEY || process.env.OPENAI_API_KEY || process.env.DEEPSEEK_API_KEY || "";
 
 export const ai = createOpenAI({ baseURL, apiKey });
 
 // 默认 chat 模型
-export const defaultModel = process.env.AI_MODEL || "gpt-4o-mini";
+export const defaultModel = process.env.AI_MODEL || process.env.DEEPSEEK_MODEL || "gpt-4o-mini";
 
 // ============ Embedding 配置 ============
 // embedding 可使用独立 Provider（如硅基流动的 bge-m3），未配置则与主 Provider 共用
+// 统一使用 EMBEDDING_* 系列环境变量（与 ai-provider.ts 一致）
 export const embeddingBaseURL =
-  process.env.AI_EMBEDDING_BASE_URL || baseURL;
+  process.env.EMBEDDING_BASE_URL || baseURL;
 export const embeddingApiKey =
-  process.env.AI_EMBEDDING_API_KEY || apiKey;
+  process.env.EMBEDDING_API_KEY || apiKey;
 export const embeddingModel =
-  process.env.AI_EMBEDDING_MODEL || "text-embedding-3-small";
+  process.env.EMBEDDING_MODEL || "text-embedding-3-small";
 
 // embedding Provider 实例（独立配置时与 chat 分离）
 export const embeddingProvider = createOpenAI({

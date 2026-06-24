@@ -43,3 +43,9 @@ next-env.d.ts
 # lark-cli local state
 .lark-sync-state.json
 .lark-task-comments.json
+
+# mysql local data
+.mysql/
+
+# vitest
+coverage/

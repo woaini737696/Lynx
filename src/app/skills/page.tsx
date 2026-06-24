@@ -35,6 +35,7 @@ import {
 } from "@/components/layout/PageHeader";
 import { toast } from "@/components/ui/toast";
 import { cn } from "@/lib/utils";
+import { RichTextEditor } from "@/components/editor/RichTextEditor";
 import type {
   SkillParameter,
   SkillParamType,
@@ -788,14 +789,13 @@ function SkillEditModal({
           {/* 正文 */}
           <div>
             <label className="mb-1.5 block text-xs font-medium text-foreground/80">
-              Markdown 正文（含步骤等）
+              正文（含步骤等）
             </label>
-            <textarea
+            <RichTextEditor
               value={content}
-              onChange={(e) => setContent(e.target.value)}
-              placeholder={"# 技能名称\n\n## 步骤\n1. ...\n2. ..."}
-              rows={6}
-              className="w-full resize-y rounded-xl border border-border bg-background px-3 py-2 text-xs leading-relaxed text-foreground placeholder:text-muted-foreground/60 focus:border-cognition/40 focus:outline-none focus:ring-2 focus:ring-cognition/20"
+              onChange={(html) => setContent(html)}
+              placeholder="技能名称&#10;&#10;步骤&#10;1. ...&#10;2. ..."
+              minHeight={160}
             />
           </div>
 

@@ -4,6 +4,72 @@
 
 ---
 
+## 迭代 16 - 2026-06-24
+
+### 任务概要
+完成全部 P0-P2 任务规划：用户系统（next-auth + 三级角色权限）、Flows 迁移到 MySQL、全文搜索 + 数据备份导出 + Flows 执行历史持久化、飞书机器人基础版、向量搜索优化、vitest 单元测试 + pino 结构化日志、富文本编辑器 + Web Push + 移动端适配。修复登录页 CSRF token 缺失问题。
+
+### 完成内容
+
+#### 1. 用户系统（P0，高优先级）
+- **Prisma schema**：新增 `User` model（username/passwordHash/email/displayName/role/active），所有业务 model 添加 `userId` 字段 + `@@index([userId])`
+- **next-auth v5**：`src/auth.ts` 配置 Credentials Provider + JWT session（7天）+ role 注入
+- **鉴权工具**：`src/lib/auth-utils.ts` 导出 `getCurrentUser/requireAuth/requireAdmin/buildUserFilter/buildUserCreateData`
+  - `buildUserFilter`：admin 返回 `{}`（全局视图），非 admin 返回 `{ userId: user.id }`
+- **middleware**：`src/middleware.ts` 保护所有路由，未登录重定向到 `/login`
+- **登录页**：`src/app/login/page.tsx`，修复 CSRF token 缺失问题（先 GET `/api/auth/csrf` 获取 token，再 POST credentials）
+- **用户管理**：`src/app/settings/users/page.tsx` + `src/app/api/users/route.ts`（仅 admin 可访问）
+- **API 鉴权**：18 个 API 路由添加 `requireAuth` + `buildUserFilter`
+- **seed**：`prisma/seed.ts` 创建 admin 用户（admin/admin123），所有种子数据关联 userId
+
+#### 2. Flows 迁移到 MySQL（P0，高优先级）
+- **Prisma schema**：新增 `Flow` model（nodes/edges 为 Json）+ `FlowExecution` model（执行历史）
+- **flow-store.ts 重写**：文件存储 → Prisma/MySQL 存储，新增 `createFlow/updateFlow/deleteFlow/getFlowById/initializeDefaultFlows`
+- **数据迁移**：`initializeDefaultFlows()` 读取 `.ai-flows.json` 迁移到数据库
+- **执行历史 API**：`src/app/api/ai/flows/[id]/executions/route.ts` + `src/app/api/ai/flows/executions/route.ts`
+- **类型修复**：`updateFlow` 使用 `Prisma.FlowUncheckedUpdateInput` 解决 `FlowUpdateInput` 缺少 userId 属性问题
+
+#### 3. 全文搜索 + 数据备份 + Flows 执行历史（P0）
+- **全文搜索**：`src/app/api/search/route.ts`，LIKE 查询 + 类型过滤 + 分页
+- **数据备份导出**：`src/app/api/backup/export/route.ts`，导出全量数据为 JSON
+- **数据备份导入**：`src/app/api/backup/import/route.ts`，导入 JSON 恢复数据
+- **备份管理页面**：`src/app/settings/backup/page.tsx`
+
+#### 4. 飞书机器人 + 向量优化 + 报错修复（P0）
+- **飞书机器人基础版**：`src/app/settings/lark-bot/page.tsx` + `src/app/api/lark-bot/test/route.ts`
+- **移除微信机器人**：Sidebar 删除微信机器人入口
+- **向量搜索优化**：移除 500 条硬上限，改为分页查询
+- **semantic-match.ts**：添加 TF-IDF 降级（AI 不可用时不再返回空数组）
+- **环境变量统一**：`AI_EMBEDDING_*` → `EMBEDDING_*`，添加 `DEEPSEEK_*` fallback
+- **删除死代码**：`src/lib/mock.ts`（263 行）、冗余 `next.config.js`
+
+#### 5. vitest 单元测试 + pino 结构化日志（P1）
+- **vitest 配置**：`vitest.config.ts`，path alias `@/` → `src/`
+- **39 个单元测试**（5 个文件）：
+  - `auth-utils.test.ts`：buildUserFilter 角色过滤
+  - `flow-store.test.ts`：formatLastRun 时间格式化
+  - `semantic-match.test.ts`：TF-IDF 降级逻辑
+  - `ai-provider.test.ts`：isModelMultimodal + getDefaultProvider
+  - `flow-engine.test.ts`：BFS 图遍历 + 条件分支
+- **pino 日志**：`src/lib/logger.ts`，9 个 API 路由替换 23 处 `console.error` 为结构化日志
+
+#### 6. 富文本编辑器 + Web Push + 移动端适配（P2）
+- **富文本编辑器**：`src/components/editor/RichTextEditor.tsx`（tiptap），集成到技能编辑弹窗
+- **Web Push**：`src/lib/push.ts` + `src/app/api/push/subscribe/route.ts` + `src/app/api/push/test/route.ts` + `src/app/settings/push/page.tsx`
+  - Prisma 新增 `PushSubscription` model
+- **移动端适配**：viewport meta 优化、记忆图谱画布水平滚动
+
+### 自测结果
+- TypeScript 编译：`npx tsc --noEmit` 通过（exit 0）
+- 单元测试：`npx vitest run` 5 文件 39 测试全部通过
+- API 自测：16 个 API 端点全部返回 JSON（登录 → CSRF → session cookie → API 调用）
+- 数据库：MySQL 运行中，prisma db push 同步，seed 填充 10 灵感 + 15 任务 + 5 对话 + 8 认知 + 20 记忆 + 3 墓地 + 10 技能 + 20 评论 + 15 飞书任务 + 1 聚焦
+
+### 涉及文件
+新增 20+ 文件，修改 30+ 文件，删除 2 文件（mock.ts, next.config.js）
+
+---
+
 ## 迭代 15 - 2026-06-24
 
 ### 任务概要

@@ -1,5 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
-import { readFlows, writeFlows, type Flow, type FlowNode, type FlowEdge } from "@/lib/flow-store";
+import {
+  getFlowById,
+  updateFlow,
+  deleteFlow,
+  type FlowNode,
+  type FlowEdge,
+} from "@/lib/flow-store";
 
 // GET /api/ai/flows/[id] - 获取单个工作流
 export async function GET(
@@ -7,8 +13,7 @@ export async function GET(
   { params }: { params: { id: string } }
 ) {
   try {
-    const flows = await readFlows();
-    const flow = flows.find((f) => f.id === params.id);
+    const flow = await getFlowById(params.id);
     if (!flow) {
       return NextResponse.json(
         { error: `未找到工作流：${params.id}` },
@@ -41,28 +46,25 @@ export async function PUT(
       lastRun?: string;
     };
 
-    const flows = await readFlows();
-    const idx = flows.findIndex((f) => f.id === params.id);
-    if (idx === -1) {
+    // 先检查工作流是否存在
+    const existing = await getFlowById(params.id);
+    if (!existing) {
       return NextResponse.json(
         { error: `未找到工作流：${params.id}` },
         { status: 404 }
       );
     }
 
-    // 局部更新
-    const updated: Flow = {
-      ...flows[idx],
-      ...(typeof name === "string" ? { name } : {}),
-      ...(typeof description === "string" ? { description } : {}),
-      ...(Array.isArray(nodes) ? { nodes } : {}),
-      ...(Array.isArray(edges) ? { edges } : {}),
-      ...(typeof enabled === "boolean" ? { enabled } : {}),
-      ...(typeof lastRun === "string" ? { lastRun } : {}),
-    };
-    flows[idx] = updated;
-    await writeFlows(flows);
+    // 构建局部更新数据
+    const updateData: Record<string, unknown> = {};
+    if (typeof name === "string") updateData.name = name;
+    if (typeof description === "string") updateData.description = description;
+    if (Array.isArray(nodes)) updateData.nodes = nodes;
+    if (Array.isArray(edges)) updateData.edges = edges;
+    if (typeof enabled === "boolean") updateData.enabled = enabled;
+    if (typeof lastRun === "string") updateData.lastRun = lastRun;
 
+    const updated = await updateFlow(params.id, updateData);
     return NextResponse.json({ flow: updated });
   } catch (e) {
     console.error("更新工作流失败:", e);
@@ -79,20 +81,16 @@ export async function DELETE(
   { params }: { params: { id: string } }
 ) {
   try {
-    const flows = await readFlows();
-    const idx = flows.findIndex((f) => f.id === params.id);
-    if (idx === -1) {
+    const existing = await getFlowById(params.id);
+    if (!existing) {
       return NextResponse.json(
         { error: `未找到工作流：${params.id}` },
         { status: 404 }
       );
     }
 
-    const removed = flows[idx];
-    flows.splice(idx, 1);
-    await writeFlows(flows);
-
-    return NextResponse.json({ flow: removed });
+    await deleteFlow(params.id);
+    return NextResponse.json({ flow: existing });
   } catch (e) {
     console.error("删除工作流失败:", e);
     return NextResponse.json(

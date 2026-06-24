@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { hasAIEmbedding } from "@/lib/ai";
+import { requireAdmin } from "@/lib/auth-utils";
 
 // 性能监控 / 诊断 API
 // 返回：数据库表计数、Embedding 缓存命中率、Flows 调度器状态、系统运行时间
@@ -8,6 +9,9 @@ export const dynamic = "force-dynamic";
 
 export async function GET() {
   try {
+    const { error } = await requireAdmin();
+    if (error) return error;
+
     const startTime = Date.now();
 
     // 1. 数据库表计数（含新增的 ChatSession/ChatMessage/EmbeddingCache）

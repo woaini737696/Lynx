@@ -1106,7 +1106,7 @@ export default function MemoryPage() {
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
         {/* 左侧 3D 图谱（占 2/3 宽度） */}
-        <Card className="col-span-1 p-0 overflow-hidden lg:col-span-2">
+        <Card className="col-span-1 overflow-x-auto p-0 lg:col-span-2">
           {loading ? (
             <div className="flex h-[540px] flex-col items-center justify-center gap-3">
               <Skeleton className="h-64 w-64 rounded-full" />

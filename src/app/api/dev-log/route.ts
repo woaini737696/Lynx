@@ -1,11 +1,15 @@
 import { NextResponse } from "next/server";
 import * as fs from "fs";
 import * as path from "path";
+import { requireAuth } from "@/lib/auth-utils";
 
 // GET /api/dev-log
 // 读取项目根目录的 DEV_LOG.md 文件内容
 export async function GET() {
   try {
+    const { error } = await requireAuth();
+    if (error) return error;
+
     const logPath = path.join(process.cwd(), "DEV_LOG.md");
     const content = fs.readFileSync(logPath, "utf-8");
     return NextResponse.json({ content, path: "DEV_LOG.md" });

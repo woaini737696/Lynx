@@ -1,14 +1,21 @@
 import { NextRequest, NextResponse } from "next/server";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
+import { requireAuth, buildUserFilter } from "@/lib/auth-utils";
 
 // GET /api/skills?category=xxx - 列表（支持分类筛选）
 export async function GET(req: NextRequest) {
   try {
+    const { user, error } = await requireAuth();
+    if (error) return error;
+
     const { searchParams } = new URL(req.url);
     const category = searchParams.get("category");
 
-    const where = category && category !== "all" ? { category } : {};
+    const where = {
+      ...(category && category !== "all" ? { category } : {}),
+      ...buildUserFilter(user),
+    };
 
     const skills = await prisma.skill.findMany({
       where,
@@ -25,6 +32,9 @@ export async function GET(req: NextRequest) {
 // POST /api/skills - 创建 Skill
 export async function POST(req: NextRequest) {
   try {
+    const { user, error } = await requireAuth();
+    if (error) return error;
+
     const body = await req.json();
     const {
       name,
@@ -57,6 +67,7 @@ export async function POST(req: NextRequest) {
         promptTemplate,
         source,
         tags,
+        userId: user.id,
       },
     });
 

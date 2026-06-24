@@ -10,6 +10,32 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+// 用户系统
+model User {
+  id           String   @id @default(cuid())
+  username     String   @unique @db.VarChar(64)
+  passwordHash String   @db.VarChar(255)
+  email        String?  @unique @db.VarChar(255)
+  displayName  String   @default("") @db.VarChar(100)
+  role         String   @default("viewer") // admin | editor | viewer
+  active       Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  ideas         Idea[]
+  conversations Conversation[]
+  tasks         Task[]
+  memories      Memory[]
+  cognitions    Cognition[]
+  dailyFocuses  DailyFocus[]
+  skills        Skill[]
+  skillReviews  SkillReview[]
+  chatSessions  ChatSession[]
+  flows         Flow[]
+  flowExecutions FlowExecution[]
+  pushSubscriptions PushSubscription[]
+}
+
 // 灵感 - 闪电输入源头
 model Idea {
   id        String   @id @default(cuid())
@@ -17,10 +43,11 @@ model Idea {
   source    String   @default("lightning") // lightning | conversation
   status    String   @default("inbox") // inbox | board | graveyard
   tags      Json     @default("[]")
-  embedding Bytes?   @db.LongBlob
+  userId    String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  user       User?        @relation(fields: [userId], references: [id])
   tasks      Task[]
   memories   Memory[]
   graveyard  Graveyard?
@@ -28,6 +55,7 @@ model Idea {
 
   @@index([status])
   @@index([createdAt])
+  @@index([userId])
 }
 
 // 对话资产 - Kimi/Claude/Codex 捕获
@@ -41,14 +69,16 @@ model Conversation {
   prompts     Json     @default("[]")
   data        Json     @default("[]")
   capturedAt  DateTime @default(now())
-  embedding   Bytes?   @db.LongBlob
+  userId      String?
   createdAt   DateTime @default(now())
 
-  memories   Memory[]
-  cognitions Cognition[]
+  user        User?         @relation(fields: [userId], references: [id])
+  memories    Memory[]
+  cognitions  Cognition[]
 
   @@index([source])
   @@index([capturedAt])
+  @@index([userId])
 }
 
 // 决策看板任务
@@ -59,14 +89,17 @@ model Task {
   position  Int      @default(0)
   status    String   @default("active") // active | done | dropped
   sourceId  String?
+  userId    String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   idea Idea? @relation(fields: [sourceId], references: [id])
+  user User? @relation(fields: [userId], references: [id])
 
   dailyFocusItems DailyFocusItem[]
 
   @@index([column, status])
+  @@index([userId])
 }
 
 // 记忆节点 - 图谱
@@ -80,13 +113,16 @@ model Memory {
   embedding       Bytes?   @db.LongBlob
   connections     Json     @default("[]") // [memoryId, ...]
   strength        Float    @default(1.0)
+  userId          String?
   createdAt       DateTime @default(now())
 
   idea         Idea?         @relation(fields: [ideaId], references: [id])
   conversation Conversation? @relation(fields: [conversationId], references: [id])
   cognition    Cognition?    @relation(fields: [cognitionId], references: [id])
+  user         User?         @relation(fields: [userId], references: [id])
 
   @@index([type])
+  @@index([userId])
 }
 
 // 灵感墓地
@@ -112,14 +148,16 @@ model Cognition {
   ideaId        String?
   conversationId String?
   tags          Json     @default("[]")
-  embedding     Bytes?   @db.LongBlob
+  userId        String?
   createdAt     DateTime @default(now())
 
   idea         Idea?         @relation(fields: [ideaId], references: [id])
   conversation Conversation? @relation(fields: [conversationId], references: [id])
   memories     Memory[]
+  user         User?         @relation(fields: [userId], references: [id])
 
   @@index([type])
+  @@index([userId])
 }
 
 // 今日聚焦
@@ -129,10 +167,13 @@ model DailyFocus {
   cardIds     Json     @default("[]") // [taskId, taskId, taskId]
   generatedAt DateTime @default(now())
   status      String   @default("pending") // pending | completed
+  userId      String?
 
+  user  User?            @relation(fields: [userId], references: [id])
   items DailyFocusItem[]
 
   @@index([date])
+  @@index([userId])
 }
 
 model DailyFocusItem {
@@ -158,13 +199,16 @@ model Skill {
   source      String   @default("manual")  // manual | imported | ai-generated
   tags        Json     @default("[]")
   usageCount  Int      @default(0)
+  userId      String?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
+  user    User?          @relation(fields: [userId], references: [id])
   versions SkillVersion[]
 
   @@index([category])
   @@index([source])
+  @@index([userId])
 }
 
 // Skill 版本历史
@@ -194,10 +238,14 @@ model SkillReview {
   rating    Int      // 1-5 星
   comment   String   @db.Text
   author    String   @default("匿名用户")
+  userId    String?
   createdAt DateTime @default(now())
+
+  user User? @relation(fields: [userId], references: [id])
 
   @@index([skillId])
   @@index([rating])
+  @@index([userId])
 }
 
 // 飞书任务（数据库持久化缓存）
@@ -316,13 +364,16 @@ model ChatSession {
   provider  String   @default("deepseek") @db.VarChar(32)
   model     String?  @db.VarChar(64)
   pinned    Boolean  @default(false)
+  userId    String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  user     User?         @relation(fields: [userId], references: [id])
   messages ChatMessage[]
 
   @@index([pinned])
   @@index([updatedAt])
+  @@index([userId])
 }
 
 // AI 助理对话消息
@@ -342,4 +393,59 @@ model ChatMessage {
 
   @@index([sessionId])
   @@index([createdAt])
+}
+
+// AI 工作流（从 .ai-flows.json 迁移到 MySQL）
+model Flow {
+  id          String   @id @default(cuid())
+  name        String   @db.VarChar(200)
+  description String   @db.Text
+  nodes       Json     // FlowNode[]
+  edges       Json     @default("[]") // FlowEdge[]
+  enabled     Boolean  @default(true)
+  lastRun     DateTime?
+  userId      String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  user        User?            @relation(fields: [userId], references: [id])
+  executions  FlowExecution[]
+
+  @@index([userId])
+  @@index([enabled])
+}
+
+// 工作流执行历史
+model FlowExecution {
+  id              String   @id @default(cuid())
+  flowId          String
+  flowName        String   @db.VarChar(200)
+  success         Boolean
+  startedAt       DateTime @default(now())
+  finishedAt      DateTime?
+  totalDurationMs Int      @default(0)
+  finalOutput     String?  @db.LongText
+  nodeResults     Json     // 节点执行结果数组
+  error           String?  @db.Text
+  userId          String?
+
+  flow Flow @relation(fields: [flowId], references: [id], onDelete: Cascade)
+  user User? @relation(fields: [userId], references: [id])
+
+  @@index([flowId])
+  @@index([startedAt])
+  @@index([userId])
+}
+
+// Web Push 推送订阅
+model PushSubscription {
+  id        String   @id @default(cuid())
+  endpoint  String   @unique
+  keys      Json     // { p256dh, auth }
+  userId    String?
+  createdAt DateTime @default(now())
+
+  user User? @relation(fields: [userId], references: [id])
+
+  @@index([userId])
 }

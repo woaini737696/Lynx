@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
+import { requireAuth } from "@/lib/auth-utils";
 
 // POST /api/ai/chat/sessions/[id]/messages - 向会话追加消息
 // body: { role, content, images?, provider?, model?, tokens?, durationMs? }
@@ -9,16 +10,22 @@ export async function POST(
   { params }: { params: { id: string } }
 ) {
   try {
-    // 验证会话存在
+    const { user, error } = await requireAuth();
+    if (error) return error;
+
+    // 验证会话存在且归属权
     const session = await prisma.chatSession.findUnique({
       where: { id: params.id },
-      select: { id: true },
+      select: { id: true, userId: true },
     });
     if (!session) {
       return NextResponse.json(
         { error: `未找到会话：${params.id}` },
         { status: 404 }
       );
+    }
+    if (user.role !== "admin" && session.userId !== user.id) {
+      return NextResponse.json({ error: "无权访问" }, { status: 403 });
     }
 
     const body = await req.json();

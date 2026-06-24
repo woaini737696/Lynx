@@ -7,19 +7,27 @@ import {
   cosineSimilarity,
 } from "@/lib/embedding";
 import { hasAIEmbedding } from "@/lib/ai";
+import { requireAuth, buildUserFilter } from "@/lib/auth-utils";
 
 // 重建记忆图谱：从 Idea/Conversation/Cognition 同步到 Memory 表，生成 embedding，计算相似度连边
 export async function POST(req: NextRequest) {
   try {
+    const { user, error } = await requireAuth();
+    if (error) return error;
+
     const { force } = await req.json().catch(() => ({ force: false }));
+
+    // 非 admin 只处理自己的数据，admin 处理所有
+    const userFilter = buildUserFilter(user);
 
     // 1. 收集所有源数据
     const [ideas, conversations, cognitions] = await Promise.all([
-      prisma.idea.findMany({ select: { id: true, content: true } }),
+      prisma.idea.findMany({ where: userFilter, select: { id: true, content: true, userId: true } }),
       prisma.conversation.findMany({
-        select: { id: true, title: true, rawContent: true },
+        where: userFilter,
+        select: { id: true, title: true, rawContent: true, userId: true },
       }),
-      prisma.cognition.findMany({ select: { id: true, content: true } }),
+      prisma.cognition.findMany({ where: userFilter, select: { id: true, content: true, userId: true } }),
     ]);
 
     type SourceItem = {
@@ -29,6 +37,7 @@ export async function POST(req: NextRequest) {
       ideaId?: string;
       conversationId?: string;
       cognitionId?: string;
+      userId?: string | null;
     };
 
     const sources: SourceItem[] = [
@@ -37,18 +46,21 @@ export async function POST(req: NextRequest) {
         type: "idea" as const,
         content: i.content,
         ideaId: i.id,
+        userId: i.userId,
       })),
       ...conversations.map((c) => ({
         id: c.id,
         type: "conversation" as const,
         content: `${c.title}\n${c.rawContent}`.slice(0, 8000),
         conversationId: c.id,
+        userId: c.userId,
       })),
       ...cognitions.map((c) => ({
         id: c.id,
         type: "cognition" as const,
         content: c.content,
         cognitionId: c.id,
+        userId: c.userId,
       })),
     ];
 
@@ -89,6 +101,7 @@ export async function POST(req: NextRequest) {
         ideaId: src.ideaId || null,
         conversationId: src.conversationId || null,
         cognitionId: src.cognitionId || null,
+        userId: src.userId || user.id,
       };
 
       if (existing) {
@@ -105,6 +118,7 @@ export async function POST(req: NextRequest) {
     // 3. 计算相似度连边（>0.8 自动连边，AI 模式；TF-IDF 模式 >0.3）
     const threshold = hasAIEmbedding ? 0.8 : 0.3;
     const allMemories = await prisma.memory.findMany({
+      where: userFilter,
       select: { id: true, embedding: true },
     });
 
@@ -152,7 +166,11 @@ export async function POST(req: NextRequest) {
 // 获取记忆图谱数据（节点 + 边）
 export async function GET() {
   try {
+    const { user, error } = await requireAuth();
+    if (error) return error;
+
     const memories = await prisma.memory.findMany({
+      where: buildUserFilter(user),
       orderBy: { strength: "desc" },
       take: 100,
       include: {

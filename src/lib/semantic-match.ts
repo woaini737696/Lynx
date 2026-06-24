@@ -3,38 +3,40 @@
 
 import { embedMany } from "ai";
 import { embeddingProvider, embeddingModel, hasAIEmbedding } from "@/lib/ai";
+import { embedText, cosineSimilarity } from "@/lib/embedding";
 
 // 生成一批文本的 embedding
+// 有 AI key 时使用 embedMany 批量生成；无 AI key 时降级为 TF-IDF（通过 embedText）
 export async function generateEmbeddings(
   texts: string[]
-): Promise<number[][]> {
-  if (!hasAIEmbedding) return [];
+): Promise<Float32Array[]> {
   if (texts.length === 0) return [];
+
+  // TF-IDF 降级：使用 embedding.ts 的 embedText（内部走 tfidfVector）
+  if (!hasAIEmbedding) {
+    const results: Float32Array[] = [];
+    for (const t of texts) {
+      results.push(await embedText(t));
+    }
+    return results;
+  }
+
+  // AI 模式：批量生成
   try {
     const { embeddings } = await embedMany({
       model: embeddingProvider.embedding(embeddingModel),
       values: texts.map((t) => t.slice(0, 8000)),
     });
-    return embeddings;
+    return embeddings.map((e) => Float32Array.from(e));
   } catch (e) {
-    console.error("语义匹配 embedding 生成失败:", e);
-    return [];
+    console.error("语义匹配 embedding 生成失败，降级为 TF-IDF:", e);
+    // AI 失败时降级为 TF-IDF
+    const results: Float32Array[] = [];
+    for (const t of texts) {
+      results.push(await embedText(t));
+    }
+    return results;
   }
-}
-
-// 计算两个向量的余弦相似度
-export function cosineSimilarity(a: number[], b: number[]): number {
-  if (a.length !== b.length || a.length === 0) return 0;
-  let dot = 0;
-  let normA = 0;
-  let normB = 0;
-  for (let i = 0; i < a.length; i++) {
-    dot += a[i] * b[i];
-    normA += a[i] * a[i];
-    normB += b[i] * b[i];
-  }
-  const denom = Math.sqrt(normA) * Math.sqrt(normB);
-  return denom === 0 ? 0 : dot / denom;
 }
 
 // 批量计算条件与候选之间的语义匹配

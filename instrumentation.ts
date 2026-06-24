@@ -7,6 +7,11 @@ export async function register(): Promise<void> {
 
   // 动态导入避免 Edge bundle 问题
   const { startAllTriggers } = await import("./src/lib/flow-scheduler");
+  const { initializeDefaultFlows } = await import("./src/lib/flow-store");
+
+  // 初始化默认工作流（如果数据库为空，从 .ai-flows.json 迁移或创建默认数据）
+  await initializeDefaultFlows();
+
   await startAllTriggers();
   console.log("[instrumentation] Flows 触发器调度器已启动");
 }

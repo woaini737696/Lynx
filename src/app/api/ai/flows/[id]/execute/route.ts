@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { readFlows, writeFlows, type Flow } from "@/lib/flow-store";
+import { Prisma } from "@prisma/client";
+import { prisma } from "@/lib/db";
+import { getFlowById, updateFlow } from "@/lib/flow-store";
 import { executeFlowInternal } from "@/lib/flow-engine";
 
 // ============ API 路由 ============
@@ -11,8 +13,7 @@ export async function POST(
   { params }: { params: { id: string } }
 ) {
   try {
-    const flows = await readFlows();
-    const flow = flows.find((f) => f.id === params.id);
+    const flow = await getFlowById(params.id);
     if (!flow) {
       return NextResponse.json(
         { error: `未找到工作流：${params.id}` },
@@ -39,12 +40,31 @@ export async function POST(
     // 执行工作流
     const result = await executeFlowInternal(flow, initialInput);
 
-    // 更新 lastRun 时间
-    const idx = flows.findIndex((f) => f.id === params.id);
-    if (idx !== -1) {
-      flows[idx] = { ...flows[idx], lastRun: "刚刚" };
-      await writeFlows(flows);
+    // 提取错误信息（首个出错的节点）
+    const errorNode = result.nodes.find((n) => n.status === "error");
+
+    // 将执行结果保存到 FlowExecution 表
+    try {
+      await prisma.flowExecution.create({
+        data: {
+          flowId: result.flowId,
+          flowName: result.flowName,
+          success: result.success,
+          startedAt: new Date(result.startedAt),
+          finishedAt: new Date(result.finishedAt),
+          totalDurationMs: result.totalDurationMs,
+          finalOutput: result.finalOutput ?? null,
+          nodeResults: result.nodes as unknown as Prisma.InputJsonValue,
+          error: errorNode?.error ?? null,
+        },
+      });
+    } catch (e) {
+      // 执行历史保存失败不影响主流程
+      console.error("保存执行历史失败:", e);
     }
+
+    // 更新 lastRun 时间
+    await updateFlow(params.id, { lastRun: "刚刚" });
 
     return NextResponse.json({ result });
   } catch (e) {

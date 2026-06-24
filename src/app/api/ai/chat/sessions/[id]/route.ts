@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
+import { requireAuth } from "@/lib/auth-utils";
 
 // GET /api/ai/chat/sessions/[id] - 获取单个会话及其所有消息
 export async function GET(
@@ -7,6 +8,9 @@ export async function GET(
   { params }: { params: { id: string } }
 ) {
   try {
+    const { user, error } = await requireAuth();
+    if (error) return error;
+
     const session = await prisma.chatSession.findUnique({
       where: { id: params.id },
       include: {
@@ -21,6 +25,11 @@ export async function GET(
         { error: `未找到会话：${params.id}` },
         { status: 404 }
       );
+    }
+
+    // 验证归属权（admin 可访问所有）
+    if (user.role !== "admin" && session.userId !== user.id) {
+      return NextResponse.json({ error: "无权访问" }, { status: 403 });
     }
 
     return NextResponse.json({
@@ -58,6 +67,24 @@ export async function PUT(
   { params }: { params: { id: string } }
 ) {
   try {
+    const { user, error } = await requireAuth();
+    if (error) return error;
+
+    // 验证归属权
+    const existing = await prisma.chatSession.findUnique({
+      where: { id: params.id },
+      select: { id: true, userId: true },
+    });
+    if (!existing) {
+      return NextResponse.json(
+        { error: `未找到会话：${params.id}` },
+        { status: 404 }
+      );
+    }
+    if (user.role !== "admin" && existing.userId !== user.id) {
+      return NextResponse.json({ error: "无权访问" }, { status: 403 });
+    }
+
     const body = await req.json();
     const { title, pinned, provider, model } = body as {
       title?: string;
@@ -89,6 +116,24 @@ export async function DELETE(
   { params }: { params: { id: string } }
 ) {
   try {
+    const { user, error } = await requireAuth();
+    if (error) return error;
+
+    // 验证归属权
+    const existing = await prisma.chatSession.findUnique({
+      where: { id: params.id },
+      select: { id: true, userId: true },
+    });
+    if (!existing) {
+      return NextResponse.json(
+        { error: `未找到会话：${params.id}` },
+        { status: 404 }
+      );
+    }
+    if (user.role !== "admin" && existing.userId !== user.id) {
+      return NextResponse.json({ error: "无权访问" }, { status: 403 });
+    }
+
     await prisma.chatSession.delete({
       where: { id: params.id },
     });

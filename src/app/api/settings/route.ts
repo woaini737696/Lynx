@@ -1,10 +1,14 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { hasAIEmbedding } from "@/lib/ai";
+import { requireAuth } from "@/lib/auth-utils";
 
 // 获取系统配置状态（不暴露 key 本身，只返回是否已配置）
 export async function GET() {
   try {
+    const { error } = await requireAuth();
+    if (error) return error;
+
     // 检测数据库连接
     let dbStatus: "connected" | "error" = "error";
     let dbCounts: Record<string, number> = {};

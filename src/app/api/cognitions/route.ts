@@ -3,11 +3,16 @@ import { prisma } from "@/lib/db";
 import { ai, defaultModel, COGNITION_EXTRACT_PROMPT } from "@/lib/ai";
 import { generateText } from "ai";
 import { writeMemoryForCognition } from "@/lib/memory-sync";
+import { requireAuth, buildUserFilter } from "@/lib/auth-utils";
 
 // 获取认知库
 export async function GET() {
   try {
+    const { user, error } = await requireAuth();
+    if (error) return error;
+
     const cognitions = await prisma.cognition.findMany({
+      where: buildUserFilter(user),
       orderBy: { createdAt: "desc" },
       take: 50,
     });
@@ -21,6 +26,9 @@ export async function GET() {
 // 从内容提取认知（AI）
 export async function POST(req: NextRequest) {
   try {
+    const { user, error } = await requireAuth();
+    if (error) return error;
+
     const { content, source = "manual" } = await req.json();
 
     if (!content) {
@@ -50,21 +58,21 @@ export async function POST(req: NextRequest) {
     const created = [];
     for (const item of extracted.method) {
       const c = await prisma.cognition.create({
-        data: { type: "method", content: item.content, source, tags: [] },
+        data: { type: "method", content: item.content, source, tags: [], userId: user.id },
       });
       created.push(c);
       writeMemoryForCognition(c.id, c.content).catch(() => {});
     }
     for (const item of extracted.experience) {
       const c = await prisma.cognition.create({
-        data: { type: "experience", content: item.content, source, tags: [] },
+        data: { type: "experience", content: item.content, source, tags: [], userId: user.id },
       });
       created.push(c);
       writeMemoryForCognition(c.id, c.content).catch(() => {});
     }
     for (const item of extracted.prompt) {
       const c = await prisma.cognition.create({
-        data: { type: "prompt", content: item.content, source, tags: [] },
+        data: { type: "prompt", content: item.content, source, tags: [], userId: user.id },
       });
       created.push(c);
       writeMemoryForCognition(c.id, c.content).catch(() => {});

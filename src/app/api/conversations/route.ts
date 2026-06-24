@@ -4,6 +4,10 @@ import { ai, defaultModel, EXTRACT_PROMPT } from "@/lib/ai";
 import { generateText } from "ai";
 import { writeMemoryForConversation } from "@/lib/memory-sync";
 import { parsePdf } from "@/lib/file-parser";
+import { requireAuth, buildUserFilter } from "@/lib/auth-utils";
+import { getLogger } from "@/lib/logger";
+
+const logger = getLogger("conversations-api");
 
 // 不进行 AI 提取的文件类型（无有效文本内容）
 const NO_EXTRACT_SOURCES = new Set(["file-image"]);
@@ -46,7 +50,7 @@ async function aiFallbackExtractPdf(filename: string, snippet: string): Promise<
     });
     return `[AI 视觉降级推断] ${filename}\n${result.text}`;
   } catch (e) {
-    console.error("AI 视觉降级失败:", e);
+    logger.error({ err: e }, "AI 视觉降级失败");
     return `[PDF 解析失败] ${filename}\n本地与 AI 降级均失败。\n片段：${snippet.slice(0, 200)}`;
   }
 }
@@ -54,6 +58,9 @@ async function aiFallbackExtractPdf(filename: string, snippet: string): Promise<
 // 捕获对话资产 + AI 提取
 export async function POST(req: NextRequest) {
   try {
+    const { user, error } = await requireAuth();
+    if (error) return error;
+
     const body = await req.json();
     const { source, title, rawContent, useAI } = body;
     // PDF 专用字段：base64 编码的文件数据
@@ -80,7 +87,7 @@ export async function POST(req: NextRequest) {
         finalContent = await parsePdf(buffer);
         pdfParseStatus = "local";
       } catch (e) {
-        console.error("本地 PDF 解析失败，尝试 AI 降级:", e);
+        logger.error({ err: e }, "本地 PDF 解析失败，尝试 AI 降级");
         const snippet = (rawContent || "").slice(0, 1000);
         finalContent = await aiFallbackExtractPdf(filename || "unknown.pdf", snippet);
         pdfParseStatus = finalContent.startsWith("[AI 视觉降级推断]") ? "ai-fallback" : "failed";
@@ -110,7 +117,7 @@ export async function POST(req: NextRequest) {
         prompts = extracted.prompts || [];
         data = extracted.data || [];
       } catch (e) {
-        console.error("AI 提取失败，使用空结果:", e);
+        logger.error({ err: e }, "AI 提取失败，使用空结果");
       }
     }
 
@@ -123,6 +130,7 @@ export async function POST(req: NextRequest) {
         todos,
         prompts,
         data,
+        userId: user.id,
       },
     });
 
@@ -139,7 +147,7 @@ export async function POST(req: NextRequest) {
       pdfParseStatus,
     });
   } catch (e) {
-    console.error("捕获对话失败:", e);
+    logger.error({ err: e }, "捕获对话失败");
     return NextResponse.json({ error: "服务器错误" }, { status: 500 });
   }
 }
@@ -147,13 +155,17 @@ export async function POST(req: NextRequest) {
 // 获取对话资产列表
 export async function GET() {
   try {
+    const { user, error } = await requireAuth();
+    if (error) return error;
+
     const conversations = await prisma.conversation.findMany({
+      where: buildUserFilter(user),
       orderBy: { capturedAt: "desc" },
       take: 30,
     });
     return NextResponse.json({ conversations });
   } catch (e) {
-    console.error("获取对话失败:", e);
+    logger.error({ err: e }, "获取对话失败");
     return NextResponse.json({ error: "服务器错误" }, { status: 500 });
   }
 }

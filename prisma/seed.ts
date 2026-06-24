@@ -1,4 +1,5 @@
 import { PrismaClient, Prisma } from "@prisma/client";
+import bcrypt from "bcryptjs";
 
 const prisma = new PrismaClient();
 
@@ -20,6 +21,20 @@ function daysAhead(days: number): Date {
 
 async function main() {
   console.log("🌱 开始 seed LynnHub 全量数据 (MySQL)...");
+
+  // ============ 0. 创建 admin 用户 ============
+  const adminPasswordHash = await bcrypt.hash("admin123", 10);
+  await prisma.user.deleteMany({});
+  const adminUser = await prisma.user.create({
+    data: {
+      username: "admin",
+      passwordHash: adminPasswordHash,
+      email: "admin@lynnhub.local",
+      displayName: "管理员",
+      role: "admin",
+    },
+  });
+  console.log("  ✓ 创建 admin 用户 (admin/admin123)");
 
   // ============ 清空旧数据（按外键依赖顺序） ============
   await prisma.dailyFocusItem.deleteMany();
@@ -59,6 +74,7 @@ async function main() {
         source: i % 3 === 0 ? "conversation" : "lightning",
         status: d.status,
         tags: d.tags,
+        userId: adminUser.id,
         createdAt: daysAgo(Math.floor(i * 2.5)),
       },
     });
@@ -103,6 +119,7 @@ async function main() {
         position,
         status: t.status,
         sourceId,
+        userId: adminUser.id,
         createdAt: daysAgo(Math.floor(i * 1.8)),
       },
     });
@@ -171,6 +188,7 @@ async function main() {
         todos: c.todos,
         prompts: c.prompts,
         data: c.data,
+        userId: adminUser.id,
         capturedAt: daysAgo(Math.floor(i * 3)),
       },
     });
@@ -204,6 +222,7 @@ async function main() {
         ideaId,
         conversationId,
         tags: c.tags,
+        userId: adminUser.id,
         createdAt: daysAgo(Math.floor(i * 2)),
       },
     });
@@ -270,6 +289,7 @@ async function main() {
         content,
         connections: [], // 先创建，后面再更新连接
         strength: m.strength,
+        userId: adminUser.id,
         createdAt: daysAgo(Math.floor(i * 1.2)),
       },
     });
@@ -325,6 +345,7 @@ async function main() {
         source: "lightning",
         status: "graveyard",
         tags: ["墓地"],
+        userId: adminUser.id,
         createdAt: daysAgo(25 - i * 3),
       },
     });
@@ -449,6 +470,7 @@ async function main() {
         source: i % 3 === 0 ? "ai-generated" : i % 3 === 1 ? "manual" : "imported",
         tags: s.tags,
         usageCount: Math.floor(Math.random() * 50),
+        userId: adminUser.id,
         createdAt,
         updatedAt: daysAgo(Math.max(0, 28 - i * 2 - 5)),
       },
@@ -510,6 +532,7 @@ async function main() {
         rating,
         comment: reviewComments[i],
         author: authors[i % authors.length],
+        userId: adminUser.id,
         createdAt: daysAgo(Math.floor(i * 1.3)),
       },
     });
@@ -728,6 +751,7 @@ async function main() {
         cardIds: focusTasks.map((t) => t.id),
         generatedAt: new Date(),
         status: "pending",
+        userId: adminUser.id,
       },
     });
     await Promise.all(
