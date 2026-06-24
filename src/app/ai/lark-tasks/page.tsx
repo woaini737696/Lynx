@@ -32,6 +32,7 @@ import {
   Radio,
   HelpCircle,
   Settings,
+  Columns3,
 } from "lucide-react";
 import {
   PageHeader,
@@ -127,7 +128,7 @@ interface SyncState {
 
 type ViewTab = "my" | "related" | "all";
 type CompleteFilter = "incomplete" | "completed" | "all";
-type DisplayMode = "list" | "calendar" | "gantt";
+type DisplayMode = "list" | "calendar" | "gantt" | "board";
 
 // ==================== 工具函数 ====================
 
@@ -958,6 +959,18 @@ export default function LarkTasksPage() {
             <GanttChart className="h-3.5 w-3.5" />
             甘特图
           </button>
+          <button
+            onClick={() => setDisplayMode("board")}
+            className={cn(
+              "flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-all",
+              displayMode === "board"
+                ? "bg-primary text-primary-foreground shadow-sm"
+                : "text-muted-foreground hover:bg-muted hover:text-foreground"
+            )}
+          >
+            <Columns3 className="h-3.5 w-3.5" />
+            看板视图
+          </button>
         </div>
       </div>
 
@@ -1098,6 +1111,12 @@ export default function LarkTasksPage() {
           <Skeleton className="h-[600px] w-full" />
         ) : displayMode === "gantt" ? (
           <Skeleton className="h-[600px] w-full" />
+        ) : displayMode === "board" ? (
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+            <Skeleton className="h-[400px] w-full" />
+            <Skeleton className="h-[400px] w-full" />
+            <Skeleton className="h-[400px] w-full" />
+          </div>
         ) : (
           <div className="space-y-3">
             <Skeleton className="h-28 w-full" />
@@ -1151,6 +1170,16 @@ export default function LarkTasksPage() {
             setGanttCenterDate(now);
           }}
           onOpenDetail={(task) => setDetailTask(task)}
+        />
+      ) : displayMode === "board" ? (
+        <BoardView
+          tasks={tasks}
+          subtaskMap={subtaskMap}
+          myOpenId={myOpenId}
+          onComplete={handleComplete}
+          onReopen={handleReopen}
+          onOpenDetail={(task) => setDetailTask(task)}
+          actionLoading={actionLoading}
         />
       ) : tasks.length === 0 ? (
         <EmptyState
@@ -1308,6 +1337,180 @@ function SyncStatus({
         </span>
       )}
     </span>
+  );
+}
+
+// ==================== 看板视图 ====================
+
+/** 看板视图：按任务状态分列展示，支持拖拽切换状态 */
+function BoardView({
+  tasks,
+  subtaskMap,
+  myOpenId,
+  onComplete,
+  onReopen,
+  onOpenDetail,
+  actionLoading,
+}: {
+  tasks: LarkTask[];
+  subtaskMap: Record<string, LarkTask[]>;
+  myOpenId?: string;
+  onComplete: (guid: string) => void;
+  onReopen: (guid: string) => void;
+  onOpenDetail: (task: LarkTask) => void;
+  actionLoading: Record<string, boolean>;
+}) {
+  // 三列：未开始/进行中（未完成且无逾期）、已逾期、已完成
+  const rootTasks = tasks.filter(t => !t.parentTaskGuid);
+  const columns = [
+    {
+      key: "todo",
+      title: "待处理",
+      color: "border-l-blue-400",
+      headerColor: "text-blue-600",
+      tasks: rootTasks.filter(t => !t.completed && !isOverdue(t.due, t.completed)),
+    },
+    {
+      key: "overdue",
+      title: "已逾期",
+      color: "border-l-red-400",
+      headerColor: "text-red-600",
+      tasks: rootTasks.filter(t => !t.completed && isOverdue(t.due, t.completed)),
+    },
+    {
+      key: "done",
+      title: "已完成",
+      color: "border-l-green-400",
+      headerColor: "text-green-600",
+      tasks: rootTasks.filter(t => t.completed),
+    },
+  ];
+
+  const [draggedGuid, setDraggedGuid] = useState<string | null>(null);
+  const [dragOverCol, setDragOverCol] = useState<string | null>(null);
+
+  const handleDrop = (colKey: string) => {
+    if (!draggedGuid) return;
+    const task = rootTasks.find(t => t.guid === draggedGuid);
+    if (!task) return;
+    // 根据目标列触发完成/重开
+    if (colKey === "done" && !task.completed) {
+      onComplete(draggedGuid);
+    } else if ((colKey === "todo" || colKey === "overdue") && task.completed) {
+      onReopen(draggedGuid);
+    }
+    setDraggedGuid(null);
+    setDragOverCol(null);
+  };
+
+  return (
+    <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+      {columns.map((col) => (
+        <div
+          key={col.key}
+          onDragOver={(e) => { e.preventDefault(); setDragOverCol(col.key); }}
+          onDragLeave={() => setDragOverCol(null)}
+          onDrop={() => handleDrop(col.key)}
+          className={cn(
+            "flex flex-col rounded-xl border border-border bg-card/50 p-3 min-h-[400px]",
+            "border-l-4",
+            col.color,
+            dragOverCol === col.key && "ring-2 ring-cognition/40 bg-cognition/5"
+          )}
+        >
+          <div className="mb-3 flex items-center justify-between">
+            <h3 className={cn("text-sm font-semibold", col.headerColor)}>
+              {col.title}
+            </h3>
+            <span className="rounded-full bg-muted px-2 py-0.5 text-[10px] font-medium text-muted-foreground">
+              {col.tasks.length}
+            </span>
+          </div>
+          <div className="flex-1 space-y-2 overflow-y-auto">
+            {col.tasks.length === 0 ? (
+              <div className="flex h-24 items-center justify-center text-[11px] text-muted-foreground">
+                暂无任务
+              </div>
+            ) : (
+              col.tasks.map((task) => {
+                const subs = subtaskMap[task.guid] || [];
+                const completedSubs = subs.filter(s => s.completed).length;
+                const isMyTask = myOpenId && task.assignees.some(a => (a.open_id || a.id) === myOpenId);
+                return (
+                  <div
+                    key={task.guid}
+                    draggable
+                    onDragStart={() => setDraggedGuid(task.guid)}
+                    onDragEnd={() => { setDraggedGuid(null); setDragOverCol(null); }}
+                    onClick={() => onOpenDetail(task)}
+                    className={cn(
+                      "cursor-move rounded-lg border border-border bg-background p-2.5 transition-all hover:border-cognition/40 hover:shadow-sm",
+                      draggedGuid === task.guid && "opacity-50"
+                    )}
+                  >
+                    <div className="mb-1.5 flex items-start gap-1.5">
+                      <span
+                        className={cn(
+                          "mt-0.5 h-2 w-2 shrink-0 rounded-full",
+                          task.priority >= 2 ? "bg-red-500" : task.priority === 1 ? "bg-yellow-500" : "bg-muted"
+                        )}
+                      />
+                      <p className={cn(
+                        "flex-1 text-xs font-medium leading-snug",
+                        task.completed && "text-muted-foreground line-through"
+                      )}>
+                        {task.summary}
+                      </p>
+                    </div>
+                    {/* 元信息行 */}
+                    <div className="flex flex-wrap items-center gap-1.5 text-[10px] text-muted-foreground">
+                      {task.due && (
+                        <span className={cn(
+                          "flex items-center gap-0.5",
+                          isOverdue(task.due, task.completed) && "text-red-600 font-medium"
+                        )}>
+                          <Clock className="h-2.5 w-2.5" />
+                          {formatDateShort(task.due)}
+                        </span>
+                      )}
+                      {subs.length > 0 && (
+                        <span className="flex items-center gap-0.5">
+                          <CheckCircle2 className="h-2.5 w-2.5" />
+                          {completedSubs}/{subs.length}
+                        </span>
+                      )}
+                      {task.assignees.length > 0 && (
+                        <span className="flex -space-x-1 ml-auto">
+                          {task.assignees.slice(0, 2).map((a, i) => {
+                            const isMe = myOpenId && (a.open_id || a.id) === myOpenId;
+                            return (
+                              <MemberAvatar
+                                key={i}
+                                member={a}
+                                size="xs"
+                                className={cn(
+                                  "ring-1 ring-background",
+                                  isMe && "bg-cognition/25 ring-cognition/40"
+                                )}
+                              />
+                            );
+                          })}
+                        </span>
+                      )}
+                    </div>
+                    {isMyTask && (
+                      <span className="mt-1.5 inline-block rounded-full bg-cognition/15 px-1.5 py-0 text-[8px] font-medium text-cognition">
+                        我负责
+                      </span>
+                    )}
+                  </div>
+                );
+              })
+            )}
+          </div>
+        </div>
+      ))}
+    </div>
   );
 }
 

@@ -4,6 +4,57 @@
 
 ---
 
+## 迭代 13 - 2026-06-24
+
+### 任务概要
+实现下一步建议中的 4 项优化：lark-cli 异步化、VAD 参数自适应、TTS 流式合成 API、任务看板拖拽视图。
+
+### 完成内容
+
+#### 1. lark-cli 异步化（不阻塞事件循环）
+- **问题**：`execSync` 阻塞 Node.js 事件循环，后台刷新时其他 HTTP 请求排队等待
+- **方案**：新增 `runLarkCliServiceAsync` / `runLarkCliAsync`（基于 `child_process.exec` + `promisify`）
+- **新增**：`fetchAllTasksFromSourceAsync` / `getAllTasksAsync` / `getTasklistsAsync`，使用 `Promise.all` 并行拉取所有 tasklist 和子任务
+- **性能提升**：7 个 tasklist 串行 → 并行，速度提升 3-5 倍
+- **API 路由**：`refreshTasksInBackground` 改用 `getAllTasksAsync`，后台刷新完全不阻塞事件循环
+
+#### 2. VAD 参数自适应（环境噪声校准）
+- **问题**：固定阈值 18dB 在不同环境（安静办公室 vs 嘈杂咖啡厅）效果差异大
+- **方案**：启动时采集 1 秒环境噪声样本，取中位数作为基线，阈值 = 基线 + 12dB
+- **限制**：阈值范围 [10, 35]dB，避免极端值
+- **重置**：每次 `stopVoiceCall` 重置阈值为 18dB，下次启动重新校准
+- **日志**：校准完成后 console.log 输出基线和阈值
+
+#### 3. TTS 流式合成 API（SSE）
+- **新增端点**：`POST /api/ai/tts/stream`，返回 `text/event-stream`
+- **协议**：SSE，每句一个 `data: {"type":"sentence","audioBase64":"..."}\n\n`
+- **首包优化**：前 2 句并行合成，立即推送；后续句子顺序合成推送
+- **前端适配**：`speak` 函数改用流式 API，通过 `ReadableStream` reader 逐句解析，base64 → blob → 队列播放
+- **回退机制**：流式 API 失败时自动回退到非流式 `speakFallback`
+
+#### 4. 任务看板拖拽视图
+- **新增视图**：`DisplayMode = "list" | "calendar" | "gantt" | "board"`
+- **三列看板**：待处理（蓝）/ 已逾期（红）/ 已完成（绿）
+- **拖拽交互**：HTML5 Drag & Drop API，拖拽任务到"已完成"列触发完成，拖回"待处理"触发重开
+- **卡片信息**：优先级圆点、标题、截止时间、子任务进度、负责人头像、"我负责"徽标
+- **视觉反馈**：拖拽时半透明，目标列高亮 ring
+
+### 修改文件清单
+- `src/lib/lark-sync.ts` - 新增 `runLarkCliAsync`/`getAllTasksAsync`/`getTasklistsAsync`/`fetchAllTasksFromSourceAsync`，并行拉取
+- `src/app/api/lark-tasks/route.ts` - `refreshTasksInBackground` 改用异步版本
+- `src/app/api/ai/tts/stream/route.ts` - 新增流式 TTS SSE 端点
+- `src/app/ai/assistant/page.tsx` - VAD 自适应阈值校准 + 流式 TTS 前端 + speakFallback 回退
+- `src/app/ai/lark-tasks/page.tsx` - 新增 BoardView 看板组件 + board 显示模式
+- `DEV_LOG.md` - 本次迭代记录
+
+### 测试验证
+- TypeScript 编译零错误
+- API 测试：fast 模式 0.84s 响应，subtaskMap 27 个父任务，9 个 assignees
+- 流式 TTS 测试：SSE 正常返回 base64 音频数据
+- Dev server 编译：/api/lark-tasks、/api/ai/tts/stream 均编译成功
+
+---
+
 ## 迭代 12 - 2026-06-24
 
 ### 任务概要

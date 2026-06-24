@@ -4,6 +4,7 @@ import {
   getMyTasks,
   getRelatedTasks,
   getAllTasks,
+  getAllTasksAsync,
   createTask,
   extractAssignees,
   extractTasklists,
@@ -33,12 +34,13 @@ function buildSubtaskMap(allTasks: NormalizedTask[]): Record<string, NormalizedT
   return map;
 }
 
-/** 后台刷新任务（不阻塞响应）：从 lark-cli 拉取并写入 DB */
-function refreshTasksInBackground() {
+/** 后台异步刷新任务（不阻塞响应、不阻塞事件循环）：从 lark-cli 拉取并写入 DB */
+async function refreshTasksInBackground() {
   try {
-    const result = getAllTasks({ refresh: true });
+    // 使用异步版本，避免 execSync 阻塞 Node.js 事件循环
+    const result = await getAllTasksAsync({ refresh: true });
     if (result.ok && result.allTasks.length > 0) {
-      upsertTasksToDb(result.allTasks).catch((e) => {
+      await upsertTasksToDb(result.allTasks).catch((e) => {
         console.error("[lark-tasks] 后台同步写入数据库失败:", e);
       });
     }

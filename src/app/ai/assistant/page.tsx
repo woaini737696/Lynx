@@ -294,6 +294,8 @@ export default function AIAssistantPage() {
   const vadSpeechStartRef = useRef(0); // 说话开始时间
   const vadChunksRef = useRef<Blob[]>([]); // 当前语音段的音频块
   const vadRecorderRef = useRef<MediaRecorder | null>(null);
+  const vadThresholdRef = useRef(18); // 自适应音量阈值（dB），初始值 18
+  const vadCalibratingRef = useRef(false); // 是否正在校准环境噪声
 
   // 流式 TTS 播放队列
   const ttsQueueRef = useRef<Array<{ url: string; text: string }>>([]);
@@ -470,7 +472,7 @@ export default function AIAssistantPage() {
     return merged.length > 0 ? merged : [text];
   };
 
-  /** 流式 TTS：按句子分块合成，队列播放，首包延迟 < 300ms */
+  /** 流式 TTS：通过 SSE 逐句接收音频，边接收边播放，首包延迟 < 300ms */
   const speak = useCallback(async (text: string, msgId?: string) => {
     stopSpeaking();
     ttsAbortRef.current = false;
@@ -478,10 +480,128 @@ export default function AIAssistantPage() {
     setTtsLoadingId(loadingId);
     if (msgId) setSpeakingId(msgId);
 
+    // 使用流式 TTS API（SSE）
+    try {
+      const res = await fetch("/api/ai/tts/stream", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text }),
+      });
+
+      if (!res.ok || !res.body) {
+        // 流式 API 失败时回退到非流式
+        setTtsLoadingId(null);
+        await speakFallback(text, msgId);
+        return;
+      }
+
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+      let firstSentenceReceived = false;
+      const audioQueue: Array<{ url: string; text: string }> = [];
+      let queuePlaying = false;
+
+      // 播放队列函数
+      const playQueue = async () => {
+        if (queuePlaying) return;
+        queuePlaying = true;
+        ttsPlayingRef.current = true;
+        while (!ttsAbortRef.current) {
+          const item = audioQueue.shift();
+          if (!item) {
+            // 队列空，等待新内容
+            await new Promise(r => setTimeout(r, 50));
+            continue;
+          }
+          const audio = new Audio(item.url);
+          audioRef.current = audio;
+          try {
+            await audio.play();
+            await new Promise<void>((resolve) => {
+              audio.onended = () => { URL.revokeObjectURL(item.url); resolve(); };
+              audio.onerror = () => { URL.revokeObjectURL(item.url); resolve(); };
+            });
+          } catch {
+            URL.revokeObjectURL(item.url);
+          }
+          audioRef.current = null;
+        }
+        queuePlaying = false;
+        ttsPlayingRef.current = false;
+        setSpeakingId(null);
+      };
+
+      // 启动播放循环
+      playQueue();
+
+      // 解析 SSE 数据
+      while (true) {
+        if (ttsAbortRef.current) break;
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+
+        // 按 SSE 协议解析（data: ...\n\n）
+        const lines = buffer.split("\n\n");
+        buffer = lines.pop() || ""; // 保留最后未完整的块
+
+        for (const line of lines) {
+          const dataLine = line.trim();
+          if (!dataLine.startsWith("data: ")) continue;
+          try {
+            const data = JSON.parse(dataLine.slice(6));
+            if (data.type === "sentence" && data.audioBase64) {
+              // base64 → blob URL
+              const byteChars = atob(data.audioBase64);
+              const byteNumbers = new Uint8Array(byteChars.length);
+              for (let i = 0; i < byteChars.length; i++) {
+                byteNumbers[i] = byteChars.charCodeAt(i);
+              }
+              const blob = new Blob([byteNumbers], { type: `audio/${data.format || "wav"}` });
+              const url = URL.createObjectURL(blob);
+              audioQueue.push({ url, text: data.text });
+
+              // 第一句到达后立即取消 loading 状态
+              if (!firstSentenceReceived) {
+                firstSentenceReceived = true;
+                setTtsLoadingId(null);
+              }
+            } else if (data.type === "done") {
+              // 标记流结束，播放循环会在队列空后自动停止
+              // 给播放循环一点时间处理剩余队列
+              setTimeout(() => {
+                if (audioQueue.length === 0) {
+                  ttsAbortRef.current = true;
+                }
+              }, 500);
+            } else if (data.type === "error") {
+              console.warn("[TTS stream] 句子合成失败:", data.message);
+            }
+          } catch {
+            // JSON 解析失败，跳过
+          }
+        }
+      }
+
+      // 等待播放队列完成
+      if (!firstSentenceReceived) {
+        setTtsLoadingId(null);
+        toast("语音合成失败", "error");
+        setSpeakingId(null);
+      }
+    } catch (e) {
+      setTtsLoadingId(null);
+      // 网络错误时回退到非流式
+      await speakFallback(text, msgId);
+    }
+  }, [stopSpeaking]);
+
+  /** 非流式 TTS 回退方案（流式 API 不可用时使用） */
+  const speakFallback = useCallback(async (text: string, msgId?: string) => {
     const sentences = splitSentences(text);
     const queue: Array<{ url: string; text: string }> = [];
 
-    // 并行合成前 2 句（降低首包延迟），后续顺序合成
     const synthesizeSentence = async (sentence: string): Promise<string | null> => {
       try {
         const res = await fetch("/api/ai/tts", {
@@ -497,15 +617,10 @@ export default function AIAssistantPage() {
       }
     };
 
-    // 预合成前 2 句
     const firstBatch = sentences.slice(0, 2).map(s => synthesizeSentence(s));
     const firstUrls = await Promise.all(firstBatch);
-    setTtsLoadingId(null);
-
     for (let i = 0; i < firstUrls.length; i++) {
-      if (firstUrls[i]) {
-        queue.push({ url: firstUrls[i]!, text: sentences[i] });
-      }
+      if (firstUrls[i]) queue.push({ url: firstUrls[i]!, text: sentences[i] });
     }
 
     if (queue.length === 0) {
@@ -515,8 +630,6 @@ export default function AIAssistantPage() {
     }
 
     ttsQueueRef.current = queue;
-
-    // 后续句子在后台继续合成
     const synthesizeRest = async () => {
       for (let i = 2; i < sentences.length; i++) {
         if (ttsAbortRef.current) return;
@@ -528,13 +641,11 @@ export default function AIAssistantPage() {
     };
     synthesizeRest();
 
-    // 播放队列
     const playQueue = async () => {
       ttsPlayingRef.current = true;
       while (!ttsAbortRef.current) {
         const item = ttsQueueRef.current.shift();
         if (!item) {
-          // 队列为空，等待一小段时间看是否有新内容
           if (ttsAbortRef.current) break;
           await new Promise(r => setTimeout(r, 100));
           continue;
@@ -543,7 +654,6 @@ export default function AIAssistantPage() {
         audioRef.current = audio;
         try {
           await audio.play();
-          // 等待播放结束
           await new Promise<void>((resolve) => {
             audio.onended = () => { URL.revokeObjectURL(item.url); resolve(); };
             audio.onerror = () => { URL.revokeObjectURL(item.url); resolve(); };
@@ -557,7 +667,7 @@ export default function AIAssistantPage() {
       setSpeakingId(null);
     };
     playQueue();
-  }, [stopSpeaking]);
+  }, []);
 
   const send = async (text?: string) => {
     const content = (text || input).trim();
@@ -875,8 +985,7 @@ export default function AIAssistantPage() {
       return;
     }
 
-    // VAD 参数
-    const VOLUME_THRESHOLD = 18; // 音量阈值（dB，经验值）
+    // VAD 参数（阈值会通过校准自适应）
     const SPEECH_START_MS = 300; // 音量超阈值持续 300ms 判定为语音开始
     const SPEECH_END_MS = 800; // 音量低于阈值持续 800ms 判定为语音结束
     const MAX_SPEECH_MS = 30000; // 单次最长 30 秒
@@ -884,6 +993,37 @@ export default function AIAssistantPage() {
     let highVolumeStart = 0;
     let lowVolumeStart = 0;
     const buffer = new Uint8Array(analyserRef.current!.frequencyBinCount);
+
+    // ===== 环境噪声校准（前 1 秒采集环境噪声基线，自适应设置阈值）=====
+    // 仅在首次启动或阈值未校准时执行
+    if (!vadCalibratingRef.current && vadThresholdRef.current === 18) {
+      vadCalibratingRef.current = true;
+      const noiseSamples: number[] = [];
+      const calibrationStart = Date.now();
+      const calibrationInterval = setInterval(() => {
+        if (!analyserRef.current) return;
+        analyserRef.current.getByteFrequencyData(buffer);
+        let sum = 0;
+        for (let i = 0; i < buffer.length; i++) sum += buffer[i] * buffer[i];
+        const rms = Math.sqrt(sum / buffer.length);
+        const vol = rms > 0 ? 20 * Math.log10(rms) : -100;
+        noiseSamples.push(vol);
+        if (Date.now() - calibrationStart >= 1000) {
+          clearInterval(calibrationInterval);
+          vadCalibratingRef.current = false;
+          if (noiseSamples.length > 0) {
+            // 取噪声样本的中位数作为基线（比均值更抗异常值）
+            const sorted = [...noiseSamples].sort((a, b) => a - b);
+            const median = sorted[Math.floor(sorted.length / 2)];
+            // 阈值 = 噪声基线 + 12dB（经验值，确保语音明显高于噪声）
+            // 限制在 [10, 35] 范围内，避免极端值
+            const adaptiveThreshold = Math.max(10, Math.min(35, median + 12));
+            vadThresholdRef.current = adaptiveThreshold;
+            console.log(`[VAD] 环境噪声校准完成: 基线=${median.toFixed(1)}dB, 阈值=${adaptiveThreshold.toFixed(1)}dB`);
+          }
+        }
+      }, 50);
+    }
 
     vadIntervalRef.current = setInterval(() => {
       if (!voiceModeActiveRef.current || isProcessingVoiceRef.current) return;
@@ -897,6 +1037,8 @@ export default function AIAssistantPage() {
       const volume = rms > 0 ? 20 * Math.log10(rms) : -100;
 
       const now = Date.now();
+      // 使用自适应阈值
+      const VOLUME_THRESHOLD = vadThresholdRef.current;
 
       if (volume > VOLUME_THRESHOLD) {
         highVolumeStart = highVolumeStart || now;
@@ -1030,6 +1172,8 @@ export default function AIAssistantPage() {
     vadRecorderRef.current = null;
     vadSpeechActiveRef.current = false;
     vadChunksRef.current = [];
+    vadThresholdRef.current = 18; // 重置阈值，下次启动重新校准
+    vadCalibratingRef.current = false;
     if (analyserRef.current) {
       analyserRef.current.disconnect();
       analyserRef.current = null;
