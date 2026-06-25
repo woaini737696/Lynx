@@ -434,13 +434,11 @@ async function executeDatabaseNode(
     switch (operation) {
       case "query": {
         const take = Math.min(parseInt(node.config?.dbQuery || "10", 10) || 10, 100);
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         result = await (prisma as any)[model]?.findMany({ take, orderBy: { createdAt: "desc" } });
         break;
       }
       case "create": {
         if (userId) data.userId = userId;
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         result = await (prisma as any)[model]?.create({ data });
         break;
       }

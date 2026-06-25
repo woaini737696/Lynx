@@ -17,9 +17,14 @@
 
         <!-- 图片预览区 -->
         <view v-if="images.length > 0" class="image-preview">
-          <view v-for="(img, idx) in images" :key="idx" class="preview-item">
-            <image :src="img.url" class="preview-img" mode="aspectFill" />
-            <view class="preview-del" @click="removeImage(idx)">
+          <view
+            v-for="(img, idx) in images"
+            :key="idx"
+            class="preview-item"
+            @click="previewImage(idx)"
+          >
+            <image :src="img.serverUrl || img.previewUrl" class="preview-img" mode="aspectFill" />
+            <view class="preview-del" @click.stop="removeImage(idx)">
               <Icon name="close" :size="22" color="#ffffff" />
             </view>
           </view>
@@ -80,7 +85,7 @@ import { createIdea } from "@/api/ideas.js";
 import { transcribeAudio } from "@/api/voice.js";
 import { webmToWav } from "@/utils/audio-utils.js";
 import { uploadImageFromPath } from "@/api/upload.js";
-import { getBaseUrl } from "@/api/request.js";
+import { resolveMediaUrl } from "@/utils/url.js";
 import Icon from "@/components/Icon.vue";
 import { useSettingsStore } from "@/store/settings.js";
 
@@ -148,8 +153,11 @@ async function uploadImage(tempPath) {
   uni.showLoading({ title: "上传中..." });
   try {
     const data = await uploadImageFromPath(tempPath);
+    const serverUrl = resolveMediaUrl(data.url);
     images.value.push({
-      url: getBaseUrl() + data.url,
+      previewUrl: tempPath,
+      serverUrl,
+      url: serverUrl,
       name: data.name,
       size: data.size,
     });
@@ -162,6 +170,15 @@ async function uploadImage(tempPath) {
 
 function removeImage(idx) {
   images.value.splice(idx, 1);
+}
+
+function previewImage(idx) {
+  const urls = images.value.map((img) => img.serverUrl || img.previewUrl || img.url);
+  uni.previewImage({
+    current: urls[idx],
+    urls,
+    indicator: "number",
+  });
 }
 
 async function save() {
@@ -262,15 +279,13 @@ onUnmounted(() => {
   width: 112rpx;
   height: 112rpx;
   border-radius: 50%;
-  background: linear-gradient(135deg, #f59e0b, #f97316);
+  background: var(--accent-gradient);
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 8rpx 24rpx rgba(245, 158, 11, 0.35);
+  box-shadow: var(--shadow-fab);
   z-index: 100;
-}
-.fab-icon {
-  font-size: 48rpx;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
 }
 
 .mask {
@@ -279,18 +294,19 @@ onUnmounted(() => {
   left: 0;
   right: 0;
   bottom: 0;
-  background-color: rgba(0, 0, 0, 0.5);
+  background-color: var(--bg-mask);
   z-index: 9999;
   display: flex;
   align-items: flex-end;
 }
 .popup {
   width: 100%;
-  background-color: #ffffff;
-  border-radius: 32rpx 32rpx 0 0;
+  background-color: var(--bg-card);
+  border-radius: var(--radius-xl) var(--radius-xl) 0 0;
   padding: 32rpx;
   padding-bottom: calc(32rpx + env(safe-area-inset-bottom));
   box-sizing: border-box;
+  box-shadow: var(--shadow-elevated);
 }
 .popup-header {
   display: flex;
@@ -301,14 +317,16 @@ onUnmounted(() => {
 .popup-title {
   font-size: 32rpx;
   font-weight: 600;
-  color: #1d1d1f;
+  color: var(--text-primary);
 }
 .popup-close {
-  padding: 8rpx 16rpx;
-}
-.close-icon {
-  font-size: 48rpx;
-  color: #86868b;
+  width: 56rpx;
+  height: 56rpx;
+  border-radius: 50%;
+  background-color: var(--bg-input);
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 /* 图片预览 */
@@ -322,8 +340,9 @@ onUnmounted(() => {
   position: relative;
   width: 160rpx;
   height: 160rpx;
-  border-radius: 12rpx;
+  border-radius: 16rpx;
   overflow: hidden;
+  background-color: var(--bg-input);
 }
 .preview-img {
   width: 100%;
@@ -331,48 +350,40 @@ onUnmounted(() => {
 }
 .preview-del {
   position: absolute;
-  top: 4rpx;
-  right: 4rpx;
+  top: 6rpx;
+  right: 6rpx;
   width: 36rpx;
   height: 36rpx;
   border-radius: 50%;
-  background-color: rgba(0, 0, 0, 0.6);
+  background-color: rgba(0, 0, 0, 0.4);
   display: flex;
   align-items: center;
   justify-content: center;
-}
-.preview-del .del-icon {
-  color: #ffffff;
-  font-size: 24rpx;
-  line-height: 1;
+  box-shadow: 0 2rpx 6rpx rgba(0, 0, 0, 0.15);
 }
 .preview-add {
   width: 160rpx;
   height: 160rpx;
-  border: 2rpx dashed #d1d1d6;
-  border-radius: 12rpx;
+  border-radius: 16rpx;
+  background-color: var(--bg-input);
   display: flex;
   align-items: center;
   justify-content: center;
-}
-.preview-add .add-icon {
-  font-size: 48rpx;
-  color: #c7c7cc;
 }
 
 .textarea {
   width: 100%;
   height: 240rpx;
-  background-color: #f2f2f7;
+  background-color: var(--bg-input);
   border: none;
-  border-radius: 16rpx;
+  border-radius: var(--radius-md);
   padding: 24rpx;
-  color: #1d1d1f;
+  color: var(--text-primary);
   font-size: 30rpx;
   box-sizing: border-box;
 }
 .placeholder {
-  color: #aeaeb2;
+  color: var(--text-tertiary);
 }
 .popup-footer {
   display: flex;
@@ -388,52 +399,45 @@ onUnmounted(() => {
 .footer-btn {
   display: flex;
   align-items: center;
-  gap: 6rpx;
-  padding: 10rpx 20rpx;
-  border-radius: 32rpx;
-  background-color: rgba(59, 130, 246, 0.1);
+  gap: 8rpx;
+  padding: 12rpx 24rpx;
+  border-radius: var(--radius-pill);
+  background-color: var(--bg-input);
   user-select: none;
-}
-.footer-icon {
-  font-size: 28rpx;
+  transition: background-color 0.2s ease;
 }
 .footer-label {
-  font-size: 22rpx;
-  color: #3b82f6;
+  font-size: 24rpx;
+  font-weight: 500;
+  color: var(--text-secondary);
 }
 .voice-btn.recording {
-  background-color: rgba(239, 68, 68, 0.15);
+  background-color: rgba(239, 68, 68, 0.12);
+}
+.voice-btn.recording .footer-label {
+  color: var(--red);
 }
 .voice-btn.transcribing {
   opacity: 0.6;
 }
-.recording-icon {
-  color: #ef4444;
-  animation: pulse 1s infinite;
-}
-.voice-btn.recording .footer-label {
-  color: #ef4444;
-}
-@keyframes pulse {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.4; }
-}
 .char-count {
-  color: #aeaeb2;
+  color: var(--text-tertiary);
   font-size: 24rpx;
 }
 .save-btn {
-  background: linear-gradient(135deg, #f59e0b, #f97316);
-  border-radius: 12rpx;
-  padding: 0 40rpx;
+  background: var(--accent-gradient);
+  border-radius: var(--radius-pill);
+  padding: 0 36rpx;
   height: 72rpx;
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 4rpx 12rpx rgba(245, 158, 11, 0.2);
+  gap: 8rpx;
+  box-shadow: var(--shadow-fab);
+  transition: opacity 0.2s ease;
 }
 .save-btn.disabled {
-  opacity: 0.4;
+  opacity: 0.45;
 }
 .save-btn-text {
   color: #ffffff;

@@ -893,7 +893,7 @@ export default function InboxPage() {
 
                 {/* 提示 */}
                 <div className="mb-4 rounded-xl bg-muted/50 px-3 py-2 text-[11px] text-muted-foreground">
-                  灵感已保存并标记为"AI 建议"，AI 将持续关注并提醒处理。
+                  灵感已保存并标记为&ldquo;AI 建议&rdquo;，AI 将持续关注并提醒处理。
                   你可以继续拖入看板或送入墓地。
                 </div>
 

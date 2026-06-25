@@ -74,6 +74,17 @@
         </view>
         <view class="idea-main">
           <text class="idea-content">{{ idea.content }}</text>
+          <!-- 图片附件 -->
+          <view v-if="idea.attachments && idea.attachments.length" class="idea-images">
+            <view
+              v-for="(att, idx) in idea.attachments.filter((a) => a.type === 'image')"
+              :key="idx"
+              class="idea-image-wrap"
+              @click.stop="previewAttachment(idea.attachments, idx)"
+            >
+              <image :src="resolveMediaUrl(att.url)" class="idea-image" mode="aspectFill" />
+            </view>
+          </view>
           <view class="idea-footer">
             <text class="idea-time">{{ formatTime(idea.createdAt) }}</text>
             <view v-if="!multiSelectMode" class="idea-actions">
@@ -102,6 +113,7 @@ import { getInboxIdeas, moveIdeaToBoard, abandonIdea, batchDeleteIdeas } from "@
 import CaptureBar from "@/components/CaptureBar.vue";
 import Icon from "@/components/Icon.vue";
 import { setCache, getCache, formatCacheTime } from "@/utils/cache.js";
+import { resolveMediaUrl } from "@/utils/url.js";
 import { useSettingsStore } from "@/store/settings.js";
 
 const settingsStore = useSettingsStore();
@@ -238,6 +250,17 @@ function formatTime(d) {
   return `${date.getMonth() + 1}/${date.getDate()} ${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}`;
 }
 
+function previewAttachment(attachments, idx) {
+  const imageUrls = attachments
+    .filter((a) => a.type === "image")
+    .map((a) => resolveMediaUrl(a.url));
+  uni.previewImage({
+    current: imageUrls[idx],
+    urls: imageUrls,
+    indicator: "number",
+  });
+}
+
 onMounted(loadIdeas);
 onShow(loadIdeas);
 </script>
@@ -245,7 +268,9 @@ onShow(loadIdeas);
 <style scoped>
 .page {
   min-height: 100vh;
+  background-color: var(--bg-page);
   padding: 32rpx;
+  padding-bottom: calc(140rpx + env(safe-area-inset-bottom));
   box-sizing: border-box;
 }
 .header {
@@ -257,7 +282,8 @@ onShow(loadIdeas);
 .header-title {
   font-size: 48rpx;
   font-weight: 700;
-  color: #1d1d1f;
+  color: var(--text-primary);
+  letter-spacing: 0.5rpx;
 }
 .header-right {
   display: flex;
@@ -266,23 +292,28 @@ onShow(loadIdeas);
 }
 .header-count {
   font-size: 26rpx;
-  color: #86868b;
+  color: var(--text-secondary);
 }
 .batch-btn {
-  background-color: rgba(245, 158, 11, 0.12);
-  border-radius: 24rpx;
-  padding: 8rpx 20rpx;
+  background-color: var(--accent-soft);
+  border-radius: var(--radius-pill);
+  padding: 10rpx 24rpx;
+  transition: transform 0.15s, opacity 0.15s;
+}
+.batch-btn:active {
+  transform: scale(0.96);
+  opacity: 0.85;
 }
 .batch-btn-text {
   font-size: 24rpx;
-  color: #f59e0b;
+  color: var(--accent);
   font-weight: 600;
 }
 .cancel-btn {
-  background-color: #f2f2f7;
+  background-color: var(--bg-input);
 }
 .cancel-btn .batch-btn-text {
-  color: #86868b;
+  color: var(--text-secondary);
 }
 
 /* 批量操作栏 */
@@ -291,38 +322,52 @@ onShow(loadIdeas);
   align-items: center;
   gap: 16rpx;
   padding: 16rpx 20rpx;
-  background-color: #ffffff;
-  border-radius: 16rpx;
-  margin-bottom: 16rpx;
-  box-shadow: 0 2rpx 8rpx rgba(0, 0, 0, 0.04);
+  background-color: var(--bg-card);
+  border-radius: var(--radius-lg);
+  margin-bottom: 20rpx;
+  box-shadow: var(--shadow-card);
 }
 .batch-bar-btn {
-  background-color: #f2f2f7;
-  border-radius: 20rpx;
-  padding: 8rpx 20rpx;
+  background-color: var(--bg-input);
+  border-radius: var(--radius-pill);
+  padding: 10rpx 24rpx;
+  transition: transform 0.15s;
+}
+.batch-bar-btn:active {
+  transform: scale(0.96);
 }
 .batch-bar-text {
   font-size: 24rpx;
-  color: #1d1d1f;
+  color: var(--text-primary);
   font-weight: 600;
 }
 .batch-count {
   flex: 1;
   font-size: 24rpx;
-  color: #86868b;
+  color: var(--text-secondary);
   text-align: center;
 }
 .batch-delete-btn {
   background-color: rgba(239, 68, 68, 0.1);
-  border-radius: 20rpx;
-  padding: 8rpx 24rpx;
+  border-radius: var(--radius-pill);
+  padding: 10rpx 28rpx;
+  transition: transform 0.15s, opacity 0.15s;
+}
+.batch-delete-btn:active {
+  transform: scale(0.96);
 }
 .batch-delete-btn.disabled {
   opacity: 0.4;
+  pointer-events: none;
+}
+.batch-delete-inner {
+  display: flex;
+  align-items: center;
+  gap: 8rpx;
 }
 .batch-delete-text {
   font-size: 24rpx;
-  color: #ef4444;
+  color: var(--red);
   font-weight: 600;
 }
 
@@ -336,14 +381,16 @@ onShow(loadIdeas);
 .empty-icon {
   font-size: 80rpx;
   margin-bottom: 24rpx;
+  color: var(--text-tertiary);
 }
 .empty-text {
-  color: #86868b;
+  color: var(--text-secondary);
   font-size: 30rpx;
   margin-bottom: 8rpx;
+  font-weight: 500;
 }
 .empty-hint {
-  color: #aeaeb2;
+  color: var(--text-tertiary);
   font-size: 24rpx;
 }
 
@@ -352,47 +399,52 @@ onShow(loadIdeas);
   align-items: center;
   gap: 8rpx;
   padding: 12rpx 24rpx;
-  background-color: rgba(59, 130, 246, 0.08);
-  border-radius: 12rpx;
-  margin-bottom: 16rpx;
+  background-color: var(--blue-soft);
+  border-radius: var(--radius-md);
+  margin-bottom: 20rpx;
 }
 .offline-icon {
   font-size: 24rpx;
 }
 .offline-text {
   font-size: 24rpx;
-  color: #3b82f6;
+  color: var(--blue);
 }
 
 .idea-list {
-  height: calc(100vh - 200rpx);
+  height: calc(100vh - 200rpx - env(safe-area-inset-bottom));
 }
 .idea-list.multi-list {
-  height: calc(100vh - 300rpx);
+  height: calc(100vh - 300rpx - env(safe-area-inset-bottom));
 }
 .idea-card {
-  background-color: #ffffff;
-  border-radius: 16rpx;
-  padding: 24rpx;
-  margin-bottom: 16rpx;
-  box-shadow: 0 2rpx 8rpx rgba(0, 0, 0, 0.04);
+  background-color: var(--bg-card);
+  border-radius: var(--radius-lg);
+  padding: 28rpx;
+  margin-bottom: 20rpx;
+  box-shadow: var(--shadow-card);
+  transition: transform 0.15s, box-shadow 0.15s;
+}
+.idea-card:active {
+  transform: scale(0.99);
+  box-shadow: var(--shadow-elevated);
 }
 .idea-card.multi-card {
   display: flex;
   align-items: flex-start;
   gap: 16rpx;
   border: 2rpx solid transparent;
-  transition: border-color 0.2s;
+  transition: border-color 0.2s, transform 0.15s, box-shadow 0.15s;
 }
 .idea-card.selected-card {
-  border-color: #f59e0b;
-  background-color: rgba(245, 158, 11, 0.04);
+  border-color: var(--accent);
+  background-color: var(--accent-soft);
 }
 .checkbox {
-  width: 40rpx;
-  height: 40rpx;
+  width: 44rpx;
+  height: 44rpx;
   border-radius: 50%;
-  border: 3rpx solid #d1d1d6;
+  border: 3rpx solid var(--border-color);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -401,8 +453,8 @@ onShow(loadIdeas);
   transition: all 0.2s;
 }
 .checkbox.checked {
-  background: linear-gradient(135deg, #f59e0b, #f97316);
-  border-color: #f59e0b;
+  background: var(--accent-gradient);
+  border-color: var(--accent);
 }
 .checkbox-icon {
   color: #ffffff;
@@ -414,40 +466,70 @@ onShow(loadIdeas);
   min-width: 0;
 }
 .idea-content {
-  color: #1d1d1f;
+  color: var(--text-primary);
   font-size: 30rpx;
   line-height: 1.6;
+}
+.idea-images {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 16rpx;
+  margin-top: 20rpx;
+  overflow-x: auto;
+}
+.idea-image-wrap {
+  flex-shrink: 0;
+  border-radius: 16rpx;
+  overflow: hidden;
+  transition: transform 0.15s;
+}
+.idea-image-wrap:active {
+  transform: scale(0.96);
+}
+.idea-image {
+  width: 180rpx;
+  height: 180rpx;
+  border-radius: 16rpx;
+  display: block;
 }
 .idea-footer {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-top: 16rpx;
+  margin-top: 20rpx;
 }
 .idea-time {
   font-size: 22rpx;
-  color: #aeaeb2;
+  color: var(--text-tertiary);
 }
 .idea-actions {
   display: flex;
   gap: 16rpx;
 }
 .action-btn {
-  border-radius: 20rpx;
-  padding: 8rpx 20rpx;
+  display: flex;
+  align-items: center;
+  gap: 6rpx;
+  border-radius: var(--radius-pill);
+  padding: 10rpx 24rpx;
+  transition: transform 0.15s, opacity 0.15s;
+}
+.action-btn:active {
+  transform: scale(0.94);
+  opacity: 0.85;
 }
 .board-btn {
-  background-color: rgba(245, 158, 11, 0.12);
+  background-color: var(--accent-soft);
 }
 .danger-btn {
   background-color: rgba(239, 68, 68, 0.1);
 }
 .action-text {
   font-size: 24rpx;
-  color: #f59e0b;
+  color: var(--accent);
   font-weight: 600;
 }
 .danger-text {
-  color: #ef4444;
+  color: var(--red);
 }
 </style>

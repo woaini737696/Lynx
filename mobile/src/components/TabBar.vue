@@ -1,24 +1,24 @@
 <template>
-  <view class="custom-tabbar" :class="{ dark: isDark }">
-    <view
-      v-for="(item, index) in items"
-      :key="item.path"
-      class="tab-item"
-      :class="{ active: current === index, center: index === 2 }"
-      @click="switchTab(index)"
-    >
-      <!-- 中间助理按钮：特殊样式 -->
-      <view v-if="index === 2" class="tab-center-btn">
-        <Icon :name="item.icon" :size="44" color="#ffffff" />
+  <view class="tabbar-safe-area">
+    <view class="custom-tabbar" :class="{ dark: isDark }">
+      <view class="tabbar-inner">
+        <view
+          v-for="(item, index) in items"
+          :key="item.path"
+          class="tab-item"
+          :class="{ active: current === index, center: index === 2 }"
+          @click="switchTab(index)"
+        >
+          <view class="tab-icon-wrap">
+            <Icon
+              :name="item.icon"
+              :size="index === 2 ? 40 : 36"
+              :color="activeColor(index)"
+            />
+          </view>
+          <text v-if="index !== 2" class="tab-text" :class="{ active: current === index }">{{ item.text }}</text>
+        </view>
       </view>
-      <template v-else>
-        <Icon
-          :name="item.icon"
-          :size="44"
-          :color="current === index ? '#f59e0b' : (isDark ? '#98989d' : '#86868b')"
-        />
-        <text class="tab-text" :class="{ active: current === index }">{{ item.text }}</text>
-      </template>
     </view>
   </view>
 </template>
@@ -43,6 +43,12 @@ const items = [
   { icon: "profile", text: "我的", path: "/pages/settings/settings" },
 ];
 
+function activeColor(index) {
+  if (index === 2) return "#ffffff";
+  if (props.current === index) return "#f59e0b";
+  return isDark.value ? "#9ca3af" : "#9ca3af";
+}
+
 function switchTab(index) {
   if (index === props.current) return;
   uni.switchTab({ url: items[index].path });
@@ -50,24 +56,33 @@ function switchTab(index) {
 </script>
 
 <style scoped>
+.tabbar-safe-area {
+  pointer-events: none;
+}
 .custom-tabbar {
   position: fixed;
   bottom: 0;
   left: 0;
   right: 0;
-  height: calc(100rpx + env(safe-area-inset-bottom));
-  padding-bottom: env(safe-area-inset-bottom);
-  background-color: #ffffff;
-  border-top: 1rpx solid #e5e5ea;
+  z-index: 999;
+  padding: 0 32rpx calc(16rpx + env(safe-area-inset-bottom));
+  pointer-events: auto;
+}
+.tabbar-inner {
+  height: 96rpx;
+  background-color: rgba(255, 255, 255, 0.92);
+  backdrop-filter: blur(20rpx);
+  border-radius: 999rpx;
+  box-shadow: 0 8rpx 32rpx rgba(0, 0, 0, 0.1);
+  border: 1rpx solid rgba(0, 0, 0, 0.05);
   display: flex;
   align-items: center;
-  z-index: 999;
-  box-shadow: 0 -2rpx 12rpx rgba(0, 0, 0, 0.04);
+  justify-content: space-around;
 }
-.custom-tabbar.dark {
-  background-color: #1c1c1e;
-  border-top-color: #38383a;
-  box-shadow: 0 -2rpx 12rpx rgba(0, 0, 0, 0.3);
+.custom-tabbar.dark .tabbar-inner {
+  background-color: rgba(24, 26, 32, 0.92);
+  border-color: rgba(255, 255, 255, 0.06);
+  box-shadow: 0 8rpx 32rpx rgba(0, 0, 0, 0.35);
 }
 .tab-item {
   flex: 1;
@@ -75,37 +90,37 @@ function switchTab(index) {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 6rpx;
-  height: 100rpx;
-}
-.tab-text {
-  font-size: 20rpx;
-  color: #86868b;
-  font-weight: 500;
-}
-.tab-text.active {
-  color: #f59e0b;
-  font-weight: 600;
-}
-.tab-item.active .tab-icon {
-  transform: scale(1.15);
-}
-
-/* 中间助理按钮 */
-.tab-center-btn {
-  width: 96rpx;
+  gap: 4rpx;
   height: 96rpx;
-  border-radius: 50%;
-  background: linear-gradient(135deg, #f59e0b, #f97316);
+  position: relative;
+}
+.tab-item.center {
+  margin-top: -28rpx;
+}
+.tab-icon-wrap {
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 6rpx 20rpx rgba(245, 158, 11, 0.35);
-  margin-top: -20rpx;
-  transition: transform 0.2s;
+  transition: transform 0.2s ease;
 }
-.tab-item.center.active .tab-center-btn {
+.tab-item.active .tab-icon-wrap {
   transform: scale(1.1);
-  box-shadow: 0 8rpx 28rpx rgba(245, 158, 11, 0.5);
+}
+.tab-item.center .tab-icon-wrap {
+  width: 84rpx;
+  height: 84rpx;
+  border-radius: 50%;
+  background: var(--accent-gradient);
+  box-shadow: 0 6rpx 20rpx rgba(245, 158, 11, 0.35);
+}
+.tab-text {
+  font-size: 20rpx;
+  color: var(--text-tertiary);
+  font-weight: 500;
+  transition: color 0.2s ease;
+}
+.tab-text.active {
+  color: var(--accent);
+  font-weight: 600;
 }
 </style>

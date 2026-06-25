@@ -144,7 +144,7 @@ onShow(loadFocus);
 .page {
   min-height: 100vh;
   padding: 32rpx;
-  padding-bottom: calc(32rpx + env(safe-area-inset-bottom) + 120rpx);
+  padding-bottom: calc(32rpx + env(safe-area-inset-bottom) + 140rpx);
   box-sizing: border-box;
 }
 
@@ -158,35 +158,35 @@ onShow(loadFocus);
 .header-greeting {
   display: block;
   font-size: 26rpx;
-  color: #86868b;
-  margin-bottom: 4rpx;
+  color: var(--text-secondary);
+  margin-bottom: 8rpx;
 }
 .header-title {
   display: block;
   font-size: 52rpx;
   font-weight: 800;
-  color: #1d1d1f;
-  letter-spacing: 1rpx;
+  color: var(--text-primary);
+  letter-spacing: 0.5rpx;
 }
 .header-date {
   display: flex;
   flex-direction: column;
   align-items: center;
-  background-color: #ffffff;
-  border-radius: 16rpx;
-  padding: 12rpx 24rpx;
-  box-shadow: 0 2rpx 8rpx rgba(0, 0, 0, 0.04);
+  background-color: var(--bg-card);
+  border-radius: var(--radius-md);
+  padding: 14rpx 26rpx;
+  box-shadow: var(--shadow-card);
 }
 .date-day {
   font-size: 40rpx;
-  font-weight: 700;
-  color: #f59e0b;
+  font-weight: 800;
+  color: var(--accent);
   line-height: 1;
 }
 .date-month {
   font-size: 20rpx;
-  color: #86868b;
-  margin-top: 4rpx;
+  color: var(--text-secondary);
+  margin-top: 6rpx;
 }
 
 /* 加载 */
@@ -200,7 +200,7 @@ onShow(loadFocus);
   width: 24rpx;
   height: 24rpx;
   border-radius: 50%;
-  background-color: #f59e0b;
+  background-color: var(--accent);
   animation: pulse 1.2s infinite;
   margin-bottom: 16rpx;
 }
@@ -209,7 +209,7 @@ onShow(loadFocus);
   50% { transform: scale(1.2); opacity: 1; }
 }
 .loading-text {
-  color: #86868b;
+  color: var(--text-secondary);
   font-size: 26rpx;
 }
 
@@ -221,37 +221,34 @@ onShow(loadFocus);
   padding: 100rpx 0;
 }
 .empty-circle {
-  width: 160rpx;
-  height: 160rpx;
+  width: 180rpx;
+  height: 180rpx;
   border-radius: 50%;
-  background-color: #ffffff;
+  background-color: var(--accent-soft);
   display: flex;
   align-items: center;
   justify-content: center;
-  margin-bottom: 32rpx;
-  box-shadow: 0 4rpx 20rpx rgba(0, 0, 0, 0.06);
-}
-.empty-icon {
-  font-size: 72rpx;
+  margin-bottom: 36rpx;
 }
 .empty-text {
-  font-size: 32rpx;
-  color: #1d1d1f;
-  font-weight: 600;
+  font-size: 34rpx;
+  color: var(--text-primary);
+  font-weight: 700;
   margin-bottom: 12rpx;
 }
 .empty-hint {
-  font-size: 24rpx;
-  color: #aeaeb2;
+  font-size: 26rpx;
+  color: var(--text-tertiary);
   text-align: center;
   padding: 0 60rpx;
-  margin-bottom: 32rpx;
+  margin-bottom: 36rpx;
+  line-height: 1.5;
 }
 .empty-btn {
-  background: linear-gradient(135deg, #f59e0b, #f97316);
-  border-radius: 32rpx;
-  padding: 16rpx 48rpx;
-  box-shadow: 0 4rpx 16rpx rgba(245, 158, 11, 0.3);
+  background: var(--accent-gradient);
+  border-radius: var(--radius-pill);
+  padding: 22rpx 56rpx;
+  box-shadow: var(--shadow-fab);
 }
 .empty-btn-text {
   color: #ffffff;
@@ -263,45 +260,45 @@ onShow(loadFocus);
 .progress-section {
   display: flex;
   align-items: center;
-  background-color: #ffffff;
-  border-radius: 20rpx;
-  padding: 24rpx 28rpx;
-  margin-bottom: 24rpx;
-  box-shadow: 0 2rpx 12rpx rgba(0, 0, 0, 0.04);
+  background-color: var(--bg-card);
+  border-radius: var(--radius-lg);
+  padding: 28rpx 32rpx;
+  margin-bottom: 28rpx;
+  box-shadow: var(--shadow-card);
 }
 .progress-info {
   flex-shrink: 0;
-  margin-right: 24rpx;
+  margin-right: 28rpx;
 }
 .progress-label {
   display: block;
   font-size: 22rpx;
-  color: #86868b;
+  color: var(--text-secondary);
 }
 .progress-num {
   display: block;
-  font-size: 32rpx;
-  font-weight: 700;
-  color: #1d1d1f;
+  font-size: 34rpx;
+  font-weight: 800;
+  color: var(--text-primary);
 }
 .progress-track {
   flex: 1;
   height: 12rpx;
-  background-color: #f2f2f7;
-  border-radius: 6rpx;
+  background-color: var(--bg-input);
+  border-radius: var(--radius-pill);
   overflow: hidden;
   margin-right: 16rpx;
 }
 .progress-fill {
   height: 100%;
-  background: linear-gradient(90deg, #10b981, #34d399);
-  border-radius: 6rpx;
+  background: linear-gradient(90deg, #22c55e, #34d399);
+  border-radius: var(--radius-pill);
   transition: width 0.4s ease;
 }
 .progress-percent {
   font-size: 26rpx;
-  font-weight: 700;
-  color: #10b981;
+  font-weight: 800;
+  color: var(--green);
   width: 80rpx;
   text-align: right;
 }
@@ -313,42 +310,51 @@ onShow(loadFocus);
 .focus-card {
   display: flex;
   align-items: flex-start;
-  background-color: #ffffff;
-  border-radius: 20rpx;
-  padding: 28rpx;
-  margin-bottom: 16rpx;
-  border-left: 6rpx solid #f59e0b;
-  box-shadow: 0 2rpx 12rpx rgba(0, 0, 0, 0.04);
-  transition: transform 0.15s;
+  background-color: var(--bg-card);
+  border-radius: var(--radius-lg);
+  padding: 30rpx;
+  margin-bottom: 20rpx;
+  box-shadow: var(--shadow-card);
+  transition: transform 0.15s, box-shadow 0.15s;
+  position: relative;
+  overflow: hidden;
+}
+.focus-card::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 6rpx;
+  background-color: var(--accent);
 }
 .focus-card:active {
-  transform: scale(0.98);
+  transform: scale(0.985);
+  box-shadow: var(--shadow-elevated);
 }
 .focus-card.completed {
   opacity: 0.55;
-  border-left-color: #10b981;
+}
+.focus-card.completed::before {
+  background-color: var(--green);
 }
 .card-check {
-  width: 44rpx;
-  height: 44rpx;
+  width: 48rpx;
+  height: 48rpx;
   border-radius: 50%;
-  border: 3rpx solid #d1d1d6;
+  border: 3rpx solid var(--border-color);
   display: flex;
   align-items: center;
   justify-content: center;
-  margin-right: 20rpx;
+  margin-right: 24rpx;
   flex-shrink: 0;
-  margin-top: 4rpx;
+  margin-top: 2rpx;
   transition: all 0.2s;
+  background-color: var(--bg-card);
 }
 .card-check.checked {
-  background-color: #10b981;
-  border-color: #10b981;
-}
-.check-icon {
-  color: #ffffff;
-  font-size: 24rpx;
-  font-weight: 700;
+  background-color: var(--green);
+  border-color: var(--green);
 }
 .card-body {
   flex: 1;
@@ -357,34 +363,35 @@ onShow(loadFocus);
   display: flex;
   align-items: center;
   gap: 12rpx;
-  margin-bottom: 8rpx;
+  margin-bottom: 10rpx;
 }
 .card-index {
-  color: #aeaeb2;
+  color: var(--text-tertiary);
   font-size: 22rpx;
   font-weight: 600;
 }
 .card-tag {
   font-size: 20rpx;
-  padding: 4rpx 12rpx;
-  border-radius: 6rpx;
+  padding: 6rpx 14rpx;
+  border-radius: var(--radius-pill);
   font-weight: 600;
 }
 .tag-northstar {
-  background-color: rgba(245, 158, 11, 0.12);
+  background-color: #fff7ed;
   color: #f59e0b;
 }
 .tag-campaign {
-  background-color: rgba(59, 130, 246, 0.12);
+  background-color: #eff6ff;
   color: #3b82f6;
 }
 .tag-task {
-  background-color: rgba(16, 185, 129, 0.12);
-  color: #10b981;
+  background-color: #f0fdf4;
+  color: #22c55e;
 }
 .card-content {
-  color: #1d1d1f;
+  color: var(--text-primary);
   font-size: 30rpx;
-  line-height: 1.5;
+  line-height: 1.55;
+  font-weight: 500;
 }
 </style>

@@ -16,6 +16,7 @@ import {
   stripAction,
 } from "@/lib/ai-assistant-tools";
 import { executeTool } from "../assistant/tool-executor";
+import { executeAssistantViaHermes } from "@/lib/hermes-client";
 
 // ============ 关键词意图检测（Fallback）============
 // 当 AI 没有输出 action 块时，用关键词匹配检测用户意图
@@ -288,6 +289,7 @@ export async function POST(req: NextRequest) {
       let personaStyle = "";
       let distilledStyle = "";
       let styleStrength = 0.7;
+      let hermesTakeover = false;
       try {
         const aiSettings = await prisma.aISetting.findFirst();
         if (aiSettings) {
@@ -295,9 +297,39 @@ export async function POST(req: NextRequest) {
           personaStyle = aiSettings.personaStyle || "";
           distilledStyle = aiSettings.distilledStyle || "";
           styleStrength = aiSettings.styleStrength ?? 0.7;
+          hermesTakeover = aiSettings.hermesTakeover ?? false;
         }
       } catch {
         // 读取失败不阻断对话
+      }
+
+      // ============ Hermes Agent 接管模式（模式 C）============
+      // 开启后：用户消息直接传给 Hermes Agent（带持久化 profile + 记忆上下文 + --learn 自动学习）
+      // Hermes 输出作为助理回复，失败时回退到 LLM + Function Calling 模式
+      if (hermesTakeover) {
+        // 提取最后一条用户消息
+        const lastUserMsg = cleanMessages.filter((m) => m.role === "user").pop();
+        const userText = typeof lastUserMsg?.content === "string" ? lastUserMsg.content : "";
+        if (userText.trim()) {
+          const hermesResult = await executeAssistantViaHermes(user.id, userText, 120);
+          if (hermesResult.success) {
+            return NextResponse.json({
+              content: hermesResult.output,
+              provider: "hermes",
+              model: "hermes-agent",
+              usage: {
+                prompt_tokens: 0,
+                completion_tokens: 0,
+                total_tokens: 0,
+              },
+              toolCalled: null,
+              hermesMode: true,
+              learned: hermesResult.learned,
+              durationMs: hermesResult.durationMs,
+            });
+          }
+          // Hermes 执行失败 → 回退到 LLM + Function Calling 模式（继续往下执行）
+        }
       }
 
       // 构建最终 system prompt：基础工具能力 + 自定义风格

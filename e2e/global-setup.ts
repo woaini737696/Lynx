@@ -15,7 +15,7 @@ async function globalSetup() {
   }
 
   const requestContext = await request.newContext({
-    baseURL: "http://localhost:3000",
+    baseURL: "http://localhost:5176",
   });
 
   try {

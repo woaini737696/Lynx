@@ -113,6 +113,9 @@ interface AISettings {
   autoSpeak: boolean;
   voiceMode: boolean;
   feishuNotify: boolean;
+  hermesTakeover: boolean;
+  hermesAutoReport: boolean;
+  hermesReportCron: string;
 }
 
 const DEFAULT_SETTINGS: AISettings = {
@@ -129,6 +132,9 @@ const DEFAULT_SETTINGS: AISettings = {
   autoSpeak: false,
   voiceMode: false,
   feishuNotify: false,
+  hermesTakeover: false,
+  hermesAutoReport: false,
+  hermesReportCron: "0 9 * * *",
 };
 
 // 快捷指令从 @/lib/ai-assistant-tools 导入（与后端工具定义同源）
@@ -569,6 +575,9 @@ export default function AIAssistantPage() {
           autoSpeak: data.settings.autoSpeak ?? false,
           voiceMode: data.settings.voiceMode ?? false,
           feishuNotify: data.settings.feishuNotify ?? false,
+          hermesTakeover: data.settings.hermesTakeover ?? false,
+          hermesAutoReport: data.settings.hermesAutoReport ?? false,
+          hermesReportCron: data.settings.hermesReportCron || "0 9 * * *",
         });
       }
     } catch {}
@@ -597,6 +606,9 @@ export default function AIAssistantPage() {
           autoSpeak: data.settings.autoSpeak ?? false,
           voiceMode: data.settings.voiceMode ?? false,
           feishuNotify: data.settings.feishuNotify ?? false,
+          hermesTakeover: data.settings.hermesTakeover ?? false,
+          hermesAutoReport: data.settings.hermesAutoReport ?? false,
+          hermesReportCron: data.settings.hermesReportCron || "0 9 * * *",
         });
       }
     } catch (e) {
@@ -2374,7 +2386,7 @@ export default function AIAssistantPage() {
                     )}
                     {distillPreviewReply && (
                       <div className="rounded-lg border border-cognition/30 bg-cognition/5 p-3">
-                        <p className="mb-1 text-[10px] font-medium text-cognition">预览回复（"你好，今天有什么任务需要聚焦？"）：</p>
+                        <p className="mb-1 text-[10px] font-medium text-cognition">预览回复（&ldquo;你好，今天有什么任务需要聚焦？&rdquo;）：</p>
                         <p className="text-xs leading-relaxed text-foreground">{distillPreviewReply}</p>
                       </div>
                     )}
@@ -2472,6 +2484,91 @@ export default function AIAssistantPage() {
                     <RefreshCw className="mr-1 h-3 w-3" /> 发送测试通知
                   </Button>
                 )}
+              </div>
+
+              <div className="space-y-3 rounded-xl border border-border p-4">
+                <h3 className="text-sm font-medium">🤖 Hermes Agent 超级助理</h3>
+                <p className="text-[10px] text-muted-foreground">
+                  开启后 AI 助理由 Hermes Agent 驱动：持久化记忆跨会话保留、任务完成后自动学习新技能、持续成长。
+                </p>
+                <label className="flex cursor-pointer items-center justify-between">
+                  <span className="text-xs">Hermes 接管模式（模式 C）</span>
+                  <input
+                    type="checkbox"
+                    checked={settings.hermesTakeover}
+                    onChange={(e) => { setSettings((s) => ({ ...s, hermesTakeover: e.target.checked })); updateSettings({ hermesTakeover: e.target.checked }); }}
+                    className="h-4 w-4 rounded accent-cognition"
+                  />
+                </label>
+                <label className="flex cursor-pointer items-center justify-between">
+                  <span className="text-xs">主动汇报（定时分析数据并推送）</span>
+                  <input
+                    type="checkbox"
+                    checked={settings.hermesAutoReport}
+                    onChange={(e) => { setSettings((s) => ({ ...s, hermesAutoReport: e.target.checked })); updateSettings({ hermesAutoReport: e.target.checked }); }}
+                    className="h-4 w-4 rounded accent-cognition"
+                  />
+                </label>
+                {settings.hermesAutoReport && (
+                  <label className="flex flex-col gap-1">
+                    <span className="text-[10px] text-muted-foreground">汇报 Cron 表达式（默认每天 9:00）</span>
+                    <input
+                      type="text"
+                      value={settings.hermesReportCron}
+                      onChange={(e) => { setSettings((s) => ({ ...s, hermesReportCron: e.target.value })); }}
+                      onBlur={(e) => updateSettings({ hermesReportCron: e.target.value })}
+                      placeholder="0 9 * * *"
+                      className="rounded border border-border bg-background px-2 py-1 text-xs"
+                    />
+                  </label>
+                )}
+                <div className="flex gap-2">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={async () => {
+                      try {
+                        toast("正在生成主动汇报...", "info");
+                        const res = await fetch("/api/hermes/proactive-report", {
+                          method: "POST",
+                          headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify({ type: "daily" }),
+                        });
+                        const data = await res.json();
+                        if (data.success) {
+                          toast(`汇报已生成${data.pushed ? "并推送" : ""}`, "success");
+                        } else {
+                          toast(data.error || "生成失败", "error");
+                        }
+                      } catch {
+                        toast("生成汇报失败", "error");
+                      }
+                    }}
+                    className="flex-1"
+                  >
+                    <Sparkles className="mr-1 h-3 w-3" /> 立即生成汇报
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={async () => {
+                      try {
+                        const res = await fetch("/api/hermes/patrol-takeover", { method: "POST" });
+                        const data = await res.json();
+                        if (data.success) {
+                          toast(`已迁移 ${data.migratedCount} 条巡检规则到 Hermes`, "success");
+                        } else {
+                          toast(data.error || "迁移失败", "error");
+                        }
+                      } catch {
+                        toast("巡检接管失败", "error");
+                      }
+                    }}
+                    className="flex-1"
+                  >
+                    <RefreshCw className="mr-1 h-3 w-3" /> 巡检接管
+                  </Button>
+                </div>
               </div>
 
               <div className="rounded-xl bg-muted/30 p-3">

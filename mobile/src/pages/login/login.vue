@@ -116,11 +116,13 @@ async function onLogin() {
 <style scoped>
 .login-page {
   min-height: 100vh;
-  background-color: #f5f5f7;
+  background-color: var(--bg-page);
   padding: 0 56rpx;
+  padding-bottom: calc(32rpx + env(safe-area-inset-bottom) + 140rpx);
   display: flex;
   flex-direction: column;
   justify-content: center;
+  box-sizing: border-box;
 }
 
 .login-header {
@@ -130,13 +132,13 @@ async function onLogin() {
 .logo-circle {
   width: 128rpx;
   height: 128rpx;
-  border-radius: 32rpx;
-  background: linear-gradient(135deg, #f59e0b, #f97316);
+  border-radius: var(--radius-md);
+  background: var(--accent-gradient);
   display: flex;
   align-items: center;
   justify-content: center;
   margin: 0 auto 24rpx;
-  box-shadow: 0 12rpx 32rpx rgba(245, 158, 11, 0.3);
+  box-shadow: var(--shadow-fab);
 }
 .logo-text {
   font-size: 64rpx;
@@ -147,18 +149,23 @@ async function onLogin() {
   display: block;
   font-size: 56rpx;
   font-weight: 700;
-  color: #1d1d1f;
+  color: var(--text-primary);
   letter-spacing: 2rpx;
 }
 .login-subtitle {
   display: block;
   font-size: 24rpx;
-  color: #86868b;
+  color: var(--text-secondary);
   margin-top: 12rpx;
 }
 
 .login-form {
   width: 100%;
+  background-color: var(--bg-card);
+  border-radius: var(--radius-xl);
+  padding: 48rpx 40rpx;
+  box-shadow: var(--shadow-card);
+  box-sizing: border-box;
 }
 
 .input-group {
@@ -168,26 +175,26 @@ async function onLogin() {
   display: block;
   font-size: 26rpx;
   font-weight: 600;
-  color: #1d1d1f;
+  color: var(--text-secondary);
   margin-bottom: 12rpx;
 }
 .input {
   width: 100%;
   height: 96rpx;
-  background-color: #ffffff;
-  border: 2rpx solid #e5e5ea;
-  border-radius: 20rpx;
+  background-color: var(--bg-input);
+  border: 2rpx solid var(--bg-input);
+  border-radius: var(--radius-md);
   padding: 0 28rpx;
-  color: #1d1d1f;
+  color: var(--text-primary);
   font-size: 32rpx;
   box-sizing: border-box;
   transition: border-color 0.2s;
 }
 .input:focus {
-  border-color: #f59e0b;
+  border-color: var(--accent);
 }
 .placeholder {
-  color: #aeaeb2;
+  color: var(--text-tertiary);
   font-size: 30rpx;
 }
 
@@ -208,14 +215,14 @@ async function onLogin() {
 .login-btn {
   width: 100%;
   height: 100rpx;
-  background: linear-gradient(135deg, #f59e0b, #f97316);
+  background: var(--accent-gradient);
   color: #ffffff;
   font-size: 34rpx;
   font-weight: 600;
-  border-radius: 20rpx;
+  border-radius: var(--radius-pill);
   border: none;
   margin-top: 16rpx;
-  box-shadow: 0 8rpx 24rpx rgba(245, 158, 11, 0.25);
+  box-shadow: var(--shadow-fab);
 }
 .login-btn[disabled] {
   opacity: 0.5;
@@ -226,7 +233,7 @@ async function onLogin() {
   margin-top: 40rpx;
 }
 .server-config-text {
-  color: #86868b;
+  color: var(--text-tertiary);
   font-size: 24rpx;
 }
 </style>

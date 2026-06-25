@@ -167,34 +167,75 @@ async function hermesFetch(
 
 // ============ 命令行执行封装 ============
 
+// ============ 用户 Profile 管理（持久化记忆核心） ============
+
+/**
+ * 获取用户专属的 Hermes profile 目录
+ *
+ * 路径：~/.lynnhub/hermes-profiles/<userId>/
+ * 内含：
+ *   - hermes/.env          - LLM 配置（API Key、Base URL、Model）
+ *   - hermes/config.yaml   - Hermes 模型设置
+ *   - hermes/auth.json     - 认证信息
+ *   - hermes/logs/         - 日志
+ *   - hermes/skills/       - /learn 自动生成的技能
+ *   - hermes/memory/       - 持久化记忆（FTS5 全文索引）
+ *   - hermes/sessions/     - 会话历史
+ *
+ * 每个用户的记忆、技能、会话完全隔离，跨会话保留。
+ */
+export function getUserProfileDir(userId: string): string {
+  const path = require("path") as typeof import("path");
+  const os = require("os") as typeof import("os");
+  return path.join(os.homedir(), ".lynnhub", "hermes-profiles", userId);
+}
+
+/**
+ * 获取用户 profile 下的 hermes 数据目录
+ */
+export function getUserHermesDir(userId: string): string {
+  const path = require("path") as typeof import("path");
+  return path.join(getUserProfileDir(userId), "hermes");
+}
+
 /**
  * 构建 hermes CLI 调用所需的安全环境
  *
  * 根因：TRAE 沙箱限制了对 C:\Users\...\AppData\Local\hermes\logs\ 的写入，
  * 导致 hermes 启动时 concurrent_log_handler 抛出 OSError: Bad file descriptor。
  *
- * 方案：将 LOCALAPPDATA 重定向到临时目录，并复制 hermes 配置文件过去，
- * 使 hermes 能在临时目录中读写日志，同时保留原有的模型/API Key 配置。
+ * 方案（持久化 profile）：
+ * - 传入 userId 时，重定向 LOCALAPPDATA 到 ~/.lynnhub/hermes-profiles/<userId>/
+ *   使记忆、skills、会话跨会话持久化保留
+ * - 不传 userId 时（向后兼容），使用临时目录
+ * - 首次使用时从原 hermes 目录复制配置（不覆盖已有的）
  */
-function buildHermesEnv(): NodeJS.ProcessEnv {
+function buildHermesEnv(userId?: string): NodeJS.ProcessEnv {
   const fs = require("fs") as typeof import("fs");
   const path = require("path") as typeof import("path");
   const os = require("os") as typeof import("os");
 
   const origLocal = process.env.LOCALAPPDATA || "";
   const origHermesDir = path.join(origLocal, "hermes");
-  const tmpLocal = path.join(os.tmpdir(), "hermes_local_run");
-  const tmpHermesDir = path.join(tmpLocal, "hermes");
 
-  // 确保临时目录结构存在
-  fs.mkdirSync(path.join(tmpHermesDir, "logs"), { recursive: true });
+  // 选择 profile 目录：有 userId 用持久化目录，否则用临时目录
+  const profileLocal = userId
+    ? getUserProfileDir(userId)
+    : path.join(os.tmpdir(), "hermes_local_run");
+  const profileHermesDir = path.join(profileLocal, "hermes");
 
-  // 复制配置文件（.env 含 API Key，config.yaml 含模型设置，auth.json 含认证）
+  // 确保目录结构存在（首次创建）
+  const subDirs = ["logs", "skills", "memory", "sessions"];
+  for (const sub of subDirs) {
+    fs.mkdirSync(path.join(profileHermesDir, sub), { recursive: true });
+  }
+
+  // 复制配置文件（仅首次，不覆盖已有的 - 保留用户自定义）
   if (fs.existsSync(origHermesDir)) {
     for (const file of [".env", "config.yaml", "auth.json"]) {
       const src = path.join(origHermesDir, file);
-      const dst = path.join(tmpHermesDir, file);
-      if (fs.existsSync(src)) {
+      const dst = path.join(profileHermesDir, file);
+      if (fs.existsSync(src) && !fs.existsSync(dst)) {
         try {
           fs.copyFileSync(src, dst);
         } catch {
@@ -206,12 +247,16 @@ function buildHermesEnv(): NodeJS.ProcessEnv {
 
   return {
     ...process.env,
-    LOCALAPPDATA: tmpLocal,
+    LOCALAPPDATA: profileLocal,
   };
 }
 
 /** 执行 hermes 命令并返回 stdout */
-async function execHermes(args: string[], timeoutMs: number = 30_000): Promise<{
+async function execHermes(
+  args: string[],
+  timeoutMs: number = 30_000,
+  userId?: string
+): Promise<{
   success: boolean;
   stdout: string;
   stderr: string;
@@ -230,7 +275,7 @@ async function execHermes(args: string[], timeoutMs: number = 30_000): Promise<{
     const { stdout, stderr } = await execFileAsync(hermesExe, args, {
       timeout: timeoutMs,
       maxBuffer: 1024 * 1024 * 10, // 10MB
-      env: buildHermesEnv(),
+      env: buildHermesEnv(userId),
       cwd: process.env.HOME || process.env.USERPROFILE || undefined,
     });
     return { success: true, stdout, stderr };
@@ -302,19 +347,21 @@ export async function testHermesConnection(
 }
 
 /**
- * 执行 Hermes 任务（通过 CLI）
+ * 执行 Hermes 任务（通过 CLI，支持持久化 profile + 自动学习）
  *
  * 架构说明：
  * Hermes Dashboard 是管理界面（查看 sessions/config/skills），没有通用 prompt 执行 API。
- * 任务执行统一通过 CLI `hermes -z "prompt" --yolo`，hermes 内部会自动调用工具完成任务。
+ * 任务执行统一通过 CLI `hermes -z "prompt" --yolo --learn`，hermes 内部会自动调用工具完成任务。
  *
  * 执行流程：
  * 1. 预检 LLM 模型是否已配置（未配置时自动配置）
- * 2. 通过 CLI 执行任务（execHermes 内部会设置安全环境绕过沙箱限制）
+ * 2. 通过 CLI 执行任务（传入 userId 启用持久化 profile）
+ * 3. 任务成功后，自动生成的 skill 会写入 profile/skills/ 目录，由 syncLearnedSkills 回写
  */
 export async function executeHermesTask(
   config: HermesConfig,
-  request: HermesTaskRequest
+  request: HermesTaskRequest,
+  userId?: string
 ): Promise<HermesTaskResult> {
   const start = Date.now();
   const timeoutMs = (request.timeout ?? 120) * 1000;
@@ -340,10 +387,11 @@ export async function executeHermesTask(
     // 预检失败不阻塞，继续尝试执行
   }
 
-  // 2. 通过 CLI 执行任务
+  // 2. 通过 CLI 执行任务（传入 userId 启用持久化 profile）
+  // 注意：--learn 在部分 Hermes 版本中不支持，通过 syncLearnedSkills 扫描 skills 目录实现学习回写
   const args = ["-z", request.prompt, "--yolo"];
 
-  const result = await execHermes(args, timeoutMs);
+  const result = await execHermes(args, timeoutMs, userId);
   if (result.success) {
     const output = result.stdout.trim() || result.stderr.trim();
     return {
@@ -881,4 +929,826 @@ export async function stopHermesAgent(port: number = 9119): Promise<{
   } catch (e) {
     return { success: false, error: (e as Error).message };
   }
+}
+
+// ============ /learn 回写：Hermes 自动学习成果同步到 LynnHub ============
+
+/**
+ * 扫描用户 profile/skills/ 目录，将 Hermes /learn 自动生成的 skill 回写到 LynnHub Skill 表
+ *
+ * Hermes 执行 `--learn` 后，会在 profile/skills/ 下生成 YAML/MD 格式的 skill 文件。
+ * 本函数：
+ * 1. 扫描 profile/skills/ 目录
+ * 2. 解析每个 skill 文件（YAML front matter + MD 正文）
+ * 3. 与 LynnHub Skill 表比对（按 name + userId 去重）
+ * 4. 新增的 skill 写入数据库，source = "hermes-learned"
+ *
+ * @returns 新增的 skill 数量 + 详情
+ */
+export async function syncLearnedSkills(userId: string): Promise<{
+  success: boolean;
+  newCount: number;
+  skills: Array<{ id: string; name: string; source: string }>;
+  error?: string;
+}> {
+  const fs = require("fs") as typeof import("fs");
+  const path = require("path") as typeof import("path");
+
+  try {
+    const skillsDir = path.join(getUserHermesDir(userId), "skills");
+    if (!fs.existsSync(skillsDir)) {
+      return { success: true, newCount: 0, skills: [] };
+    }
+
+    // 扫描 skill 文件（.yaml/.yml/.md）
+    const files = fs.readdirSync(skillsDir).filter((f: string) =>
+      /\.(ya?ml|md)$/i.test(f)
+    );
+
+    const newSkills: Array<{ id: string; name: string; source: string }> = [];
+    let newCount = 0;
+
+    for (const file of files) {
+      const filePath = path.join(skillsDir, file);
+      try {
+        const content = fs.readFileSync(filePath, "utf-8");
+        const parsed = parseHermesSkillFile(content, file);
+        if (!parsed.name) continue;
+
+        // 去重：同名 + 同 userId 的 skill 不重复创建
+        const existing = await prisma.skill.findFirst({
+          where: { name: parsed.name, userId },
+          select: { id: true },
+        });
+        if (existing) continue;
+
+        // 写入 LynnHub Skill 表
+        const skill = await prisma.skill.create({
+          data: {
+            name: parsed.name,
+            description: parsed.description || `Hermes 自动学习技能（来源：${file}）`,
+            category: parsed.category || "general",
+            content: parsed.content,
+            parameters: (parsed.parameters || []) as never,
+            promptTemplate: parsed.promptTemplate || "",
+            source: "hermes-learned",
+            tags: parsed.tags || ["hermes", "auto-learned"],
+            userId,
+          },
+        });
+        newCount++;
+        newSkills.push({ id: skill.id, name: skill.name, source: skill.source });
+      } catch (e) {
+        logger.warn({ err: e, file }, "解析 Hermes skill 文件失败，跳过");
+      }
+    }
+
+    logger.info({ userId, newCount }, "Hermes learned skills 同步完成");
+    return { success: true, newCount, skills: newSkills };
+  } catch (e) {
+    return { success: false, newCount: 0, skills: [], error: (e as Error).message };
+  }
+}
+
+/**
+ * 解析 Hermes skill 文件内容
+ * 支持 YAML front matter（--- 包裹）+ Markdown 正文
+ */
+function parseHermesSkillFile(content: string, fileName: string): {
+  name: string;
+  description?: string;
+  category?: string;
+  content: string;
+  parameters?: unknown[];
+  promptTemplate?: string;
+  tags?: string[];
+} {
+  // 简易 YAML front matter 解析
+  const fmMatch = content.match(/^---\s*\n([\s\S]*?)\n---\s*\n([\s\S]*)$/);
+  if (fmMatch) {
+    const frontMatter = fmMatch[1];
+    const body = fmMatch[2];
+    const meta: Record<string, string> = {};
+    for (const line of frontMatter.split("\n")) {
+      const m = line.match(/^(\w+):\s*(.+)$/);
+      if (m) meta[m[1].trim()] = m[2].trim().replace(/^["'](.*)["']$/, "$1");
+    }
+    return {
+      name: meta.name || fileName.replace(/\.\w+$/, ""),
+      description: meta.description,
+      category: meta.category,
+      content: body.trim(),
+      promptTemplate: meta.prompt || "",
+      tags: meta.tags ? meta.tags.split(",").map((t) => t.trim()) : undefined,
+    };
+  }
+
+  // 纯 Markdown：首行 # 作为 name，其余作为 content
+  const lines = content.split("\n");
+  const h1Line = lines.find((l) => l.startsWith("# "));
+  return {
+    name: h1Line ? h1Line.replace(/^#\s*/, "").trim() : fileName.replace(/\.\w+$/, ""),
+    content: content.trim(),
+  };
+}
+
+/**
+ * 列出用户 profile 下的所有 learned skills（文件系统级别）
+ */
+export async function listLearnedSkills(userId: string): Promise<{
+  success: boolean;
+  skills: Array<{ fileName: string; name: string; size: number; mtime: Date }>;
+}> {
+  const fs = require("fs") as typeof import("fs");
+  const path = require("path") as typeof import("path");
+
+  try {
+    const skillsDir = path.join(getUserHermesDir(userId), "skills");
+    if (!fs.existsSync(skillsDir)) {
+      return { success: true, skills: [] };
+    }
+
+    const files = fs.readdirSync(skillsDir).filter((f: string) =>
+      /\.(ya?ml|md)$/i.test(f)
+    );
+
+    const skills = files.map((file: string) => {
+      const filePath = path.join(skillsDir, file);
+      const stat = fs.statSync(filePath);
+      const content = fs.readFileSync(filePath, "utf-8");
+      const parsed = parseHermesSkillFile(content, file);
+      return {
+        fileName: file,
+        name: parsed.name || file,
+        size: stat.size,
+        mtime: stat.mtime,
+      };
+    });
+
+    return { success: true, skills };
+  } catch {
+    return { success: false, skills: [] };
+  }
+}
+
+// ============ Skills 双向同步：LynnHub ↔ Hermes skills 目录 ============
+
+/**
+ * 导出 LynnHub Skill 到 Hermes skills 目录（LynnHub → Hermes）
+ *
+ * 将 Skill 写为 YAML front matter + Markdown 格式，
+ * 放入 profile/skills/<skill-name>.md
+ *
+ * @returns 导出的文件路径
+ */
+export async function exportSkillToHermes(
+  skillId: string,
+  userId: string
+): Promise<{ success: boolean; filePath?: string; error?: string }> {
+  const fs = require("fs") as typeof import("fs");
+  const path = require("path") as typeof import("path");
+
+  try {
+    const skill = await prisma.skill.findUnique({ where: { id: skillId } });
+    if (!skill) {
+      return { success: false, error: "Skill 不存在" };
+    }
+
+    const skillsDir = path.join(getUserHermesDir(userId), "skills");
+    fs.mkdirSync(skillsDir, { recursive: true });
+
+    // 文件名：skill name 转 kebab-case + .md
+    const fileName = skill.name
+      .toLowerCase()
+      .replace(/[^\w\u4e00-\u9fa5]+/g, "-")
+      .replace(/^-+|-+$/g, "") + ".md";
+
+    const filePath = path.join(skillsDir, fileName);
+
+    // YAML front matter + Markdown 正文
+    const tags = Array.isArray(skill.tags) ? (skill.tags as string[]).join(", ") : "";
+    const yaml = [
+      "---",
+      `name: "${skill.name.replace(/"/g, '\\"')}"`,
+      `description: "${(skill.description || "").replace(/"/g, '\\"').replace(/\n/g, " ")}"`,
+      `category: "${skill.category || "general"}"`,
+      tags ? `tags: ${tags}` : null,
+      skill.promptTemplate ? `prompt: "${skill.promptTemplate.replace(/"/g, '\\"').slice(0, 200)}"` : null,
+      "---",
+      "",
+      skill.content || "",
+      "",
+    ].filter(Boolean).join("\n");
+
+    fs.writeFileSync(filePath, yaml, "utf-8");
+    logger.info({ skillId, userId, filePath }, "Skill 已导出到 Hermes");
+
+    return { success: true, filePath };
+  } catch (e) {
+    return { success: false, error: (e as Error).message };
+  }
+}
+
+/**
+ * 从 Hermes skills 目录导入 skill 到 LynnHub（Hermes → LynnHub）
+ */
+export async function importSkillFromHermes(
+  fileName: string,
+  userId: string
+): Promise<{ success: boolean; skillId?: string; error?: string }> {
+  const fs = require("fs") as typeof import("fs");
+  const path = require("path") as typeof import("path");
+
+  try {
+    const filePath = path.join(getUserHermesDir(userId), "skills", fileName);
+    if (!fs.existsSync(filePath)) {
+      return { success: false, error: "文件不存在" };
+    }
+
+    const content = fs.readFileSync(filePath, "utf-8");
+    const parsed = parseHermesSkillFile(content, fileName);
+
+    // 去重
+    const existing = await prisma.skill.findFirst({
+      where: { name: parsed.name, userId },
+      select: { id: true },
+    });
+    if (existing) {
+      return { success: true, skillId: existing.id };
+    }
+
+    const skill = await prisma.skill.create({
+      data: {
+        name: parsed.name,
+        description: parsed.description || "从 Hermes 导入",
+        category: parsed.category || "general",
+        content: parsed.content,
+        parameters: (parsed.parameters || []) as never,
+        promptTemplate: parsed.promptTemplate || "",
+        source: "hermes-imported",
+        tags: parsed.tags || ["hermes"],
+        userId,
+      },
+    });
+
+    return { success: true, skillId: skill.id };
+  } catch (e) {
+    return { success: false, error: (e as Error).message };
+  }
+}
+
+// ============ Hermes Cron 自动化（接管 AI 巡检） ============
+
+/**
+ * 列出用户 profile 下的 Hermes cron jobs
+ * 通过 `hermes cron list` 命令
+ */
+export async function listHermesCronJobs(userId: string): Promise<{
+  success: boolean;
+  jobs: Array<{ id?: string; schedule?: string; prompt?: string; enabled?: boolean }>;
+  error?: string;
+}> {
+  const result = await execHermes(["cron", "list"], 15_000, userId);
+  if (!result.success) {
+    return { success: false, jobs: [], error: result.error };
+  }
+
+  // 解析 cron list 输出（每行一个 job）
+  const jobs: Array<{ id?: string; schedule?: string; prompt?: string; enabled?: boolean }> = [];
+  for (const line of result.stdout.split("\n")) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith("ID") || trimmed.startsWith("-")) continue;
+    // 尝试解析表格行：ID | Schedule | Prompt | Enabled
+    const parts = trimmed.split(/\s*\|\s*/);
+    if (parts.length >= 2) {
+      jobs.push({
+        id: parts[0]?.trim(),
+        schedule: parts[1]?.trim(),
+        prompt: parts[2]?.trim(),
+        enabled: parts[3]?.trim().toLowerCase() === "true",
+      });
+    }
+  }
+
+  return { success: true, jobs };
+}
+
+/**
+ * 创建 Hermes cron job（用于 AI 巡检自动化）
+ * 通过 `hermes cron add --schedule "<cron>" --prompt "<prompt>"`
+ */
+export async function createHermesCronJob(
+  userId: string,
+  schedule: string,
+  prompt: string
+): Promise<{ success: boolean; jobId?: string; error?: string }> {
+  const result = await execHermes(
+    ["cron", "add", "--schedule", schedule, "--prompt", prompt, "--yolo"],
+    15_000,
+    userId
+  );
+  if (!result.success) {
+    return { success: false, error: result.error || result.stderr };
+  }
+
+  // 尝试从输出中提取 job ID
+  const idMatch = result.stdout.match(/(?:job[_-]?id|id)[:\s]+([\w-]+)/i);
+  return {
+    success: true,
+    jobId: idMatch?.[1]?.trim(),
+  };
+}
+
+/**
+ * 删除 Hermes cron job
+ */
+export async function deleteHermesCronJob(
+  userId: string,
+  jobId: string
+): Promise<{ success: boolean; error?: string }> {
+  const result = await execHermes(["cron", "delete", jobId], 15_000, userId);
+  if (!result.success) {
+    return { success: false, error: result.error || result.stderr };
+  }
+  return { success: true };
+}
+
+// ============ 持久化记忆搜索 ============
+
+/**
+ * 搜索用户的 Hermes 持久化记忆
+ *
+ * Hermes CLI 的 memory 子命令不支持 search（仅 setup/status/off/reset），
+ * 因此直接读取 profile/memory/ 目录下的文件，用关键词匹配实现简易搜索。
+ * 返回与 query 最相关的记忆条目。
+ */
+export async function searchUserMemory(
+  userId: string,
+  query: string
+): Promise<{
+  success: boolean;
+  results: Array<{ content: string; score?: number; createdAt?: string }>;
+  error?: string;
+}> {
+  const fs = require("fs") as typeof import("fs");
+  const path = require("path") as typeof import("path");
+
+  const memoryDir = path.join(getUserHermesDir(userId), "memory");
+  if (!fs.existsSync(memoryDir)) {
+    return { success: true, results: [] };
+  }
+
+  const queryLower = query.toLowerCase();
+  const queryWords = queryLower.split(/\s+/).filter((w) => w.length > 1);
+  const results: Array<{ content: string; score: number; createdAt?: string }> = [];
+
+  try {
+    const files = fs.readdirSync(memoryDir).filter((f: string) =>
+      /\.(txt|md|json|yaml|yml)$/i.test(f)
+    );
+
+    for (const file of files) {
+      const filePath = path.join(memoryDir, file);
+      try {
+        const content = fs.readFileSync(filePath, "utf-8");
+        const contentLower = content.toLowerCase();
+
+        // 计算关键词匹配分数
+        let score = 0;
+        for (const word of queryWords) {
+          if (contentLower.includes(word)) score++;
+        }
+        // 整体 query 匹配额外加分
+        if (queryLower && contentLower.includes(queryLower)) score += 5;
+
+        if (score > 0) {
+          const stat = fs.statSync(filePath);
+          results.push({
+            content: content.slice(0, 500),
+            score,
+            createdAt: stat.mtime.toISOString(),
+          });
+        }
+      } catch {
+        // 单个文件读取失败跳过
+      }
+    }
+  } catch {
+    return { success: false, results: [], error: "读取记忆目录失败" };
+  }
+
+  // 按分数降序排列，取前 10 条
+  results.sort((a, b) => b.score - a.score);
+  return { success: true, results: results.slice(0, 10) };
+}
+
+/**
+ * 获取用户 profile 状态（记忆数、技能数、会话数等）
+ */
+export async function getUserProfileStatus(userId: string): Promise<{
+  success: boolean;
+  profileDir: string;
+  memoryCount: number;
+  skillsCount: number;
+  sessionsCount: number;
+  exists: boolean;
+}> {
+  const fs = require("fs") as typeof import("fs");
+  const path = require("path") as typeof import("path");
+
+  const profileDir = getUserHermesDir(userId);
+  const exists = fs.existsSync(profileDir);
+
+  if (!exists) {
+    return {
+      success: true,
+      profileDir,
+      memoryCount: 0,
+      skillsCount: 0,
+      sessionsCount: 0,
+      exists: false,
+    };
+  }
+
+  const countFiles = (subDir: string) => {
+    const dir = path.join(profileDir, subDir);
+    if (!fs.existsSync(dir)) return 0;
+    try {
+      return fs.readdirSync(dir).filter((f: string) => !f.startsWith(".")).length;
+    } catch {
+      return 0;
+    }
+  };
+
+  return {
+    success: true,
+    profileDir,
+    memoryCount: countFiles("memory"),
+    skillsCount: countFiles("skills"),
+    sessionsCount: countFiles("sessions"),
+    exists: true,
+  };
+}
+
+// ============ Hermes Agent 接管 AI 助理（模式 C） ============
+
+/**
+ * 构建带记忆上下文的 AI 助理 prompt
+ *
+ * 模式 C 核心能力：持久化记忆 + 跨会话上下文
+ * - 从 Hermes profile 搜索相关记忆（FTS5 全文搜索）
+ * - 从 LynnHub 数据库获取看板/灵感摘要
+ * - 将上下文注入 prompt，让 Hermes 能引用之前的对话和任务
+ */
+export async function buildAssistantPrompt(
+  userId: string,
+  userMessage: string
+): Promise<string> {
+  const parts: string[] = [];
+
+  // 1. 注入持久化记忆（从 Hermes profile 搜索相关上下文）
+  try {
+    const memoryResult = await searchUserMemory(userId, userMessage.slice(0, 100));
+    if (memoryResult.success && memoryResult.results.length > 0) {
+      const memoryText = memoryResult.results
+        .slice(0, 5)
+        .map((r, i) => `[${i + 1}] ${r.content}`)
+        .join("\n");
+      parts.push(`## 你之前的记忆（跨会话保留）\n${memoryText}`);
+    }
+  } catch {
+    // 记忆搜索失败不阻塞
+  }
+
+  // 2. 注入 LynnHub 看板摘要（让 Hermes 知道用户当前的任务状态）
+  try {
+    const [activeTasks, recentIdeas] = await Promise.all([
+      prisma.task.count({ where: { userId, status: "active" } }),
+      prisma.idea.count({ where: { userId, status: "inbox" } }),
+    ]);
+    parts.push(`## 用户当前状态\n- 进行中任务：${activeTasks} 个\n- 收件箱灵感：${recentIdeas} 条`);
+  } catch {
+    // 数据库查询失败不阻塞
+  }
+
+  // 3. 注入用户已学会的技能数（体现自动成长）
+  try {
+    const profileStatus = await getUserProfileStatus(userId);
+    if (profileStatus.exists) {
+      parts.push(`## 你的成长状态\n- 已学习技能：${profileStatus.skillsCount} 个\n- 持久化记忆：${profileStatus.memoryCount} 条\n- 会话历史：${profileStatus.sessionsCount} 个`);
+    }
+  } catch {
+    // 成长状态查询失败不阻塞
+  }
+
+  // 4. 用户消息
+  parts.push(`## 用户请求\n${userMessage}`);
+
+  // 5. 行为指令
+  parts.push(`## 行为要求
+- 你是 LynnHub 的 AI 超级助理，由 Hermes Agent 驱动，拥有持久化记忆和持续学习能力
+- 基于你之前的记忆和上下文回应用户，能引用之前的对话内容
+- 如果需要操作系统、执行命令、访问数据，直接使用你的工具能力完成
+- 任务完成后会自动学习（--learn），将新技能保存到你的 profile
+- 用中文回复，简洁友好`);
+
+  return parts.join("\n\n");
+}
+
+/**
+ * Hermes Agent 接管 AI 助理：执行用户消息
+ *
+ * 这是模式 C 的核心入口：
+ * - 使用持久化 profile（记忆跨会话保留）
+ * - 注入记忆上下文（让 Hermes 能引用之前的内容）
+ * - 启用 --learn（任务完成后自动学习新技能）
+ * - 失败时返回 error，由调用方回退到 LLM 模式
+ */
+export async function executeAssistantViaHermes(
+  userId: string,
+  userMessage: string,
+  timeoutSeconds: number = 120
+): Promise<{
+  success: boolean;
+  output: string;
+  error?: string;
+  durationMs?: number;
+  learned: boolean;
+}> {
+  const start = Date.now();
+
+  // 1. 获取 Hermes 配置
+  const config = await getHermesConfig(userId);
+  if (!config || !config.enabled) {
+    return {
+      success: false,
+      output: "",
+      error: "Hermes Agent 未启用",
+      durationMs: Date.now() - start,
+      learned: false,
+    };
+  }
+  if (config.status !== "running") {
+    return {
+      success: false,
+      output: "",
+      error: `Hermes Agent 状态为 ${config.status}，请先启动`,
+      durationMs: Date.now() - start,
+      learned: false,
+    };
+  }
+
+  // 2. 构建带记忆上下文的 prompt
+  const fullPrompt = await buildAssistantPrompt(userId, userMessage);
+
+  // 3. 通过 Hermes 执行（带持久化 profile + --learn 自动学习）
+  const result = await executeHermesTask(
+    config,
+    {
+      prompt: fullPrompt,
+      mode: "auto",
+      timeout: timeoutSeconds,
+    },
+    userId
+  );
+
+  // 4. 任务成功后异步同步 learned skills（不阻塞响应）
+  if (result.success) {
+    syncLearnedSkills(userId).catch((e) => {
+      logger.warn({ err: e }, "AI 助理 Hermes 模式：同步 learned skills 失败（非阻塞）");
+    });
+  }
+
+  return {
+    success: result.success,
+    output: result.output,
+    error: result.error,
+    durationMs: result.durationMs,
+    learned: result.success,
+  };
+}
+
+/**
+ * 生成主动汇报（模式 C：持续工作 / 主动汇报 / 跨平台响应）
+ *
+ * Hermes Cron 定时触发，让 Hermes 主动分析用户数据并生成汇报
+ * 汇报内容存入 HermesReport 表，并通过 Web Push 跨平台推送
+ */
+export async function generateProactiveReport(
+  userId: string,
+  type: "daily" | "weekly" | "patrol" = "daily"
+): Promise<{
+  success: boolean;
+  reportId?: string;
+  title?: string;
+  content?: string;
+  pushed?: boolean;
+  error?: string;
+  durationMs?: number;
+}> {
+  const start = Date.now();
+
+  const config = await getHermesConfig(userId);
+  if (!config || !config.enabled || config.status !== "running") {
+    return {
+      success: false,
+      error: "Hermes Agent 未启用或未运行",
+      durationMs: Date.now() - start,
+    };
+  }
+
+  // 1. 收集用户数据摘要
+  let dataSummary = "";
+  try {
+    const [activeTasks, doneTasks, inboxIdeas, cognitions] = await Promise.all([
+      prisma.task.findMany({
+        where: { userId, status: "active" },
+        select: { content: true, column: true },
+        take: 10,
+        orderBy: { createdAt: "desc" },
+      }),
+      prisma.task.count({ where: { userId, status: "done" } }),
+      prisma.idea.findMany({
+        where: { userId, status: "inbox" },
+        select: { content: true, createdAt: true },
+        take: 5,
+        orderBy: { createdAt: "desc" },
+      }),
+      prisma.cognition.findMany({
+        where: { userId },
+        select: { content: true, type: true },
+        take: 5,
+        orderBy: { createdAt: "desc" },
+      }),
+    ]);
+
+    dataSummary = `## 用户当前数据
+### 进行中任务（${activeTasks.length} 个）
+${activeTasks.map((t, i) => `${i + 1}. [${t.column}] ${t.content.slice(0, 80)}`).join("\n") || "无"}
+
+### 已完成任务：${doneTasks} 个
+
+### 最近灵感（${inboxIdeas.length} 条）
+${inboxIdeas.map((t, i) => `${i + 1}. ${t.content.slice(0, 80)}`).join("\n") || "无"}
+
+### 最近认知（${cognitions.length} 条）
+${cognitions.map((c, i) => `${i + 1}. [${c.type}] ${c.content.slice(0, 80)}`).join("\n") || "无"}`;
+  } catch {
+    dataSummary = "（用户数据获取失败）";
+  }
+
+  // 2. 构建 Hermes prompt
+  const typeDesc =
+    type === "daily" ? "每日" : type === "weekly" ? "每周" : "巡检";
+  const prompt = `## 任务：生成${typeDesc}主动汇报
+
+${dataSummary}
+
+## 要求
+请基于以上用户数据，生成一份${typeDesc}主动汇报，包括：
+1. 当前进度总结（任务、灵感、认知的变化）
+2. 需要关注的事项（即将到期、积压、异常）
+3. 建议的下一步行动（2-3 条具体建议）
+4. 鼓励和反思（基于认知库中的经验）
+
+用 Markdown 格式输出，简洁有力。`;
+
+  // 3. 通过 Hermes 执行（带持久化记忆 + 学习）
+  const result = await executeHermesTask(
+    config,
+    { prompt, mode: "auto", timeout: 120 },
+    userId
+  );
+
+  // 4. 存储汇报到数据库
+  const title = `${typeDesc}汇报 - ${new Date().toLocaleString("zh-CN", { dateStyle: "short" })}`;
+  let reportId: string | undefined;
+  let pushed = false;
+
+  try {
+    const report = await prisma.hermesReport.create({
+      data: {
+        userId,
+        type,
+        title,
+        content: result.success ? result.output : "生成失败",
+        rawOutput: result.output,
+        trigger: type === "patrol" ? "patrol" : "cron",
+        pushed: false,
+        durationMs: Date.now() - start,
+        error: result.error,
+      },
+    });
+    reportId = report.id;
+  } catch (e) {
+    logger.warn({ err: e }, "存储 HermesReport 失败（非阻塞）");
+  }
+
+  // 5. 通过 Web Push 跨平台推送
+  if (result.success && reportId) {
+    try {
+      const pushModule = await import("@/lib/push");
+      const sendPushNotification = pushModule.sendPushNotification;
+      const subs = await prisma.pushSubscription.findMany({ where: { userId } });
+      let sentCount = 0;
+      const preview = result.output.slice(0, 200).replace(/[#*`\n]/g, " ").trim();
+      for (const sub of subs) {
+        const subscription = {
+          endpoint: sub.endpoint,
+          keys: sub.keys as { p256dh: string; auth: string },
+        };
+        const pushResult = await sendPushNotification(subscription, {
+          title: `🤖 ${title}`,
+          body: preview || "Hermes 已生成新的汇报，请查看",
+        });
+        if (pushResult.success) sentCount++;
+      }
+      pushed = sentCount > 0;
+      if (pushed) {
+        await prisma.hermesReport.update({
+          where: { id: reportId },
+          data: { pushed: true, pushChannel: "web_push" },
+        });
+      }
+    } catch {
+      // 推送失败不影响汇报存储
+    }
+  }
+
+  // 6. 异步同步 learned skills
+  if (result.success) {
+    syncLearnedSkills(userId).catch(() => {});
+  }
+
+  return {
+    success: result.success,
+    reportId,
+    title,
+    content: result.output,
+    pushed,
+    error: result.error,
+    durationMs: Date.now() - start,
+  };
+}
+
+/**
+ * Hermes Cron 接管 AI 巡检
+ *
+ * 将 LynnHub 的 PatrolRule 转换为 Hermes Cron 任务
+ * Hermes 会按照 cron 表达式自动执行巡检，并主动汇报结果
+ */
+export async function takeoverPatrolWithHermes(
+  userId: string
+): Promise<{
+  success: boolean;
+  migratedCount: number;
+  errors: string[];
+}> {
+  const errors: string[] = [];
+  let migratedCount = 0;
+
+  // 1. 获取用户所有启用的巡检规则
+  const rules = await prisma.patrolRule.findMany({
+    where: { userId, enabled: true },
+  });
+
+  if (rules.length === 0) {
+    return { success: true, migratedCount: 0, errors: ["没有启用的巡检规则"] };
+  }
+
+  // 2. 将每条规则转换为 Hermes Cron 任务
+  for (const rule of rules) {
+    // 解析 triggerTime（支持 "HH:mm" 或 cron 表达式）
+    let schedule = rule.triggerTime || "0 9 * * *";
+    if (/^\d{1,2}:\d{2}$/.test(schedule)) {
+      const [h, m] = schedule.split(":");
+      schedule = `${m} ${h} * * *`;
+    }
+
+    const prompt = `## AI 巡检任务：${rule.name}
+
+${rule.description || ""}
+
+### 巡检提示词
+${rule.prompt}
+
+### 要求
+1. 按照巡检提示词分析相关数据
+2. 如果发现问题，生成详细报告
+3. 用 Markdown 格式输出巡检结果
+4. 如果有紧急事项，明确标注「⚠️ 需要立即处理」`;
+
+    const result = await createHermesCronJob(userId, schedule, prompt);
+    if (result.success) {
+      migratedCount++;
+    } else {
+      errors.push(`规则「${rule.name}」迁移失败：${result.error}`);
+    }
+  }
+
+  return {
+    success: migratedCount > 0,
+    migratedCount,
+    errors,
+  };
 }

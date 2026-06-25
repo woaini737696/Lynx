@@ -255,7 +255,7 @@ export default function PatrolSettingsPage() {
   };
 
   // 使用模板：用模板数据预填创建表单
-  const useTemplate = (template: PatrolTemplate) => {
+  const applyTemplate = (template: PatrolTemplate) => {
     if (isTemplateAdded(template)) {
       toast("该模板已添加为规则", "info");
       return;
@@ -519,7 +519,7 @@ export default function PatrolSettingsPage() {
                   <Button
                     size="sm"
                     variant={added ? "outline" : "primary"}
-                    onClick={() => useTemplate(tpl)}
+                    onClick={() => applyTemplate(tpl)}
                     disabled={added}
                   >
                     <Plus className="h-3 w-3" />

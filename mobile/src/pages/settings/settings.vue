@@ -38,12 +38,15 @@
       <text class="section-title">外观</text>
       <view class="menu-item" @click="toggleTheme">
         <view class="menu-icon">
-          <Icon :name="settingsStore.theme === 'dark' ? 'moon' : 'sun'" :size="36" :color="isDark ? '#f5f5f7' : '#1d1d1f'" />
+          <Icon :name="isDark ? 'moon' : 'sun'" :size="36" :color="isDark ? '#f5f5f7' : '#1d1d1f'" />
         </view>
         <text class="menu-label">深色模式</text>
         <view class="switch-wrap" @click.stop="toggleTheme">
-          <view class="switch-track" :class="{ on: settingsStore.theme === 'dark' }">
-            <view class="switch-thumb"></view>
+          <view class="switch-track" :class="{ on: isDark }">
+            <view
+              class="switch-thumb"
+              :style="{ marginLeft: isDark ? '36rpx' : '0' }"
+            ></view>
           </view>
         </view>
       </view>
@@ -150,7 +153,7 @@ function onLogout() {
 .page {
   min-height: 100vh;
   padding: 32rpx;
-  padding-bottom: calc(32rpx + env(safe-area-inset-bottom) + 120rpx);
+  padding-bottom: calc(32rpx + env(safe-area-inset-bottom) + 140rpx);
   box-sizing: border-box;
   background-color: var(--bg-page);
 }
@@ -158,7 +161,7 @@ function onLogout() {
   display: flex;
   align-items: center;
   background-color: var(--bg-card);
-  border-radius: 20rpx;
+  border-radius: var(--radius-lg);
   padding: 32rpx;
   margin-bottom: 32rpx;
   box-shadow: var(--shadow-card);
@@ -167,7 +170,7 @@ function onLogout() {
   width: 112rpx;
   height: 112rpx;
   border-radius: 50%;
-  background: linear-gradient(135deg, #f59e0b, #f97316);
+  background: var(--accent-gradient);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -193,31 +196,41 @@ function onLogout() {
 }
 
 .section {
-  background-color: var(--bg-card);
-  border-radius: 20rpx;
-  padding: 32rpx;
-  margin-bottom: 24rpx;
-  box-shadow: var(--shadow-card);
+  background-color: transparent;
+  border-radius: 0;
+  padding: 0;
+  margin-bottom: 32rpx;
+  box-shadow: none;
 }
 .section-title {
   display: block;
-  font-size: 26rpx;
+  font-size: 24rpx;
   color: var(--text-secondary);
-  margin-bottom: 24rpx;
+  margin-bottom: 16rpx;
   font-weight: 600;
 }
 
 .menu-item {
   display: flex;
   align-items: center;
-  padding: 24rpx 0;
-  border-bottom: 1rpx solid var(--border-light);
-}
-.menu-item:last-child {
+  background-color: var(--bg-card);
+  border-radius: var(--radius-md);
+  padding: 24rpx;
+  margin-bottom: 16rpx;
+  box-shadow: var(--shadow-card);
   border-bottom: none;
 }
+.menu-item:last-child {
+  margin-bottom: 0;
+}
 .menu-icon {
-  font-size: 36rpx;
+  width: 64rpx;
+  height: 64rpx;
+  border-radius: var(--radius-sm);
+  background-color: var(--accent-soft);
+  display: flex;
+  align-items: center;
+  justify-content: center;
   margin-right: 20rpx;
 }
 .menu-label {
@@ -233,16 +246,16 @@ function onLogout() {
 .switch-wrap {
   padding: 4rpx 0;
 }
-.switch-track {
+ .switch-track {
   width: 88rpx;
   height: 52rpx;
   border-radius: 26rpx;
-  background-color: #e5e5ea;
+  background-color: var(--bg-input);
   position: relative;
   transition: background-color 0.3s;
 }
 .switch-track.on {
-  background: linear-gradient(135deg, #f59e0b, #f97316);
+  background: var(--accent-gradient);
 }
 .switch-thumb {
   position: absolute;
@@ -253,18 +266,22 @@ function onLogout() {
   border-radius: 50%;
   background-color: #ffffff;
   box-shadow: 0 2rpx 8rpx rgba(0, 0, 0, 0.15);
-  transition: transform 0.3s;
-}
-.switch-track.on .switch-thumb {
-  transform: translateX(36rpx);
+  transition: margin-left 0.3s;
 }
 
 .setting-item {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 20rpx 0;
-  border-bottom: 1rpx solid var(--border-light);
+  background-color: var(--bg-card);
+  border-radius: var(--radius-md);
+  padding: 24rpx;
+  margin-bottom: 16rpx;
+  box-shadow: var(--shadow-card);
+  border-bottom: none;
+}
+.setting-item:last-child {
+  margin-bottom: 0;
 }
 .setting-label {
   color: var(--text-primary);
@@ -288,22 +305,22 @@ function onLogout() {
   margin-top: 24rpx;
 }
 .save-btn {
-  background-color: rgba(245, 158, 11, 0.12);
-  border-radius: 12rpx;
+  background-color: var(--accent-soft);
+  border-radius: var(--radius-md);
   height: 80rpx;
   display: flex;
   align-items: center;
   justify-content: center;
 }
 .save-btn-text {
-  color: #f59e0b;
+  color: var(--accent);
   font-size: 28rpx;
   font-weight: 600;
 }
 
 .logout-btn {
   background-color: var(--bg-card);
-  border-radius: 16rpx;
+  border-radius: var(--radius-md);
   height: 96rpx;
   display: flex;
   align-items: center;
@@ -312,7 +329,7 @@ function onLogout() {
   box-shadow: var(--shadow-card);
 }
 .logout-text {
-  color: #ef4444;
+  color: var(--red);
   font-size: 30rpx;
   font-weight: 600;
 }

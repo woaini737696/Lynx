@@ -63,7 +63,7 @@ ngrok config add-authtoken <YOUR_TOKEN>
 
 ### 步骤 2：暴露本地端口
 
-确保 LynnHub dev server 已在 `http://localhost:3000` 运行：
+确保 LynnHub dev server 已在 `http://localhost:5176` 运行：
 
 ```bash
 npm run dev
@@ -73,7 +73,7 @@ npm run dev
 
 **Cloudflare Tunnel：**
 ```bash
-cloudflared tunnel --url http://localhost:3000
+cloudflared tunnel --url http://localhost:5176
 ```
 
 输出示例：
@@ -84,12 +84,12 @@ Your quick Tunnel has been created! Visit it at:
 
 **ngrok：**
 ```bash
-ngrok http 3000
+ngrok http 5176
 ```
 
 输出示例：
 ```
-Forwarding  https://xxxx-xxxx.ngrok-free.app -> http://localhost:3000
+Forwarding  https://xxxx-xxxx.ngrok-free.app -> http://localhost:5176
 ```
 
 记下这个公网 URL，下一步会用到。
@@ -137,7 +137,7 @@ LARK_WEBHOOK_TOKEN=your_verification_token_here
 
 **手动测试 URL 验证：**
 ```bash
-curl -X POST http://localhost:3000/api/lark-webhook \
+curl -X POST http://localhost:5176/api/lark-webhook \
   -H "Content-Type: application/json" \
   -d '{"type":"url_verification","challenge":"test_challenge_123","token":"xxx"}'
 ```
@@ -149,7 +149,7 @@ curl -X POST http://localhost:3000/api/lark-webhook \
 
 **手动测试事件通知：**
 ```bash
-curl -X POST http://localhost:3000/api/lark-webhook \
+curl -X POST http://localhost:5176/api/lark-webhook \
   -H "Content-Type: application/json" \
   -d '{
     "schema": "2.0",
@@ -171,7 +171,7 @@ curl -X POST http://localhost:3000/api/lark-webhook \
 
 **查看事件队列：**
 ```bash
-curl http://localhost:3000/api/lark-webhook/events
+curl http://localhost:5176/api/lark-webhook/events
 ```
 
 ## 前端实时刷新机制

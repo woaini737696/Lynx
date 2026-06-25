@@ -114,7 +114,7 @@
               </view>
               <view v-if="detailTask.assignees && detailTask.assignees.length" class="detail-field">
                 <text class="field-label">负责人</text>
-                <text class="field-value">{{ detailTask.assignees.join(", ") }}</text>
+                <text class="field-value">{{ formatAssignees(detailTask.assignees) }}</text>
               </view>
             </view>
           </view>
@@ -148,6 +148,7 @@ import { ref, computed, onMounted, onUnmounted } from "vue";
 import { onShow, onPullDownRefresh } from "@dcloudio/uni-app";
 import { getLarkTasks, toggleLarkTask, getLarkTask, getSyncState, triggerSync } from "@/api/lark-tasks.js";
 import { setCache, getCache, formatCacheTime } from "@/utils/cache.js";
+import { formatAssignees } from "@/utils/url.js";
 import { useSettingsStore } from "@/store/settings.js";
 import TabBar from "@/components/TabBar.vue";
 import Icon from "@/components/Icon.vue";
@@ -168,6 +169,14 @@ const syncing = ref(false);
 const isOnline = ref(true);
 const cacheInfo = ref(null); // { cachedAt } 离线缓存信息
 let syncTimer = null;
+
+// 页面重新显示时的请求节流（避免 Tab 切换引发高频调用）
+let lastTasksLoadAt = 0;
+let lastSyncStateLoadAt = 0;
+let lastAutoSyncAt = 0;
+const TASKS_THROTTLE = 5000;
+const SYNC_STATE_THROTTLE = 5000;
+const AUTO_SYNC_THROTTLE = 30000;
 
 const tabs = computed(() => [
   { key: "active", label: "进行中", count: tasks.value.filter((t) => !t.completed).length },
@@ -199,6 +208,7 @@ function switchTab(key) {
 }
 
 async function loadTasks() {
+  lastTasksLoadAt = Date.now();
   loading.value = true;
   try {
     // 拉取全部任务（complete 不传 = 全部）
@@ -227,6 +237,7 @@ async function loadTasks() {
 }
 
 async function loadSyncState() {
+  lastSyncStateLoadAt = Date.now();
   try {
     const res = await getSyncState();
     if (res.state) syncState.value = res.state;
@@ -237,6 +248,8 @@ async function loadSyncState() {
 
 /** 自动后台同步：页面加载时静默触发，不显示 loading */
 async function autoSync() {
+  if (Date.now() - lastAutoSyncAt < AUTO_SYNC_THROTTLE) return;
+  lastAutoSyncAt = Date.now();
   try {
     const res = await triggerSync();
     if (res.state) syncState.value = res.state;
@@ -386,10 +399,9 @@ onUnmounted(() => {
 });
 
 onShow(() => {
-  loadTasks();
-  loadSyncState();
-  // 页面重新显示时静默自动同步
-  autoSync();
+  // 节流：避免 Tab 切换时高频刷新
+  if (Date.now() - lastTasksLoadAt > TASKS_THROTTLE) loadTasks();
+  if (Date.now() - lastSyncStateLoadAt > SYNC_STATE_THROTTLE) loadSyncState();
 });
 </script>
 
@@ -397,100 +409,124 @@ onShow(() => {
 .page {
   min-height: 100vh;
   padding: 32rpx;
-  padding-bottom: calc(32rpx + env(safe-area-inset-bottom) + 120rpx);
+  padding-bottom: calc(140rpx + env(safe-area-inset-bottom));
   box-sizing: border-box;
+  background-color: var(--bg-page);
 }
+
 .header {
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
-  margin-bottom: 24rpx;
+  margin-bottom: 32rpx;
 }
+
 .header-left {
   display: flex;
   flex-direction: column;
-  gap: 8rpx;
+  gap: 12rpx;
 }
+
 .header-title {
   font-size: 48rpx;
   font-weight: 700;
-  color: #1d1d1f;
+  color: var(--text-primary);
+  letter-spacing: 0.5rpx;
 }
+
 .header-count {
   font-size: 26rpx;
-  color: #86868b;
-  margin-top: 8rpx;
+  color: var(--text-secondary);
 }
 
 .sync-status {
   display: flex;
   align-items: center;
   gap: 8rpx;
-  padding: 6rpx 16rpx;
-  background-color: rgba(245, 158, 11, 0.08);
-  border-radius: 20rpx;
+  padding: 8rpx 18rpx;
+  background-color: var(--accent-soft);
+  border-radius: var(--radius-pill);
   align-self: flex-start;
 }
+
 .sync-dot {
   width: 12rpx;
   height: 12rpx;
   border-radius: 50%;
 }
+
 .dot-ok {
-  background-color: #10b981;
+  background-color: var(--green);
 }
+
 .dot-error {
-  background-color: #ef4444;
+  background-color: var(--red);
 }
+
 .dot-never {
-  background-color: #aeaeb2;
+  background-color: var(--text-tertiary);
 }
+
 .sync-text {
   font-size: 22rpx;
-  color: #86868b;
+  color: var(--text-secondary);
 }
+
 .sync-text.syncing {
-  color: #f59e0b;
+  color: var(--accent);
 }
-.sync-refresh {
-  font-size: 24rpx;
-  color: #f59e0b;
+
+.sync-refresh-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
   margin-left: 4rpx;
 }
 
 .tabs {
   display: flex;
-  gap: 16rpx;
-  margin-bottom: 24rpx;
+  gap: 8rpx;
+  padding: 6rpx;
+  background-color: var(--bg-input);
+  border-radius: var(--radius-pill);
+  margin-bottom: 32rpx;
 }
+
 .tab {
   display: flex;
   align-items: center;
+  justify-content: center;
   gap: 8rpx;
-  padding: 12rpx 24rpx;
-  border-radius: 32rpx;
-  background-color: #ffffff;
-  border: 2rpx solid #e5e5ea;
+  flex: 1;
+  padding: 14rpx 0;
+  border-radius: var(--radius-pill);
+  background-color: transparent;
+  transition: all 0.2s ease;
 }
+
 .tab.active {
-  background: linear-gradient(135deg, #f59e0b, #f97316);
-  border-color: transparent;
+  background: var(--accent-gradient);
+  box-shadow: var(--shadow-fab);
 }
+
 .tab-label {
   font-size: 26rpx;
-  color: #1d1d1f;
+  color: var(--text-primary);
   font-weight: 600;
 }
+
 .tab.active .tab-label {
   color: #ffffff;
 }
+
 .tab-count {
   font-size: 22rpx;
-  color: #86868b;
-  background-color: #f2f2f7;
+  color: var(--text-secondary);
+  background-color: var(--bg-input);
   padding: 2rpx 12rpx;
-  border-radius: 16rpx;
+  border-radius: var(--radius-pill);
 }
+
 .tab.active .tab-count {
   color: #ffffff;
   background-color: rgba(255, 255, 255, 0.25);
@@ -503,16 +539,15 @@ onShow(() => {
   align-items: center;
   padding: 120rpx 0;
 }
-.empty-icon {
-  font-size: 80rpx;
-  margin-bottom: 24rpx;
-}
+
 .empty-text {
-  color: #86868b;
+  color: var(--text-secondary);
   font-size: 28rpx;
+  margin-top: 24rpx;
 }
+
 .empty-hint {
-  color: #aeaeb2;
+  color: var(--text-tertiary);
   font-size: 22rpx;
   margin-top: 8rpx;
 }
@@ -520,83 +555,97 @@ onShow(() => {
 .offline-banner {
   display: flex;
   align-items: center;
-  gap: 8rpx;
-  padding: 12rpx 24rpx;
-  background-color: rgba(59, 130, 246, 0.08);
-  border-radius: 12rpx;
-  margin-bottom: 16rpx;
+  gap: 12rpx;
+  padding: 16rpx 24rpx;
+  background-color: var(--accent-soft);
+  border-radius: var(--radius-md);
+  margin-bottom: 24rpx;
 }
-.offline-icon {
-  font-size: 24rpx;
-}
+
 .offline-text {
   font-size: 24rpx;
-  color: #3b82f6;
+  color: var(--accent);
 }
 
 .task-list {
-  height: calc(100vh - 360rpx);
+  height: calc(100vh - 380rpx);
 }
+
 .task-item {
   display: flex;
   align-items: center;
-  background-color: #ffffff;
-  border-radius: 16rpx;
-  padding: 24rpx;
-  margin-bottom: 16rpx;
-  box-shadow: 0 2rpx 8rpx rgba(0, 0, 0, 0.04);
+  background-color: var(--bg-card);
+  border-radius: var(--radius-lg);
+  padding: 28rpx;
+  margin-bottom: 20rpx;
+  box-shadow: var(--shadow-card);
 }
+
 .task-item.done {
-  opacity: 0.5;
+  opacity: 0.55;
 }
+
+.task-item.done .task-summary {
+  color: var(--text-tertiary);
+  text-decoration: line-through;
+}
+
 .task-check {
   width: 44rpx;
   height: 44rpx;
-  border-radius: 10rpx;
-  border: 3rpx solid #d1d1d6;
+  border-radius: 8rpx;
+  border: 3rpx solid var(--border-color);
   display: flex;
   align-items: center;
   justify-content: center;
-  margin-right: 20rpx;
+  margin-right: 24rpx;
   flex-shrink: 0;
-  transition: all 0.2s;
+  transition: all 0.2s ease;
 }
+
 .task-check.checked {
-  background-color: #10b981;
-  border-color: #10b981;
+  background-color: var(--green);
+  border-color: var(--green);
 }
-.check-icon {
-  color: #ffffff;
-  font-size: 24rpx;
-  font-weight: 700;
-}
+
 .task-info {
   flex: 1;
 }
+
 .task-summary {
-  color: #1d1d1f;
+  color: var(--text-primary);
   font-size: 28rpx;
   line-height: 1.5;
+  font-weight: 500;
 }
+
 .task-meta {
   display: flex;
   gap: 16rpx;
-  margin-top: 8rpx;
+  margin-top: 12rpx;
   flex-wrap: wrap;
+  align-items: center;
 }
+
+.meta-due-row {
+  display: flex;
+  align-items: center;
+  gap: 6rpx;
+}
+
 .meta-due,
 .meta-sub,
 .meta-list {
   font-size: 22rpx;
-  color: #86868b;
+  color: var(--text-secondary);
 }
+
 .meta-sub {
-  color: #3b82f6;
+  color: var(--blue);
 }
+
 .task-arrow {
-  color: #c7c7cc;
-  font-size: 36rpx;
-  margin-left: 12rpx;
+  margin-left: 16rpx;
 }
 
 /* 详情弹窗 */
@@ -606,117 +655,145 @@ onShow(() => {
   left: 0;
   right: 0;
   bottom: 0;
-  background-color: rgba(0, 0, 0, 0.4);
+  background-color: var(--bg-mask);
   z-index: 200;
   display: flex;
   align-items: flex-end;
 }
+
 .detail-popup {
   width: 100%;
   max-height: 80vh;
-  background-color: #ffffff;
-  border-radius: 32rpx 32rpx 0 0;
+  background-color: var(--bg-card);
+  border-radius: var(--radius-xl) var(--radius-xl) 0 0;
   display: flex;
   flex-direction: column;
+  box-shadow: var(--shadow-elevated);
 }
+
 .detail-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
   padding: 32rpx;
-  border-bottom: 1rpx solid #e5e5ea;
+  border-bottom: 1rpx solid var(--border-color);
 }
+
 .detail-title {
   font-size: 32rpx;
-  font-weight: 600;
-  color: #1d1d1f;
+  font-weight: 700;
+  color: var(--text-primary);
 }
+
 .detail-close {
-  padding: 8rpx 16rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 64rpx;
+  height: 64rpx;
+  border-radius: 50%;
+  background-color: var(--bg-input);
 }
-.close-icon {
-  font-size: 48rpx;
-  color: #86868b;
-}
+
 .detail-body {
   padding: 32rpx;
   max-height: 60vh;
 }
+
 .detail-content {
   display: flex;
   flex-direction: column;
 }
+
 .detail-summary {
   font-size: 34rpx;
-  font-weight: 600;
-  color: #1d1d1f;
+  font-weight: 700;
+  color: var(--text-primary);
   line-height: 1.5;
-  margin-bottom: 24rpx;
+  margin-bottom: 32rpx;
 }
+
 .detail-section {
-  margin-bottom: 24rpx;
+  margin-bottom: 32rpx;
 }
+
 .section-label {
   display: block;
   font-size: 24rpx;
-  color: #86868b;
-  margin-bottom: 8rpx;
+  color: var(--text-secondary);
+  margin-bottom: 12rpx;
+  font-weight: 500;
 }
+
 .section-text {
-  color: #1d1d1f;
+  color: var(--text-primary);
   font-size: 28rpx;
   line-height: 1.6;
 }
+
 .detail-grid {
   display: flex;
   flex-wrap: wrap;
   gap: 24rpx;
 }
+
 .detail-field {
   width: 45%;
 }
+
 .field-label {
   display: block;
   font-size: 22rpx;
-  color: #86868b;
-  margin-bottom: 4rpx;
+  color: var(--text-secondary);
+  margin-bottom: 8rpx;
 }
+
 .field-value {
   font-size: 26rpx;
-  color: #1d1d1f;
+  color: var(--text-primary);
+  font-weight: 500;
 }
+
 .status-done {
-  color: #10b981;
+  color: var(--green);
 }
+
 .status-active {
-  color: #f59e0b;
+  color: var(--accent);
 }
+
 .detail-actions {
   padding: 24rpx 32rpx;
-  padding-bottom: calc(24rpx + env(safe-area-inset-bottom));
-  border-top: 1rpx solid #e5e5ea;
+  padding-bottom: calc(32rpx + env(safe-area-inset-bottom));
+  border-top: 1rpx solid var(--border-color);
 }
+
 .detail-btn {
-  height: 88rpx;
-  border-radius: 16rpx;
+  height: 92rpx;
+  border-radius: var(--radius-pill);
   display: flex;
   align-items: center;
   justify-content: center;
 }
+
+.detail-btn-inner {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12rpx;
+}
+
 .btn-complete {
-  background-color: rgba(16, 185, 129, 0.12);
+  background-color: var(--green);
 }
+
 .btn-restore {
-  background-color: rgba(245, 158, 11, 0.12);
+  background: var(--accent-gradient);
 }
+
 .detail-btn-text {
   font-size: 30rpx;
   font-weight: 600;
-}
-.btn-complete .detail-btn-text {
-  color: #10b981;
-}
-.btn-restore .detail-btn-text {
-  color: #f59e0b;
+  color: #ffffff;
 }
 </style>

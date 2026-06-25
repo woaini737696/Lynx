@@ -82,7 +82,7 @@ npm run db:seed  # 可选：填充示例数据
 npm run dev
 ```
 
-访问 http://localhost:3000
+访问 http://localhost:5176
 
 ### 环境变量说明
 

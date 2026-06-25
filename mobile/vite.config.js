@@ -14,12 +14,20 @@ export default defineConfig({
   },
   server: {
     host: '0.0.0.0',
-    port: 5173,
-    // 代理 /api 到后端，避免 H5 跨域问题
+    port: 5175,
+    // 代理 /api 到后端（后端固定 5176 端口），避免 H5 跨域问题
     // H5 请求 /api/* 会由 vite dev server 转发到 target，浏览器看到的同源请求
     proxy: {
       '/api': {
-        target: 'http://localhost:3000',
+        target: 'http://localhost:5176',
+        changeOrigin: true,
+      },
+      '/uploads': {
+        target: 'http://localhost:5176',
+        changeOrigin: true,
+      },
+      '/avatars': {
+        target: 'http://localhost:5176',
         changeOrigin: true,
       },
     },

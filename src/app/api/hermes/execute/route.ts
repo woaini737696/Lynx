@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/auth-utils";
-import { getHermesConfig, executeHermesTask } from "@/lib/hermes-client";
+import { getHermesConfig, executeHermesTask, syncLearnedSkills } from "@/lib/hermes-client";
 import { prisma } from "@/lib/db";
 import { getLogger } from "@/lib/logger";
 
 const logger = getLogger("hermes-api");
 
-// POST /api/hermes/execute - 通过 Hermes Agent 执行任务
+// POST /api/hermes/execute - 通过 Hermes Agent 执行任务（支持持久化 profile + 自动学习）
 // body: { prompt, mode?, timeout?, workDir?, options? }
 export async function POST(req: NextRequest) {
   const auth = await requireAuth();
@@ -44,13 +44,18 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const result = await executeHermesTask(config, {
-      prompt: prompt.trim(),
-      mode: mode || "auto",
-      timeout,
-      workDir,
-      options,
-    });
+    // 传入 userId 启用持久化 profile（记忆、skills、会话跨会话保留）
+    const result = await executeHermesTask(
+      config,
+      {
+        prompt: prompt.trim(),
+        mode: mode || "auto",
+        timeout,
+        workDir,
+        options,
+      },
+      auth.user.id
+    );
 
     // 记录执行历史到 SkillExecution 表
     await prisma.skillExecution.create({
@@ -67,6 +72,13 @@ export async function POST(req: NextRequest) {
         error: result.error || null,
       },
     });
+
+    // 任务成功后自动同步 /learn 生成的 skills 到 LynnHub（异步，不阻塞响应）
+    if (result.success) {
+      syncLearnedSkills(auth.user.id).catch((e) => {
+        logger.warn({ err: e }, "同步 Hermes learned skills 失败（非阻塞）");
+      });
+    }
 
     return NextResponse.json(result);
   } catch (e) {

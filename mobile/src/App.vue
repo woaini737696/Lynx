@@ -5,8 +5,9 @@ import { useSettingsStore } from "@/store/settings.js";
 
 onLaunch(() => {
   // 清理旧版默认 baseUrl（http://localhost:3000），H5 模式改用 vite proxy 同源代理
+  // 后端固定使用 5176 端口
   const storedBaseUrl = uni.getStorageSync("api_base_url");
-  if (storedBaseUrl === "http://localhost:3000") {
+  if (storedBaseUrl === "http://localhost:3000" || storedBaseUrl === "http://localhost:5176") {
     uni.removeStorageSync("api_base_url");
   }
 
@@ -24,45 +25,59 @@ onLaunch(() => {
 </script>
 
 <style>
-/* ===== CSS 变量：浅色主题（默认） ===== */
+/* ===== CSS 变量：浅色主题（默认）- 豆包风格 ===== */
 page {
-  --bg-page: #f5f5f7;
+  --bg-page: #f7f8fa;
   --bg-card: #ffffff;
-  --bg-input: #f2f2f7;
-  --bg-mask: rgba(0, 0, 0, 0.4);
-  --text-primary: #1d1d1f;
-  --text-secondary: #86868b;
-  --text-tertiary: #aeaeb2;
-  --border-color: #e5e5ea;
-  --border-light: #f2f2f7;
+  --bg-input: #f2f4f7;
+  --bg-mask: rgba(0, 0, 0, 0.45);
+  --text-primary: #1f2937;
+  --text-secondary: #6b7280;
+  --text-tertiary: #9ca3af;
+  --border-color: #e5e7eb;
+  --border-light: #f3f4f6;
   --accent: #f59e0b;
+  --accent-soft: #fff7ed;
   --accent-gradient: linear-gradient(135deg, #f59e0b, #f97316);
-  --shadow-card: 0 2rpx 12rpx rgba(0, 0, 0, 0.04);
-  --shadow-fab: 0 8rpx 24rpx rgba(245, 158, 11, 0.35);
+  --blue: #3b82f6;
+  --blue-soft: #eff6ff;
+  --green: #22c55e;
+  --red: #ef4444;
+  --shadow-card: 0 4rpx 20rpx rgba(0, 0, 0, 0.05);
+  --shadow-elevated: 0 12rpx 40rpx rgba(0, 0, 0, 0.12);
+  --shadow-fab: 0 8rpx 28rpx rgba(245, 158, 11, 0.32);
+  --radius-sm: 12rpx;
+  --radius-md: 20rpx;
+  --radius-lg: 28rpx;
+  --radius-xl: 36rpx;
+  --radius-pill: 999rpx;
 
   background-color: var(--bg-page);
   color: var(--text-primary);
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   font-size: 28rpx;
+  -webkit-font-smoothing: antialiased;
 }
 
 /* ===== CSS 变量：深色主题 ===== */
 /* #ifdef H5 */
 [data-theme="dark"] page,
 [data-theme="dark"] {
-  --bg-page: #0a0a0c;
-  --bg-card: #1c1c1e;
-  --bg-input: #2c2c2e;
-  --bg-mask: rgba(0, 0, 0, 0.6);
-  --text-primary: #f5f5f7;
-  --text-secondary: #98989d;
-  --text-tertiary: #636366;
-  --border-color: #38383a;
-  --border-light: #2c2c2e;
+  --bg-page: #0b0d10;
+  --bg-card: #181a20;
+  --bg-input: #23262d;
+  --bg-mask: rgba(0, 0, 0, 0.7);
+  --text-primary: #f3f4f6;
+  --text-secondary: #9ca3af;
+  --text-tertiary: #6b7280;
+  --border-color: #2f333a;
+  --border-light: #1f2228;
   --accent: #f59e0b;
+  --accent-soft: #2a1f0f;
   --accent-gradient: linear-gradient(135deg, #f59e0b, #f97316);
-  --shadow-card: 0 2rpx 12rpx rgba(0, 0, 0, 0.3);
-  --shadow-fab: 0 8rpx 24rpx rgba(245, 158, 11, 0.25);
+  --shadow-card: 0 4rpx 20rpx rgba(0, 0, 0, 0.35);
+  --shadow-elevated: 0 12rpx 40rpx rgba(0, 0, 0, 0.45);
+  --shadow-fab: 0 8rpx 28rpx rgba(245, 158, 11, 0.22);
 
   background-color: var(--bg-page);
   color: var(--text-primary);
@@ -76,16 +91,66 @@ page {
 .flex-1 { flex: 1; }
 .card {
   background-color: var(--bg-card);
-  border-radius: 20rpx;
-  padding: 28rpx;
-  margin-bottom: 20rpx;
+  border-radius: var(--radius-lg);
+  padding: 32rpx;
+  margin-bottom: 24rpx;
   box-shadow: var(--shadow-card);
 }
 .text-secondary { color: var(--text-secondary); }
 .text-northstar { color: #f59e0b; }
 .text-campaign { color: #3b82f6; }
-.text-task { color: #10b981; }
+.text-task { color: #22c55e; }
 .text-danger { color: #ef4444; }
+
+/* 豆包风格统一按钮 */
+.btn-primary {
+  background: var(--accent-gradient);
+  color: #ffffff;
+  border-radius: var(--radius-pill);
+  padding: 24rpx 40rpx;
+  font-weight: 600;
+  box-shadow: var(--shadow-fab);
+}
+.btn-ghost {
+  background-color: var(--bg-input);
+  color: var(--text-primary);
+  border-radius: var(--radius-pill);
+  padding: 20rpx 32rpx;
+  font-weight: 500;
+}
+
+/* 统一输入框 */
+.input-base {
+  background-color: var(--bg-input);
+  border-radius: var(--radius-md);
+  padding: 24rpx;
+  color: var(--text-primary);
+  font-size: 28rpx;
+}
+.input-base::placeholder {
+  color: var(--text-tertiary);
+}
+
+/* 页面容器 */
+.page-container {
+  min-height: 100vh;
+  padding: 32rpx;
+  padding-bottom: calc(32rpx + env(safe-area-inset-bottom) + 140rpx);
+  box-sizing: border-box;
+}
+
+/* 页面标题 */
+.page-title {
+  font-size: 48rpx;
+  font-weight: 700;
+  color: var(--text-primary);
+  letter-spacing: 0.5rpx;
+}
+.page-subtitle {
+  font-size: 26rpx;
+  color: var(--text-secondary);
+  margin-top: 8rpx;
+}
 
 /* ===== 深色模式全局覆盖（处理各页面硬编码颜色） ===== */
 /* #ifdef H5 */

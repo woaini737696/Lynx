@@ -39,6 +39,9 @@ export async function PUT(req: NextRequest) {
       "autoSpeak",
       "voiceMode",
       "feishuNotify",
+      "hermesTakeover",
+      "hermesAutoReport",
+      "hermesReportCron",
     ] as const;
 
     const updateData: Record<string, unknown> = {};
@@ -94,10 +97,18 @@ export async function PUT(req: NextRequest) {
     }
 
     // 布尔字段校验
-    for (const boolField of ["autoSpeak", "voiceMode", "feishuNotify"] as const) {
+    for (const boolField of ["autoSpeak", "voiceMode", "feishuNotify", "hermesTakeover", "hermesAutoReport"] as const) {
       if (updateData[boolField] !== undefined) {
         updateData[boolField] = Boolean(updateData[boolField]);
       }
+    }
+
+    // 校验 hermesReportCron（cron 表达式，简单格式检查）
+    if (updateData.hermesReportCron !== undefined) {
+      if (typeof updateData.hermesReportCron !== "string") {
+        return NextResponse.json({ error: "hermesReportCron 格式错误" }, { status: 400 });
+      }
+      updateData.hermesReportCron = updateData.hermesReportCron.trim().slice(0, 64);
     }
 
     let settings = await prisma.aISetting.findFirst();
