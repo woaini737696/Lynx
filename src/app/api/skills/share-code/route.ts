@@ -1,15 +1,19 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
+import { requireAuth } from "@/lib/auth-utils";
 
 // 分享码机制（简化方案）：
 // 分享码 = base64(skillId + ":" + timestamp)
 // 解析后返回 Skill 数据
 // 不依赖额外存储，无状态
 
-// POST /api/skills/share-code - 生成分享码
+// POST /api/skills/share-code - 生成分享码（需登录 + 归属校验）
 // body: { skillId: string }
 export async function POST(req: NextRequest) {
   try {
+    const auth = await requireAuth();
+    if (auth.user === null) return auth.error;
+
     const body = await req.json();
     const { skillId } = body as { skillId?: string };
 
@@ -25,6 +29,14 @@ export async function POST(req: NextRequest) {
       return NextResponse.json(
         { error: "未找到 Skill" },
         { status: 404 }
+      );
+    }
+
+    // 归属校验：admin 或本人
+    if (skill.userId !== auth.user.id && auth.user.role !== "admin") {
+      return NextResponse.json(
+        { error: "无权操作" },
+        { status: 403 }
       );
     }
 
@@ -48,7 +60,7 @@ export async function POST(req: NextRequest) {
   }
 }
 
-// GET /api/skills/share-code?code=XXX - 通过分享码获取 Skill 数据
+// GET /api/skills/share-code?code=XXX - 通过分享码获取 Skill 数据（公开，无需鉴权）
 export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url);

@@ -201,12 +201,19 @@ model Skill {
   content     String   @db.LongText        // Markdown 正文（含步骤、提示词模板）
   parameters  Json     @default("[]")      // 参数定义数组
   promptTemplate String @db.LongText       // AI 提示词模板（用 {{param}} 占位）
-  source      String   @default("manual")  // manual | imported | ai-generated
+  source      String   @default("manual")  // manual | imported | ai-generated | marketplace
   tags        Json     @default("[]")
   usageCount  Int      @default(0)
   userId      String?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+
+  // 公共广场字段
+  isPublic       Boolean   @default(false)  // 是否发布到公共广场
+  publicId       String?   @unique          // 广场全局唯一标识（发布时生成）
+  publishedAt    DateTime?                  // 发布时间
+  downloadCount  Int       @default(0)      // 从广场加载次数
+  ratingAvg      Float     @default(0)      // 广场评分平均（冗余，定期更新）
 
   user    User?          @relation(fields: [userId], references: [id])
   versions SkillVersion[]
@@ -214,6 +221,7 @@ model Skill {
   @@index([category])
   @@index([source])
   @@index([userId])
+  @@index([isPublic])
 }
 
 // Skill 版本历史
@@ -239,7 +247,8 @@ model SkillVersion {
 // Skill 评分/评论
 model SkillReview {
   id        String   @id @default(cuid())
-  skillId   String
+  skillId   String                         // 本地 Skill ID（兼容旧数据）
+  publicId  String?                        // 公共广场技能标识（跨用户聚合评论用）
   rating    Int      // 1-5 星
   comment   String   @db.Text
   author    String   @default("匿名用户")
@@ -249,6 +258,7 @@ model SkillReview {
   user User? @relation(fields: [userId], references: [id])
 
   @@index([skillId])
+  @@index([publicId])
   @@index([rating])
   @@index([userId])
 }

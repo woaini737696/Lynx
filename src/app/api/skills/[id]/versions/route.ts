@@ -2,13 +2,17 @@ import { NextRequest, NextResponse } from "next/server";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { pruneOldVersions } from "@/lib/skill-version-utils";
+import { requireAuth } from "@/lib/auth-utils";
 
 // GET /api/skills/[id]/versions - 返回版本列表（摘要，不含 content 全文）
 export async function GET(
-  req: NextRequest,
+  _req: NextRequest,
   { params }: { params: { id: string } }
 ) {
   try {
+    const auth = await requireAuth();
+    if (auth.user === null) return auth.error;
+
     const { id } = params;
 
     const skill = await prisma.skill.findUnique({ where: { id } });
@@ -16,6 +20,14 @@ export async function GET(
       return NextResponse.json(
         { error: "未找到 Skill" },
         { status: 404 }
+      );
+    }
+
+    // 归属校验：admin 或本人
+    if (skill.userId !== auth.user.id && auth.user.role !== "admin") {
+      return NextResponse.json(
+        { error: "无权操作" },
+        { status: 403 }
       );
     }
 
@@ -57,6 +69,9 @@ export async function POST(
   { params }: { params: { id: string } }
 ) {
   try {
+    const auth = await requireAuth();
+    if (auth.user === null) return auth.error;
+
     const { id } = params;
     const body = await req.json();
     const { version } = body;
@@ -73,6 +88,14 @@ export async function POST(
       return NextResponse.json(
         { error: "未找到 Skill" },
         { status: 404 }
+      );
+    }
+
+    // 归属校验：admin 或本人
+    if (skill.userId !== auth.user.id && auth.user.role !== "admin") {
+      return NextResponse.json(
+        { error: "无权操作" },
+        { status: 403 }
       );
     }
 

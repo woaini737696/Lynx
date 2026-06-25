@@ -4,7 +4,15 @@ import { auth } from "@/auth";
 import { NextResponse } from "next/server";
 
 const publicRoutes = ["/login", "/api/auth"];
-const publicPatterns = [/^\/login$/, /^\/api\/auth/, /^\/api\/health$/];
+const publicPatterns = [
+  /^\/login$/,
+  /^\/api\/auth/,
+  /^\/api\/health$/,
+  // 公共技能广场：列表/详情/评论查询公开访问；load 路由内部 requireAuth 兜底
+  /^\/api\/skills\/marketplace(?:\/|$)/,
+  // 公共技能评论查询（GET 公开，POST 内部 requireAuth）
+  /^\/api\/skills\/[^/]+\/reviews$/,
+];
 
 export default auth((req) => {
   const { pathname, searchParams } = req.nextUrl;

@@ -1,22 +1,34 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
+import { requireAuth } from "@/lib/auth-utils";
 
 // POST /api/skills/export - 批量导出
 // body: { skillIds: string[] } 或 { category: string }
 // 返回单个 JSON 文件，包含多个 Skill 的完整数据
+// 鉴权：admin 可导出全部；普通用户只能导出自己的技能或公共技能
 export async function POST(req: NextRequest) {
   try {
+    const auth = await requireAuth();
+    if (auth.user === null) return auth.error;
+    const user = auth.user;
+
     const body = await req.json();
     const { skillIds, category } = body as {
       skillIds?: string[];
       category?: string;
     };
 
-    let where: Record<string, unknown> = {};
+    // 基础过滤：admin 全局；普通用户仅自己 + 公共技能
+    const baseWhere =
+      user.role === "admin"
+        ? {}
+        : { OR: [{ userId: user.id }, { isPublic: true }] };
+
+    let where: Record<string, unknown> = { ...baseWhere };
     if (Array.isArray(skillIds) && skillIds.length > 0) {
-      where = { id: { in: skillIds } };
+      where = { ...baseWhere, id: { in: skillIds } };
     } else if (typeof category === "string" && category !== "all") {
-      where = { category };
+      where = { ...baseWhere, category };
     }
 
     const skills = await prisma.skill.findMany({

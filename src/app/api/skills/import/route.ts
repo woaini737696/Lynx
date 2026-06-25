@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { parseSkillMarkdown } from "@/lib/skill-parser";
+import { requireAuth } from "@/lib/auth-utils";
 
 // POST /api/skills/import - 导入 Markdown（单个/批量）或 JSON（批量）
 // body:
@@ -9,8 +10,13 @@ import { parseSkillMarkdown } from "@/lib/skill-parser";
 //   { items: string[] } 批量 Markdown
 //   { json: string | object } JSON 批量导入（LynnHub 导出格式）
 //   { mode?: "skip" | "overwrite" } 去重模式，默认 skip
+// 鉴权：必须登录，创建技能强制 userId = user.id，去重仅匹配本人技能
 export async function POST(req: NextRequest) {
   try {
+    const auth = await requireAuth();
+    if (auth.user === null) return auth.error;
+    const user = auth.user;
+
     const body = await req.json();
     const mode: "skip" | "overwrite" =
       body.mode === "overwrite" ? "overwrite" : "skip";
@@ -52,8 +58,9 @@ export async function POST(req: NextRequest) {
             continue;
           }
 
+          // 去重仅匹配当前用户的同名技能（admin 同样仅匹配自己，避免误覆盖他人技能）
           const existing = await prisma.skill.findFirst({
-            where: { name: item.name },
+            where: { name: item.name, userId: user.id },
           });
 
           if (existing) {
@@ -105,6 +112,7 @@ export async function POST(req: NextRequest) {
                     : ([] as unknown as Prisma.InputJsonValue),
                 promptTemplate: item.promptTemplate || "",
                 source: "imported",
+                userId: user.id,
                 tags:
                   item.tags !== undefined
                     ? (item.tags as Prisma.InputJsonValue)
@@ -191,7 +199,7 @@ export async function POST(req: NextRequest) {
         }
 
         const existing = await prisma.skill.findFirst({
-          where: { name: data.name },
+          where: { name: data.name, userId: user.id },
         });
 
         if (existing) {
@@ -232,6 +240,7 @@ export async function POST(req: NextRequest) {
               parameters: data.parameters as unknown as Prisma.InputJsonValue,
               promptTemplate: data.promptTemplate,
               source: "imported",
+              userId: user.id,
               tags: data.tags,
             },
           });

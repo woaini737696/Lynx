@@ -24,6 +24,7 @@ import {
   GitCompare,
   Eye,
   AlertTriangle,
+  Store,
 } from "lucide-react";
 import {
   PageHeader,
@@ -58,6 +59,8 @@ interface Skill {
   usageCount: number;
   createdAt: string;
   updatedAt: string;
+  isPublic?: boolean;
+  publicId?: string | null;
 }
 
 interface SkillVersionSummary {
@@ -384,6 +387,41 @@ export default function SkillsPage() {
     toast("已开始下载", "success");
   };
 
+  const handlePublish = async (skill: Skill) => {
+    try {
+      const res = await fetch(`/api/skills/${skill.id}/publish`, {
+        method: "POST",
+      });
+      const data = await res.json();
+      if (res.ok) {
+        toast("已发布到广场", "success");
+        fetchSkills();
+      } else {
+        toast(data.error || "发布失败", "error");
+      }
+    } catch (e) {
+      toast("网络错误：" + (e as Error).message, "error");
+    }
+  };
+
+  const handleUnpublish = async (skill: Skill) => {
+    if (!confirm(`确定从广场下架「${skill.name}」？`)) return;
+    try {
+      const res = await fetch(`/api/skills/${skill.id}/publish`, {
+        method: "DELETE",
+      });
+      const data = await res.json();
+      if (res.ok) {
+        toast("已下架", "success");
+        fetchSkills();
+      } else {
+        toast(data.error || "下架失败", "error");
+      }
+    } catch (e) {
+      toast("网络错误：" + (e as Error).message, "error");
+    }
+  };
+
   const handleUse = (skill: Skill) => {
     // 跳转到 AI 工作空间并传递 skill id（简化：直接提示）
     toast(`「${skill.name}」已就绪，可在 AI 工作空间使用`, "info");
@@ -498,6 +536,8 @@ export default function SkillsPage() {
                         onDelete={() => handleDelete(skill)}
                         onExport={() => handleExport(skill)}
                         onUse={() => handleUse(skill)}
+                        onPublish={() => handlePublish(skill)}
+                        onUnpublish={() => handleUnpublish(skill)}
                       />
                     ))}
                   </div>
@@ -560,12 +600,16 @@ function SkillCard({
   onDelete,
   onExport,
   onUse,
+  onPublish,
+  onUnpublish,
 }: {
   skill: Skill;
   onEdit: () => void;
   onDelete: () => void;
   onExport: () => void;
   onUse: () => void;
+  onPublish: () => void;
+  onUnpublish: () => void;
 }) {
   return (
     <Card className="flex flex-col" hover>
@@ -576,9 +620,14 @@ function SkillCard({
             {skill.description}
           </p>
         </div>
-        <Badge color={CATEGORY_BADGE[skill.category] || "default"}>
-          {CATEGORY_LABEL[skill.category] || skill.category}
-        </Badge>
+        <div className="flex shrink-0 flex-col items-end gap-1">
+          {skill.isPublic && (
+            <Badge color="cognition">已发布</Badge>
+          )}
+          <Badge color={CATEGORY_BADGE[skill.category] || "default"}>
+            {CATEGORY_LABEL[skill.category] || skill.category}
+          </Badge>
+        </div>
       </div>
 
       {/* 标签 */}
@@ -618,10 +667,19 @@ function SkillCard({
         <Button size="sm" variant="ghost" onClick={onEdit}>
           <Edit3 className="h-3 w-3" /> 编辑
         </Button>
-        <Button size="sm" variant="ghost" onClick={onExport}>
+        <Button size="sm" variant="ghost" onClick={onExport} title="导出">
           <Download className="h-3 w-3" />
         </Button>
-        <Button size="sm" variant="ghost" onClick={onDelete}>
+        {skill.isPublic ? (
+          <Button size="sm" variant="ghost" onClick={onUnpublish} title="从广场下架">
+            <Store className="h-3 w-3 text-cognition" />
+          </Button>
+        ) : (
+          <Button size="sm" variant="ghost" onClick={onPublish} title="发布到广场">
+            <Store className="h-3 w-3" />
+          </Button>
+        )}
+        <Button size="sm" variant="ghost" onClick={onDelete} title="删除">
           <Trash2 className="h-3 w-3 text-graveyard" />
         </Button>
       </div>

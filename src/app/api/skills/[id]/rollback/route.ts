@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { pruneOldVersions } from "@/lib/skill-version-utils";
+import { requireAuth } from "@/lib/auth-utils";
 
 // POST /api/skills/[id]/rollback - 回滚到指定版本
 // body: { versionId }
@@ -15,6 +16,9 @@ export async function POST(
   { params }: { params: { id: string } }
 ) {
   try {
+    const auth = await requireAuth();
+    if (auth.user === null) return auth.error;
+
     const { id } = params;
     const body = await req.json();
     const { versionId } = body;
@@ -33,6 +37,14 @@ export async function POST(
       return NextResponse.json(
         { error: "未找到 Skill" },
         { status: 404 }
+      );
+    }
+
+    // 归属校验：admin 或本人
+    if (skill.userId !== auth.user.id && auth.user.role !== "admin") {
+      return NextResponse.json(
+        { error: "无权操作" },
+        { status: 403 }
       );
     }
 
