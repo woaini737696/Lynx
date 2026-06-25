@@ -39,12 +39,12 @@ export function CaptureBar() {
         <Link
           href="/"
           prefetch={false}
-          className="flex h-8 w-8 items-center justify-center rounded-xl bg-gradient-to-br from-northstar to-orange-600 text-sm font-bold text-white shadow-sm lg:hidden"
+          className="flex h-8 w-8 items-center justify-center rounded-xl bg-gradient-to-br from-[hsl(248_84%_62%)] to-[hsl(262_70%_58%)] text-sm font-bold text-white shadow-md lg:hidden"
         >
           L
         </Link>
         <div className="hidden items-center gap-2 text-sm text-muted-foreground lg:flex">
-          <Sparkles className="h-3.5 w-3.5 text-northstar" />
+          <Sparkles className="h-3.5 w-3.5 text-primary" />
           <span>闪电输入</span>
           <kbd className="rounded-lg border border-border bg-muted px-1.5 py-0.5 text-[10px]">
             Ctrl+J

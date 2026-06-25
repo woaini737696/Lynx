@@ -2113,15 +2113,15 @@ export default function AIAssistantPage() {
 
       {settingsOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={() => setSettingsOpen(false)}>
-          <div className="w-full max-w-md rounded-2xl bg-card p-6 shadow-xl" onClick={(e) => e.stopPropagation()}>
-            <div className="mb-4 flex items-center justify-between">
+          <div className="flex max-h-[90vh] w-full max-w-md flex-col rounded-2xl bg-card shadow-xl" onClick={(e) => e.stopPropagation()}>
+            <div className="flex shrink-0 items-center justify-between border-b border-border px-6 py-4">
               <h2 className="text-lg font-semibold">助理设置</h2>
               <button onClick={() => setSettingsOpen(false)} className="rounded-full p-1 hover:bg-muted">
                 <X className="h-4 w-4" />
               </button>
             </div>
 
-            <div className="space-y-5">
+            <div className="min-h-0 flex-1 space-y-5 overflow-y-auto px-6 py-4">
               <div>
                 <label className="mb-1.5 block text-xs font-medium">助理名称</label>
                 <input

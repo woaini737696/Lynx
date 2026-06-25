@@ -348,6 +348,11 @@ export default function AIFlowsPage() {
   // 缩放控制
   const [zoom, setZoom] = useState(1);
 
+  // AI 辅助生成/配置状态
+  const [aiPrompt, setAiPrompt] = useState("");
+  const [aiGenerating, setAiGenerating] = useState(false);
+  const [aiPanelOpen, setAiPanelOpen] = useState(false);
+
   // 节点右键菜单
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; nodeId: string } | null>(null);
 
@@ -1285,6 +1290,82 @@ export default function AIFlowsPage() {
     setNodes((prev) => prev.map((n) => (n.id === nodeId ? { ...n, label } : n)));
   };
 
+  // ============ AI 辅助生成工作流 ============
+
+  const handleAiGenerate = async () => {
+    const trimmed = aiPrompt.trim();
+    if (!trimmed) {
+      toast("请输入工作流描述", "info");
+      return;
+    }
+    if (aiGenerating) return;
+    setAiGenerating(true);
+    try {
+      const res = await fetch("/api/ai/flows/assist", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ type: "generate", prompt: trimmed }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || `生成失败（${res.status}）`);
+      }
+      const data = await res.json();
+      const flow = data.flow as {
+        name: string;
+        description: string;
+        nodes: Array<{ id: string; type: FlowNode["type"]; label: string; config?: NodeConfig }>;
+        edges?: Array<{ from: string; to: string; condition?: "true" | "false" }>;
+      };
+      if (!Array.isArray(flow.nodes) || flow.nodes.length === 0) {
+        throw new Error("AI 未生成有效节点");
+      }
+
+      // 校验 + 应用节点到画布（自动布局）
+      const validTypes = new Set<FlowNode["type"]>([
+        "trigger", "action", "condition", "output",
+        "hermes", "http", "database", "transform", "delay",
+      ]);
+      const newNodes: CanvasNode[] = flow.nodes
+        .filter((n) => validTypes.has(n.type))
+        .map((n, i) => {
+          const col = Math.floor(i / 4);
+          const row = i % 4;
+          return {
+            id: n.id || `n${i + 1}`,
+            type: n.type,
+            label: n.label || NODE_TYPE_LABELS[n.type],
+            status: "idle" as const,
+            config: n.config,
+            x: 80 + col * 260,
+            y: 80 + row * 100,
+          };
+        });
+
+      // 校验 + 应用连线
+      const nodeIds = new Set(newNodes.map((n) => n.id));
+      const newEdges: CanvasEdge[] = (flow.edges || [])
+        .filter((e) => nodeIds.has(e.from) && nodeIds.has(e.to) && e.from !== e.to)
+        .map((e, i) => ({
+          id: `edge-ai-${i}-${Date.now()}`,
+          from: e.from,
+          to: e.to,
+          condition: e.condition,
+        }));
+
+      setNodes(newNodes);
+      setEdges(newEdges);
+      setVisualFlowId(null); // 标记为新工作流，保存时创建
+      setAiPrompt("");
+      setAiPanelOpen(false);
+      toast(`AI 已生成「${flow.name}」（${newNodes.length} 节点 / ${newEdges.length} 连线）`, "success");
+    } catch (e) {
+      toast("AI 生成失败：" + (e as Error).message, "error");
+    } finally {
+      setAiGenerating(false);
+    }
+  };
+
   // ============ 渲染 ============
 
   return (
@@ -1569,8 +1650,46 @@ export default function AIFlowsPage() {
       ) : (
         /* ============ 可视化编排 ============ */
         <div className="flex flex-col gap-4">
-          {/* 工具栏 */}
-          <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-border bg-card p-3 shadow-soft">
+          {/* AI 辅助生成条 + 工具栏 */}
+          <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-border bg-card p-3 shadow-soft">
+            <Button
+              size="sm"
+              variant={aiPanelOpen ? "primary" : "outline"}
+              onClick={() => setAiPanelOpen(!aiPanelOpen)}
+              title="用自然语言描述，让 AI 帮你搭建工作流"
+            >
+              <Sparkles className="h-3 w-3" /> AI 辅助搭建
+            </Button>
+            {aiPanelOpen && (
+              <div className="flex flex-1 min-w-[260px] items-center gap-2">
+                <input
+                  value={aiPrompt}
+                  onChange={(e) => setAiPrompt(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && !e.shiftKey) {
+                      e.preventDefault();
+                      handleAiGenerate();
+                    }
+                  }}
+                  placeholder="描述你想要的工作流，例如：每天 9 点抓取最新新闻并生成摘要推送通知"
+                  disabled={aiGenerating}
+                  className="flex-1 rounded-xl border border-border bg-background px-3 py-1.5 text-xs outline-none transition-colors focus:border-cognition disabled:opacity-50"
+                />
+                <Button
+                  size="sm"
+                  onClick={handleAiGenerate}
+                  disabled={aiGenerating || !aiPrompt.trim()}
+                >
+                  {aiGenerating ? (
+                    <><Loader2 className="h-3 w-3 animate-spin" /> 生成中</>
+                  ) : (
+                    <><Sparkles className="h-3 w-3" /> 生成</>
+                  )}
+                </Button>
+              </div>
+            )}
+            <div className="flex-1" />
+            {/* 工作流状态信息 */}
             <div className="flex items-center gap-2">
               {visualFlowId && (
                 <span className="text-xs font-medium text-foreground">
@@ -1585,8 +1704,9 @@ export default function AIFlowsPage() {
                 </span>
               )}
             </div>
+            {/* 工具栏右侧操作 */}
             <div className="flex flex-wrap items-center gap-2">
-              {/* 缩放控制 */}
+            {/* 缩放控制 */}
               <div className="flex items-center rounded-xl border border-border bg-background p-0.5">
                 <button
                   onClick={zoomOut}
@@ -2214,6 +2334,11 @@ function NodeConfigPanel({
   const Icon = style.icon;
   const presets = NODE_PRESETS[node.type] || [];
 
+  // AI 辅助配置状态
+  const [aiBoxOpen, setAiBoxOpen] = useState(false);
+  const [aiDesc, setAiDesc] = useState("");
+  const [aiConfiguring, setAiConfiguring] = useState(false);
+
   const handleSave = () => {
     // 校验必填字段（仅校验核心字段，高级字段有默认值）
     if (!label.trim()) {
@@ -2242,6 +2367,56 @@ function NodeConfigPanel({
   const applyPreset = (presetConfig: Partial<NodeConfig>) => {
     setConfig({ ...config, ...presetConfig });
     toast("已应用预设，可按需调整", "info");
+  };
+
+  // AI 辅助配置：用自然语言生成节点 config
+  const handleAiConfigure = async () => {
+    const trimmed = aiDesc.trim();
+    if (!trimmed) {
+      toast("请描述节点要做什么", "info");
+      return;
+    }
+    if (aiConfiguring) return;
+    setAiConfiguring(true);
+    try {
+      const res = await fetch("/api/ai/flows/assist", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          type: "configure",
+          prompt: trimmed,
+          nodeType: node.type,
+          currentConfig: config,
+        }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || `配置失败（${res.status}）`);
+      }
+      const data = await res.json();
+      const aiConfig = data.config as Partial<NodeConfig>;
+      if (!aiConfig || typeof aiConfig !== "object") {
+        throw new Error("AI 输出格式异常");
+      }
+      // 合并 AI 配置到当前配置
+      setConfig({ ...config, ...aiConfig });
+      // 若 AI 返回了 prompt/hermesPrompt 等，同步更新 label 为更贴切的描述
+      if (!label.trim() || label.startsWith("新")) {
+        const suggestion = (aiConfig as Record<string, unknown>).prompt
+          || (aiConfig as Record<string, unknown>).hermesPrompt
+          || (aiConfig as Record<string, unknown>).expression;
+        if (typeof suggestion === "string" && suggestion.length > 0 && suggestion.length <= 30) {
+          setLabel(suggestion.slice(0, 30));
+        }
+      }
+      setAiDesc("");
+      setAiBoxOpen(false);
+      toast("AI 已生成配置，可按需调整后保存", "success");
+    } catch (e) {
+      toast("AI 配置失败：" + (e as Error).message, "error");
+    } finally {
+      setAiConfiguring(false);
+    }
   };
 
   return (
@@ -2308,6 +2483,53 @@ function NodeConfigPanel({
               </div>
             </div>
           )}
+
+          {/* AI 辅助配置：自然语言生成节点 config */}
+          <div className="mb-4">
+            <button
+              onClick={() => setAiBoxOpen(!aiBoxOpen)}
+              className="flex w-full items-center justify-between rounded-lg border border-cognition/30 bg-cognition/5 px-3 py-2 text-left transition-colors hover:bg-cognition/10"
+            >
+              <div className="flex items-center gap-2">
+                <Sparkles className="h-3.5 w-3.5 text-cognition" />
+                <span className="text-xs font-medium text-cognition">AI 辅助配置</span>
+                <span className="text-[10px] text-muted-foreground">用自然语言描述节点要做什么</span>
+              </div>
+              <ChevronDown className={cn("h-3 w-3 text-muted-foreground transition-transform", aiBoxOpen && "rotate-180")} />
+            </button>
+            {aiBoxOpen && (
+              <div className="mt-2 space-y-2 rounded-lg border border-border bg-background p-2.5">
+                <textarea
+                  value={aiDesc}
+                  onChange={(e) => setAiDesc(e.target.value)}
+                  placeholder={
+                    node.type === "action" ? "例如：分析这条内容的核心主题并给出分类建议" :
+                    node.type === "hermes" ? "例如：打开浏览器访问上游传入的 URL 并截图" :
+                    node.type === "condition" ? "例如：如果上游内容包含'重要'关键词则继续" :
+                    node.type === "http" ? "例如：GET 请求上游传入的 URL，超时 30 秒" :
+                    "描述这个节点要做什么，AI 会自动填充配置"
+                  }
+                  rows={2}
+                  disabled={aiConfiguring}
+                  className="w-full resize-none rounded-md border border-border bg-background px-2.5 py-1.5 text-xs outline-none focus:border-cognition disabled:opacity-50"
+                />
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] text-muted-foreground">AI 会基于当前配置增量更新</span>
+                  <Button
+                    size="sm"
+                    onClick={handleAiConfigure}
+                    disabled={aiConfiguring || !aiDesc.trim()}
+                  >
+                    {aiConfiguring ? (
+                      <><Loader2 className="h-3 w-3 animate-spin" /> 配置中</>
+                    ) : (
+                      <><Sparkles className="h-3 w-3" /> 生成配置</>
+                    )}
+                  </Button>
+                </div>
+              </div>
+            )}
+          </div>
 
           {/* 按节点类型显示核心配置（精简版） */}
 

@@ -70,8 +70,9 @@ export function Card({
     <div
       onClick={onClick}
       className={cn(
-        "rounded-2xl border border-border bg-card p-5 shadow-soft sm:p-6",
-        hover && "transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md",
+        "rounded-2xl border border-border bg-card p-5 sm:p-6",
+        "shadow-[0_1px_2px_hsl(var(--foreground)/0.04),0_4px_16px_-4px_hsl(var(--primary)/0.06)]",
+        hover && "transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[0_2px_8px_hsl(var(--foreground)/0.06),0_8px_24px_-6px_hsl(var(--primary)/0.1)]",
         onClick && "cursor-pointer",
         className
       )}
@@ -103,7 +104,7 @@ export function Button({
 }) {
   const variants = {
     primary:
-      "bg-primary text-primary-foreground shadow-sm hover:opacity-90 focus:ring-primary/30",
+      "bg-gradient-to-br from-[hsl(248_84%_62%)] to-[hsl(262_70%_58%)] text-white shadow-md hover:shadow-lg hover:brightness-110 focus:ring-primary/30",
     secondary:
       "bg-secondary text-secondary-foreground hover:bg-secondary/80 focus:ring-secondary/30",
     ghost:
@@ -111,7 +112,7 @@ export function Button({
     danger:
       "bg-graveyard text-white shadow-sm hover:opacity-90 focus:ring-graveyard/30",
     outline:
-      "border border-border bg-transparent text-foreground hover:bg-muted focus:ring-muted",
+      "border border-border bg-card text-foreground hover:bg-muted hover:border-primary/40 focus:ring-muted",
   };
   const sizes = {
     sm: "px-3 py-1.5 text-[11px] gap-1",

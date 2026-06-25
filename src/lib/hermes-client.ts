@@ -262,10 +262,11 @@ export async function testHermesConnection(
  * 优先通过 HTTP API（如果 dashboard 在运行），回退到命令行 `hermes -z "prompt"`
  *
  * 改进点：
- * 1. HTTP API 尝试多个常见端点（/api/task、/api/run、/api/execute、/task）
- * 2. HTTP 超时不再被 30s 封顶（桌面任务可能需要更长时间）
- * 3. 命令行模式去掉 --cli 标志（该标志导致 "no final response was produced"）
- * 4. 更友好的错误提示
+ * 1. 执行前检测模型是否已配置；未配置时自动调用 configureHermesModel 并给出明确提示
+ * 2. 对需要桌面控制的任务（关键词：打开浏览器/截图/点击/打开应用），
+ *    若 dashboard 未运行则自动启动，再走 HTTP API
+ * 3. HTTP API 尝试多个端点；超时上限 180s
+ * 4. 命令行模式使用 `--yolo` 跳过交互确认
  */
 export async function executeHermesTask(
   config: HermesConfig,
@@ -273,7 +274,69 @@ export async function executeHermesTask(
 ): Promise<HermesTaskResult> {
   const start = Date.now();
   const timeoutMs = (request.timeout ?? 120) * 1000;
-  const mode = request.mode || "auto";
+  let mode = request.mode || "auto";
+
+  // 0. 预检：模型是否已配置（未配置会导致 "no final response was produced"）
+  // 自动尝试配置一次，配置失败则给出明确指引
+  try {
+    const check = await isHermesModelConfigured();
+    if (!check.configured && !check.hasApiKey) {
+      // 自动配置（复用 LynnHub 的 DeepSeek Key）
+      const cfg = await configureHermesModel();
+      if (!cfg.success) {
+        return {
+          success: false,
+          output: "",
+          error:
+            "Hermes 尚未配置 LLM 模型（这是 'no final response was produced' 的根因）。\n" +
+            "自动配置失败：" + (cfg.error || "未知原因") + "\n\n" +
+            "请点击「一键配置模型」按钮，或在 Hermes 设置中手动配置 DeepSeek API Key。",
+          durationMs: Date.now() - start,
+        };
+      }
+    }
+  } catch {
+    // 预检失败不阻塞，继续尝试执行
+  }
+
+  // 0.5 识别需要桌面控制的任务（CLI 无法完成，必须走 dashboard）
+  const needsDesktop = /打开浏览器|截图|点击|打开应用|操作桌面|控制鼠标|控制键盘|浏览器访问|访问\s*http|open\s+browser|screenshot|click/i.test(
+    request.prompt
+  );
+  if (needsDesktop && mode === "auto") {
+    mode = "computer_use";
+  }
+
+  // 0.6 对 computer_use 任务：确保 dashboard 在运行（CLI 无法完成桌面控制）
+  if (mode === "computer_use") {
+    const dashboardUp = await isDashboardRunning(config);
+    if (!dashboardUp) {
+      const portMatch = config.endpoint.match(/:(\d+)$/);
+      const port = portMatch ? parseInt(portMatch[1], 10) : 9119;
+      const startRes = await startHermesAgent(port);
+      if (!startRes.success) {
+        return {
+          success: false,
+          output: "",
+          error:
+            "该任务需要桌面控制（如打开浏览器/截图），必须运行 Hermes Dashboard。\n" +
+            "自动启动 Dashboard 失败：" + (startRes.error || "未知原因") + "\n\n" +
+            "请到设置页手动点击「启动 Hermes」，再执行此任务。",
+          durationMs: Date.now() - start,
+        };
+      }
+      // 等待 dashboard 就绪（轮询最多 15s）
+      const ready = await waitForDashboard(config, 15_000);
+      if (!ready) {
+        return {
+          success: false,
+          output: "",
+          error: "Hermes Dashboard 已启动但未在 15 秒内就绪，请稍后重试或手动打开 Dashboard 查看。",
+          durationMs: Date.now() - start,
+        };
+      }
+    }
+  }
 
   // 1. 先尝试 HTTP API（如果 dashboard 服务在运行）
   // 尝试多个可能的端点，因为不同版本 Hermes Dashboard 的 API 路径可能不同
@@ -320,8 +383,20 @@ export async function executeHermesTask(
   }
 
   // 2. 回退：通过命令行 `hermes -z "prompt" --yolo` 执行
-  // 注意：去掉 --cli 标志，因为该标志在某些版本会导致 "no final response was produced"
-  // --yolo 用于跳过交互式确认，使命令在非交互模式下运行
+  // 注意：computer_use 任务在 CLI 模式下无法完成，需明确告知用户
+  if (mode === "computer_use") {
+    return {
+      success: false,
+      output: "",
+      error:
+        "该任务需要桌面控制（如打开浏览器/截图），但 Hermes Dashboard HTTP API 不可用。\n" +
+        "请确保 Dashboard 已启动并在端口 " + (config.endpoint.match(/:(\d+)$/)?.[1] || "9119") + " 监听。\n" +
+        "可到设置页点击「启动 Hermes」，或直接运行 `hermes dashboard` 命令。",
+      durationMs: Date.now() - start,
+    };
+  }
+
+  // 纯 shell/auto 任务走 CLI
   const args = ["-z", request.prompt, "--yolo"];
 
   const result = await execHermes(args, timeoutMs);
@@ -338,12 +413,10 @@ export async function executeHermesTask(
   const errLower = (result.error || "").toLowerCase();
   let friendlyError: string;
   if (errLower.includes("no final response") || errLower.includes("no final")) {
+    // 这是模型未配置的典型症状，给出最明确的指引
     friendlyError =
-      "Hermes 命令行模式未产生最终响应。这通常发生在需要桌面控制（如打开浏览器、截图）的任务中。\n" +
-      "建议：\n" +
-      "1. 确保 Hermes Dashboard 已启动（设置页 → 启动 Hermes）\n" +
-      "2. 通过 Dashboard 网页界面执行该任务（支持桌面控制）\n" +
-      "3. 或在任务描述中加入 'shell' 关键字，强制使用命令行模式";
+      "Hermes 未产生最终响应——通常是因为 LLM 模型未配置。\n" +
+      "请点击「一键配置模型」按钮（会自动复用 LynnHub 的 DeepSeek API Key），配置后重试。";
   } else if (errLower.includes("timeout") || errLower.includes("etimedout")) {
     friendlyError = `任务执行超时（${timeoutMs / 1000}秒）。可在执行时增加 timeout 参数。`;
   } else if (errLower.includes("not found") || errLower.includes("enoent")) {
@@ -358,6 +431,29 @@ export async function executeHermesTask(
     error: friendlyError,
     durationMs: Date.now() - start,
   };
+}
+
+/** 检测 Hermes Dashboard 是否在运行（HTTP 探测） */
+async function isDashboardRunning(config: HermesConfig): Promise<boolean> {
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 3000);
+    const res = await hermesFetch(config, "/", { signal: controller.signal });
+    clearTimeout(timeout);
+    return res.ok || res.status === 404; // 404 也说明服务在跑（只是根路径无处理）
+  } catch {
+    return false;
+  }
+}
+
+/** 轮询等待 Dashboard 就绪 */
+async function waitForDashboard(config: HermesConfig, totalMs: number): Promise<boolean> {
+  const deadline = Date.now() + totalMs;
+  while (Date.now() < deadline) {
+    if (await isDashboardRunning(config)) return true;
+    await new Promise((r) => setTimeout(r, 1500));
+  }
+  return false;
 }
 
 /**
@@ -464,6 +560,177 @@ export async function executeHermesSkill(
   }
 }
 
+// ============ 模型配置管理 ============
+
+/** 获取 Hermes 的 .env 文件路径（跨平台） */
+function getHermesEnvPath(): string {
+  const path = require("path");
+  const os = require("os");
+  // Hermes 使用 LOCALAPPDATA（Windows）/ XDG_DATA_HOME 或 ~/.local/share（Linux/macOS）
+  const base =
+    process.env.LOCALAPPDATA ||
+    process.env.XDG_DATA_HOME ||
+    path.join(os.homedir(), ".local", "share");
+  return path.join(base, "hermes", ".env");
+}
+
+/** 获取 Hermes 的 config.yaml 路径 */
+function getHermesConfigPath(): string {
+  const path = require("path");
+  const os = require("os");
+  const base =
+    process.env.LOCALAPPDATA ||
+    process.env.XDG_DATA_HOME ||
+    path.join(os.homedir(), ".local", "share");
+  return path.join(base, "hermes", "config.yaml");
+}
+
+/**
+ * 自动配置 Hermes 的 LLM 模型（复用 LynnHub 的 DeepSeek API Key）
+ *
+ * 根因修复：Hermes 安装后默认未配置任何 LLM provider/model，
+ * 执行 `-z` 任务时会因 "no model" 产生 "no final response was produced"。
+ *
+ * 本函数：
+ * 1. 从 LynnHub 的 process.env.DEEPSEEK_API_KEY 或 AISetting.deepseekApiKey 读取密钥
+ * 2. 写入 Hermes 的 .env 文件（DEEPSEEK_API_KEY / DEEPSEEK_BASE_URL）
+ * 3. 通过 `hermes config set model deepseek-chat` 设置默认模型
+ */
+export async function configureHermesModel(): Promise<{
+  success: boolean;
+  configured?: { provider: string; model: string; baseUrl: string };
+  error?: string;
+}> {
+  const fs = require("fs").promises;
+  const path = require("path");
+
+  try {
+    // 1. 获取 DeepSeek API Key（优先环境变量，回退数据库）
+    let apiKey = process.env.DEEPSEEK_API_KEY || "";
+    let baseUrl = process.env.DEEPSEEK_BASE_URL || "https://api.deepseek.com/v1";
+    let modelName = process.env.DEEPSEEK_MODEL || "deepseek-chat";
+
+    if (!apiKey) {
+      // 回退：从数据库 AISetting 读取
+      try {
+        const setting = await prisma.aISetting.findFirst();
+        if (setting?.deepseekApiKey) {
+          apiKey = setting.deepseekApiKey;
+          baseUrl = setting.deepseekBaseUrl || baseUrl;
+          modelName = setting.deepseekModel || modelName;
+        }
+      } catch {
+        // 数据库读取失败，继续
+      }
+    }
+
+    if (!apiKey) {
+      return {
+        success: false,
+        error:
+          "未找到 DeepSeek API Key。请在 LynnHub 根目录 .env 设置 DEEPSEEK_API_KEY，或在 AI 助理设置中配置 DeepSeek 密钥。",
+      };
+    }
+
+    // 2. 写入 Hermes .env 文件
+    const envPath = getHermesEnvPath();
+    const envDir = path.dirname(envPath);
+    await fs.mkdir(envDir, { recursive: true });
+
+    // 读取现有 .env（如有），保留其它键，仅更新 DeepSeek 相关
+    let existingLines: string[] = [];
+    try {
+      const existing = await fs.readFile(envPath, "utf-8");
+      existingLines = existing.split(/\r?\n/).filter((l: string) => l.trim());
+    } catch {
+      // 文件不存在，忽略
+    }
+
+    // 移除旧的 DeepSeek 相关行
+    const kept = existingLines.filter(
+      (l: string) =>
+        !l.startsWith("DEEPSEEK_API_KEY=") &&
+        !l.startsWith("DEEPSEEK_BASE_URL=") &&
+        !l.startsWith("DEEPSEEK_MODEL=")
+    );
+
+    const newEnvContent = [
+      ...kept,
+      `DEEPSEEK_API_KEY=${apiKey}`,
+      `DEEPSEEK_BASE_URL=${baseUrl}`,
+      `DEEPSEEK_MODEL=${modelName}`,
+      "",
+    ].join("\n");
+
+    await fs.writeFile(envPath, newEnvContent, "utf-8");
+    logger.info({ envPath }, "已写入 Hermes .env (DeepSeek 配置)");
+
+    // 3. 通过 `hermes config set model <name>` 设置默认模型（非交互）
+    // 注意：DeepSeek 模型在 Hermes 中通常以 "deepseek/<model>" 或 "<model>" 形式引用
+    // 尝试两种格式
+    const modelCandidates = [
+      modelName,
+      `deepseek/${modelName}`,
+      "deepseek-chat",
+    ];
+    let modelSet = false;
+    for (const candidate of modelCandidates) {
+      const setResult = await execHermes(
+        ["config", "set", "model", candidate],
+        15_000
+      );
+      if (setResult.success) {
+        modelSet = true;
+        logger.info({ model: candidate }, "已设置 Hermes 默认模型");
+        break;
+      }
+    }
+    if (!modelSet) {
+      // config set 失败不致命，.env 已写入，hermes 会自动检测 DEEPSEEK_API_KEY
+      logger.warn("hermes config set model 失败，但 .env 已写入，将依赖自动检测");
+    }
+
+    return {
+      success: true,
+      configured: { provider: "deepseek", model: modelName, baseUrl },
+    };
+  } catch (e) {
+    return { success: false, error: (e as Error).message };
+  }
+}
+
+/**
+ * 检测 Hermes 是否已配置 LLM 模型
+ * 通过 `hermes config show` 检查 Model 字段是否为空
+ */
+export async function isHermesModelConfigured(): Promise<{
+  configured: boolean;
+  model?: string;
+  hasApiKey: boolean;
+}> {
+  // 1. 检查 .env 文件中是否有 DEEPSEEK_API_KEY
+  let hasApiKey = false;
+  try {
+    const fs = require("fs").promises;
+    const envPath = getHermesEnvPath();
+    const envContent = await fs.readFile(envPath, "utf-8");
+    hasApiKey = /^DEEPSEEK_API_KEY=.+/m.test(envContent);
+  } catch {
+    hasApiKey = false;
+  }
+
+  // 2. 检查 config 中的 model
+  const result = await execHermes(["config", "show"], 10_000);
+  if (result.success) {
+    const modelMatch = result.stdout.match(/Model:\s*(.+)/i);
+    const model = modelMatch?.[1]?.trim();
+    const configured = !!model && !model.includes("not set") && model.length > 0;
+    return { configured, model, hasApiKey };
+  }
+
+  return { configured: false, hasApiKey };
+}
+
 // ============ 安装管理 ============
 
 /**
@@ -513,12 +780,23 @@ export async function findHermesExe(): Promise<string | null> {
 /**
  * 检测系统是否已安装 hermes-agent（检查 pip 包）
  * 通过 `pip show hermes-agent` 命令
+ *
+ * 性能优化：pip show 会启动 Python 子进程，较慢（~1-2s）。
+ * 安装状态很少变化，缓存 5 分钟避免频繁轮询导致系统卡顿。
  */
+let _detectCache: { result: { installed: boolean; version?: string; path?: string }; ts: number } | null = null;
+const DETECT_CACHE_MS = 5 * 60 * 1000; // 5 分钟
+
 export async function detectHermesInstall(): Promise<{
   installed: boolean;
   version?: string;
   path?: string;
 }> {
+  // 命中缓存直接返回
+  if (_detectCache && Date.now() - _detectCache.ts < DETECT_CACHE_MS) {
+    return _detectCache.result;
+  }
+
   const { exec } = await import("child_process");
   const { promisify } = await import("util");
   const execAsync = promisify(exec);
@@ -529,14 +807,23 @@ export async function detectHermesInstall(): Promise<{
     const { stdout } = await execAsync(cmd, { timeout: 15000 });
     const versionMatch = stdout.match(/Version:\s*(.+)/);
     const locationMatch = stdout.match(/Location:\s*(.+)/);
-    return {
+    const result = {
       installed: true,
       version: versionMatch?.[1]?.trim(),
       path: locationMatch?.[1]?.trim(),
     };
+    _detectCache = { result, ts: Date.now() };
+    return result;
   } catch {
-    return { installed: false };
+    const result = { installed: false };
+    _detectCache = { result, ts: Date.now() };
+    return result;
   }
+}
+
+/** 清除安装检测缓存（手动安装/卸载后调用） */
+export function clearHermesDetectCache(): void {
+  _detectCache = null;
 }
 
 /**

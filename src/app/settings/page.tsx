@@ -20,6 +20,8 @@ import {
   Send,
   BookOpen,
   Terminal,
+  Sparkles,
+  RefreshCw,
 } from "lucide-react";
 import { PageHeader, Card, Button, LoadingState } from "@/components/layout/PageHeader";
 import { HelpButton } from "@/components/layout/HelpButton";
@@ -634,6 +636,10 @@ function HermesConfigSection() {
   const [quickExecuting, setQuickExecuting] = useState(false);
   const [quickResult, setQuickResult] = useState<{ success: boolean; output: string; error?: string; durationMs?: number } | null>(null);
 
+  // 模型配置相关状态
+  const [modelConfigured, setModelConfigured] = useState<boolean | null>(null);
+  const [configuringModel, setConfiguringModel] = useState(false);
+
   const loadStatus = async () => {
     try {
       const res = await fetch("/api/hermes/status");
@@ -653,10 +659,43 @@ function HermesConfigSection() {
     }
   };
 
+  // 检查 Hermes 模型配置状态（已安装时才检查）
+  const checkModelConfig = async () => {
+    try {
+      const res = await fetch("/api/hermes/configure-model");
+      if (res.ok) {
+        const data = await res.json();
+        setModelConfigured(data.configured === true);
+      }
+    } catch {
+      // 静默失败
+    }
+  };
+
+  // 一键配置 Hermes 模型（复用 LynnHub 的 DeepSeek API Key）
+  const handleConfigureModel = async () => {
+    setConfiguringModel(true);
+    try {
+      const res = await fetch("/api/hermes/configure-model", { method: "POST" });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        toast(data.message || "模型配置成功", "success");
+        setModelConfigured(true);
+      } else {
+        toast(data.error || "配置失败", "error");
+      }
+    } catch (e: any) {
+      toast("请求失败：" + e.message, "error");
+    } finally {
+      setConfiguringModel(false);
+    }
+  };
+
   useEffect(() => {
     loadStatus();
-    // 每 10 秒自动刷新状态（监控 Hermes 服务状态变化）
-    const timer = setInterval(loadStatus, 10_000);
+    checkModelConfig();
+    // 每 30 秒自动刷新状态（原 10 秒过于频繁，hermes status 命令较重）
+    const timer = setInterval(loadStatus, 30_000);
     return () => clearInterval(timer);
   }, []);
 
@@ -941,6 +980,47 @@ function HermesConfigSection() {
           </div>
         )}
       </div>
+
+      {/* 模型配置（LLM Provider）— 未配置时会导致 "no final response was produced" */}
+      {isInstalled && (
+        <div className="mb-4 rounded-md border border-border/60 bg-muted/20 p-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2 text-xs">
+              <span className={`h-2 w-2 rounded-full ${
+                modelConfigured === true ? "bg-green-500" : modelConfigured === false ? "bg-red-500" : "bg-gray-400"
+              }`} />
+              <span className="font-medium text-foreground">LLM 模型配置</span>
+              {modelConfigured === true ? (
+                <span className="text-green-600">· 已配置</span>
+              ) : modelConfigured === false ? (
+                <span className="text-red-600">· 未配置（任务会失败）</span>
+              ) : (
+                <span className="text-muted-foreground">· 检测中</span>
+              )}
+            </div>
+            <Button
+              size="sm"
+              variant={modelConfigured ? "outline" : "primary"}
+              onClick={handleConfigureModel}
+              disabled={configuringModel}
+              className="gap-1.5"
+            >
+              {configuringModel ? (
+                <><Loader2 className="h-3 w-3 animate-spin" /> 配置中...</>
+              ) : modelConfigured ? (
+                <><RefreshCw className="h-3 w-3" /> 重新配置</>
+              ) : (
+                <><Sparkles className="h-3 w-3" /> 一键配置模型</>
+              )}
+            </Button>
+          </div>
+          {modelConfigured === false && (
+            <div className="mt-2 text-[11px] text-muted-foreground">
+              Hermes 需要配置 LLM 模型才能执行任务。点击「一键配置模型」会自动复用 LynnHub 的 DeepSeek API Key 写入 Hermes 配置。
+            </div>
+          )}
+        </div>
+      )}
 
       {/* 快速执行（仅在运行中时显示） */}
       {isRunning && (

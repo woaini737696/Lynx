@@ -7,6 +7,7 @@ import {
   installHermesAgent,
   startHermesAgent,
   stopHermesAgent,
+  clearHermesDetectCache,
 } from "@/lib/hermes-client";
 import { getLogger } from "@/lib/logger";
 
@@ -68,6 +69,7 @@ export async function POST(req: NextRequest) {
       });
 
       const result = await installHermesAgent();
+      clearHermesDetectCache(); // 安装后清除缓存，下次状态查询会重新检测
       if (result.success) {
         await upsertHermesConfig(auth.user.id, {
           status: "installed",

@@ -178,7 +178,7 @@ export function Sidebar() {
               collapsed ? "opacity-0" : "opacity-100"
             )}
           >
-            <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-gradient-to-br from-northstar to-orange-600 text-sm font-bold text-white shadow-sm">
+            <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-gradient-to-br from-[hsl(248_84%_62%)] to-[hsl(262_70%_58%)] text-sm font-bold text-white shadow-md">
               L
             </div>
             <span className="text-sm font-semibold tracking-tight">LynnHub</span>
