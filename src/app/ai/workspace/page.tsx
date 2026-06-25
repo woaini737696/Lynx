@@ -24,6 +24,7 @@ import {
   Plus,
   Edit3,
   Trash2,
+  GitBranch,
 } from "lucide-react";
 import { PageHeader, Card, Button, Badge } from "@/components/layout/PageHeader";
 import { HelpButton } from "@/components/layout/HelpButton";
@@ -112,6 +113,7 @@ export default function AIWorkspacePage() {
   const [customTemplates, setCustomTemplates] = useState<any[]>([]);
   const [showTemplateEditor, setShowTemplateEditor] = useState(false);
   const [editingTemplate, setEditingTemplate] = useState<any | null>(null);
+  const [versionHistoryTemplate, setVersionHistoryTemplate] = useState<any | null>(null);
 
   // 加载自定义蒸馏模板
   const fetchCustomTemplates = useCallback(async () => {
@@ -342,6 +344,21 @@ export default function AIWorkspacePage() {
     fetchCustomTemplates();
   };
 
+  // 打开版本历史
+  const openVersionHistory = (template: WorkspaceTemplate) => {
+    setVersionHistoryTemplate(template);
+  };
+
+  // 关闭版本历史
+  const closeVersionHistory = () => {
+    setVersionHistoryTemplate(null);
+  };
+
+  // 版本回滚后回调
+  const onVersionRollback = () => {
+    fetchCustomTemplates();
+  };
+
   return (
     <div className="p-4 sm:p-8">
       <PageHeader
@@ -356,19 +373,7 @@ export default function AIWorkspacePage() {
             >
               <Plus className="h-3.5 w-3.5" /> 新建模板
             </Button>
-            <HelpButton content={{
-              painPoint: "重复性AI任务（周报、代码审查、会议纪要）每次都要重新写prompt。",
-              need: "需要预设模板，填参数即可执行，结果可复用。",
-              solution: "AI工作空间提供7个蒸馏模板（财务预测/周报/代码审查/知识蒸馏/会议纪要/PRD/竞品分析），填参数一键执行。支持创建自定义模板。",
-              usage: [
-                "选择模板",
-                "填写参数",
-                "点击执行",
-                "查看结果可复制",
-                "执行历史可重跑",
-                "点击「新建模板」创建自定义模板"
-              ]
-            }} />
+            <HelpButton contentKey="ai-workspace" />
           </div>
         }
       />
@@ -523,6 +528,11 @@ export default function AIWorkspacePage() {
                   ? () => deleteTemplate(tpl._skillId || tpl.id)
                   : undefined
               }
+              onVersionHistory={
+                tpl._custom
+                  ? () => openVersionHistory(tpl)
+                  : undefined
+              }
             />
           ))}
         </div>
@@ -605,6 +615,21 @@ export default function AIWorkspacePage() {
           template={editingTemplate}
           onClose={closeTemplateEditor}
           onSave={onTemplateSaved}
+          onOpenVersionHistory={
+            editingTemplate?._custom
+              ? () => openVersionHistory(editingTemplate)
+              : undefined
+          }
+        />
+      )}
+
+      {/* 版本历史 modal */}
+      {versionHistoryTemplate && (
+        <VersionHistoryModal
+          templateId={versionHistoryTemplate._skillId || versionHistoryTemplate.id}
+          templateName={versionHistoryTemplate.name}
+          onClose={closeVersionHistory}
+          onRollback={onVersionRollback}
         />
       )}
     </div>
@@ -670,6 +695,7 @@ function CompactTemplateCard({
   onToggleFavorite,
   onEdit,
   onDelete,
+  onVersionHistory,
 }: {
   template: WorkspaceTemplate;
   isFavorite: boolean;
@@ -677,6 +703,7 @@ function CompactTemplateCard({
   onToggleFavorite: () => void;
   onEdit?: () => void;
   onDelete?: () => void;
+  onVersionHistory?: () => void;
 }) {
   const Icon = ICON_MAP[template.icon] ?? Sparkles;
   return (
@@ -686,7 +713,7 @@ function CompactTemplateCard({
     >
       {/* 顶部右侧操作区 */}
       <div className="absolute right-2 top-2 flex items-center gap-0.5">
-        {/* 自定义模板：编辑/删除按钮 */}
+        {/* 自定义模板：编辑/历史版本/删除按钮 */}
         {template._custom && onEdit && (
           <button
             onClick={(e) => {
@@ -698,6 +725,19 @@ function CompactTemplateCard({
             title="编辑"
           >
             <Edit3 className="h-3 w-3" />
+          </button>
+        )}
+        {template._custom && onVersionHistory && (
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onVersionHistory();
+            }}
+            className="rounded-md p-1 text-muted-foreground/60 opacity-0 transition-colors hover:text-cognition group-hover:opacity-100"
+            aria-label="历史版本"
+            title="历史版本"
+          >
+            <GitBranch className="h-3 w-3" />
           </button>
         )}
         {template._custom && onDelete && (
@@ -948,10 +988,12 @@ function TemplateEditor({
   template,
   onClose,
   onSave,
+  onOpenVersionHistory,
 }: {
   template: any | null; // null 表示新建
   onClose: () => void;
   onSave: () => void;
+  onOpenVersionHistory?: () => void;
 }) {
   const [name, setName] = useState<string>(template?.name || "");
   const [description, setDescription] = useState<string>(
@@ -1070,13 +1112,25 @@ function TemplateEditor({
               {isEdit ? "修改自定义蒸馏模板" : "创建自定义蒸馏模板，可填参数一键执行"}
             </p>
           </div>
-          <button
-            onClick={onClose}
-            className="rounded-lg p-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-            aria-label="关闭"
-          >
-            <X className="h-4 w-4" />
-          </button>
+          <div className="flex items-center gap-1">
+            {isEdit && onOpenVersionHistory && (
+              <button
+                onClick={onOpenVersionHistory}
+                className="flex items-center gap-1 rounded-lg border border-border px-2 py-1 text-[11px] text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                title="查看历史版本"
+              >
+                <GitBranch className="h-3 w-3" />
+                历史版本
+              </button>
+            )}
+            <button
+              onClick={onClose}
+              className="rounded-lg p-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+              aria-label="关闭"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
         </div>
 
         <div className="space-y-4">
@@ -1339,6 +1393,237 @@ function TemplateEditor({
               </>
             )}
           </Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ============ 版本历史 Modal ============
+
+interface SkillVersionItem {
+  id: string;
+  skillId: string;
+  version: number;
+  name: string;
+  description: string;
+  category: string;
+  content: string;
+  parameters: any;
+  promptTemplate: string;
+  tags: any;
+  createdAt: string;
+}
+
+function VersionHistoryModal({
+  templateId,
+  templateName,
+  onClose,
+  onRollback,
+}: {
+  templateId: string;
+  templateName: string;
+  onClose: () => void;
+  onRollback: () => void;
+}) {
+  const [versions, setVersions] = useState<SkillVersionItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [selectedVersion, setSelectedVersion] = useState<number | null>(null);
+  const [rollingBack, setRollingBack] = useState(false);
+
+  useEffect(() => {
+    fetchVersions();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const fetchVersions = async () => {
+    setLoading(true);
+    try {
+      const res = await fetch(`/api/ai/distill/templates/${templateId}/versions`);
+      const data = await res.json();
+      if (data.versions) {
+        setVersions(data.versions as SkillVersionItem[]);
+      }
+    } catch {
+      // ignore
+    }
+    setLoading(false);
+  };
+
+  const handleRollback = async (version: number) => {
+    if (!confirm(`确定回滚到版本 v${version}？当前版本会自动备份。`)) return;
+    setRollingBack(true);
+    try {
+      const res = await fetch(
+        `/api/ai/distill/templates/${templateId}/versions/${version}`,
+        { method: "POST" }
+      );
+      if (res.ok) {
+        toast("已回滚", "success");
+        onRollback();
+        onClose();
+      } else {
+        const err = await res.json().catch(() => ({}));
+        toast(err.error || "回滚失败", "error");
+      }
+    } catch (e) {
+      toast("回滚失败：" + (e as Error).message, "error");
+    }
+    setRollingBack(false);
+  };
+
+  const selected = versions.find((v) => v.version === selectedVersion) || null;
+
+  return (
+    <div
+      className="fixed inset-0 z-[60] flex items-start justify-center bg-black/50 p-4 pt-[6vh] backdrop-blur-sm animate-in fade-in duration-200"
+      onClick={onClose}
+    >
+      <div
+        className="max-h-[88vh] w-full max-w-3xl overflow-hidden rounded-3xl border border-border bg-card shadow-2xl transition-all animate-in zoom-in-95 duration-200"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* 头部 */}
+        <div className="flex items-start justify-between border-b border-border p-5">
+          <div className="flex items-center gap-2">
+            <GitBranch className="h-4 w-4 text-cognition" />
+            <div>
+              <h2 className="text-base font-semibold">历史版本</h2>
+              <p className="text-[11px] text-muted-foreground">
+                {templateName} · 共 {versions.length} 个版本
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={onClose}
+            className="rounded-lg p-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+            aria-label="关闭"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+
+        {/* 主体：左侧版本列表，右侧详情 */}
+        <div className="flex max-h-[70vh]">
+          {/* 左侧版本列表 */}
+          <div className="w-1/2 overflow-y-auto border-r border-border">
+            {loading ? (
+              <div className="flex items-center justify-center p-8 text-[11px] text-muted-foreground">
+                <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />
+                加载中...
+              </div>
+            ) : versions.length === 0 ? (
+              <div className="p-8 text-center text-[11px] text-muted-foreground">
+                暂无历史版本
+                <p className="mt-1 text-[10px]">
+                  编辑模板时会自动创建版本快照
+                </p>
+              </div>
+            ) : (
+              <ul className="divide-y divide-border">
+                {versions.map((v) => (
+                  <li
+                    key={v.id}
+                    onClick={() => setSelectedVersion(v.version)}
+                    className={cn(
+                      "cursor-pointer p-3 transition-colors",
+                      selectedVersion === v.version
+                        ? "bg-cognition/10"
+                        : "hover:bg-muted/50"
+                    )}
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="flex items-center gap-1.5 text-xs font-medium">
+                        <span className="inline-flex h-5 min-w-[2rem] items-center justify-center rounded bg-muted px-1 text-[10px] text-foreground/80">
+                          v{v.version}
+                        </span>
+                        {v.name}
+                      </span>
+                    </div>
+                    <p className="mt-1 line-clamp-1 text-[10px] text-muted-foreground">
+                      {v.description || "（无描述）"}
+                    </p>
+                    <p className="mt-0.5 text-[9px] text-muted-foreground/70">
+                      {formatTime(v.createdAt)}
+                    </p>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+
+          {/* 右侧详情 */}
+          <div className="w-1/2 overflow-y-auto p-4">
+            {!selected ? (
+              <div className="flex h-full items-center justify-center text-[11px] text-muted-foreground">
+                点击左侧版本查看详情
+              </div>
+            ) : (
+              <div className="space-y-3">
+                <div>
+                  <div className="text-[10px] font-medium text-muted-foreground">
+                    版本
+                  </div>
+                  <div className="text-sm font-semibold">v{selected.version}</div>
+                </div>
+                <div>
+                  <div className="text-[10px] font-medium text-muted-foreground">
+                    名称
+                  </div>
+                  <div className="text-xs">{selected.name}</div>
+                </div>
+                <div>
+                  <div className="text-[10px] font-medium text-muted-foreground">
+                    描述
+                  </div>
+                  <div className="text-xs">{selected.description || "（无）"}</div>
+                </div>
+                <div>
+                  <div className="text-[10px] font-medium text-muted-foreground">
+                    创建时间
+                  </div>
+                  <div className="text-[11px] text-muted-foreground">
+                    {new Date(selected.createdAt).toLocaleString("zh-CN")}
+                  </div>
+                </div>
+                <div>
+                  <div className="mb-1 text-[10px] font-medium text-muted-foreground">
+                    提示词模板
+                  </div>
+                  <pre className="max-h-40 overflow-y-auto whitespace-pre-wrap rounded-lg border border-border bg-muted/30 p-2 text-[10px] leading-relaxed text-foreground/90">
+                    {selected.promptTemplate || "（空）"}
+                  </pre>
+                </div>
+                <div>
+                  <div className="mb-1 text-[10px] font-medium text-muted-foreground">
+                    正文内容
+                  </div>
+                  <pre className="max-h-40 overflow-y-auto whitespace-pre-wrap rounded-lg border border-border bg-muted/30 p-2 text-[10px] leading-relaxed text-foreground/90">
+                    {selected.content || "（空）"}
+                  </pre>
+                </div>
+
+                {/* 回滚按钮 */}
+                <div className="flex justify-end border-t border-border pt-3">
+                  <Button
+                    size="sm"
+                    onClick={() => handleRollback(selected.version)}
+                    disabled={rollingBack}
+                  >
+                    {rollingBack ? (
+                      <>
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" /> 回滚中...
+                      </>
+                    ) : (
+                      <>
+                        <RotateCcw className="h-3.5 w-3.5" /> 回滚到此版本
+                      </>
+                    )}
+                  </Button>
+                </div>
+              </div>
+            )}
+          </div>
         </div>
       </div>
     </div>

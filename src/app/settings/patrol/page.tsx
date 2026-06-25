@@ -423,18 +423,7 @@ export default function PatrolSettingsPage() {
         title="AI 巡检"
         subtitle="可配置的智能巡检：对象 + 时间 + 规则 + 通知"
         action={
-          <HelpButton content={{
-            painPoint: "灵感进墓地后就忘了，看板任务停滞没人管，缺乏定期检查机制。",
-            need: "需要可配置的AI巡检，定期检查灵感/看板/墓地并主动提醒。",
-            solution: "AI巡检支持自定义规则（对象+时间+prompt+通知渠道），AI对话配置，定时或手动执行。",
-            usage: [
-              "左侧创建规则或用AI对话配置",
-              "设置巡检对象(inbox/board/graveyard)和触发时间",
-              "配置通知渠道(桌面/推送/飞书)",
-              "手动执行或等待定时触发",
-              "查看巡检日志了解结果"
-            ]
-          }} />
+          <HelpButton contentKey="settings-patrol" />
         }
       />
 

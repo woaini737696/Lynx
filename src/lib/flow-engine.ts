@@ -273,6 +273,285 @@ async function executeOutputNode(
   };
 }
 
+// ============ 新增节点执行器 ============
+
+/** Hermes 节点：调用本地 Hermes Agent 执行任务（桌面控制/Shell/Skills Hub） */
+async function executeHermesNode(
+  node: FlowNode,
+  upstreamOutput: string,
+  userId?: string
+): Promise<NodeExecutionResult> {
+  const start = Date.now();
+  const prompt = (node.config?.hermesPrompt || "请处理以下内容").replace(/\{\{upstream\}\}/g, upstreamOutput);
+
+  try {
+    // 动态导入避免循环依赖
+    const { getHermesConfig, executeHermesTask } = await import("@/lib/hermes-client");
+    if (!userId) {
+      return {
+        nodeId: node.id,
+        nodeLabel: node.label,
+        status: "error",
+        durationMs: Date.now() - start,
+        error: "无用户上下文",
+        message: "Hermes 节点需要用户上下文",
+      };
+    }
+    const config = await getHermesConfig(userId);
+    if (!config || !config.enabled) {
+      return {
+        nodeId: node.id,
+        nodeLabel: node.label,
+        status: "error",
+        durationMs: Date.now() - start,
+        error: "Hermes Agent 未启用",
+        message: "请在设置中启用 Hermes Agent",
+      };
+    }
+
+    const result = await executeHermesTask(config, {
+      prompt,
+      mode: node.config?.hermesMode || "auto",
+      timeout: node.config?.timeout || 120,
+      workDir: node.config?.workDir,
+    });
+
+    // 记录执行历史
+    try {
+      await prisma.skillExecution.create({
+        data: {
+          userId,
+          skillId: "hermes-flow",
+          skillName: `工作流：${node.label}`,
+          source: "hermes",
+          trigger: "flow",
+          parameters: { prompt, mode: node.config?.hermesMode } as unknown as never,
+          result: result.output,
+          success: result.success,
+          durationMs: result.durationMs || 0,
+          error: result.error || null,
+        },
+      });
+    } catch {
+      // 记录失败不影响主流程
+    }
+
+    return {
+      nodeId: node.id,
+      nodeLabel: node.label,
+      status: result.success ? "done" : "error",
+      output: result.output,
+      durationMs: Date.now() - start,
+      error: result.error,
+      message: result.success
+        ? `Hermes 执行完成（${result.durationMs || 0}ms）`
+        : `Hermes 执行失败：${result.error}`,
+    };
+  } catch (e) {
+    return {
+      nodeId: node.id,
+      nodeLabel: node.label,
+      status: "error",
+      durationMs: Date.now() - start,
+      error: (e as Error).message,
+      message: `Hermes 调用异常：${(e as Error).message}`,
+    };
+  }
+}
+
+/** HTTP 节点：发起 HTTP 请求 */
+async function executeHttpNode(
+  node: FlowNode,
+  upstreamOutput: string
+): Promise<NodeExecutionResult> {
+  const start = Date.now();
+  const method = node.config?.httpMethod || "GET";
+  const url = (node.config?.httpUrl || "").replace(/\{\{upstream\}\}/g, encodeURIComponent(upstreamOutput));
+  const headers = node.config?.httpHeaders || {};
+  let body = node.config?.httpBody || "";
+  body = body.replace(/\{\{upstream\}\}/g, upstreamOutput);
+
+  if (!url) {
+    return {
+      nodeId: node.id,
+      nodeLabel: node.label,
+      status: "error",
+      durationMs: 0,
+      error: "URL 为空",
+      message: "HTTP 节点未配置 URL",
+    };
+  }
+
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), (node.config?.timeout || 30) * 1000);
+    const res = await fetch(url, {
+      method,
+      headers: { "Content-Type": "application/json", ...headers },
+      body: ["POST", "PUT", "PATCH"].includes(method) ? body : undefined,
+      signal: controller.signal,
+    });
+    clearTimeout(timeout);
+    const text = await res.text();
+    const ok = res.ok;
+    return {
+      nodeId: node.id,
+      nodeLabel: node.label,
+      status: ok ? "done" : "error",
+      output: text.slice(0, 10000), // 截断防止过大
+      durationMs: Date.now() - start,
+      error: ok ? undefined : `HTTP ${res.status}`,
+      message: `HTTP ${method} ${res.status}（${Date.now() - start}ms）`,
+    };
+  } catch (e) {
+    return {
+      nodeId: node.id,
+      nodeLabel: node.label,
+      status: "error",
+      durationMs: Date.now() - start,
+      error: (e as Error).message,
+      message: `HTTP 请求失败：${(e as Error).message}`,
+    };
+  }
+}
+
+/** Database 节点：数据库操作 */
+async function executeDatabaseNode(
+  node: FlowNode,
+  upstreamOutput: string,
+  userId?: string
+): Promise<NodeExecutionResult> {
+  const start = Date.now();
+  const operation = node.config?.dbOperation || "query";
+  const model = node.config?.dbModel || "idea";
+
+  try {
+    let result: unknown;
+    const data = node.config?.dbData
+      ? JSON.parse(JSON.stringify(node.config.dbData).replace(/\{\{upstream\}\}/g, upstreamOutput))
+      : {};
+
+    switch (operation) {
+      case "query": {
+        const take = Math.min(parseInt(node.config?.dbQuery || "10", 10) || 10, 100);
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        result = await (prisma as any)[model]?.findMany({ take, orderBy: { createdAt: "desc" } });
+        break;
+      }
+      case "create": {
+        if (userId) data.userId = userId;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        result = await (prisma as any)[model]?.create({ data });
+        break;
+      }
+      default:
+        result = { message: `${operation} 操作暂未实现` };
+    }
+
+    return {
+      nodeId: node.id,
+      nodeLabel: node.label,
+      status: "done",
+      output: JSON.stringify(result, null, 2),
+      durationMs: Date.now() - start,
+      message: `数据库 ${operation} ${model} 完成（${Date.now() - start}ms）`,
+    };
+  } catch (e) {
+    return {
+      nodeId: node.id,
+      nodeLabel: node.label,
+      status: "error",
+      durationMs: Date.now() - start,
+      error: (e as Error).message,
+      message: `数据库操作失败：${(e as Error).message}`,
+    };
+  }
+}
+
+/** Transform 节点：数据转换/格式化 */
+function executeTransformNode(
+  node: FlowNode,
+  upstreamOutput: string
+): NodeExecutionResult {
+  const start = Date.now();
+  const type = node.config?.transformType || "template";
+  const expr = node.config?.transformExpression || "";
+  const template = node.config?.transformTemplate || "";
+
+  try {
+    let output = upstreamOutput;
+    switch (type) {
+      case "template": {
+        output = (template || "{{upstream}}").replace(/\{\{upstream\}\}/g, upstreamOutput);
+        break;
+      }
+      case "jsonpath": {
+        try {
+          const obj = JSON.parse(upstreamOutput);
+          // 简单点路径：a.b.c
+          const keys = expr.split(".").filter(Boolean);
+          let cur: unknown = obj;
+          for (const k of keys) {
+            if (cur && typeof cur === "object") {
+              cur = (cur as Record<string, unknown>)[k];
+            }
+          }
+          output = typeof cur === "string" ? cur : JSON.stringify(cur, null, 2);
+        } catch {
+          output = upstreamOutput; // 非 JSON 则原样返回
+        }
+        break;
+      }
+      case "regex": {
+        const match = upstreamOutput.match(new RegExp(expr));
+        output = match ? (match[1] || match[0]) : "";
+        break;
+      }
+      case "javascript": {
+        // 安全沙箱：仅允许表达式，不允许语句
+        if (!/^[\w\s"'().,!&|=<>?:[\]{}+-]+$/.test(expr)) {
+          throw new Error("表达式包含非法字符");
+        }
+        // eslint-disable-next-line no-new-func
+        const fn = new Function("upstream", `"use strict"; return (${expr});`);
+        output = String(fn(upstreamOutput));
+        break;
+      }
+    }
+    return {
+      nodeId: node.id,
+      nodeLabel: node.label,
+      status: "done",
+      output,
+      durationMs: Date.now() - start,
+      message: `数据转换完成（${type}）`,
+    };
+  } catch (e) {
+    return {
+      nodeId: node.id,
+      nodeLabel: node.label,
+      status: "error",
+      durationMs: Date.now() - start,
+      error: (e as Error).message,
+      message: `数据转换失败：${(e as Error).message}`,
+    };
+  }
+}
+
+/** Delay 节点：延时 */
+async function executeDelayNode(node: FlowNode): Promise<NodeExecutionResult> {
+  const start = Date.now();
+  const ms = Math.min(node.config?.delayMs || 1000, 60000); // 最大 60 秒
+  await new Promise((resolve) => setTimeout(resolve, ms));
+  return {
+    nodeId: node.id,
+    nodeLabel: node.label,
+    status: "done",
+    durationMs: Date.now() - start,
+    message: `延时 ${ms}ms`,
+  };
+}
+
 // ============ 顺序执行模式（无 edges）============
 
 async function executeFlow(flow: Flow): Promise<FlowExecutionResult> {
@@ -323,6 +602,33 @@ async function executeFlow(flow: Flow): Promise<FlowExecutionResult> {
         if (result.status === "done" && result.output) {
           finalOutput = result.output;
         }
+        break;
+      case "hermes":
+        result = await executeHermesNode(node, upstreamOutput, flow.userId);
+        if (result.status === "done" && result.output) {
+          upstreamOutput = result.output;
+        }
+        break;
+      case "http":
+        result = await executeHttpNode(node, upstreamOutput);
+        if (result.status === "done" && result.output) {
+          upstreamOutput = result.output;
+        }
+        break;
+      case "database":
+        result = await executeDatabaseNode(node, upstreamOutput, flow.userId);
+        if (result.status === "done" && result.output) {
+          upstreamOutput = result.output;
+        }
+        break;
+      case "transform":
+        result = executeTransformNode(node, upstreamOutput);
+        if (result.status === "done" && result.output) {
+          upstreamOutput = result.output;
+        }
+        break;
+      case "delay":
+        result = await executeDelayNode(node);
         break;
       default:
         result = {
@@ -420,6 +726,33 @@ async function executeFlowWithEdges(
         if (result.status === "done" && result.output) {
           finalOutput = result.output;
         }
+        break;
+      case "hermes":
+        result = await executeHermesNode(node, upstreamOutput, flow.userId);
+        if (result.status === "done" && result.output) {
+          nextOutput = result.output;
+        }
+        break;
+      case "http":
+        result = await executeHttpNode(node, upstreamOutput);
+        if (result.status === "done" && result.output) {
+          nextOutput = result.output;
+        }
+        break;
+      case "database":
+        result = await executeDatabaseNode(node, upstreamOutput, flow.userId);
+        if (result.status === "done" && result.output) {
+          nextOutput = result.output;
+        }
+        break;
+      case "transform":
+        result = executeTransformNode(node, upstreamOutput);
+        if (result.status === "done" && result.output) {
+          nextOutput = result.output;
+        }
+        break;
+      case "delay":
+        result = await executeDelayNode(node);
         break;
       default:
         result = {

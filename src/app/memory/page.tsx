@@ -1101,17 +1101,7 @@ export default function MemoryPage() {
               <Database className={`h-3.5 w-3.5 ${rebuilding ? "animate-pulse" : ""}`} />
               {rebuilding ? "重建中..." : "重建图谱"}
             </Button>
-            <HelpButton content={{
-              painPoint: "灵感、对话、认知散落各处，看不到关联，知识无法复利。",
-              need: "需要一个可视化图谱展示所有知识的关联，支持语义搜索。",
-              solution: "记忆图谱用向量embedding计算相似度自动连边，3D力导向可视化，支持语义搜索。",
-              usage: [
-                "点击'重建图谱'生成embedding和连边",
-                "拖拽节点探索关联",
-                "滚轮缩放，Ctrl+滚轮缩放画布",
-                "搜索框输入关键词做语义搜索"
-              ]
-            }} />
+            <HelpButton contentKey="memory" />
           </div>
         }
       />

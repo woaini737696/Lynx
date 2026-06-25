@@ -377,18 +377,7 @@ export default function SkillsPage() {
             <Button onClick={openCreate}>
               <Plus className="h-3.5 w-3.5" /> 新建
             </Button>
-            <HelpButton content={{
-              painPoint: "好用的AI prompt散落在聊天记录里，无法复用和迭代。",
-              need: "需要一个技能库管理prompt模板，支持版本管理和AI生成。",
-              solution: "技能管理提供CRUD+版本管理+AI生成+Markdown导入导出，技能可在AI工作空间执行。",
-              usage: [
-                "新建技能填写prompt模板",
-                "支持版本管理可回滚",
-                "AI生成技能从描述自动创建",
-                "导入Markdown快速创建",
-                "导出分享到Skill市场"
-              ]
-            }} />
+            <HelpButton contentKey="skills" />
           </div>
         }
       />

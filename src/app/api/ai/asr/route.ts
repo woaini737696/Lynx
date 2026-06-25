@@ -59,7 +59,7 @@ export async function POST(req: NextRequest) {
       mimeType = "audio/wav";
     } else if (fileName.endsWith(".mp3")) {
       mimeType = "audio/mpeg";
-    } else if (fileName.endsWith(".m4a")) {
+    } else if (fileName.endsWith(".mp4") || fileName.endsWith(".m4a")) {
       mimeType = "audio/mp4";
     } else if (fileName.endsWith(".flac")) {
       mimeType = "audio/flac";

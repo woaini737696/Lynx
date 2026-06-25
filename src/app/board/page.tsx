@@ -335,17 +335,7 @@ export default function BoardPage() {
                 </div>
               </div>
             ) : null}
-            <HelpButton content={{
-              painPoint: "任务混在一起分不清优先级，不知道什么该做什么该放弃。",
-              need: "需要一个分层看板，按战略-战役-任务三级管理，限制数量强制聚焦。",
-              solution: "决策看板分北极星(≤3)/战役(≤5)/任务(≤10)三列，完成时AI自动提取认知写入认知库。",
-              usage: [
-                "从Inbox拖灵感到看板自动创建任务",
-                "点击卡片标记完成，AI提取经验入库",
-                "查看完成统计了解进度",
-                "今日聚焦与看板状态双向同步"
-              ]
-            }} />
+            <HelpButton contentKey="board" />
           </div>
         }
       />

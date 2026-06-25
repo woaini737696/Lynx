@@ -123,6 +123,21 @@ export const AI_ASSISTANT_TOOLS: ToolDef[] = [
     description: "导出数据备份（JSON）",
     params: '{"type": "all|ideas|tasks|cognitions|memories（可选，默认all）"}',
   },
+  {
+    name: "hermesExecute",
+    description: "通过 Hermes Agent 执行本地任务（操控电脑桌面、运行 Shell 命令、调用 Skills Hub 技能）。需先在设置中启用 Hermes Agent。",
+    params: '{"prompt": "任务描述（如：打开记事本并输入Hello）", "mode": "computer_use|shell|auto（可选，默认auto）", "workDir": "工作目录（可选）", "timeout": 120}',
+  },
+  {
+    name: "hermesListSkills",
+    description: "列出 Hermes Skills Hub 可用技能（672+ 官方技能）",
+    params: '{"category": "技能分类（可选）"}',
+  },
+  {
+    name: "hermesStatus",
+    description: "查询 Hermes Agent 安装和运行状态",
+    params: "{}",
+  },
 ];
 
 // ============ System Prompt ============

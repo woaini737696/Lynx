@@ -312,17 +312,7 @@ export default function GraveyardPage() {
               <CheckSquare className="h-3.5 w-3.5" />
               {batchMode ? "退出批量" : "批量操作"}
             </Button>
-            <HelpButton content={{
-              painPoint: "放弃的灵感直接删除太可惜，但留着又占注意力。",
-              need: "需要一个'墓地'安放放弃的灵感，记录原因和复活条件，AI巡检自动检查是否该复活。",
-              solution: "灵感墓地记录放弃原因和复活条件，AI巡检定期检查新灵感是否满足复活条件，支持批量管理和彻底删除。",
-              usage: [
-                "Inbox中放弃灵感时填写原因和复活条件",
-                "墓地页查看所有放弃的灵感",
-                "AI巡检自动检查复活条件并提醒",
-                "可编辑原因/条件、批量复活或彻底删除"
-              ]
-            }} />
+            <HelpButton contentKey="graveyard" />
           </div>
         }
       />

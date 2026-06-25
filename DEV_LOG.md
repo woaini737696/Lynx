@@ -4,6 +4,125 @@
 
 ---
 
+## 迭代 21 - 2026-06-25
+
+### 任务概要
+完成 6 项 AI 自动化工作流深化任务（分两批实现）：(1) Hermes Agent 接入——一键部署本地 AI 代理操控电脑；(2) AI 工作流节点类型扩展——新增 hermes/http/database/transform/delay 5 种节点；(3) AI 助理技能面板收藏/历史/Hermes 打通；(4) ASR 支持 Safari audio/mp4 格式；(5) 蒸馏模板版本管理；(6) 使用说明按最新版本自动更新。
+
+### 完成内容
+
+#### 第一批（任务 4/5/6）
+
+##### 4. ASR 支持 Safari audio/mp4 格式
+- **前端 MIME 优先选择**：`createMediaRecorder` 按 `audio/mp4`（Safari）→ `audio/m4a` → `audio/webm`（Chrome）→ `audio/ogg` 顺序选择
+- **后端 MIME 映射扩展**：`/api/ai/asr/route.ts` 增加 `.mp4` → `audio/mp4` 映射
+
+##### 5. 蒸馏模板版本管理
+- **版本历史 API**：`/api/ai/distill/templates/[id]/versions` GET 返回版本列表
+- **版本回滚 API**：`/api/ai/distill/templates/[id]/versions/[version]` POST 回滚到指定版本
+- **PATCH 版本管理**：`/api/ai/distill/templates/[id]` PATCH 时自动写入 SkillVersion 表（含 `@@unique([skillId, version])`）
+- **版本历史 UI**：工作空间模板编辑区显示版本列表，支持回滚
+
+##### 6. 使用说明按最新版本自动更新
+- **集中管理**：新建 `src/lib/help-content.ts`，统一管理 13 个页面的使用说明，每个条目含 version + updatedAt
+- **HelpButton 改造**：`src/components/layout/HelpButton.tsx` 新增 `contentKey` 参数，从 HELP_CONTENT 读取最新内容
+- **13 个页面接入**：ai-assistant/ai-workspace/ai-flows/skills/skills-market/inbox/board/graveyard/memory/settings/settings-patrol/settings-push/search 全部改用 contentKey
+
+#### 第二批（任务 1/2/3）
+
+##### 1. Hermes Agent 接入（一键部署本地 AI 代理）
+- **数据模型**：Prisma schema 新增 3 个模型
+  - `HermesConfig`：用户 Hermes 配置（enabled/endpoint/apiKey/autoStart/capabilities/installedAt/status/lastError）
+  - `SkillFavorite`：技能收藏（userId/skillId/source/skillName/category，`@@unique([userId, skillId])`）
+  - `SkillExecution`：技能执行历史（userId/skillId/trigger/parameters/result/success/durationMs/error）
+- **Hermes 客户端库**：新建 `src/lib/hermes-client.ts`
+  - `getHermesConfig` / `upsertHermesConfig`：配置 CRUD
+  - `testHermesConnection`：测试连接（5秒超时）
+  - `executeHermesTask`：执行任务（computer_use/shell/auto 模式，可配置超时）
+  - `listHermesSkills` / `executeHermesSkill`：Skills Hub 技能调用
+  - `detectHermesInstall`：检测 pip 包是否已安装
+  - `installHermesAgent`：执行 `pip install hermes-agent`（5分钟超时）
+  - `startHermesAgent`：后台启动 `hermes serve --port 7432`
+- **6 个 API 路由**：
+  - `/api/hermes/install` GET 状态 / POST install/start/stop
+  - `/api/hermes/status` GET 完整状态（installed/config/connected/version/capabilities）
+  - `/api/hermes/test` POST 测试连接
+  - `/api/hermes/execute` POST 执行任务（记录到 SkillExecution）
+  - `/api/hermes/skills` GET Skills Hub 技能列表
+  - `/api/hermes/config` GET / PUT 配置
+- **设置页 UI**：`src/app/settings/page.tsx` 新增 `HermesConfigSection` 组件（约 380 行）
+  - 安装状态指示灯（未安装/已安装/运行中）
+  - 一键安装/启动/停止按钮
+  - 启用开关、端点配置、API Key、能力配置（4 个 checkbox）、自动启动
+  - 保存配置、测试连接按钮
+
+##### 2. AI 工作流节点类型扩展
+- **类型定义扩展**：`src/lib/flow-store.ts` NodeConfig 添加 hermes/http/database/transform/delay 字段，FlowNode type 联合类型扩展
+- **5 个新节点执行器**：`src/lib/flow-engine.ts`
+  - `executeHermesNode`：动态导入 hermes-client，调用 executeHermesTask，记录到 SkillExecution
+  - `executeHttpNode`：fetch HTTP 请求，支持 `{{upstream}}` 模板替换，超时控制
+  - `executeDatabaseNode`：Prisma 动态模型操作（query/create），支持 `{{upstream}}` 替换
+  - `executeTransformNode`：4 种转换（template/jsonpath/regex/javascript，含安全沙箱校验）
+  - `executeDelayNode`：setTimeout 延时（最大 60 秒）
+  - 更新 `executeFlow`（顺序执行）和 `executeFlowWithEdges`（图遍历）两处 switch
+- **可视化编排 UI**：`src/app/ai/flows/page.tsx`
+  - NODE_STYLES 添加 5 个新节点样式（purple/blue/emerald/orange/gray 配色）
+  - NODE_TYPE_LABELS / NODE_PANEL_ITEMS / defaultLabels 添加 5 个新节点
+  - 节点配置编辑器添加 5 个新节点类型的配置 UI
+
+##### 3. AI 助理技能面板收藏/历史 + Hermes 打通
+- **2 个 API 路由**：
+  - `/api/skills/favorites` GET 收藏列表 / POST upsert 收藏 / DELETE 取消收藏
+  - `/api/skills/executions` GET 执行历史（支持 skillId/source/limit 筛选）
+- **助理页面 UI 重构**：`src/app/ai/assistant/page.tsx`
+  - 技能面板升级为四 Tab 结构（全部/收藏/历史/Hermes）
+  - 技能列表项添加收藏星标按钮
+  - 收藏视图：显示已收藏技能
+  - 历史视图：显示执行记录（成功/失败、结果摘要、时间、耗时）
+  - Hermes 视图：加载并显示 Hermes Skills Hub 技能
+- **工具执行器扩展**：`src/app/api/ai/assistant/tool-executor.ts` 添加 3 个 Hermes 工具
+  - `hermesExecute`：调用 Hermes Agent 执行本地任务
+  - `hermesListSkills`：列出 Hermes Skills Hub 技能
+  - `hermesStatus`：查询安装/运行/连接状态
+- **工具定义扩展**：`src/lib/ai-assistant-tools.ts` AI_ASSISTANT_TOOLS 添加 3 个 Hermes 工具定义（工具总数 18→21）
+
+### 自测结果
+- TypeScript 编译：`npx tsc --noEmit` 通过（exit 0）
+- Playwright E2E：19 个测试 18 passed / 1 skipped（13.5s），与迭代 20 一致无回归
+- 页面访问：/settings、/ai/flows、/ai/assistant、/ai/workspace 全部 200
+- API 验证：/api/hermes/status、/api/hermes/install、/api/hermes/test、/api/hermes/execute、/api/hermes/skills、/api/hermes/config、/api/skills/favorites、/api/skills/executions 全部 200
+
+### 涉及文件
+**新增（11 个）**：
+- `src/lib/hermes-client.ts` — Hermes 客户端库
+- `src/app/api/hermes/install/route.ts` — 安装/启动/停止 API
+- `src/app/api/hermes/status/route.ts` — 状态查询 API
+- `src/app/api/hermes/test/route.ts` — 连接测试 API
+- `src/app/api/hermes/execute/route.ts` — 任务执行 API
+- `src/app/api/hermes/skills/route.ts` — Skills Hub 技能列表 API
+- `src/app/api/hermes/config/route.ts` — 配置管理 API
+- `src/app/api/skills/favorites/route.ts` — 技能收藏 API
+- `src/app/api/skills/executions/route.ts` — 执行历史 API
+- `src/app/api/ai/distill/templates/[id]/versions/route.ts` — 版本历史 API
+- `src/app/api/ai/distill/templates/[id]/versions/[version]/route.ts` — 版本回滚 API
+
+**修改（10 个）**：
+- `prisma/schema.prisma` — 新增 HermesConfig/SkillFavorite/SkillExecution 模型
+- `src/lib/flow-store.ts` — NodeConfig/FlowNode 类型扩展
+- `src/lib/flow-engine.ts` — 5 个新节点执行器
+- `src/lib/ai-assistant-tools.ts` — 3 个 Hermes 工具定义
+- `src/lib/help-content.ts` — ai-assistant 2.2 / ai-flows 3.1 / settings 2.1
+- `src/app/ai/flows/page.tsx` — 5 个新节点 UI
+- `src/app/ai/assistant/page.tsx` — 四 Tab 技能面板 + Safari ASR 优化
+- `src/app/ai/workspace/page.tsx` — 版本历史 UI
+- `src/app/settings/page.tsx` — HermesConfigSection 组件
+- `src/app/api/ai/assistant/tool-executor.ts` — 3 个 Hermes 工具执行器
+- `src/app/api/ai/asr/route.ts` — mp4 MIME 映射
+- `src/app/api/ai/distill/templates/[id]/route.ts` — PATCH 版本管理
+- `src/components/layout/HelpButton.tsx` — contentKey 参数
+
+---
+
 ## 迭代 20 - 2026-06-25
 
 ### 任务概要

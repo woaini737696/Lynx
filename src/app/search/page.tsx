@@ -161,17 +161,7 @@ export default function SearchPage() {
         title="全局搜索"
         subtitle="关键词精确匹配 · 语义搜索按相似度召回"
         action={
-          <HelpButton content={{
-            painPoint: "关键词搜索只能匹配字面，找不到语义相关的内容。",
-            need: "需要语义搜索，按意思而非字面匹配。",
-            solution: "搜索页支持关键词和语义搜索双模式，语义搜索用向量相似度匹配。",
-            usage: [
-              "输入搜索词",
-              "切换关键词/语义搜索模式",
-              "语义搜索显示相似度分数",
-              "点击结果跳转到对应详情"
-            ]
-          }} />
+          <HelpButton contentKey="search" />
         }
       />
 

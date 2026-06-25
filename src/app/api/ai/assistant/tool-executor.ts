@@ -92,6 +92,14 @@ export async function executeTool(
       case "exportBackup":
         return await executeExportBackup(args, user);
 
+      // ============ Hermes Agent ============
+      case "hermesExecute":
+        return await executeHermesExecute(args, user);
+      case "hermesListSkills":
+        return await executeHermesListSkills(args, user);
+      case "hermesStatus":
+        return await executeHermesStatus(user);
+
       default:
         return { error: "未知工具: " + tool };
     }
@@ -1199,5 +1207,116 @@ async function executeExportBackup(
       memories: backup.memories?.length || 0,
     },
     data: backup,
+  };
+}
+
+// ============ Hermes Agent ============
+
+/** 通过 Hermes Agent 执行任务（桌面控制/Shell/Skills Hub） */
+async function executeHermesExecute(
+  args: { prompt?: string; mode?: string; workDir?: string; timeout?: number },
+  user: AuthUser
+) {
+  const prompt = String(args.prompt || "").trim();
+  if (!prompt) {
+    return { error: "prompt 不能为空" };
+  }
+
+  const { getHermesConfig, executeHermesTask } = await import("@/lib/hermes-client");
+  const config = await getHermesConfig(user.id);
+  if (!config || !config.enabled) {
+    return { error: "Hermes Agent 未启用，请先在设置中启用" };
+  }
+  if (config.status !== "running") {
+    return { error: `Hermes Agent 当前状态为 ${config.status}，请先启动服务` };
+  }
+
+  const result = await executeHermesTask(config, {
+    prompt,
+    mode: (args.mode as "computer_use" | "shell" | "auto") || "auto",
+    workDir: args.workDir,
+    timeout: args.timeout || 120,
+  });
+
+  // 记录执行历史
+  try {
+    await prisma.skillExecution.create({
+      data: {
+        userId: user.id,
+        skillId: "hermes-assistant",
+        skillName: `AI 助理调用：${prompt.slice(0, 50)}`,
+        source: "hermes",
+        trigger: "assistant",
+        parameters: { prompt, mode: args.mode } as unknown as Prisma.InputJsonValue,
+        result: result.output,
+        success: result.success,
+        durationMs: result.durationMs || 0,
+        error: result.error || null,
+      },
+    });
+  } catch {
+    // 记录失败不影响主流程
+  }
+
+  return {
+    success: result.success,
+    output: result.output,
+    error: result.error,
+    durationMs: result.durationMs,
+    steps: result.steps,
+  };
+}
+
+/** 列出 Hermes Skills Hub 技能 */
+async function executeHermesListSkills(
+  args: { category?: string },
+  user: AuthUser
+) {
+  const { getHermesConfig, listHermesSkills } = await import("@/lib/hermes-client");
+  const config = await getHermesConfig(user.id);
+  if (!config || !config.enabled) {
+    return { error: "Hermes Agent 未启用" };
+  }
+  if (config.status !== "running") {
+    return { error: `Hermes Agent 当前状态为 ${config.status}` };
+  }
+
+  const result = await listHermesSkills(config, args.category);
+  return {
+    skills: result.skills,
+    total: result.skills.length,
+    error: result.error,
+  };
+}
+
+/** 查询 Hermes Agent 状态 */
+async function executeHermesStatus(user: AuthUser) {
+  const { getHermesConfig, testHermesConnection, detectHermesInstall } = await import("@/lib/hermes-client");
+  const config = await getHermesConfig(user.id);
+  const detect = await detectHermesInstall();
+
+  let connected = false;
+  let version: string | undefined;
+  let capabilities: string[] = [];
+  let connectionError: string | undefined;
+
+  if (config && config.status === "running") {
+    const testResult = await testHermesConnection(config);
+    connected = testResult.connected;
+    version = testResult.version;
+    capabilities = testResult.capabilities || [];
+    connectionError = testResult.error;
+  }
+
+  return {
+    installed: detect.installed,
+    installVersion: detect.version,
+    enabled: config?.enabled ?? false,
+    status: config?.status || "not_installed",
+    endpoint: config?.endpoint || "http://localhost:7432",
+    connected,
+    version,
+    capabilities: capabilities.length > 0 ? capabilities : (config?.capabilities || []),
+    connectionError,
   };
 }

@@ -29,6 +29,9 @@ import {
   ChevronDown,
   ChevronRight,
   Wrench,
+  Star,
+  History,
+  CheckCircle2,
 } from "lucide-react";
 import { Button } from "@/components/layout/PageHeader";
 import { HelpButton } from "@/components/layout/HelpButton";
@@ -77,6 +80,8 @@ interface Skill {
   usageCount: number;
   createdAt: string;
   updatedAt: string;
+  /** Hermes 技能的原始 ID（source=hermes 时使用） */
+  originalId?: string;
 }
 
 interface Message {
@@ -407,6 +412,12 @@ export default function AIAssistantPage() {
   const [skillSearch, setSkillSearch] = useState("");
   const [skillCategory, setSkillCategory] = useState("all");
   const [skillsLoading, setSkillsLoading] = useState(false);
+  // 技能面板扩展：收藏/历史/Hermes
+  const [skillTab, setSkillTab] = useState<"all" | "favorites" | "history" | "hermes">("all");
+  const [favorites, setFavorites] = useState<Array<{ skillId: string; skillName: string; source: string; category: string }>>([]);
+  const [executions, setExecutions] = useState<Array<{ id: string; skillId: string; skillName: string; source: string; success: boolean; durationMs: number; result: string; error: string | null; createdAt: string }>>([]);
+  const [hermesSkills, setHermesSkills] = useState<Skill[]>([]);
+  const [favoriteIds, setFavoriteIds] = useState<Set<string>>(new Set());
 
   const toggleToolExpand = useCallback((msgId: string) => {
     setExpandedTools((prev) => {
@@ -1024,10 +1035,17 @@ export default function AIAssistantPage() {
     }
   };
 
+  // 优先选择 mp4（Safari），回退 webm（Chrome），再回退默认
+  const createMediaRecorder = (stream: MediaStream): MediaRecorder => {
+    const mimeTypes = ["audio/mp4", "audio/m4a", "audio/webm", "audio/ogg"];
+    const mimeType = mimeTypes.find((t) => MediaRecorder.isTypeSupported(t)) || "";
+    return mimeType ? new MediaRecorder(stream, { mimeType }) : new MediaRecorder(stream);
+  };
+
   const transcribeAudio = async (blob: Blob): Promise<string | null> => {
     setTranscribing(true);
     try {
-      // 将 webm 转为 wav（MiMo ASR 不支持 webm，仅支持 mp3/flac/m4a/wav/ogg）
+      // 将 webm/mp4 转为 wav（MiMo ASR 只支持 wav/mp3/flac/m4a/ogg）
       let wavBlob: Blob;
       try {
         wavBlob = await webmToWav(blob);
@@ -1036,7 +1054,9 @@ export default function AIAssistantPage() {
         wavBlob = blob;
       }
       const form = new FormData();
-      form.append("file", wavBlob, "audio.wav");
+      // 根据转换后的 blob 类型设置扩展名
+      const ext = wavBlob.type.includes("wav") ? "wav" : wavBlob.type.includes("mp4") ? "m4a" : "wav";
+      form.append("file", wavBlob, `audio.${ext}`);
       const res = await fetch("/api/ai/asr", { method: "POST", body: form });
       const data = await res.json().catch(() => null);
       if (!res.ok || !data) {
@@ -1060,7 +1080,7 @@ export default function AIAssistantPage() {
         return;
       }
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const recorder = new MediaRecorder(stream);
+      const recorder = createMediaRecorder(stream);
       audioChunksRef.current = [];
       recorder.ondataavailable = (e) => { if (e.data.size > 0) audioChunksRef.current.push(e.data); };
       recorder.onstop = async () => {
@@ -1146,7 +1166,7 @@ export default function AIAssistantPage() {
 
     // 创建 MediaRecorder，使用 timeslice 获取周期性数据块
     try {
-      const recorder = new MediaRecorder(stream);
+      const recorder = createMediaRecorder(stream);
       vadRecorderRef.current = recorder;
       recorder.ondataavailable = (e) => {
         if (e.data.size > 0 && vadSpeechActiveRef.current) {
@@ -1299,7 +1319,7 @@ export default function AIAssistantPage() {
   const startVoiceChunkRecordingLegacy = () => {
     if (!voiceCallStreamRef.current || !voiceModeActiveRef.current) return;
     try {
-      const recorder = new MediaRecorder(voiceCallStreamRef.current);
+      const recorder = createMediaRecorder(voiceCallStreamRef.current);
       const chunks: Blob[] = [];
       recorder.ondataavailable = (e) => { if (e.data.size > 0) chunks.push(e.data); };
       recorder.onstop = async () => {
@@ -1467,25 +1487,48 @@ export default function AIAssistantPage() {
     }
     setSkillExecuting(true);
     try {
-      const res = await fetch("/api/ai/distill", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          templateId: selectedSkill.id,
-          parameters: skillParams,
-          provider: modelConfig.provider === "mimo" ? "mimo" : undefined,
-        }),
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        toast(data.error || "执行失败", "error");
-        return;
+      let resultText = "";
+      // Hermes 技能走 Hermes 执行 API
+      if (selectedSkill.source === "hermes" && selectedSkill.originalId) {
+        const res = await fetch("/api/hermes/execute", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            prompt: Object.entries(skillParams)
+              .map(([k, v]) => `${k}: ${v}`)
+              .join("\n"),
+            mode: "auto",
+          }),
+        });
+        const data = await res.json();
+        if (!res.ok || !data.success) {
+          toast(data.error || "Hermes 执行失败", "error");
+          return;
+        }
+        resultText = data.output || "（无输出）";
+      } else {
+        // 本地技能走 distill API
+        const res = await fetch("/api/ai/distill", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            templateId: selectedSkill.id,
+            parameters: skillParams,
+            provider: modelConfig.provider === "mimo" ? "mimo" : undefined,
+          }),
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          toast(data.error || "执行失败", "error");
+          return;
+        }
+        resultText = data.result;
       }
       // 将结果作为 assistant 消息添加到对话
       const newMsg: Message = {
         id: `msg-${Date.now()}`,
         role: "assistant",
-        content: `**已执行技能：${selectedSkill.name}**\n\n${data.result}`,
+        content: `**已执行技能：${selectedSkill.name}**\n\n${resultText}`,
         time: new Date().toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit" }),
       };
       setMessages((prev) => [...prev, newMsg]);
@@ -1518,7 +1561,104 @@ export default function AIAssistantPage() {
     setSkillParams({});
     setSkillSearch("");
     setSkillCategory("all");
+    setSkillTab("all");
     fetchSkills();
+    fetchFavorites();
+    fetchExecutions();
+  };
+
+  // 加载收藏列表
+  const fetchFavorites = async () => {
+    try {
+      const res = await fetch("/api/skills/favorites");
+      const data = await res.json();
+      if (Array.isArray(data.favorites)) {
+        setFavorites(data.favorites);
+        setFavoriteIds(new Set(data.favorites.map((f: { skillId: string }) => f.skillId)));
+      }
+    } catch {
+      // 静默失败
+    }
+  };
+
+  // 加载执行历史
+  const fetchExecutions = async () => {
+    try {
+      const res = await fetch("/api/skills/executions?limit=30");
+      const data = await res.json();
+      if (Array.isArray(data.executions)) {
+        setExecutions(data.executions);
+      }
+    } catch {
+      // 静默失败
+    }
+  };
+
+  // 加载 Hermes 技能列表
+  const fetchHermesSkills = async () => {
+    setSkillsLoading(true);
+    try {
+      const res = await fetch("/api/hermes/skills");
+      const data = await res.json();
+      if (Array.isArray(data.skills)) {
+        // 转换为前端 Skill 格式
+        setHermesSkills(data.skills.map((s: { id: string; name: string; description: string; category: string; parameters?: Array<{ name: string; type: string; description: string; required?: boolean; default?: unknown }>; tags?: string[]; usageCount?: number }) => ({
+          id: `hermes-${s.id}`,
+          name: s.name,
+          description: s.description || "",
+          category: s.category || "hermes",
+          tags: s.tags || [],
+          parameters: (s.parameters || []).map((p) => ({
+            key: p.name,
+            label: p.name,
+            type: p.type === "number" ? "number" : p.type === "select" ? "select" : "text",
+            required: p.required || false,
+            placeholder: p.description || "",
+            defaultValue: typeof p.default === "string" ? p.default : "",
+            options: [],
+          })),
+          usageCount: s.usageCount || 0,
+          source: "hermes" as const,
+          originalId: s.id,
+        })));
+      }
+    } catch {
+      toast("加载 Hermes 技能失败", "error");
+    } finally {
+      setSkillsLoading(false);
+    }
+  };
+
+  // 切换收藏
+  const toggleFavorite = async (skillId: string, skillName: string, category: string, source: string = "local") => {
+    const isFav = favoriteIds.has(skillId);
+    setFavoriteIds((prev) => {
+      const next = new Set(prev);
+      if (isFav) next.delete(skillId);
+      else next.add(skillId);
+      return next;
+    });
+    try {
+      if (isFav) {
+        await fetch(`/api/skills/favorites?skillId=${encodeURIComponent(skillId)}`, { method: "DELETE" });
+        setFavorites((prev) => prev.filter((f) => f.skillId !== skillId));
+      } else {
+        await fetch("/api/skills/favorites", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ skillId, skillName, category, source }),
+        });
+        setFavorites((prev) => [{ skillId, skillName, source, category }, ...prev]);
+      }
+    } catch {
+      // 回滚
+      setFavoriteIds((prev) => {
+        const next = new Set(prev);
+        if (isFav) next.add(skillId);
+        else next.delete(skillId);
+        return next;
+      });
+    }
   };
 
   // 选择技能时，用 defaultValue 初始化参数
@@ -1569,22 +1709,7 @@ export default function AIAssistantPage() {
               <Settings className="h-3.5 w-3.5" />
             </Button>
             <ModelSwitcher value={modelConfig} onChange={setModelConfig} />
-            <HelpButton
-              content={{
-                painPoint:
-                  "AI助理只能聊天，无法直接操作灵感、看板、记忆等功能，需要来回切换页面。",
-                need: "需要一个能主动访问和操作所有功能的AI助理，对话即可完成创建、搜索、执行等操作。",
-                solution:
-                  "AI助理支持Function Calling，能调用18个工具覆盖灵感/看板/记忆/认知/技能/工作流/巡检/通知全功能，同时提供6个快捷指令一键触发。",
-                usage: [
-                  "直接对话描述需求，AI自动判断是否需要调用工具",
-                  "点击快捷指令按钮快速触发常用操作",
-                  "AI调用工具后会在聊天中显示工具调用卡片",
-                  "可展开卡片查看完整工具执行结果",
-                  "支持'帮我创建灵感''搜索记忆''执行巡检'等自然语言指令",
-                ],
-              }}
-            />
+            <HelpButton contentKey="ai-assistant" />
             <Button
               size="sm"
               variant={confirmClear ? "danger" : "ghost"}
@@ -2089,91 +2214,235 @@ export default function AIAssistantPage() {
             {/* 内容区 */}
             {!selectedSkill ? (
               <div className="flex min-h-0 flex-1 flex-col">
-                {/* 搜索 + 分类筛选 */}
-                <div className="shrink-0 space-y-2 border-b border-border px-5 py-3">
-                  <input
-                    type="text"
-                    value={skillSearch}
-                    onChange={(e) => setSkillSearch(e.target.value)}
-                    placeholder="搜索技能名称、描述或标签..."
-                    className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:border-cognition"
-                  />
-                  {skillCategories.length > 0 && (
-                    <div className="flex flex-wrap gap-1.5">
-                      <button
-                        onClick={() => setSkillCategory("all")}
-                        className={cn(
-                          "rounded-full px-2.5 py-0.5 text-[11px] transition-colors",
-                          skillCategory === "all"
-                            ? "bg-cognition text-white"
-                            : "bg-muted text-muted-foreground hover:bg-muted/70"
-                        )}
-                      >
-                        全部
-                      </button>
-                      {skillCategories.map((cat) => (
-                        <button
-                          key={cat}
-                          onClick={() => setSkillCategory(cat)}
-                          className={cn(
-                            "rounded-full px-2.5 py-0.5 text-[11px] transition-colors",
-                            skillCategory === cat
-                              ? "bg-cognition text-white"
-                              : "bg-muted text-muted-foreground hover:bg-muted/70"
-                          )}
-                        >
-                          {cat}
-                        </button>
-                      ))}
-                    </div>
-                  )}
+                {/* Tab 导航 */}
+                <div className="flex shrink-0 items-center gap-1 border-b border-border px-3 pt-2">
+                  {([
+                    { key: "all", label: "全部" },
+                    { key: "favorites", label: `收藏${favorites.length > 0 ? ` (${favorites.length})` : ""}` },
+                    { key: "history", label: "历史" },
+                    { key: "hermes", label: "Hermes" },
+                  ] as const).map((tab) => (
+                    <button
+                      key={tab.key}
+                      onClick={() => {
+                        setSkillTab(tab.key);
+                        if (tab.key === "hermes" && hermesSkills.length === 0) {
+                          fetchHermesSkills();
+                        }
+                      }}
+                      className={cn(
+                        "border-b-2 px-3 py-2 text-xs font-medium transition-colors",
+                        skillTab === tab.key
+                          ? "border-cognition text-cognition"
+                          : "border-transparent text-muted-foreground hover:text-foreground"
+                      )}
+                    >
+                      {tab.label}
+                    </button>
+                  ))}
                 </div>
 
-                {/* 技能列表 */}
-                <div className="min-h-0 flex-1 overflow-y-auto px-5 py-3">
-                  {skillsLoading ? (
-                    <div className="flex items-center justify-center py-10 text-muted-foreground">
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      <span className="text-sm">加载中...</span>
+                {/* 全部技能 / Hermes 技能：搜索 + 分类筛选 + 列表 */}
+                {(skillTab === "all" || skillTab === "hermes") && (
+                  <>
+                    <div className="shrink-0 space-y-2 border-b border-border px-5 py-3">
+                      <input
+                        type="text"
+                        value={skillSearch}
+                        onChange={(e) => setSkillSearch(e.target.value)}
+                        placeholder="搜索技能名称、描述或标签..."
+                        className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:border-cognition"
+                      />
+                      {skillTab === "all" && skillCategories.length > 0 && (
+                        <div className="flex flex-wrap gap-1.5">
+                          <button
+                            onClick={() => setSkillCategory("all")}
+                            className={cn(
+                              "rounded-full px-2.5 py-0.5 text-[11px] transition-colors",
+                              skillCategory === "all"
+                                ? "bg-cognition text-white"
+                                : "bg-muted text-muted-foreground hover:bg-muted/70"
+                            )}
+                          >
+                            全部
+                          </button>
+                          {skillCategories.map((cat) => (
+                            <button
+                              key={cat}
+                              onClick={() => setSkillCategory(cat)}
+                              className={cn(
+                                "rounded-full px-2.5 py-0.5 text-[11px] transition-colors",
+                                skillCategory === cat
+                                  ? "bg-cognition text-white"
+                                  : "bg-muted text-muted-foreground hover:bg-muted/70"
+                              )}
+                            >
+                              {cat}
+                            </button>
+                          ))}
+                        </div>
+                      )}
                     </div>
-                  ) : filteredSkills.length === 0 ? (
-                    <div className="py-10 text-center text-sm text-muted-foreground">
-                      {skills.length === 0 ? "暂无可用技能" : "未找到匹配的技能"}
-                    </div>
-                  ) : (
-                    <div className="space-y-2">
-                      {filteredSkills.map((skill) => (
-                        <button
-                          key={skill.id}
-                          onClick={() => onSelectSkill(skill)}
-                          className="w-full rounded-xl border border-border bg-background p-3 text-left transition-all hover:border-cognition/40 hover:bg-cognition/5"
-                        >
-                          <div className="flex items-start justify-between gap-2">
-                            <div className="min-w-0 flex-1">
-                              <div className="flex items-center gap-2">
-                                <span className="truncate text-sm font-medium">{skill.name}</span>
-                                {skill.category && (
-                                  <span className="shrink-0 rounded bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">
-                                    {skill.category}
-                                  </span>
-                                )}
-                              </div>
-                              <p className="mt-0.5 line-clamp-2 text-xs text-muted-foreground">
-                                {skill.description}
-                              </p>
-                              <div className="mt-1 flex items-center gap-2 text-[10px] text-muted-foreground/70">
-                                <span>{skill.parameters.length} 个参数</span>
-                                <span>·</span>
-                                <span>已使用 {skill.usageCount} 次</span>
+
+                    <div className="min-h-0 flex-1 overflow-y-auto px-5 py-3">
+                      {skillTab === "hermes" && (
+                        <div className="mb-3 rounded-md border border-purple-300/30 bg-purple-50/50 p-2 text-[10px] text-purple-700">
+                          Hermes Skills Hub 提供 672+ 官方技能，需先在设置中启用 Hermes Agent。
+                        </div>
+                      )}
+                      {skillsLoading ? (
+                        <div className="flex items-center justify-center py-10 text-muted-foreground">
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                          <span className="text-sm">加载中...</span>
+                        </div>
+                      ) : (skillTab === "all" ? filteredSkills : hermesSkills).length === 0 ? (
+                        <div className="py-10 text-center text-sm text-muted-foreground">
+                          {skillTab === "hermes" ? "未加载到 Hermes 技能，请确认 Hermes Agent 已启动" : skills.length === 0 ? "暂无可用技能" : "未找到匹配的技能"}
+                        </div>
+                      ) : (
+                        <div className="space-y-2">
+                          {(skillTab === "all" ? filteredSkills : hermesSkills).map((skill) => (
+                            <div
+                              key={skill.id}
+                              className="w-full rounded-xl border border-border bg-background p-3 transition-all hover:border-cognition/40 hover:bg-cognition/5"
+                            >
+                              <div className="flex items-start justify-between gap-2">
+                                <button
+                                  onClick={() => onSelectSkill(skill)}
+                                  className="min-w-0 flex-1 text-left"
+                                >
+                                  <div className="flex items-center gap-2">
+                                    <span className="truncate text-sm font-medium">{skill.name}</span>
+                                    {skill.category && (
+                                      <span className="shrink-0 rounded bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">
+                                        {skill.category}
+                                      </span>
+                                    )}
+                                    {skill.source === "hermes" && (
+                                      <span className="shrink-0 rounded bg-purple-100 px-1.5 py-0.5 text-[10px] text-purple-700">Hermes</span>
+                                    )}
+                                  </div>
+                                  <p className="mt-0.5 line-clamp-2 text-xs text-muted-foreground">
+                                    {skill.description}
+                                  </p>
+                                  <div className="mt-1 flex items-center gap-2 text-[10px] text-muted-foreground/70">
+                                    <span>{skill.parameters.length} 个参数</span>
+                                    <span>·</span>
+                                    <span>已使用 {skill.usageCount} 次</span>
+                                  </div>
+                                </button>
+                                <div className="flex shrink-0 items-center gap-1">
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      toggleFavorite(skill.id, skill.name, skill.category, skill.source === "hermes" ? "hermes" : "local");
+                                    }}
+                                    className={cn(
+                                      "rounded-md p-1 transition-colors",
+                                      favoriteIds.has(skill.id)
+                                        ? "text-yellow-500 hover:bg-yellow-50"
+                                        : "text-muted-foreground hover:bg-muted hover:text-yellow-500"
+                                    )}
+                                    title={favoriteIds.has(skill.id) ? "取消收藏" : "收藏"}
+                                  >
+                                    <Star className={cn("h-3.5 w-3.5", favoriteIds.has(skill.id) && "fill-current")} />
+                                  </button>
+                                  <ChevronRight
+                                    className="h-4 w-4 cursor-pointer text-muted-foreground"
+                                    onClick={() => onSelectSkill(skill)}
+                                  />
+                                </div>
                               </div>
                             </div>
-                            <ChevronRight className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
-                          </div>
-                        </button>
-                      ))}
+                          ))}
+                        </div>
+                      )}
                     </div>
-                  )}
-                </div>
+                  </>
+                )}
+
+                {/* 收藏列表 */}
+                {skillTab === "favorites" && (
+                  <div className="min-h-0 flex-1 overflow-y-auto px-5 py-3">
+                    {favorites.length === 0 ? (
+                      <div className="py-10 text-center text-sm text-muted-foreground">
+                        <Star className="mx-auto mb-2 h-8 w-8 text-muted-foreground/30" />
+                        暂无收藏的技能
+                        <div className="mt-1 text-[11px]">点击技能右侧的星标按钮即可收藏</div>
+                      </div>
+                    ) : (
+                      <div className="space-y-2">
+                        {favorites.map((fav) => {
+                          const skill = skills.find((s) => s.id === fav.skillId);
+                          return (
+                            <button
+                              key={fav.skillId}
+                              onClick={() => skill ? onSelectSkill(skill) : toast("技能不存在", "info")}
+                              className="w-full rounded-xl border border-border bg-background p-3 text-left transition-all hover:border-cognition/40 hover:bg-cognition/5"
+                            >
+                              <div className="flex items-start justify-between gap-2">
+                                <div className="min-w-0 flex-1">
+                                  <div className="flex items-center gap-2">
+                                    <Star className="h-3 w-3 shrink-0 fill-yellow-400 text-yellow-400" />
+                                    <span className="truncate text-sm font-medium">{fav.skillName}</span>
+                                    {fav.source === "hermes" && (
+                                      <span className="shrink-0 rounded bg-purple-100 px-1.5 py-0.5 text-[10px] text-purple-700">Hermes</span>
+                                    )}
+                                  </div>
+                                  <div className="mt-0.5 text-[10px] text-muted-foreground">{fav.category}</div>
+                                </div>
+                                <ChevronRight className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
+                              </div>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* 执行历史 */}
+                {skillTab === "history" && (
+                  <div className="min-h-0 flex-1 overflow-y-auto px-5 py-3">
+                    {executions.length === 0 ? (
+                      <div className="py-10 text-center text-sm text-muted-foreground">
+                        <History className="mx-auto mb-2 h-8 w-8 text-muted-foreground/30" />
+                        暂无执行历史
+                      </div>
+                    ) : (
+                      <div className="space-y-2">
+                        {executions.map((exec) => (
+                          <div
+                            key={exec.id}
+                            className="rounded-xl border border-border bg-background p-3"
+                          >
+                            <div className="flex items-start justify-between gap-2">
+                              <div className="min-w-0 flex-1">
+                                <div className="flex items-center gap-2">
+                                  {exec.success ? (
+                                    <CheckCircle2 className="h-3 w-3 shrink-0 text-green-500" />
+                                  ) : (
+                                    <AlertCircle className="h-3 w-3 shrink-0 text-red-500" />
+                                  )}
+                                  <span className="truncate text-sm font-medium">{exec.skillName}</span>
+                                  {exec.source === "hermes" && (
+                                    <span className="shrink-0 rounded bg-purple-100 px-1.5 py-0.5 text-[10px] text-purple-700">Hermes</span>
+                                  )}
+                                </div>
+                                <div className="mt-1 line-clamp-2 text-[11px] text-muted-foreground">
+                                  {exec.success ? exec.result.slice(0, 100) : exec.error}
+                                </div>
+                                <div className="mt-1 text-[10px] text-muted-foreground/70">
+                                  {new Date(exec.createdAt).toLocaleString("zh-CN")} · {exec.durationMs}ms
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             ) : (
               <div className="flex min-h-0 flex-1 flex-col">

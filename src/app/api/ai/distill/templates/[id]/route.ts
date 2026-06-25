@@ -42,6 +42,27 @@ export async function PATCH(
       promptTemplate || existing.promptTemplate
     }`;
 
+    // 版本管理：更新前先将当前状态快照写入 SkillVersion 表
+    const latestVersion = await prisma.skillVersion.findFirst({
+      where: { skillId: id },
+      orderBy: { version: "desc" },
+      select: { version: true },
+    });
+    const newVersionNum = (latestVersion?.version || 0) + 1;
+    await prisma.skillVersion.create({
+      data: {
+        skillId: id,
+        version: newVersionNum,
+        name: existing.name,
+        description: existing.description,
+        category: existing.category,
+        content: existing.content,
+        parameters: existing.parameters as any,
+        promptTemplate: existing.promptTemplate,
+        tags: existing.tags as any,
+      },
+    });
+
     const updated = await prisma.skill.update({
       where: { id },
       data: {

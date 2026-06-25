@@ -11,6 +11,11 @@ import {
   Zap,
   Loader2,
   Save,
+  Cpu,
+  Rocket,
+  Play,
+  Square,
+  Wifi,
 } from "lucide-react";
 import { PageHeader, Card, Button, LoadingState } from "@/components/layout/PageHeader";
 import { HelpButton } from "@/components/layout/HelpButton";
@@ -84,22 +89,15 @@ export default function SettingsPage() {
         title="设置"
         subtitle="系统配置状态 · 点击文件路径可直接打开编辑"
         action={
-          <HelpButton content={{
-            painPoint: "AI模型配置散落在环境变量中，无法在界面修改。",
-            need: "需要在设置页集中管理所有配置项。",
-            solution: "设置页支持数据库存储AI Key，无需改.env即可切换Provider和模型。",
-            usage: [
-              "配置DeepSeek/MiMo/Embedding的API Key和模型",
-              "选择默认Provider",
-              "保存后立即生效无需重启",
-              "已配置的Key显示为掩码格式"
-            ]
-          }} />
+          <HelpButton contentKey="settings" />
         }
       />
 
       {/* AI 模型配置（数据库存储，优先级高于环境变量） */}
       <AIConfigSection dbSettings={settings.dbSettings} envSettings={settings.envSettings} />
+
+      {/* Hermes Agent 配置 */}
+      <HermesConfigSection />
 
       {/* 快捷键 */}
       <Section icon={<Zap className="h-4 w-4 text-northstar" />} title="快捷键">
@@ -581,5 +579,389 @@ function FileLink({
       </div>
       <code className="text-[10px] text-muted-foreground/70">{path}</code>
     </a>
+  );
+}
+
+// ============ Hermes Agent 配置区块 ============
+
+type HermesStatus = {
+  installed: boolean;
+  installVersion?: string;
+  config: {
+    enabled: boolean;
+    endpoint: string;
+    autoStart: boolean;
+    capabilities: string[];
+    status: string;
+    installedAt: string | null;
+    lastCheckedAt: string | null;
+    lastError: string | null;
+  } | null;
+  connected: boolean;
+  version?: string;
+  capabilities: string[];
+  connectionError?: string;
+};
+
+const ALL_CAPABILITIES = [
+  { key: "computer_use", label: "桌面控制", desc: "Agent 可操控你的电脑桌面（鼠标/键盘/截图）" },
+  { key: "shell", label: "Shell 命令", desc: "执行终端命令（文件操作、脚本运行等）" },
+  { key: "mcp", label: "MCP 工具", desc: "集成 Model Context Protocol 工具生态" },
+  { key: "skills_hub", label: "Skills Hub", desc: "672+ 官方技能市场，一键调用" },
+];
+
+function HermesConfigSection() {
+  const [status, setStatus] = useState<HermesStatus | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [installing, setInstalling] = useState(false);
+  const [starting, setStarting] = useState(false);
+  const [testing, setTesting] = useState(false);
+  const [saving, setSaving] = useState(false);
+
+  // 编辑态
+  const [endpoint, setEndpoint] = useState("http://localhost:7432");
+  const [apiKey, setApiKey] = useState("");
+  const [autoStart, setAutoStart] = useState(false);
+  const [enabled, setEnabled] = useState(false);
+  const [capabilities, setCapabilities] = useState<string[]>(["computer_use", "shell", "skills_hub"]);
+
+  const loadStatus = async () => {
+    try {
+      const res = await fetch("/api/hermes/status");
+      if (!res.ok) throw new Error("加载失败");
+      const data = await res.json();
+      setStatus(data);
+      if (data.config) {
+        setEndpoint(data.config.endpoint || "http://localhost:7432");
+        setEnabled(data.config.enabled);
+        setAutoStart(data.config.autoStart);
+        setCapabilities(data.config.capabilities || ["computer_use", "shell", "skills_hub"]);
+      }
+    } catch (e: any) {
+      toast("加载 Hermes 状态失败", "error");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadStatus();
+  }, []);
+
+  const handleInstall = async () => {
+    setInstalling(true);
+    try {
+      const res = await fetch("/api/hermes/install", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "install" }),
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        toast("Hermes Agent 安装成功", "success");
+        await loadStatus();
+      } else {
+        toast(data.error || "安装失败", "error");
+      }
+    } catch (e: any) {
+      toast("安装请求失败：" + e.message, "error");
+    } finally {
+      setInstalling(false);
+    }
+  };
+
+  const handleStart = async () => {
+    setStarting(true);
+    try {
+      const port = endpoint.match(/:(\d+)$/)?.[1] || "7432";
+      const res = await fetch("/api/hermes/install", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "start", port: parseInt(port, 10) }),
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        toast(data.message || "Hermes Agent 已启动", "success");
+        await loadStatus();
+      } else {
+        toast(data.error || "启动失败", "error");
+      }
+    } catch (e: any) {
+      toast("启动请求失败：" + e.message, "error");
+    } finally {
+      setStarting(false);
+    }
+  };
+
+  const handleStop = async () => {
+    try {
+      await fetch("/api/hermes/install", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "stop" }),
+      });
+      toast("Hermes Agent 已停止", "success");
+      await loadStatus();
+    } catch (e: any) {
+      toast("停止失败：" + e.message, "error");
+    }
+  };
+
+  const handleTest = async () => {
+    setTesting(true);
+    try {
+      const res = await fetch("/api/hermes/test", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ endpoint, apiKey: apiKey || undefined }),
+      });
+      const data = await res.json();
+      if (data.connected) {
+        toast(`连接成功（v${data.version || "?"}）`, "success");
+      } else {
+        toast("连接失败：" + (data.error || "未知错误"), "error");
+      }
+      await loadStatus();
+    } catch (e: any) {
+      toast("测试请求失败：" + e.message, "error");
+    } finally {
+      setTesting(false);
+    }
+  };
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      const res = await fetch("/api/hermes/config", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          enabled,
+          endpoint,
+          apiKey: apiKey || null,
+          autoStart,
+          capabilities,
+        }),
+      });
+      if (res.ok) {
+        toast("配置已保存", "success");
+        await loadStatus();
+      } else {
+        toast("保存失败", "error");
+      }
+    } catch (e: any) {
+      toast("保存失败：" + e.message, "error");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const toggleCapability = (key: string) => {
+    setCapabilities((prev) =>
+      prev.includes(key) ? prev.filter((c) => c !== key) : [...prev, key]
+    );
+  };
+
+  if (loading) {
+    return (
+      <Section icon={<Cpu className="h-4 w-4 text-northstar" />} title="Hermes Agent（本地 AI 代理）">
+        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+          <Loader2 className="h-3 w-3 animate-spin" /> 加载中...
+        </div>
+      </Section>
+    );
+  }
+
+  const isInstalled = status?.installed;
+  const isRunning = status?.config?.status === "running";
+  const isConnected = status?.connected;
+
+  return (
+    <Section
+      icon={<Cpu className="h-4 w-4 text-northstar" />}
+      title="Hermes Agent（本地 AI 代理）"
+    >
+      {/* 说明 */}
+      <div className="mb-4 rounded-md border border-northstar/20 bg-northstar/5 p-3 text-xs text-muted-foreground">
+        <div className="mb-1 font-medium text-foreground">🤖 Hermes Agent 是什么？</div>
+        开源本地 AI 代理框架，安装后可让 AI 助理直接操控你的电脑（桌面控制、Shell 命令、Skills Hub 672+ 技能），
+        实现「AI 自动化工作流」。所有操作在本地执行，数据不出本机。
+      </div>
+
+      {/* 安装状态 */}
+      <div className="mb-4 space-y-2">
+        <div className="flex items-center justify-between rounded-md border border-border/60 bg-muted/20 p-3">
+          <div className="flex items-center gap-2 text-xs">
+            <span className={`h-2 w-2 rounded-full ${
+              isRunning ? "bg-green-500" : isInstalled ? "bg-yellow-500" : "bg-gray-400"
+            }`} />
+            <span className="font-medium text-foreground">
+              {isRunning ? "运行中" : isInstalled ? "已安装（未运行）" : "未安装"}
+            </span>
+            {status?.installVersion && (
+              <span className="text-muted-foreground">v{status.installVersion}</span>
+            )}
+            {isConnected && status?.version && (
+              <span className="text-green-600">· 已连接</span>
+            )}
+          </div>
+          <div className="flex items-center gap-2">
+            {!isInstalled && (
+              <Button
+                size="sm"
+                onClick={handleInstall}
+                disabled={installing}
+                className="gap-1.5"
+              >
+                {installing ? (
+                  <><Loader2 className="h-3 w-3 animate-spin" /> 安装中...</>
+                ) : (
+                  <><Rocket className="h-3 w-3" /> 一键安装</>
+                )}
+              </Button>
+            )}
+            {isInstalled && !isRunning && (
+              <Button
+                size="sm"
+                onClick={handleStart}
+                disabled={starting}
+                className="gap-1.5"
+              >
+                {starting ? (
+                  <><Loader2 className="h-3 w-3 animate-spin" /> 启动中...</>
+                ) : (
+                  <><Play className="h-3 w-3" /> 启动服务</>
+                )}
+              </Button>
+            )}
+            {isRunning && (
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={handleStop}
+                className="gap-1.5"
+              >
+                <Square className="h-3 w-3" /> 停止
+              </Button>
+            )}
+          </div>
+        </div>
+
+        {status?.config?.lastError && (
+          <div className="rounded-md border border-red-300/30 bg-red-50/50 p-2 text-xs text-red-600">
+            ⚠️ {status.config.lastError}
+          </div>
+        )}
+      </div>
+
+      {/* 配置表单 */}
+      <div className="space-y-3">
+        {/* 启用开关 */}
+        <div className="flex items-center justify-between">
+          <div>
+            <div className="text-xs font-medium text-foreground">启用 Hermes 集成</div>
+            <div className="text-[11px] text-muted-foreground">开启后 AI 助理和工作流可调用 Hermes</div>
+          </div>
+          <button
+            onClick={() => setEnabled(!enabled)}
+            className={`relative h-5 w-9 rounded-full transition-colors ${
+              enabled ? "bg-northstar" : "bg-muted-foreground/30"
+            }`}
+          >
+            <span className={`absolute top-0.5 h-4 w-4 rounded-full bg-white transition-transform ${
+              enabled ? "translate-x-4" : "translate-x-0.5"
+            }`} />
+          </button>
+        </div>
+
+        {/* 端点 */}
+        <div>
+          <label className="mb-1 block text-xs font-medium text-foreground">Hermes 端点</label>
+          <input
+            type="text"
+            value={endpoint}
+            onChange={(e) => setEndpoint(e.target.value)}
+            placeholder="http://localhost:7432"
+            className="w-full rounded-md border border-border/60 bg-background px-3 py-1.5 text-xs"
+          />
+        </div>
+
+        {/* API Key */}
+        <div>
+          <label className="mb-1 block text-xs font-medium text-foreground">API Key（可选）</label>
+          <input
+            type="password"
+            value={apiKey}
+            onChange={(e) => setApiKey(e.target.value)}
+            placeholder="如 Hermes 启用了鉴权则填写"
+            className="w-full rounded-md border border-border/60 bg-background px-3 py-1.5 text-xs"
+          />
+        </div>
+
+        {/* 能力配置 */}
+        <div>
+          <div className="mb-2 text-xs font-medium text-foreground">能力配置</div>
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+            {ALL_CAPABILITIES.map((cap) => (
+              <label
+                key={cap.key}
+                className={`flex cursor-pointer items-start gap-2 rounded-md border p-2 text-xs transition-colors ${
+                  capabilities.includes(cap.key)
+                    ? "border-northstar/40 bg-northstar/5"
+                    : "border-border/40 bg-muted/10"
+                }`}
+              >
+                <input
+                  type="checkbox"
+                  checked={capabilities.includes(cap.key)}
+                  onChange={() => toggleCapability(cap.key)}
+                  className="mt-0.5"
+                />
+                <div>
+                  <div className="font-medium text-foreground">{cap.label}</div>
+                  <div className="text-[11px] text-muted-foreground">{cap.desc}</div>
+                </div>
+              </label>
+            ))}
+          </div>
+        </div>
+
+        {/* 自动启动 */}
+        <div className="flex items-center justify-between">
+          <div>
+            <div className="text-xs font-medium text-foreground">随系统自动启动</div>
+            <div className="text-[11px] text-muted-foreground">服务启动时自动拉起 Hermes Agent</div>
+          </div>
+          <button
+            onClick={() => setAutoStart(!autoStart)}
+            className={`relative h-5 w-9 rounded-full transition-colors ${
+              autoStart ? "bg-northstar" : "bg-muted-foreground/30"
+            }`}
+          >
+            <span className={`absolute top-0.5 h-4 w-4 rounded-full bg-white transition-transform ${
+              autoStart ? "translate-x-4" : "translate-x-0.5"
+            }`} />
+          </button>
+        </div>
+
+        {/* 操作按钮 */}
+        <div className="flex items-center gap-2 pt-2">
+          <Button size="sm" onClick={handleSave} disabled={saving} className="gap-1.5">
+            {saving ? <Loader2 className="h-3 w-3 animate-spin" /> : <Save className="h-3 w-3" />}
+            保存配置
+          </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={handleTest}
+            disabled={testing || !isInstalled}
+            className="gap-1.5"
+          >
+            {testing ? <Loader2 className="h-3 w-3 animate-spin" /> : <Wifi className="h-3 w-3" />}
+            测试连接
+          </Button>
+        </div>
+      </div>
+    </Section>
   );
 }

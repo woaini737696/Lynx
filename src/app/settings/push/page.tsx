@@ -312,17 +312,7 @@ export default function PushSettingsPage() {
         title="通知设置"
         subtitle="统一管理通知渠道 · 巡检结果与灵感提醒将通过选定渠道推送"
         action={
-          <HelpButton content={{
-            painPoint: "重要事项没有提醒，关了浏览器就收不到通知。",
-            need: "需要多渠道通知，即使关闭浏览器也能收到推送。",
-            solution: "通知设置支持浏览器推送(Web Push)、桌面通知、飞书通知三渠道统一管理。",
-            usage: [
-              "配置VAPID密钥后订阅浏览器推送",
-              "开启桌面通知",
-              "配置飞书机器人后启用飞书通知",
-              "巡检和提醒会通过选定渠道推送"
-            ]
-          }} />
+          <HelpButton contentKey="settings-push" />
         }
       />
 

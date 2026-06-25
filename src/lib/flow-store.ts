@@ -21,11 +21,32 @@ export interface NodeConfig {
   expression?: string;
   // output 节点
   outputTarget?: string;
+  // hermes 节点：调用本地 Hermes Agent 执行任务
+  hermesMode?: "computer_use" | "shell" | "auto";
+  hermesPrompt?: string;
+  workDir?: string;
+  timeout?: number;
+  // http 节点：发起 HTTP 请求
+  httpMethod?: "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
+  httpUrl?: string;
+  httpHeaders?: Record<string, string>;
+  httpBody?: string;
+  // database 节点：数据库查询/写入
+  dbOperation?: "query" | "create" | "update" | "delete";
+  dbModel?: string; // idea | task | memory | cognition | skill
+  dbQuery?: string; // query 操作的 SQL/条件
+  dbData?: Record<string, unknown>; // create/update 的数据
+  // transform 节点：数据转换/格式化
+  transformType?: "jsonpath" | "template" | "regex" | "javascript";
+  transformExpression?: string;
+  transformTemplate?: string;
+  // delay 节点：延时
+  delayMs?: number;
 }
 
 export interface FlowNode {
   id: string;
-  type: "trigger" | "action" | "condition" | "output";
+  type: "trigger" | "action" | "condition" | "output" | "hermes" | "http" | "database" | "transform" | "delay";
   label: string;
   status: "idle" | "running" | "done" | "error";
   /** 节点配置参数 */

@@ -35,6 +35,9 @@ model User {
   flowExecutions FlowExecution[]
   pushSubscriptions PushSubscription[]
   patrolRules PatrolRule[]
+  hermesConfig HermesConfig?
+  skillFavorites SkillFavorite[]
+  skillExecutions SkillExecution[]
 }
 
 // 灵感 - 闪电输入源头
@@ -519,4 +522,85 @@ model PushSubscription {
   user User? @relation(fields: [userId], references: [id])
 
   @@index([userId])
+}
+
+// Hermes Agent 配置（每用户唯一）
+// 用于一键部署本地 Hermes Agent，让用户通过 Agent 操控自己的电脑
+model HermesConfig {
+  id            String   @id @default(cuid())
+  userId        String   @unique
+  // 是否启用 Hermes 集成
+  enabled       Boolean  @default(false)
+  // Hermes Agent HTTP API 端点，默认 http://localhost:7432
+  endpoint      String   @default("http://localhost:7432") @db.VarChar(255)
+  // API Key（如 Hermes 启用了鉴权）
+  apiKey        String?  @db.VarChar(255)
+  // 是否随系统自动启动
+  autoStart     Boolean  @default(false)
+  // 启用的能力集合：["computer_use", "shell", "mcp", "skills_hub"]
+  capabilities  Json     @default("[\"computer_use\",\"shell\",\"skills_hub\"]")
+  // 安装时间（pip install hermes-agent 成功后写入）
+  installedAt   DateTime?
+  // 安装状态：not_installed | installing | installed | running | error
+  status        String   @default("not_installed") @db.VarChar(32)
+  // 最近一次状态检查时间
+  lastCheckedAt DateTime?
+  // 安装/运行错误信息（status=error 时）
+  lastError     String?  @db.Text
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([status])
+}
+
+// 技能收藏（用户在助理技能面板收藏的技能）
+model SkillFavorite {
+  id        String   @id @default(cuid())
+  userId    String
+  // 技能 ID（本地 Skill 表或 Hermes Skills Hub 的技能 ID）
+  skillId   String   @db.VarChar(100)
+  // 技能来源：local | hermes
+  source    String   @default("local") @db.VarChar(16)
+  // 冗余存储技能名称，便于列表展示
+  skillName String   @db.VarChar(200)
+  // 冗余存储技能分类
+  category  String   @default("general") @db.VarChar(64)
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, skillId])
+  @@index([userId])
+  @@index([source])
+}
+
+// 技能执行历史（记录用户通过助理/工作流调用技能的执行记录）
+model SkillExecution {
+  id          String   @id @default(cuid())
+  userId      String
+  // 技能 ID（本地 Skill 表或 Hermes Skills Hub 的技能 ID）
+  skillId     String   @db.VarChar(100)
+  skillName   String   @db.VarChar(200)
+  // 来源：local | hermes
+  source      String   @default("local") @db.VarChar(16)
+  // 调用来源：assistant | flow
+  trigger     String   @default("assistant") @db.VarChar(16)
+  // 调用参数 JSON
+  parameters  Json     @default("{}")
+  // 执行结果（完整输出）
+  result      String   @db.LongText
+  success     Boolean  @default(true)
+  // 执行耗时（毫秒）
+  durationMs  Int      @default(0)
+  // 错误信息（success=false 时）
+  error       String?  @db.Text
+  createdAt   DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@index([skillId])
+  @@index([source])
 }
