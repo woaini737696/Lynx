@@ -3,7 +3,7 @@
     <!-- 顶部栏 -->
     <view class="top-bar">
       <view class="session-btn" @click="showSessionList = true">
-        <text class="session-icon">☰</text>
+        <Icon name="menu" :size="36" :color="isDark ? '#f5f5f7' : '#1d1d1f'" />
       </view>
       <view class="top-title">
         <view class="top-avatar">
@@ -20,10 +20,10 @@
           :class="{ active: currentProvider === p.key }"
           @click="switchProvider(p.key)"
         >
-          <text class="chip-label">{{ p.icon }}</text>
+          <Icon :name="p.icon" :size="28" :color="currentProvider === p.key ? '#f59e0b' : (isDark ? '#98989d' : '#86868b')" />
         </view>
         <view class="icon-btn" @click="openSettings">
-          <text class="icon-text">⚙️</text>
+          <Icon name="settings" :size="32" :color="isDark ? '#f5f5f7' : '#1d1d1f'" />
         </view>
       </view>
     </view>
@@ -35,7 +35,7 @@
         <view class="sheet-header">
           <text class="sheet-title">对话历史</text>
           <view class="new-session-btn" @click="createNewSession">
-            <text class="new-session-icon">+</text>
+            <Icon name="plus" :size="32" color="#f59e0b" />
             <text class="new-session-text">新对话</text>
           </view>
         </view>
@@ -48,18 +48,18 @@
             @click="switchSession(s.id)"
           >
             <view class="session-item-icon">
-              <text class="session-emoji">💬</text>
+              <Icon name="message" :size="32" :color="s.id === currentSessionId ? '#f59e0b' : (isDark ? '#98989d' : '#86868b')" />
             </view>
             <view class="session-item-info">
               <text class="session-item-title">{{ s.title || "新对话" }}</text>
               <text class="session-item-meta">{{ formatSessionTime(s.updatedAt) }} · {{ s.messageCount }}条</text>
             </view>
             <view class="session-item-del" @click.stop="deleteSession(s.id)">
-              <text class="del-icon">🗑</text>
+              <Icon name="trash" :size="28" color="#ef4444" />
             </view>
           </view>
           <view v-if="sessions.length === 0" class="session-empty">
-            <text class="empty-emoji">💬</text>
+            <Icon name="message" :size="96" :color="isDark ? '#48484a' : '#d1d1d6'" />
             <text class="empty-text">暂无历史对话</text>
             <text class="empty-hint">点击"新对话"开始</text>
           </view>
@@ -121,7 +121,10 @@
 
           <!-- 蒸馏真人聊天风格 -->
           <view class="distill-block">
-            <text class="distill-title">🎭 蒸馏真人聊天风格</text>
+            <view class="distill-title-row">
+              <Icon name="sparkles" :size="32" color="#f59e0b" />
+              <text class="distill-title">蒸馏真人聊天风格</text>
+            </view>
             <text class="distill-desc">上传一段真人聊天记录，AI 会自动提取风格特征，模仿该风格与你对话</text>
             <textarea v-model="distillInput" class="setting-textarea distill-textarea" placeholder="粘贴聊天记录（至少 10 字符，最多 20000 字符）..." maxlength="20000" />
             <view class="distill-actions">
@@ -182,12 +185,16 @@
             @click="toggleToolExpand(msg.id)"
           >
             <view class="tool-summary-header">
-              <text class="tool-summary-icon">{{ formatToolSummary(msg.toolCalled).icon }}</text>
+              <view class="tool-summary-icon">
+                <Icon :name="formatToolSummary(msg.toolCalled).icon" :size="32" color="#f59e0b" />
+              </view>
               <view class="tool-summary-info">
                 <text class="tool-summary-action">{{ formatToolSummary(msg.toolCalled).verb }}</text>
                 <text class="tool-summary-result">{{ formatToolSummary(msg.toolCalled).resultStr }}</text>
               </view>
-              <text class="tool-summary-expand">{{ expandedTools.has(msg.id) ? '▾' : '▸' }}</text>
+              <view class="tool-summary-expand">
+                <Icon :name="expandedTools.has(msg.id) ? 'chevronUp' : 'chevronDown'" :size="28" :color="isDark ? '#98989d' : '#86868b'" />
+              </view>
             </view>
             <view v-if="expandedTools.has(msg.id)" class="tool-detail">
               <view class="tool-detail-row">
@@ -211,7 +218,7 @@
             class="tool-hint"
             @click="focusInput"
           >
-            <text class="hint-icon">💡</text>
+            <Icon name="bulb" :size="28" color="#f59e0b" />
             <text class="hint-text">试试下方的快捷操作，让 {{ assistantName }} 帮你做事</text>
           </view>
         </view>
@@ -242,7 +249,7 @@
             class="quick-chip"
             @click="sendQuickCommand(cmd.message)"
           >
-            <text class="quick-chip-icon">{{ cmd.icon }}</text>
+            <Icon :name="cmd.icon" :size="28" :color="isDark ? '#f5f5f7' : '#1d1d1f'" />
             <text class="quick-chip-text">{{ cmd.label }}</text>
           </view>
         </view>
@@ -256,7 +263,7 @@
         :class="{ active: voiceCallActive }"
         @click="toggleVoiceCall"
       >
-        <text class="call-icon">{{ voiceCallActive ? "📞" : "🎙" }}</text>
+        <Icon :name="voiceCallActive ? 'phoneOff' : 'phone'" :size="36" :color="voiceCallActive ? '#ffffff' : (isDark ? '#f5f5f7' : '#1d1d1f')" />
       </view>
 
       <template v-if="!isRecording">
@@ -286,7 +293,7 @@
         class="voice-btn"
         @click="toggleVoiceMessage"
       >
-        <text class="voice-icon">🎤</text>
+        <Icon name="mic" :size="36" :color="isDark ? '#f5f5f7' : '#1d1d1f'" />
       </view>
 
       <view
@@ -294,7 +301,7 @@
         class="send-btn"
         @click="stopRecording"
       >
-        <text class="send-text">⏹</text>
+        <Icon name="stop" :size="32" color="#ffffff" />
       </view>
 
       <view
@@ -302,7 +309,7 @@
         class="send-btn"
         @click="send"
       >
-        <text class="send-text">➤</text>
+        <Icon name="send" :size="32" color="#ffffff" />
       </view>
 
       <view
@@ -310,7 +317,7 @@
         class="send-btn loading-btn"
         @click="stopLoading"
       >
-        <text class="send-text">⏹</text>
+        <Icon name="stop" :size="32" color="#ffffff" />
       </view>
     </view>
 
@@ -349,17 +356,39 @@
           </view>
         </view>
 
-        <!-- 最近对话预览 -->
-        <view class="call-transcript">
-          <text v-if="lastUserText" class="transcript-user">我：{{ lastUserText }}</text>
-          <text v-if="lastAiText" class="transcript-ai">{{ assistantName }}：{{ lastAiText }}</text>
-        </view>
+        <!-- 实时对话转录（语音实时转文字） -->
+        <scroll-view scroll-y class="call-transcript">
+          <view v-if="callTranscript.length === 0" class="transcript-empty">
+            <text class="transcript-empty-text">对话将实时显示在这里...</text>
+          </view>
+          <view
+            v-for="(item, idx) in callTranscript"
+            :key="idx"
+            class="transcript-item"
+            :class="item.role"
+          >
+            <text class="transcript-role">{{ item.role === 'user' ? '我' : assistantName }}</text>
+            <text class="transcript-text">{{ item.text }}</text>
+          </view>
+          <view v-if="callLiveText" class="transcript-item live">
+            <text class="transcript-role">{{ callLiveRole }}</text>
+            <text class="transcript-text live-text">{{ callLiveText }}</text>
+          </view>
+        </scroll-view>
 
-        <!-- 底部操作 -->
+        <!-- 底部操作：挂断 + 暂停 -->
         <view class="call-bottom">
-          <view class="call-end-btn" @click="toggleVoiceCall">
-            <text class="call-end-icon">📵</text>
-            <text class="call-end-text">挂断</text>
+          <view class="call-action-btn" @click="togglePauseCall">
+            <view class="call-action-circle" :class="{ paused: callPaused }">
+              <Icon :name="callPaused ? 'play' : 'pause'" :size="44" color="#ffffff" />
+            </view>
+            <text class="call-action-label">{{ callPaused ? "继续" : "暂停" }}</text>
+          </view>
+          <view class="call-action-btn end" @click="toggleVoiceCall">
+            <view class="call-action-circle end-circle">
+              <Icon name="phoneOff" :size="44" color="#ffffff" />
+            </view>
+            <text class="call-action-label">挂断</text>
           </view>
         </view>
       </view>
@@ -378,6 +407,8 @@ import {
   getChatSessions,
   createChatSession,
   getChatMessages,
+  deleteChatSession,
+  appendMessage,
 } from "@/api/ai.js";
 import {
   transcribeAudio,
@@ -389,6 +420,7 @@ import { useSettingsStore } from "@/store/settings.js";
 import { post } from "@/api/request.js";
 import MarkdownView from "@/components/MarkdownView.vue";
 import TabBar from "@/components/TabBar.vue";
+import Icon from "@/components/Icon.vue";
 
 const settingsStore = useSettingsStore();
 const isDark = computed(() => settingsStore.theme === "dark");
@@ -397,6 +429,8 @@ const providers = AI_PROVIDERS;
 const currentProvider = ref(uni.getStorageSync("ai_provider") || "deepseek");
 
 // ===== AI助理自定义 =====
+// 名称/Emoji 头像优先从后端同步（与 Web 端共用 /api/ai/settings），
+// 首次加载前用本地缓存做即时展示，避免空白。
 const assistantName = ref(uni.getStorageSync("ai_assistant_name") || "Lynn");
 const assistantAvatar = ref(uni.getStorageSync("ai_assistant_avatar") || "🤖");
 const autoSpeak = ref(uni.getStorageSync("ai_auto_speak") === "true");
@@ -441,6 +475,10 @@ const callDuration = ref("00:00");
 const isSpeaking = ref(false);
 const lastUserText = ref("");
 const lastAiText = ref("");
+const callPaused = ref(false);
+const callTranscript = ref([]); // [{ role: 'user'|'assistant', text }]
+const callLiveText = ref("");
+const callLiveRole = ref("我");
 let audioContext = null;
 let analyser = null;
 let vadInterval = null;
@@ -462,37 +500,37 @@ const loadingHints = ["正在思考...", "调用工具中...", "分析数据..."
 const loadingHint = ref("正在思考...");
 let hintTimer = null;
 
-// 快捷命令（同步 Web 端 QUICK_COMMANDS）
+// 快捷命令（同步 Web 端 QUICK_COMMANDS；icon 为 Icon 组件 name）
 const quickCommands = [
-  { icon: "📋", label: "今日概览", description: "灵感、任务、记忆统计", message: "给我一个今日概览：今天有多少灵感、看板任务进度、最近记忆" },
-  { icon: "💡", label: "创建灵感", description: "快速记录新灵感", message: "帮我创建一个灵感：" },
-  { icon: "📊", label: "看板状态", description: "决策看板统计", message: "看板状态如何？本周完成了多少任务？" },
-  { icon: "🔍", label: "搜索记忆", description: "语义搜索记忆图谱", message: "帮我搜索记忆：" },
-  { icon: "🛡️", label: "执行巡检", description: "AI 巡检检查", message: "跑一下AI巡检，看看有什么需要关注的" },
-  { icon: "⚡", label: "执行技能", description: "运行技能模板", message: "列出可用技能，我想执行一个" },
+  { icon: "list", label: "今日概览", description: "灵感、任务、记忆统计", message: "给我一个今日概览：今天有多少灵感、看板任务进度、最近记忆" },
+  { icon: "bulb", label: "创建灵感", description: "快速记录新灵感", message: "帮我创建一个灵感：" },
+  { icon: "chartBar", label: "看板状态", description: "决策看板统计", message: "看板状态如何？本周完成了多少任务？" },
+  { icon: "search", label: "搜索记忆", description: "语义搜索记忆图谱", message: "帮我搜索记忆：" },
+  { icon: "shield", label: "执行巡检", description: "AI 巡检检查", message: "跑一下AI巡检，看看有什么需要关注的" },
+  { icon: "bolt", label: "执行技能", description: "运行技能模板", message: "列出可用技能，我想执行一个" },
 ];
 
-// ===== 工具信息映射 =====
+// ===== 工具信息映射（icon 为 Icon 组件 name） =====
 const TOOL_INFO = {
-  searchIdeas: { icon: "🔍", name: "搜索灵感", verb: "搜索了灵感库" },
-  createIdea: { icon: "💡", name: "创建灵感", verb: "创建了新灵感" },
-  searchTasks: { icon: "📋", name: "搜索任务", verb: "搜索了任务库" },
-  searchCognitions: { icon: "🧠", name: "搜索记忆", verb: "搜索了记忆库" },
-  executeSkill: { icon: "⚡", name: "执行技能", verb: "执行了技能" },
-  runPatrol: { icon: "🛡️", name: "AI巡检", verb: "执行了巡检" },
-  createTask: { icon: "✅", name: "创建任务", verb: "创建了任务" },
-  updateTask: { icon: "✏️", name: "更新任务", verb: "更新了任务" },
-  getBoardStatus: { icon: "📊", name: "看板状态", verb: "查看了看板" },
-  searchMemory: { icon: "🔎", name: "搜索记忆", verb: "搜索了记忆" },
-  listSkills: { icon: "📚", name: "列出技能", verb: "查看了技能列表" },
-  listFlows: { icon: "🌊", name: "工作流", verb: "查看了工作流" },
-  createCognition: { icon: "🧠", name: "创建认知", verb: "提取了认知" },
-  getFocus: { icon: "🎯", name: "今日聚焦", verb: "查看了今日聚焦" },
+  searchIdeas: { icon: "search", name: "搜索灵感", verb: "搜索了灵感库" },
+  createIdea: { icon: "bulb", name: "创建灵感", verb: "创建了新灵感" },
+  searchTasks: { icon: "list", name: "搜索任务", verb: "搜索了任务库" },
+  searchCognitions: { icon: "brain", name: "搜索记忆", verb: "搜索了记忆库" },
+  executeSkill: { icon: "bolt", name: "执行技能", verb: "执行了技能" },
+  runPatrol: { icon: "shield", name: "AI巡检", verb: "执行了巡检" },
+  createTask: { icon: "checkCircle", name: "创建任务", verb: "创建了任务" },
+  updateTask: { icon: "edit", name: "更新任务", verb: "更新了任务" },
+  getBoardStatus: { icon: "chartBar", name: "看板状态", verb: "查看了看板" },
+  searchMemory: { icon: "search", name: "搜索记忆", verb: "搜索了记忆" },
+  listSkills: { icon: "book", name: "列出技能", verb: "查看了技能列表" },
+  listFlows: { icon: "waves", name: "工作流", verb: "查看了工作流" },
+  createCognition: { icon: "brain", name: "创建认知", verb: "提取了认知" },
+  getFocus: { icon: "target", name: "今日聚焦", verb: "查看了今日聚焦" },
 };
 
 function formatToolSummary(toolCalled) {
-  if (!toolCalled) return { icon: "🔧", verb: "执行了操作", resultStr: "" };
-  const info = TOOL_INFO[toolCalled.tool] || { icon: "🔧", name: toolCalled.tool, verb: "执行了操作" };
+  if (!toolCalled) return { icon: "tool", verb: "执行了操作", resultStr: "" };
+  const info = TOOL_INFO[toolCalled.tool] || { icon: "tool", name: toolCalled.tool, verb: "执行了操作" };
   const resultStr = formatResultReadable(toolCalled.tool, toolCalled.result);
   return { ...info, resultStr };
 }
@@ -536,8 +574,9 @@ function formatArgsReadable(args) {
 onMounted(async () => {
   await loadSessions();
   await loadAISettings();
-  // 加载后端 AI 助理新字段（avatarUrl / personaStyle / distilledStyle）
+  // 加载后端 AI 助理设置（名称/Emoji/头像URL/风格，与 Web 端同一接口）
   await settingsStore.loadAISettings();
+  syncAssistantFromStore();
   syncAISettingsEdit();
   if (sessions.value.length === 0) {
     await createNewSession();
@@ -556,10 +595,26 @@ onHide(() => {
 });
 
 // ===== AI助理设置 =====
+/** 从 store 同步助理名称/Emoji 到显示 ref，并写本地缓存（离线即时展示用） */
+function syncAssistantFromStore() {
+  const s = settingsStore.aiSettings;
+  if (s.assistantName) {
+    assistantName.value = s.assistantName;
+    uni.setStorageSync("ai_assistant_name", s.assistantName);
+  }
+  if (s.assistantAvatar) {
+    assistantAvatar.value = s.assistantAvatar;
+    uni.setStorageSync("ai_assistant_avatar", s.assistantAvatar);
+  }
+}
+
 /** 同步 store 中的新字段到编辑状态 */
 function syncAISettingsEdit() {
-  editAvatarUrl.value = settingsStore.aiSettings.avatarUrl || "";
-  editPersonaStyle.value = settingsStore.aiSettings.personaStyle || "";
+  const s = settingsStore.aiSettings;
+  editName.value = s.assistantName || assistantName.value;
+  editAvatar.value = s.assistantAvatar || assistantAvatar.value;
+  editAvatarUrl.value = s.avatarUrl || "";
+  editPersonaStyle.value = s.personaStyle || "";
 }
 
 /** 打开设置弹窗前同步编辑字段 */
@@ -606,12 +661,15 @@ async function saveSettings() {
   assistantName.value = editName.value.trim() || "Lynn";
   assistantAvatar.value = editAvatar.value;
   autoSpeak.value = editAutoSpeak.value;
+  // 本地缓存（离线即时展示用）
   uni.setStorageSync("ai_assistant_name", assistantName.value);
   uni.setStorageSync("ai_assistant_avatar", assistantAvatar.value);
   uni.setStorageSync("ai_auto_speak", autoSpeak.value ? "true" : "false");
-  // 同步助理头像 URL 与聊天风格描述到后端
+  // 同步助理名称/Emoji/头像URL/聊天风格到后端（与 Web 端同一接口，实时同步）
   try {
     await settingsStore.updateAISettings({
+      assistantName: assistantName.value,
+      assistantAvatar: assistantAvatar.value,
       avatarUrl: editAvatarUrl.value.trim() || null,
       personaStyle: editPersonaStyle.value.trim() || null,
     });
@@ -681,11 +739,7 @@ async function deleteSession(sessionId) {
     success: async (res) => {
       if (res.confirm) {
         try {
-          const { getBaseUrl, getToken } = await import("@/api/request.js");
-          await fetch(`${getBaseUrl()}/api/ai/chat/sessions/${sessionId}`, {
-            method: "DELETE",
-            headers: { Authorization: `Bearer ${getToken()}` },
-          });
+          await deleteChatSession(sessionId);
           sessions.value = sessions.value.filter((s) => s.id !== sessionId);
           if (currentSessionId.value === sessionId) {
             if (sessions.value.length > 0) {
@@ -785,6 +839,11 @@ async function send(text) {
 
   messages.value.push({ id: Date.now(), role: "user", content });
   lastUserText.value = content;
+  // 语音通话中：实时转录用户发言
+  if (voiceCallActive.value) {
+    callTranscript.value.push({ role: "user", text: content });
+    callLiveText.value = "";
+  }
   input.value = "";
   loading.value = true;
   startLoadingHints();
@@ -812,6 +871,11 @@ async function send(text) {
     };
     messages.value.push(aiMsg);
     lastAiText.value = (res.content || "").slice(0, 100);
+    // 语音通话中：实时转录 AI 回复
+    if (voiceCallActive.value) {
+      callTranscript.value.push({ role: "assistant", text: res.content || "" });
+      callLiveText.value = "";
+    }
 
     if (currentSessionId.value) {
       saveMessage(currentSessionId.value, "assistant", res.content, {
@@ -832,7 +896,7 @@ async function send(text) {
       messages.value.push({
         id: Date.now() + 1,
         role: "assistant",
-        content: reply || `⚠️ ${e.message || "请求失败"}`,
+        content: reply || `[请求失败] ${e.message || ""}`,
         showHint: false,
       });
       lastAiText.value = (reply || "").slice(0, 100);
@@ -843,7 +907,7 @@ async function send(text) {
       messages.value.push({
         id: Date.now() + 1,
         role: "assistant",
-        content: `⚠️ ${e2.message || e.message || "请求失败"}`,
+        content: `[请求失败] ${e2.message || e.message || ""}`,
         error: true,
         showHint: false,
       });
@@ -860,15 +924,7 @@ async function send(text) {
 
 async function saveMessage(sessionId, role, content, extra = {}) {
   try {
-    const { getBaseUrl, getToken } = await import("@/api/request.js");
-    await fetch(`${getBaseUrl()}/api/ai/chat/sessions/${sessionId}/messages`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${getToken()}`,
-      },
-      body: JSON.stringify({ role, content, ...extra }),
-    });
+    await appendMessage(sessionId, { role, content, ...extra });
   } catch (e) {
     // 持久化失败不影响主流程
   }
@@ -971,6 +1027,9 @@ async function startVoiceCall() {
     source.connect(analyser);
 
     voiceCallActive.value = true;
+    callPaused.value = false;
+    callTranscript.value = [];
+    callLiveText.value = "";
     callStatusText.value = "校准环境噪声...";
     callStartTime = Date.now();
     callDuration.value = "00:00";
@@ -1118,6 +1177,7 @@ function restartVad() {
 
 function stopVoiceCall() {
   voiceCallActive.value = false;
+  callPaused.value = false;
   if (vadInterval) {
     clearInterval(vadInterval);
     vadInterval = null;
@@ -1140,7 +1200,30 @@ function stopVoiceCall() {
   analyser = null;
   vadSpeechActive = false;
   isSpeaking.value = false;
+  callLiveText.value = "";
   uni.showToast({ title: "通话已结束", icon: "none", duration: 1000 });
+}
+
+/** 暂停/继续语音通话 */
+function togglePauseCall() {
+  callPaused.value = !callPaused.value;
+  if (callPaused.value) {
+    // 暂停：停止 VAD 监听
+    if (vadInterval) {
+      clearInterval(vadInterval);
+      vadInterval = null;
+    }
+    if (vadRecorder && vadRecorder.state !== "inactive") {
+      try { vadRecorder.stop(); } catch {}
+    }
+    callStatusText.value = "已暂停";
+  } else {
+    // 继续：重新开始 VAD
+    callStatusText.value = "聆听中...";
+    if (voiceCallActive.value) {
+      setTimeout(() => startVadLoop(), 300);
+    }
+  }
 }
 
 // ===== TTS 播报 =====
@@ -2066,49 +2149,110 @@ onUnmounted(() => {
   50% { transform: scaleY(1); }
 }
 
-/* 通话预览 */
+/* 通话实时转录 */
 .call-transcript {
   width: 100%;
+  max-height: 300rpx;
   display: flex;
   flex-direction: column;
-  gap: 8rpx;
+  gap: 12rpx;
   padding: 24rpx;
-  background-color: rgba(255, 255, 255, 0.05);
+  background-color: rgba(255, 255, 255, 0.06);
   border-radius: 16rpx;
   margin-bottom: 40rpx;
-  min-height: 80rpx;
 }
-.transcript-user {
+.transcript-empty {
+  text-align: center;
+  padding: 20rpx 0;
+}
+.transcript-empty-text {
   font-size: 24rpx;
+  color: rgba(255, 255, 255, 0.4);
+}
+.transcript-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4rpx;
+}
+.transcript-item.user {
+  align-items: flex-end;
+}
+.transcript-item.assistant {
+  align-items: flex-start;
+}
+.transcript-role {
+  font-size: 20rpx;
+  color: rgba(255, 255, 255, 0.4);
+}
+.transcript-text {
+  font-size: 26rpx;
   color: #f5f5f7;
   line-height: 1.5;
+  max-width: 80%;
+  padding: 12rpx 20rpx;
+  border-radius: 16rpx;
+  background-color: rgba(255, 255, 255, 0.08);
 }
-.transcript-ai {
-  font-size: 24rpx;
-  color: #f59e0b;
-  line-height: 1.5;
+.transcript-item.user .transcript-text {
+  background-color: rgba(245, 158, 11, 0.2);
+  color: #fbbf24;
+}
+.transcript-item.live .transcript-text {
+  opacity: 0.7;
+}
+.live-text {
+  font-style: italic;
+}
+.live-text::after {
+  content: "...";
+  animation: dots 1s infinite;
+}
+@keyframes dots {
+  0%, 100% { opacity: 0.4; }
+  50% { opacity: 1; }
 }
 
-/* 通话底部 */
+/* 通话底部操作 */
 .call-bottom {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 60rpx;
+  gap: 80rpx;
+  padding-bottom: env(safe-area-inset-bottom);
 }
-.call-end-btn {
-  width: 120rpx;
-  height: 120rpx;
-  border-radius: 50%;
-  background-color: #ef4444;
+.call-action-btn {
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
-  box-shadow: 0 8rpx 24rpx rgba(239, 68, 68, 0.4);
-  transition: transform 0.15s;
+  gap: 8rpx;
 }
-.call-end-btn:active { transform: scale(0.92); }
-.call-end-icon { font-size: 40rpx; }
-.call-end-text { color: #ffffff; font-size: 20rpx; margin-top: 4rpx; }
+.call-action-circle {
+  width: 100rpx;
+  height: 100rpx;
+  border-radius: 50%;
+  background-color: rgba(255, 255, 255, 0.15);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 0.15s;
+  border: 2rpx solid rgba(255, 255, 255, 0.2);
+}
+.call-action-circle:active { transform: scale(0.92); }
+.call-action-circle.paused {
+  background-color: #f59e0b;
+  border-color: #f59e0b;
+}
+.call-action-circle.end-circle {
+  background-color: #ef4444;
+  border-color: #ef4444;
+  box-shadow: 0 6rpx 20rpx rgba(239, 68, 68, 0.4);
+}
+.call-action-icon {
+  color: #ffffff;
+  font-size: 36rpx;
+}
+.call-action-label {
+  color: rgba(255, 255, 255, 0.8);
+  font-size: 22rpx;
+}
 </style>

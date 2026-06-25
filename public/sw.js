@@ -5,7 +5,7 @@
 // - API 请求：网络优先，失败回退缓存（仅 GET）
 // - 离线页面：网络失败时返回缓存的首页
 
-const CACHE_VERSION = "lynnhub-v1";
+const CACHE_VERSION = "lynnhub-v2";
 const STATIC_CACHE = `${CACHE_VERSION}-static`;
 const PAGE_CACHE = `${CACHE_VERSION}-pages`;
 const API_CACHE = `${CACHE_VERSION}-api`;
@@ -49,6 +49,14 @@ self.addEventListener("fetch", (event) => {
 
   // 非 GET 请求不缓存
   if (request.method !== "GET") return;
+
+  // 开发环境（localhost）：完全不缓存，直接透传到 dev server
+  // 避免 HMR 热更新被 Service Worker 拦截导致浏览器显示旧版本
+  if (self.location.hostname === "localhost" || self.location.hostname === "127.0.0.1") {
+    // 仍然拦截以避免默认缓存行为，但直接走网络
+    event.respondWith(fetch(request).catch(() => new Response("网络错误", { status: 503 })));
+    return;
+  }
 
   // 静态资源：缓存优先
   if (

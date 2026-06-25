@@ -9,11 +9,15 @@
     >
       <!-- 中间助理按钮：特殊样式 -->
       <view v-if="index === 2" class="tab-center-btn">
-        <text class="tab-icon">{{ item.icon }}</text>
+        <Icon :name="item.icon" :size="44" color="#ffffff" />
       </view>
       <template v-else>
-        <text class="tab-icon">{{ item.icon }}</text>
-        <text class="tab-text">{{ item.text }}</text>
+        <Icon
+          :name="item.icon"
+          :size="44"
+          :color="current === index ? '#f59e0b' : (isDark ? '#98989d' : '#86868b')"
+        />
+        <text class="tab-text" :class="{ active: current === index }">{{ item.text }}</text>
       </template>
     </view>
   </view>
@@ -22,6 +26,7 @@
 <script setup>
 import { computed } from "vue";
 import { useSettingsStore } from "@/store/settings.js";
+import Icon from "@/components/Icon.vue";
 
 const props = defineProps({
   current: { type: Number, default: 0 },
@@ -31,11 +36,11 @@ const settingsStore = useSettingsStore();
 const isDark = computed(() => settingsStore.theme === "dark");
 
 const items = [
-  { icon: "🎯", text: "聚焦", path: "/pages/index/index" },
-  { icon: "📊", text: "看板", path: "/pages/board/board" },
-  { icon: "🤖", text: "助理", path: "/pages/ai/chat/chat" },
-  { icon: "📋", text: "任务", path: "/pages/tasks/tasks" },
-  { icon: "⚙️", text: "我的", path: "/pages/settings/settings" },
+  { icon: "focus", text: "聚焦", path: "/pages/index/index" },
+  { icon: "board", text: "看板", path: "/pages/board/board" },
+  { icon: "assistant", text: "助理", path: "/pages/ai/chat/chat" },
+  { icon: "task", text: "任务", path: "/pages/tasks/tasks" },
+  { icon: "profile", text: "我的", path: "/pages/settings/settings" },
 ];
 
 function switchTab(index) {
@@ -70,25 +75,20 @@ function switchTab(index) {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 4rpx;
+  gap: 6rpx;
   height: 100rpx;
-}
-.tab-icon {
-  font-size: 40rpx;
-  line-height: 1;
-  transition: transform 0.2s;
 }
 .tab-text {
   font-size: 20rpx;
   color: #86868b;
   font-weight: 500;
 }
-.tab-item.active .tab-icon {
-  transform: scale(1.15);
-}
-.tab-item.active .tab-text {
+.tab-text.active {
   color: #f59e0b;
   font-weight: 600;
+}
+.tab-item.active .tab-icon {
+  transform: scale(1.15);
 }
 
 /* 中间助理按钮 */
@@ -107,8 +107,5 @@ function switchTab(index) {
 .tab-item.center.active .tab-center-btn {
   transform: scale(1.1);
   box-shadow: 0 8rpx 28rpx rgba(245, 158, 11, 0.5);
-}
-.tab-item.center .tab-icon {
-  font-size: 44rpx;
 }
 </style>

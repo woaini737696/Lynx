@@ -109,6 +109,11 @@ export default function PatrolSettingsPage() {
   // 编辑弹窗状态：editingRule 不为 null 时显示编辑弹窗
   const [editingRule, setEditingRule] = useState<PatrolRule | null>(null);
 
+  // 删除确认弹窗：deleteTarget 不为 null 时显示删除确认弹窗
+  // 使用自定义 Modal 替代 confirm()，避免 Trae Solo 内置浏览器 confirm() 行为不一致
+  const [deleteTarget, setDeleteTarget] = useState<PatrolRule | null>(null);
+  const [deleting, setDeleting] = useState(false);
+
   // 模板预填状态：使用模板时携带的初始数据
   const [templateInitial, setTemplateInitial] = useState<PatrolTemplate | null>(null);
 
@@ -188,11 +193,17 @@ export default function PatrolSettingsPage() {
     }
   };
 
-  // 删除规则
-  const deleteRule = async (rule: PatrolRule) => {
-    if (!confirm(`确定删除规则「${rule.name}」？关联的日志也会一并删除。`)) return;
+  // 删除规则 - 第一步：弹出确认弹窗（不使用 confirm()，避免内置浏览器行为不一致）
+  const deleteRule = (rule: PatrolRule) => {
+    setDeleteTarget(rule);
+  };
+
+  // 删除规则 - 第二步：用户在弹窗中点击"确认删除"后执行
+  const confirmDeleteRule = async () => {
+    if (!deleteTarget) return;
+    setDeleting(true);
     try {
-      const res = await fetch(`/api/patrol/rules/${rule.id}`, { method: "DELETE" });
+      const res = await fetch(`/api/patrol/rules/${deleteTarget.id}`, { method: "DELETE" });
       if (res.ok) {
         toast("规则已删除", "success");
         loadRules();
@@ -202,6 +213,9 @@ export default function PatrolSettingsPage() {
       }
     } catch {
       toast("网络错误", "error");
+    } finally {
+      setDeleting(false);
+      setDeleteTarget(null);
     }
   };
 
@@ -992,6 +1006,53 @@ export default function PatrolSettingsPage() {
             loadRules();
           }}
         />
+      )}
+
+      {/* 删除确认弹窗 - 使用自定义 Modal 替代 confirm() */}
+      {deleteTarget && (
+        <div
+          className="fixed inset-0 z-[80] flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm animate-in fade-in duration-200"
+          onClick={() => !deleting && setDeleteTarget(null)}
+        >
+          <div
+            className="w-full max-w-sm rounded-2xl border border-border bg-card p-5 shadow-2xl animate-in zoom-in-95 duration-200"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="mb-3 flex items-center gap-2">
+              <AlertCircle className="h-4 w-4 text-graveyard" />
+              <h3 className="text-sm font-semibold">确认删除规则</h3>
+            </div>
+            <p className="mb-4 text-xs text-muted-foreground">
+              确定删除规则「<span className="font-medium text-foreground">{deleteTarget.name}</span>」？关联的日志也会一并删除，此操作不可撤销。
+            </p>
+            <div className="flex justify-end gap-2">
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => setDeleteTarget(null)}
+                disabled={deleting}
+              >
+                取消
+              </Button>
+              <Button
+                size="sm"
+                variant="danger"
+                onClick={confirmDeleteRule}
+                disabled={deleting}
+              >
+                {deleting ? (
+                  <>
+                    <Loader2 className="h-3 w-3 animate-spin" /> 删除中...
+                  </>
+                ) : (
+                  <>
+                    <Trash2 className="h-3 w-3" /> 确认删除
+                  </>
+                )}
+              </Button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

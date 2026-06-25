@@ -2,7 +2,6 @@
 
 import { useState, useRef, useEffect, Fragment, useCallback } from "react";
 import {
-  Bot,
   Send,
   Brain,
   BookOpen,
@@ -101,6 +100,7 @@ interface Message {
 
 interface AISettings {
   assistantName: string;
+  assistantAvatar: string;
   avatarUrl: string | null;
   personaStyle: string | null;
   distilledStyle: string | null;
@@ -116,6 +116,7 @@ interface AISettings {
 
 const DEFAULT_SETTINGS: AISettings = {
   assistantName: "Lynn",
+  assistantAvatar: "🤖",
   avatarUrl: null,
   personaStyle: null,
   distilledStyle: null,
@@ -548,6 +549,7 @@ export default function AIAssistantPage() {
       if (data.settings) {
         setSettings({
           assistantName: data.settings.assistantName || "Lynn",
+          assistantAvatar: data.settings.assistantAvatar || "🤖",
           avatarUrl: data.settings.avatarUrl || null,
           personaStyle: data.settings.personaStyle || null,
           distilledStyle: data.settings.distilledStyle || null,
@@ -575,6 +577,7 @@ export default function AIAssistantPage() {
       if (data.settings) {
         setSettings({
           assistantName: data.settings.assistantName || "Lynn",
+          assistantAvatar: data.settings.assistantAvatar || "🤖",
           avatarUrl: data.settings.avatarUrl || null,
           personaStyle: data.settings.personaStyle || null,
           distilledStyle: data.settings.distilledStyle || null,
@@ -1748,7 +1751,7 @@ export default function AIAssistantPage() {
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <div className="flex h-8 w-8 items-center justify-center overflow-hidden rounded-xl bg-gradient-to-br from-cognition to-purple-600 text-white shadow-sm">
-              {settings.avatarUrl ? <img src={settings.avatarUrl} alt="avatar" className="h-full w-full object-cover" /> : <Bot className="h-4 w-4" />}
+              {settings.avatarUrl ? <img src={settings.avatarUrl} alt="avatar" className="h-full w-full object-cover" /> : <span className="text-base leading-none">{settings.assistantAvatar}</span>}
             </div>
             <div>
               <h1 className="text-sm font-semibold">AI 专属助理 {settings.assistantName !== "Lynn" && <span className="text-cognition">· {settings.assistantName}</span>}</h1>
@@ -1847,7 +1850,7 @@ export default function AIAssistantPage() {
                   : "bg-gradient-to-br from-northstar to-orange-600"
               )}>
                 {msg.role === "assistant"
-                  ? msg.error ? <AlertCircle className="h-4 w-4" /> : (settings.avatarUrl ? <img src={settings.avatarUrl} alt="avatar" className="h-full w-full object-cover" /> : <Bot className="h-4 w-4" />)
+                  ? msg.error ? <AlertCircle className="h-4 w-4" /> : (settings.avatarUrl ? <img src={settings.avatarUrl} alt="avatar" className="h-full w-full object-cover" /> : <span className="text-base leading-none">{settings.assistantAvatar}</span>)
                   : <UserCircle className="h-4 w-4" />}
               </div>
 
@@ -1963,7 +1966,7 @@ export default function AIAssistantPage() {
           {thinking && messages[messages.length - 1]?.streaming && messages[messages.length - 1]?.content === "" && (
             <div className="flex gap-3">
               <div className="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-gradient-to-br from-cognition to-purple-600 text-white shadow-sm">
-                {settings.avatarUrl ? <img src={settings.avatarUrl} alt="avatar" className="h-full w-full object-cover" /> : <Bot className="h-4 w-4" />}
+                {settings.avatarUrl ? <img src={settings.avatarUrl} alt="avatar" className="h-full w-full object-cover" /> : <span className="text-base leading-none">{settings.assistantAvatar}</span>}
               </div>
               <div className="flex items-center gap-1 rounded-2xl border border-border bg-card px-4 py-3">
                 <span className="h-2 w-2 animate-bounce rounded-full bg-muted-foreground/60 [animation-delay:-0.3s]" />
@@ -2132,9 +2135,27 @@ export default function AIAssistantPage() {
                 />
               </div>
 
-              {/* 头像 - 支持 URL 输入和文件上传 */}
+              {/* 头像 - 支持 Emoji 选择、URL 输入和文件上传 */}
               <div>
                 <label className="mb-1.5 block text-xs font-medium">助理头像</label>
+                {/* Emoji 头像（无 URL 时使用，与移动端同步） */}
+                <div className="mb-2 flex flex-wrap items-center gap-1.5">
+                  {["🤖", "🐱", "🦊", "🐼", "🧠", "⚡", "🌟", "🎯"].map((emoji) => (
+                    <button
+                      key={emoji}
+                      onClick={() => { setSettings((s) => ({ ...s, assistantAvatar: emoji })); updateSettings({ assistantAvatar: emoji }); }}
+                      className={cn(
+                        "flex h-8 w-8 items-center justify-center rounded-lg border text-lg transition",
+                        settings.assistantAvatar === emoji
+                          ? "border-cognition bg-cognition/10"
+                          : "border-border bg-background hover:bg-muted"
+                      )}
+                    >
+                      {emoji}
+                    </button>
+                  ))}
+                  <span className="ml-1 text-[10px] text-muted-foreground">无 URL 时显示</span>
+                </div>
                 <div className="flex items-center gap-2">
                   <input
                     type="text"

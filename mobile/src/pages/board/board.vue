@@ -7,17 +7,17 @@
           <text class="header-hint">做减法 · 强制优先级</text>
         </view>
         <view class="sort-toggle" :class="{ active: sortMode }" @click="toggleSortMode">
-          <text class="sort-toggle-icon">{{ sortMode ? "✓" : "⇅" }}</text>
+          <Icon :name="sortMode ? 'check' : 'sort'" :size="28" :color="sortMode ? '#f59e0b' : (isDark ? '#f5f5f7' : '#1d1d1f')" />
           <text class="sort-toggle-text">{{ sortMode ? "完成" : "排序" }}</text>
         </view>
       </view>
       <view v-if="cacheInfo" class="offline-banner">
-        <text class="offline-icon">📡</text>
+        <Icon name="wifiOff" :size="28" color="#f59e0b" />
         <text class="offline-text">离线浏览 · 缓存于 {{ formatCacheTime(cacheInfo.cachedAt) }}</text>
       </view>
       <view v-if="sortMode" class="sort-hint">
-        <text class="sort-hint-icon">💡</text>
-        <text class="sort-hint-text">长按卡片拖拽排序，或点击 ↑↓ 微调位置</text>
+        <Icon name="bulb" :size="28" color="#f59e0b" />
+        <text class="sort-hint-text">长按卡片拖拽排序，或点击上下箭头微调位置</text>
       </view>
     </view>
 
@@ -78,28 +78,35 @@
             @touchcancel="onCardTouchEnd"
           >
             <view v-if="sortMode" class="drag-handle">
-              <text class="handle-icon">⠿</text>
+              <Icon name="drag" :size="32" :color="isDark ? '#98989d' : '#86868b'" />
             </view>
             <view class="task-main">
               <text class="task-content">{{ task.content }}</text>
               <view class="task-meta">
                 <text class="meta-idx">#{{ idx + 1 }}</text>
-                <text v-if="task.status === 'done'" class="meta-done">✓ 已完成</text>
+                <view v-if="task.status === 'done'" class="meta-done">
+                  <Icon name="check" :size="22" color="#22c55e" />
+                  <text class="meta-done-text">已完成</text>
+                </view>
               </view>
             </view>
             <view class="task-actions">
               <template v-if="sortMode">
-                <text class="task-btn sort-btn" @click.stop="moveTask(task, -1)">↑</text>
-                <text class="task-btn sort-btn" @click.stop="moveTask(task, 1)">↓</text>
+                <view class="task-btn sort-btn" @click.stop="moveTask(task, -1)">
+                  <Icon name="arrowUp" :size="28" :color="isDark ? '#f5f5f7' : '#1d1d1f'" />
+                </view>
+                <view class="task-btn sort-btn" @click.stop="moveTask(task, 1)">
+                  <Icon name="arrowDown" :size="28" :color="isDark ? '#f5f5f7' : '#1d1d1f'" />
+                </view>
               </template>
-              <text
+              <view
                 v-else
                 class="task-btn"
                 :class="task.status === 'done' ? 'btn-restore' : 'btn-done'"
                 @click.stop="toggleStatus(task)"
               >
-                {{ task.status === "done" ? "↩" : "✓" }}
-              </text>
+                <Icon :name="task.status === 'done' ? 'refresh' : 'check'" :size="28" color="#ffffff" />
+              </view>
             </view>
           </view>
 
@@ -109,7 +116,7 @@
             class="add-task"
             @click="addTask(col.key)"
           >
-            <text class="add-icon">+</text>
+            <Icon name="plus" :size="32" :color="isDark ? '#98989d' : '#86868b'" />
             <text class="add-text">添加到「{{ col.label }}」</text>
           </view>
           <view v-else class="add-task disabled">
@@ -118,18 +125,13 @@
 
           <!-- 空状态 -->
           <view v-if="tasksByColumn[col.key].length === 0" class="col-empty">
-            <text class="col-empty-icon">{{ col.icon }}</text>
+            <Icon :name="col.iconName" :size="80" :color="isDark ? '#48484a' : '#d1d1d6'" />
             <text class="col-empty-text">{{ col.label }}还是空的</text>
             <text class="col-empty-hint">{{ col.emptyHint }}</text>
           </view>
         </scroll-view>
       </swiper-item>
     </swiper>
-
-    <!-- 滑动切换提示 -->
-    <view class="swipe-hint">
-      <text class="swipe-hint-text">← 左右滑动切换列 →</text>
-    </view>
 
     <!-- 底部导航 -->
     <TabBar :current="1" />
@@ -141,14 +143,19 @@ import { ref, computed, onMounted } from "vue";
 import { onShow } from "@dcloudio/uni-app";
 import { getTasks, createTask, updateTask, deleteTask } from "@/api/tasks.js";
 import { setCache, getCache, formatCacheTime } from "@/utils/cache.js";
+import { useSettingsStore } from "@/store/settings.js";
 import TabBar from "@/components/TabBar.vue";
+import Icon from "@/components/Icon.vue";
+
+const settingsStore = useSettingsStore();
+const isDark = computed(() => settingsStore.theme === "dark");
 
 const columns = [
   {
     key: "northstar",
     label: "北极星",
     limit: 3,
-    icon: "⭐",
+    iconName: "star",
     desc: "长期最重要的目标，最多 3 个",
     emptyHint: "添加你的北极星目标，专注长期价值",
   },
@@ -156,7 +163,7 @@ const columns = [
     key: "campaign",
     label: "战役",
     limit: 5,
-    icon: "🎯",
+    iconName: "target",
     desc: "阶段性重点，最多 5 个",
     emptyHint: "添加当前阶段的战役级任务",
   },
@@ -164,7 +171,7 @@ const columns = [
     key: "task",
     label: "任务",
     limit: 10,
-    icon: "📋",
+    iconName: "list",
     desc: "本周要推进的具体任务，最多 10 个",
     emptyHint: "添加本周要推进的具体任务",
   },
@@ -435,18 +442,26 @@ onShow(loadTasks);
 </script>
 
 <style scoped>
+/* ===== 页面容器：固定布局，防止整体滚动 ===== */
 .page {
-  min-height: 100vh;
-  padding: 32rpx 32rpx 0 32rpx;
-  padding-bottom: calc(32rpx + env(safe-area-inset-bottom) + 160rpx);
-  box-sizing: border-box;
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: #f5f5f7;
   display: flex;
   flex-direction: column;
+  overflow: hidden;
 }
 
-/* 头部 */
+/* ===== 头部：固定悬浮，不随内容滚动 ===== */
 .header {
-  margin-bottom: 24rpx;
+  flex-shrink: 0;
+  padding: 24rpx 32rpx 16rpx;
+  padding-top: calc(24rpx + env(safe-area-inset-top));
+  background-color: #f5f5f7;
+  z-index: 10;
 }
 .header-row {
   display: flex;
@@ -528,11 +543,13 @@ onShow(loadTasks);
   color: #3b82f6;
 }
 
-/* 列标签 */
+/* 列标签：固定悬浮 */
 .col-tabs {
+  flex-shrink: 0;
   display: flex;
   gap: 12rpx;
-  margin-bottom: 20rpx;
+  padding: 0 32rpx 20rpx;
+  z-index: 10;
 }
 .col-tab {
   flex: 1;
@@ -580,14 +597,17 @@ onShow(loadTasks);
   color: #f59e0b;
 }
 
-/* swiper 列容器 */
+/* swiper 列容器：填满剩余空间 */
 .col-swiper {
   flex: 1;
-  height: 70vh;
+  height: 0;
+  min-height: 0;
 }
 .col-scroll {
   height: 100%;
-  padding-right: 8rpx;
+  padding: 0 32rpx;
+  padding-bottom: calc(32rpx + env(safe-area-inset-bottom) + 140rpx);
+  box-sizing: border-box;
 }
 
 /* 列说明 */

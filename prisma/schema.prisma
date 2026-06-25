@@ -333,6 +333,8 @@ model AISetting {
   assistantName   String   @default("Lynn")
   // 自定义头像 URL（为空则使用默认 Bot 图标）
   avatarUrl       String?  @db.VarChar(500)
+  // 默认 Emoji 头像（无 URL 时使用，移动端/Web端同步）
+  assistantAvatar String   @default("🤖") @db.VarChar(16)
   // 聊天风格描述（如"幽默、简洁、用emoji"），注入 system prompt
   personaStyle    String?  @db.Text
   // 蒸馏的真人聊天风格（从聊天记录提取的风格特征）

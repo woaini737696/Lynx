@@ -2,7 +2,7 @@
   <view>
     <!-- 悬浮按钮 -->
     <view class="fab" @click="open">
-      <text class="fab-icon">⚡</text>
+      <Icon name="bolt" :size="48" color="#ffffff" />
     </view>
 
     <!-- 输入浮层 -->
@@ -11,7 +11,7 @@
         <view class="popup-header">
           <text class="popup-title">闪电输入</text>
           <view class="popup-close" @click="close">
-            <text class="close-icon">×</text>
+            <Icon name="close" :size="32" :color="isDark ? '#f5f5f7' : '#1d1d1f'" />
           </view>
         </view>
 
@@ -20,11 +20,11 @@
           <view v-for="(img, idx) in images" :key="idx" class="preview-item">
             <image :src="img.url" class="preview-img" mode="aspectFill" />
             <view class="preview-del" @click="removeImage(idx)">
-              <text class="del-icon">×</text>
+              <Icon name="close" :size="22" color="#ffffff" />
             </view>
           </view>
           <view v-if="images.length < 9" class="preview-add" @click="chooseImage">
-            <text class="add-icon">+</text>
+            <Icon name="plus" :size="36" :color="isDark ? '#98989d' : '#86868b'" />
           </view>
         </view>
 
@@ -41,7 +41,7 @@
         <view class="popup-footer">
           <view class="footer-left">
             <view class="footer-btn" @click="chooseImage">
-              <text class="footer-icon">🖼</text>
+              <Icon name="image" :size="32" :color="isDark ? '#f5f5f7' : '#1d1d1f'" />
               <text class="footer-label">图片</text>
             </view>
             <view
@@ -53,9 +53,9 @@
               @mouseup.prevent="stopRecording"
               @mouseleave="stopRecordingIfActive"
             >
-              <text v-if="transcribing" class="footer-icon">⏳</text>
-              <text v-else-if="recording" class="footer-icon recording-icon">●</text>
-              <text v-else class="footer-icon">🎤</text>
+              <Icon v-if="transcribing" name="clock" :size="32" color="#f59e0b" />
+              <Icon v-else-if="recording" name="stop" :size="28" color="#ef4444" />
+              <Icon v-else name="mic" :size="32" :color="isDark ? '#f5f5f7' : '#1d1d1f'" />
               <text class="footer-label">{{ voiceLabel }}</text>
             </view>
             <text class="char-count">{{ content.length }}/5000</text>
@@ -65,6 +65,7 @@
             :class="{ disabled: saving || (!content.trim() && images.length === 0) }"
             @click="save"
           >
+            <Icon name="send" :size="28" color="#ffffff" />
             <text class="save-btn-text">{{ saving ? "保存中..." : "保存" }}</text>
           </view>
         </view>
@@ -78,7 +79,13 @@ import { ref, computed, onUnmounted } from "vue";
 import { createIdea } from "@/api/ideas.js";
 import { transcribeAudio } from "@/api/voice.js";
 import { webmToWav } from "@/utils/audio-utils.js";
-import { getBaseUrl, getToken } from "@/api/request.js";
+import { uploadImageFromPath } from "@/api/upload.js";
+import { getBaseUrl } from "@/api/request.js";
+import Icon from "@/components/Icon.vue";
+import { useSettingsStore } from "@/store/settings.js";
+
+const settingsStore = useSettingsStore();
+const isDark = computed(() => settingsStore.theme === "dark");
 
 const visible = ref(false);
 const content = ref("");
@@ -140,29 +147,9 @@ function chooseImage() {
 async function uploadImage(tempPath) {
   uni.showLoading({ title: "上传中..." });
   try {
-    const baseUrl = getBaseUrl();
-    const token = getToken();
-    const formData = new FormData();
-    // H5 模式下 uni.chooseImage 返回的是 blob URL，用 fetch 获取 blob
-    const blob = await fetch(tempPath).then((r) => r.blob());
-    formData.append("file", blob, `image-${Date.now()}.jpg`);
-
-    const resp = await fetch(`${baseUrl}/api/upload`, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
-      body: formData,
-    });
-
-    if (!resp.ok) {
-      const err = await resp.json().catch(() => ({}));
-      throw new Error(err.error || `上传失败 (${resp.status})`);
-    }
-
-    const data = await resp.json();
+    const data = await uploadImageFromPath(tempPath);
     images.value.push({
-      url: baseUrl + data.url,
+      url: getBaseUrl() + data.url,
       name: data.name,
       size: data.size,
     });

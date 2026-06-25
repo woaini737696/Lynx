@@ -14,14 +14,22 @@
     <view class="section">
       <text class="section-title">功能</text>
       <view class="menu-item" @click="goInbox">
-        <text class="menu-icon">💡</text>
+        <view class="menu-icon">
+          <Icon name="bulb" :size="36" :color="isDark ? '#f5f5f7' : '#1d1d1f'" />
+        </view>
         <text class="menu-label">灵感收件箱</text>
-        <text class="menu-arrow">›</text>
+        <view class="menu-arrow">
+          <Icon name="chevronRight" :size="28" :color="isDark ? '#48484a' : '#d1d1d6'" />
+        </view>
       </view>
       <view class="menu-item" @click="goMemory">
-        <text class="menu-icon">🧠</text>
+        <view class="menu-icon">
+          <Icon name="brain" :size="36" :color="isDark ? '#f5f5f7' : '#1d1d1f'" />
+        </view>
         <text class="menu-label">记忆认知</text>
-        <text class="menu-arrow">›</text>
+        <view class="menu-arrow">
+          <Icon name="chevronRight" :size="28" :color="isDark ? '#48484a' : '#d1d1d6'" />
+        </view>
       </view>
     </view>
 
@@ -29,7 +37,9 @@
     <view class="section">
       <text class="section-title">外观</text>
       <view class="menu-item" @click="toggleTheme">
-        <text class="menu-icon">{{ settingsStore.theme === "dark" ? "🌙" : "☀️" }}</text>
+        <view class="menu-icon">
+          <Icon :name="settingsStore.theme === 'dark' ? 'moon' : 'sun'" :size="36" :color="isDark ? '#f5f5f7' : '#1d1d1f'" />
+        </view>
         <text class="menu-label">深色模式</text>
         <view class="switch-wrap" @click.stop="toggleTheme">
           <view class="switch-track" :class="{ on: settingsStore.theme === 'dark' }">
@@ -70,6 +80,7 @@
     </view>
 
     <view class="logout-btn" @click="onLogout">
+      <Icon name="logout" :size="32" color="#ef4444" />
       <text class="logout-text">退出登录</text>
     </view>
 
@@ -83,9 +94,11 @@ import { ref, computed } from "vue";
 import { useUserStore } from "@/store/user.js";
 import { useSettingsStore } from "@/store/settings.js";
 import TabBar from "@/components/TabBar.vue";
+import Icon from "@/components/Icon.vue";
 
 const userStore = useUserStore();
 const settingsStore = useSettingsStore();
+const isDark = computed(() => settingsStore.theme === "dark");
 
 const baseUrl = ref(settingsStore.baseUrl);
 

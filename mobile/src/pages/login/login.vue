@@ -36,7 +36,7 @@
             @confirm="onLogin"
           />
           <view class="toggle-eye" @click="showPassword = !showPassword">
-            <text class="eye-icon">{{ showPassword ? "🙈" : "👁" }}</text>
+            <Icon :name="showPassword ? 'eye' : 'eye'" :size="32" color="#86868b" />
           </view>
         </view>
       </view>
@@ -51,7 +51,7 @@
 
       <view class="server-config" @click="showServerConfig = !showServerConfig">
         <text class="server-config-text">
-          {{ showServerConfig ? "▼" : "▶" }} 服务器地址（H5 测试留空，App 需填后端 IP）
+          {{ showServerConfig ? "收起" : "展开" }} 服务器地址（H5 测试留空，App 需填后端 IP）
         </text>
       </view>
       <view v-if="showServerConfig" class="input-group">
@@ -72,6 +72,7 @@
 import { reactive, ref } from "vue";
 import { useUserStore } from "@/store/user.js";
 import { useSettingsStore } from "@/store/settings.js";
+import Icon from "@/components/Icon.vue";
 
 const userStore = useUserStore();
 const settingsStore = useSettingsStore();

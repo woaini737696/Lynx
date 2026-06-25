@@ -7,7 +7,7 @@ const publicRoutes = ["/login", "/api/auth"];
 const publicPatterns = [/^\/login$/, /^\/api\/auth/, /^\/api\/health$/];
 
 export default auth((req) => {
-  const { pathname } = req.nextUrl;
+  const { pathname, searchParams } = req.nextUrl;
 
   // 公开路由放行
   if (publicPatterns.some((p) => p.test(pathname))) {
@@ -22,8 +22,20 @@ export default auth((req) => {
     return NextResponse.next();
   }
 
-  // 未登录重定向到登录页
+  // 未登录处理
   if (!req.auth) {
+    // RSC 预取请求（带 _rsc 查询参数或 RSC 头）：返回 401 而非重定向
+    // 避免浏览器跟随重定向导致 net::ERR_ABORTED 控制台报错
+    // 客户端路由器会根据 401 自行处理跳转到登录页
+    const isRscPrefetch =
+      searchParams.has("_rsc") || req.headers.get("RSC") === "1";
+    if (isRscPrefetch) {
+      return new NextResponse(JSON.stringify({ error: "Unauthorized" }), {
+        status: 401,
+        headers: { "Content-Type": "application/json" },
+      });
+    }
+
     const loginUrl = new URL("/login", req.nextUrl.origin);
     loginUrl.searchParams.set("callbackUrl", pathname);
     return NextResponse.redirect(loginUrl);

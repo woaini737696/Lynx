@@ -4,6 +4,45 @@
 
 ---
 
+## 迭代 24 - 2026-06-25
+
+### 任务概要
+修复用户反馈的 6 个问题：(1) RSC 预取 ERR_ABORTED 控制台报错；(2) Hermes Agent 快速执行任务失败（`no final response`）；(3) 外部浏览器打开显示旧版本（SW 缓存拦截 HMR）；(4) AI 巡检删除按钮未确认即删除（`confirm()` 在内置浏览器行为不一致）；(5) AI 工作流节点配置过于复杂；(6) 移动端与 Web 端 AI 助理聊天记录/头像/名称未同步。
+
+### 完成内容
+
+#### 1. RSC prefetch ERR_ABORTED 修复
+- **`src/middleware.ts`**：未登录时对 RSC 预取请求（带 `_rsc` 查询参数或 `RSC: 1` 头）返回 401 JSON，而非 307 重定向。避免浏览器跟随重定向时中断导致 `net::ERR_ABORTED`。
+
+#### 2. Hermes Agent 快速执行失败修复
+- **`src/lib/hermes-client.ts`**：重写 `executeHermesTask`——去掉导致 `no final response` 的 `--cli` 标志（仅保留 `--yolo`）；HTTP API 尝试多个端点（`/api/task`、`/api/run`、`/api/execute`、`/task`、`/run`）；超时从 30s 提升到 180s；针对 `no final response`/timeout/ENOENT 给出友好错误提示。
+
+#### 3. 浏览器缓存旧版本修复
+- **`public/sw.js`**：`CACHE_VERSION` 从 `v1` 升级到 `v2`（强制清理旧缓存）；localhost/127.0.0.1 开发环境完全 bypass 缓存，直接透传 dev server，避免 HMR 热更新被 Service Worker 拦截。
+
+#### 4. AI 巡检删除 bug 修复
+- **`src/app/settings/patrol/page.tsx`**：用自定义 Modal 弹窗替代浏览器原生 `confirm()`（Trae Solo 内置浏览器的 `confirm()` 行为不一致，导致未确认即删除）。新增 `deleteTarget`/`deleting` 状态、`confirmDeleteRule` 回调、AlertCircle 图标的确认弹窗。
+
+#### 5. AI 工作流节点配置简化
+- **`src/app/ai/flows/page.tsx`**：重写 `NodeConfigPanel`——新增 `NODE_PRESETS` 常量（每种节点类型的常用配置预设，一键应用）；核心配置精简化（只显示必填字段）；高级设置可折叠（hermes 工作目录/超时、http 请求头/请求体/超时）；delay 节点添加 1s/5s/10s/30s 快速选择；头部固定 + 可滚动内容区 + 底部操作固定。
+
+#### 6. 移动端/Web 端 AI 助理同步
+- **Schema**：`AISetting` 新增 `assistantAvatar String @default("🤖")` 字段（Emoji 头像，无 URL 时使用）
+- **`src/app/api/ai/settings/route.ts`**：`allowedFields` 新增 `assistantAvatar`，含长度校验（≤16 字符）
+- **移动端 `mobile/src/store/settings.js`**：`aiSettings` state 新增 `assistantName`/`assistantAvatar`；`loadAISettings`/`updateAISettings` 读写这两个字段，与 Web 端共用 `/api/ai/settings`
+- **移动端 `mobile/src/pages/ai/chat/chat.vue`**：新增 `syncAssistantFromStore()` 从后端同步名称/Emoji 到显示 ref 并缓存本地；`saveSettings` 通过 `updateAISettings` 同步名称+Emoji+头像URL+风格到后端
+- **Web 端 `src/app/ai/assistant/page.tsx`**：`AISettings` 类型新增 `assistantAvatar`；fetchSettings/updateSettings 同步该字段；头像显示由 `<Bot>` 图标改为 Emoji（与移动端一致）；设置面板新增 Emoji 选择器（🤖🐱🦊🐼🧠⚡🌟🎯）
+- **聊天记录**：移动端与 Web 端已共用 `/api/ai/chat/sessions` 接口，会话存数据库，天然同步
+
+### 自测
+- TypeScript 编译通过（`tsc --noEmit`）
+- Prisma `db push` + `generate` 成功，`assistantAvatar` 字段已入库
+- API 验证：GET `/api/ai/settings` 返回 `assistantAvatar`；PUT 更新 `assistantName`+`assistantAvatar` round-trip 正确（🤖 = U+1F916）
+- 移动端 H5 构建成功
+- Playwright E2E：19/19 通过，无回归
+
+---
+
 ## 迭代 23 - 2026-06-25
 
 ### 任务概要

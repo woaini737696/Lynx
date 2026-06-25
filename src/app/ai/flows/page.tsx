@@ -2144,7 +2144,57 @@ export default function AIFlowsPage() {
   );
 }
 
-// ============ 节点配置面板组件 ============
+// ============ 节点配置面板组件（简化版） ============
+
+// 快速预设：每种节点类型的常用配置模板
+const NODE_PRESETS: Record<FlowNode["type"], Array<{ label: string; desc: string; config: Partial<NodeConfig> }>> = {
+  trigger: [
+    { label: "手动触发", desc: "点击按钮启动", config: { triggerType: "manual" } },
+    { label: "每日定时", desc: "每天 09:00 执行", config: { triggerType: "schedule", schedule: "0 9 * * *" } },
+    { label: "每晚复盘", desc: "每天 23:00 执行", config: { triggerType: "schedule", schedule: "0 23 * * *" } },
+    { label: "新灵感触发", desc: "创建灵感时自动执行", config: { triggerType: "event", eventType: "idea.created" } },
+  ],
+  action: [
+    { label: "分析内容", desc: "让 AI 分析并归类", config: { prompt: "分析这条内容的核心主题、关键信息和潜在价值，给出分类建议", model: "deepseek-chat" } },
+    { label: "生成摘要", desc: "提炼要点", config: { prompt: "请将以下内容提炼为 3-5 个要点：\n{{upstream}}", model: "deepseek-chat" } },
+    { label: "深度推理", desc: "复杂决策分析", config: { prompt: "请对以下内容进行深度分析，给出决策建议：\n{{upstream}}", model: "deepseek-reasoner" } },
+  ],
+  condition: [
+    { label: "非空判断", desc: "上游有内容时继续", config: { expression: "upstream != null && upstream != ''" } },
+    { label: "包含关键词", desc: "包含特定词时走 true 分支", config: { expression: "upstream.includes('重要')" } },
+    { label: "数值比较", desc: "数值大于阈值", config: { expression: "score > 0.8" } },
+  ],
+  output: [
+    { label: "浏览器通知", desc: "弹窗提示结果", config: { outputTarget: "notification" } },
+    { label: "写入认知库", desc: "保存为认知卡片", config: { outputTarget: "cognition" } },
+    { label: "写入技能库", desc: "保存为技能模板", config: { outputTarget: "skills" } },
+    { label: "回复对话", desc: "在聊天中展示", config: { outputTarget: "chat" } },
+  ],
+  hermes: [
+    { label: "打开网页", desc: "用浏览器打开 URL", config: { hermesMode: "computer_use", hermesPrompt: "打开浏览器访问 {{upstream}}", timeout: 60 } },
+    { label: "运行命令", desc: "执行 Shell 命令", config: { hermesMode: "shell", hermesPrompt: "{{upstream}}", timeout: 30 } },
+    { label: "截图桌面", desc: "截取当前屏幕", config: { hermesMode: "computer_use", hermesPrompt: "截取当前桌面的截图", timeout: 30 } },
+  ],
+  http: [
+    { label: "GET 请求", desc: "获取数据", config: { httpMethod: "GET", httpUrl: "https://api.example.com/data", timeout: 30 } },
+    { label: "POST 提交", desc: "提交数据", config: { httpMethod: "POST", httpUrl: "https://api.example.com/submit", httpBody: '{"key": "{{upstream}}"}', timeout: 30 } },
+  ],
+  database: [
+    { label: "查灵感", desc: "获取最近 10 条灵感", config: { dbOperation: "query", dbModel: "idea", dbQuery: "10" } },
+    { label: "查任务", desc: "获取最近 10 条任务", config: { dbOperation: "query", dbModel: "task", dbQuery: "10" } },
+    { label: "查记忆", desc: "获取最近 10 条记忆", config: { dbOperation: "query", dbModel: "memory", dbQuery: "10" } },
+  ],
+  transform: [
+    { label: "模板拼接", desc: "用模板格式化输出", config: { transformType: "template", transformTemplate: "结果：{{upstream}}" } },
+    { label: "提取字段", desc: "从 JSON 中提取值", config: { transformType: "jsonpath", transformExpression: "data.name" } },
+    { label: "正则匹配", desc: "提取匹配内容", config: { transformType: "regex", transformExpression: "(\\d+)" } },
+  ],
+  delay: [
+    { label: "等待 1 秒", desc: "短暂停顿", config: { delayMs: 1000 } },
+    { label: "等待 5 秒", desc: "中等停顿", config: { delayMs: 5000 } },
+    { label: "等待 30 秒", desc: "长时间等待", config: { delayMs: 30000 } },
+  ],
+};
 
 function NodeConfigPanel({
   node,
@@ -2159,29 +2209,27 @@ function NodeConfigPanel({
 }) {
   const [label, setLabel] = useState(node.label);
   const [config, setConfig] = useState<NodeConfig>(node.config || {});
+  const [showAdvanced, setShowAdvanced] = useState(false);
   const style = NODE_STYLES[node.type];
   const Icon = style.icon;
+  const presets = NODE_PRESETS[node.type] || [];
 
   const handleSave = () => {
-    // 校验必填字段
-    if (node.type === "action" && !config.prompt?.trim()) {
-      toast("AI 提示词不能为空", "error");
-      return;
-    }
-    if (node.type === "condition" && !config.expression?.trim()) {
-      toast("条件表达式不能为空", "error");
-      return;
-    }
-    if (node.type === "trigger" && config.triggerType === "schedule" && !config.schedule?.trim()) {
-      toast("Cron 表达式不能为空", "error");
-      return;
-    }
-    if (node.type === "trigger" && config.triggerType === "event" && !config.eventType?.trim()) {
-      toast("事件类型不能为空", "error");
-      return;
-    }
+    // 校验必填字段（仅校验核心字段，高级字段有默认值）
     if (!label.trim()) {
       toast("节点名称不能为空", "error");
+      return;
+    }
+    if (node.type === "action" && !config.prompt?.trim()) {
+      toast("请输入 AI 提示词", "error");
+      return;
+    }
+    if (node.type === "hermes" && !config.hermesPrompt?.trim()) {
+      toast("请输入任务描述", "error");
+      return;
+    }
+    if (node.type === "http" && !config.httpUrl?.trim()) {
+      toast("请输入请求 URL", "error");
       return;
     }
     onUpdateLabel(label.trim());
@@ -2190,24 +2238,30 @@ function NodeConfigPanel({
     onClose();
   };
 
+  // 应用预设：合并预设配置到当前配置
+  const applyPreset = (presetConfig: Partial<NodeConfig>) => {
+    setConfig({ ...config, ...presetConfig });
+    toast("已应用预设，可按需调整", "info");
+  };
+
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
       onClick={onClose}
     >
       <div
-        className="w-full max-w-md rounded-2xl border border-border bg-card p-5 shadow-lg"
+        className="flex max-h-[90vh] w-full max-w-md flex-col overflow-hidden rounded-2xl border border-border bg-card shadow-lg"
         onClick={(e) => e.stopPropagation()}
       >
         {/* 头部 */}
-        <div className="mb-4 flex items-center justify-between">
+        <div className="flex items-center justify-between border-b border-border px-5 py-3">
           <div className="flex items-center gap-2">
             <div className={cn("flex h-8 w-8 items-center justify-center rounded-lg", style.bg)}>
               <Icon className={cn("h-4 w-4", style.color)} />
             </div>
             <div>
-              <h3 className="text-sm font-semibold">配置节点</h3>
-              <p className="text-[10px] text-muted-foreground">{NODE_TYPE_LABELS[node.type]}</p>
+              <h3 className="text-sm font-semibold">配置{NODE_TYPE_LABELS[node.type]}节点</h3>
+              <p className="text-[10px] text-muted-foreground">简单几步即可完成配置</p>
             </div>
           </div>
           <button
@@ -2218,295 +2272,226 @@ function NodeConfigPanel({
           </button>
         </div>
 
-        {/* 通用：标签 */}
-        <div className="mb-4">
-          <label className="mb-1 block text-[11px] font-medium text-muted-foreground">节点名称</label>
-          <input
-            value={label}
-            onChange={(e) => setLabel(e.target.value)}
-            className="w-full rounded-xl border border-border bg-background px-3 py-2 text-sm outline-none focus:border-cognition"
-          />
-        </div>
+        {/* 可滚动内容区 */}
+        <div className="flex-1 overflow-y-auto px-5 py-4">
+          {/* 节点名称 */}
+          <div className="mb-4">
+            <label className="mb-1 block text-[11px] font-medium text-muted-foreground">节点名称</label>
+            <input
+              value={label}
+              onChange={(e) => setLabel(e.target.value)}
+              placeholder="给节点起个名字"
+              className="w-full rounded-xl border border-border bg-background px-3 py-2 text-sm outline-none focus:border-cognition"
+            />
+          </div>
 
-        {/* 按节点类型显示不同配置 */}
-        {node.type === "trigger" && (
-          <>
-            <div className="mb-3">
-              <label className="mb-1 block text-[11px] font-medium text-muted-foreground">触发类型</label>
-              <select
-                value={config.triggerType || "manual"}
-                onChange={(e) => setConfig({ ...config, triggerType: e.target.value as NodeConfig["triggerType"] })}
-                className="w-full rounded-xl border border-border bg-background px-3 py-2 text-sm outline-none focus:border-cognition"
-              >
-                <option value="manual">手动触发</option>
-                <option value="schedule">定时触发</option>
-                <option value="event">事件触发</option>
-              </select>
+          {/* 快速预设：一键应用常用配置 */}
+          {presets.length > 0 && (
+            <div className="mb-4">
+              <label className="mb-2 block text-[11px] font-medium text-muted-foreground">
+                快速预设 <span className="text-[10px] text-muted-foreground/70">（点击直接应用）</span>
+              </label>
+              <div className="grid grid-cols-1 gap-1.5">
+                {presets.map((preset, i) => (
+                  <button
+                    key={i}
+                    onClick={() => applyPreset(preset.config)}
+                    className="flex items-center justify-between rounded-lg border border-border bg-background px-3 py-2 text-left transition-colors hover:border-cognition/40 hover:bg-cognition/5"
+                  >
+                    <div className="min-w-0 flex-1">
+                      <div className="text-xs font-medium text-foreground">{preset.label}</div>
+                      <div className="truncate text-[10px] text-muted-foreground">{preset.desc}</div>
+                    </div>
+                    <Sparkles className="h-3 w-3 shrink-0 text-cognition/60" />
+                  </button>
+                ))}
+              </div>
             </div>
-            {config.triggerType === "schedule" && (
-              <div className="mb-3">
-                <label className="mb-1 block text-[11px] font-medium text-muted-foreground">Cron 表达式</label>
-                <input
-                  value={config.schedule || ""}
-                  onChange={(e) => setConfig({ ...config, schedule: e.target.value })}
-                  placeholder="0 23 * * *"
-                  className="w-full rounded-xl border border-border bg-background px-3 py-2 font-mono text-sm outline-none focus:border-cognition"
-                />
-                <p className="mt-1 text-[10px] text-muted-foreground">示例：0 23 * * * 表示每天 23:00</p>
-              </div>
-            )}
-            {config.triggerType === "event" && (
-              <div className="mb-3">
-                <label className="mb-1 block text-[11px] font-medium text-muted-foreground">事件类型</label>
-                <input
-                  value={config.eventType || ""}
-                  onChange={(e) => setConfig({ ...config, eventType: e.target.value })}
-                  placeholder="idea.created"
-                  className="w-full rounded-xl border border-border bg-background px-3 py-2 font-mono text-sm outline-none focus:border-cognition"
-                />
-              </div>
-            )}
-          </>
-        )}
+          )}
 
-        {node.type === "action" && (
-          <>
+          {/* 按节点类型显示核心配置（精简版） */}
+
+          {node.type === "trigger" && (
+            <>
+              {config.triggerType === "schedule" && (
+                <div className="mb-3">
+                  <label className="mb-1 block text-[11px] font-medium text-muted-foreground">Cron 表达式</label>
+                  <input
+                    value={config.schedule || ""}
+                    onChange={(e) => setConfig({ ...config, schedule: e.target.value })}
+                    placeholder="0 9 * * *"
+                    className="w-full rounded-xl border border-border bg-background px-3 py-2 font-mono text-sm outline-none focus:border-cognition"
+                  />
+                  <p className="mt-1 text-[10px] text-muted-foreground">格式：分 时 日 月 周 · 示例：0 9 * * * = 每天 9:00</p>
+                </div>
+              )}
+              {config.triggerType === "event" && (
+                <div className="mb-3">
+                  <label className="mb-1 block text-[11px] font-medium text-muted-foreground">事件类型</label>
+                  <input
+                    value={config.eventType || ""}
+                    onChange={(e) => setConfig({ ...config, eventType: e.target.value })}
+                    placeholder="idea.created"
+                    className="w-full rounded-xl border border-border bg-background px-3 py-2 font-mono text-sm outline-none focus:border-cognition"
+                  />
+                  <p className="mt-1 text-[10px] text-muted-foreground">常用：idea.created / task.updated / user.question</p>
+                </div>
+              )}
+            </>
+          )}
+
+          {node.type === "action" && (
             <div className="mb-3">
               <label className="mb-1 block text-[11px] font-medium text-muted-foreground">AI 提示词</label>
               <textarea
                 value={config.prompt || ""}
                 onChange={(e) => setConfig({ ...config, prompt: e.target.value })}
-                placeholder="输入 AI 执行的提示词..."
+                placeholder="描述要让 AI 做什么...&#10;可用 {{upstream}} 引用上一个节点的输出"
                 rows={4}
                 className="w-full resize-none rounded-xl border border-border bg-background px-3 py-2 text-sm outline-none focus:border-cognition"
               />
+              <div className="mt-2 flex items-center gap-2">
+                <label className="text-[10px] text-muted-foreground">模型：</label>
+                <select
+                  value={config.model || "deepseek-chat"}
+                  onChange={(e) => setConfig({ ...config, model: e.target.value })}
+                  className="rounded-lg border border-border bg-background px-2 py-1 text-xs outline-none focus:border-cognition"
+                >
+                  <option value="deepseek-chat">DeepSeek Chat（快速）</option>
+                  <option value="deepseek-reasoner">DeepSeek Reasoner（深度推理）</option>
+                  <option value="mimo-v2.5">MiMo 2.5（标准）</option>
+                  <option value="mimo-v2.5-pro">MiMo 2.5 Pro（增强）</option>
+                </select>
+              </div>
             </div>
+          )}
+
+          {node.type === "condition" && (
             <div className="mb-3">
-              <label className="mb-1 block text-[11px] font-medium text-muted-foreground">模型选择</label>
+              <label className="mb-1 block text-[11px] font-medium text-muted-foreground">条件表达式</label>
+              <input
+                value={config.expression || ""}
+                onChange={(e) => setConfig({ ...config, expression: e.target.value })}
+                placeholder="upstream.includes('重要')"
+                className="w-full rounded-xl border border-border bg-background px-3 py-2 font-mono text-sm outline-none focus:border-cognition"
+              />
+              <p className="mt-1 text-[10px] text-muted-foreground">
+                支持 ==、!=、&gt;、&lt;、&amp;&amp;、|| · 用 <code className="rounded bg-muted px-1">upstream</code> 引用上游输出
+              </p>
+            </div>
+          )}
+
+          {node.type === "output" && (
+            <div className="mb-3">
+              <label className="mb-1 block text-[11px] font-medium text-muted-foreground">输出目标</label>
               <select
-                value={config.model || "deepseek-chat"}
-                onChange={(e) => setConfig({ ...config, model: e.target.value })}
+                value={config.outputTarget || "notification"}
+                onChange={(e) => setConfig({ ...config, outputTarget: e.target.value })}
                 className="w-full rounded-xl border border-border bg-background px-3 py-2 text-sm outline-none focus:border-cognition"
               >
-                <option value="deepseek-chat">DeepSeek Chat（快速）</option>
-                <option value="deepseek-reasoner">DeepSeek Reasoner（深度推理）</option>
-                <option value="mimo-v2.5">MiMo 2.5（标准）</option>
-                <option value="mimo-v2.5-pro">MiMo 2.5 Pro（增强）</option>
+                <option value="notification">浏览器通知</option>
+                <option value="cognition">认知库</option>
+                <option value="skills">技能库</option>
+                <option value="idea.tags">灵感标签</option>
+                <option value="chat">对话消息</option>
               </select>
             </div>
-          </>
-        )}
+          )}
 
-        {node.type === "condition" && (
-          <div className="mb-3">
-            <label className="mb-1 block text-[11px] font-medium text-muted-foreground">条件表达式</label>
-            <input
-              value={config.expression || ""}
-              onChange={(e) => setConfig({ ...config, expression: e.target.value })}
-              placeholder="category == 'product'"
-              className="w-full rounded-xl border border-border bg-background px-3 py-2 font-mono text-sm outline-none focus:border-cognition"
-            />
-            <p className="mt-1 text-[10px] text-muted-foreground">支持 ==、!=、&gt;、&lt;、&amp;&amp;、|| 运算符</p>
-          </div>
-        )}
-
-        {node.type === "output" && (
-          <div className="mb-3">
-            <label className="mb-1 block text-[11px] font-medium text-muted-foreground">输出目标</label>
-            <select
-              value={config.outputTarget || "notification"}
-              onChange={(e) => setConfig({ ...config, outputTarget: e.target.value })}
-              className="w-full rounded-xl border border-border bg-background px-3 py-2 text-sm outline-none focus:border-cognition"
-            >
-              <option value="notification">通知</option>
-              <option value="cognition">认知库</option>
-              <option value="skills">技能库</option>
-              <option value="idea.tags">灵感标签</option>
-              <option value="chat">对话消息</option>
-            </select>
-          </div>
-        )}
-
-        {node.type === "hermes" && (
-          <>
-            <div className="mb-3 rounded-md border border-purple-300/30 bg-purple-50/50 p-2 text-[10px] text-purple-700">
-              调用本地 Hermes Agent 执行任务，可操控电脑桌面、运行 Shell 命令、调用 Skills Hub 技能。需先在设置中启用 Hermes。
-            </div>
+          {node.type === "hermes" && (
             <div className="mb-3">
-              <label className="mb-1 block text-[11px] font-medium text-muted-foreground">执行模式</label>
-              <select
-                value={config.hermesMode || "auto"}
-                onChange={(e) => setConfig({ ...config, hermesMode: e.target.value as NodeConfig["hermesMode"] })}
-                className="w-full rounded-xl border border-border bg-background px-3 py-2 text-sm outline-none focus:border-cognition"
-              >
-                <option value="auto">自动选择</option>
-                <option value="computer_use">桌面控制（截图/鼠标/键盘）</option>
-                <option value="shell">Shell 命令</option>
-              </select>
-            </div>
-            <div className="mb-3">
-              <label className="mb-1 block text-[11px] font-medium text-muted-foreground">任务提示词</label>
+              <div className="mb-2 rounded-md border border-purple-300/30 bg-purple-50/50 p-2 text-[10px] text-purple-700">
+                调用本地 Hermes Agent 执行桌面操作（需先在设置中启动 Hermes）
+              </div>
+              <label className="mb-1 block text-[11px] font-medium text-muted-foreground">任务描述</label>
               <textarea
                 value={config.hermesPrompt || ""}
                 onChange={(e) => setConfig({ ...config, hermesPrompt: e.target.value })}
-                placeholder="描述要让 Agent 执行的任务，可用 {{upstream}} 引用上游输出..."
-                rows={4}
+                placeholder="描述要让 Agent 做什么...&#10;可用 {{upstream}} 引用上游输出"
+                rows={3}
                 className="w-full resize-none rounded-xl border border-border bg-background px-3 py-2 text-sm outline-none focus:border-cognition"
               />
-            </div>
-            <div className="mb-3">
-              <label className="mb-1 block text-[11px] font-medium text-muted-foreground">工作目录（可选）</label>
-              <input
-                value={config.workDir || ""}
-                onChange={(e) => setConfig({ ...config, workDir: e.target.value })}
-                placeholder="C:\Users\..."
-                className="w-full rounded-xl border border-border bg-background px-3 py-2 font-mono text-sm outline-none focus:border-cognition"
-              />
-            </div>
-            <div className="mb-3">
-              <label className="mb-1 block text-[11px] font-medium text-muted-foreground">超时时间（秒）</label>
-              <input
-                type="number"
-                value={config.timeout || 120}
-                onChange={(e) => setConfig({ ...config, timeout: parseInt(e.target.value, 10) || 120 })}
-                className="w-full rounded-xl border border-border bg-background px-3 py-2 text-sm outline-none focus:border-cognition"
-              />
-            </div>
-          </>
-        )}
-
-        {node.type === "http" && (
-          <>
-            <div className="mb-3">
-              <label className="mb-1 block text-[11px] font-medium text-muted-foreground">请求方法</label>
-              <select
-                value={config.httpMethod || "GET"}
-                onChange={(e) => setConfig({ ...config, httpMethod: e.target.value as NodeConfig["httpMethod"] })}
-                className="w-full rounded-xl border border-border bg-background px-3 py-2 text-sm outline-none focus:border-cognition"
-              >
-                <option value="GET">GET</option>
-                <option value="POST">POST</option>
-                <option value="PUT">PUT</option>
-                <option value="PATCH">PATCH</option>
-                <option value="DELETE">DELETE</option>
-              </select>
-            </div>
-            <div className="mb-3">
-              <label className="mb-1 block text-[11px] font-medium text-muted-foreground">URL</label>
-              <input
-                value={config.httpUrl || ""}
-                onChange={(e) => setConfig({ ...config, httpUrl: e.target.value })}
-                placeholder="https://api.example.com/data"
-                className="w-full rounded-xl border border-border bg-background px-3 py-2 font-mono text-sm outline-none focus:border-cognition"
-              />
-            </div>
-            <div className="mb-3">
-              <label className="mb-1 block text-[11px] font-medium text-muted-foreground">请求头（JSON）</label>
-              <textarea
-                value={config.httpHeaders ? JSON.stringify(config.httpHeaders, null, 2) : ""}
-                onChange={(e) => {
-                  try {
-                    const headers = e.target.value.trim() ? JSON.parse(e.target.value) : {};
-                    setConfig({ ...config, httpHeaders: headers });
-                  } catch {
-                    // 解析失败时不更新，允许继续编辑
-                  }
-                }}
-                placeholder={'{"Authorization": "Bearer xxx"}'}
-                rows={3}
-                className="w-full resize-none rounded-xl border border-border bg-background px-3 py-2 font-mono text-xs outline-none focus:border-cognition"
-              />
-            </div>
-            {["POST", "PUT", "PATCH"].includes(config.httpMethod || "GET") && (
-              <div className="mb-3">
-                <label className="mb-1 block text-[11px] font-medium text-muted-foreground">请求体</label>
-                <textarea
-                  value={config.httpBody || ""}
-                  onChange={(e) => setConfig({ ...config, httpBody: e.target.value })}
-                  placeholder='{"key": "value"}'
-                  rows={4}
-                  className="w-full resize-none rounded-xl border border-border bg-background px-3 py-2 font-mono text-xs outline-none focus:border-cognition"
-                />
+              <div className="mt-2 flex items-center gap-2">
+                <label className="text-[10px] text-muted-foreground">模式：</label>
+                <select
+                  value={config.hermesMode || "auto"}
+                  onChange={(e) => setConfig({ ...config, hermesMode: e.target.value as NodeConfig["hermesMode"] })}
+                  className="rounded-lg border border-border bg-background px-2 py-1 text-xs outline-none focus:border-cognition"
+                >
+                  <option value="auto">自动选择</option>
+                  <option value="computer_use">桌面控制</option>
+                  <option value="shell">Shell 命令</option>
+                </select>
               </div>
-            )}
-            <div className="mb-3">
-              <label className="mb-1 block text-[11px] font-medium text-muted-foreground">超时时间（秒）</label>
-              <input
-                type="number"
-                value={config.timeout || 30}
-                onChange={(e) => setConfig({ ...config, timeout: parseInt(e.target.value, 10) || 30 })}
-                className="w-full rounded-xl border border-border bg-background px-3 py-2 text-sm outline-none focus:border-cognition"
-              />
             </div>
-          </>
-        )}
+          )}
 
-        {node.type === "database" && (
-          <>
-            <div className="mb-3">
-              <label className="mb-1 block text-[11px] font-medium text-muted-foreground">操作类型</label>
-              <select
-                value={config.dbOperation || "query"}
-                onChange={(e) => setConfig({ ...config, dbOperation: e.target.value as NodeConfig["dbOperation"] })}
-                className="w-full rounded-xl border border-border bg-background px-3 py-2 text-sm outline-none focus:border-cognition"
-              >
-                <option value="query">查询（query）</option>
-                <option value="create">创建（create）</option>
-                <option value="update">更新（update）</option>
-                <option value="delete">删除（delete）</option>
-              </select>
-            </div>
-            <div className="mb-3">
-              <label className="mb-1 block text-[11px] font-medium text-muted-foreground">数据模型</label>
-              <select
-                value={config.dbModel || "idea"}
-                onChange={(e) => setConfig({ ...config, dbModel: e.target.value })}
-                className="w-full rounded-xl border border-border bg-background px-3 py-2 text-sm outline-none focus:border-cognition"
-              >
-                <option value="idea">Idea（灵感）</option>
-                <option value="task">Task（任务）</option>
-                <option value="memory">Memory（记忆）</option>
-                <option value="cognition">Cognition（认知）</option>
-                <option value="skill">Skill（技能）</option>
-              </select>
-            </div>
-            {config.dbOperation === "query" && (
-              <div className="mb-3">
-                <label className="mb-1 block text-[11px] font-medium text-muted-foreground">查询数量</label>
+          {node.type === "http" && (
+            <div className="mb-3 space-y-2">
+              <div className="flex gap-2">
+                <select
+                  value={config.httpMethod || "GET"}
+                  onChange={(e) => setConfig({ ...config, httpMethod: e.target.value as NodeConfig["httpMethod"] })}
+                  className="w-24 rounded-xl border border-border bg-background px-2 py-2 text-sm outline-none focus:border-cognition"
+                >
+                  <option>GET</option>
+                  <option>POST</option>
+                  <option>PUT</option>
+                  <option>PATCH</option>
+                  <option>DELETE</option>
+                </select>
                 <input
-                  type="number"
-                  value={config.dbQuery || "10"}
-                  onChange={(e) => setConfig({ ...config, dbQuery: e.target.value })}
-                  className="w-full rounded-xl border border-border bg-background px-3 py-2 text-sm outline-none focus:border-cognition"
+                  value={config.httpUrl || ""}
+                  onChange={(e) => setConfig({ ...config, httpUrl: e.target.value })}
+                  placeholder="https://api.example.com/data"
+                  className="flex-1 rounded-xl border border-border bg-background px-3 py-2 font-mono text-sm outline-none focus:border-cognition"
                 />
               </div>
-            )}
-            {(config.dbOperation === "create" || config.dbOperation === "update") && (
-              <div className="mb-3">
-                <label className="mb-1 block text-[11px] font-medium text-muted-foreground">数据（JSON）</label>
-                <textarea
-                  value={config.dbData ? JSON.stringify(config.dbData, null, 2) : ""}
-                  onChange={(e) => {
-                    try {
-                      const data = e.target.value.trim() ? JSON.parse(e.target.value) : {};
-                      setConfig({ ...config, dbData: data });
-                    } catch {
-                      // 解析失败时不更新
-                    }
-                  }}
-                  placeholder={'{"content": "示例内容", "tags": ["tag1"]}'}
-                  rows={4}
-                  className="w-full resize-none rounded-xl border border-border bg-background px-3 py-2 font-mono text-xs outline-none focus:border-cognition"
-                />
-              </div>
-            )}
-          </>
-        )}
+              <p className="text-[10px] text-muted-foreground">URL 中可用 <code className="rounded bg-muted px-1">{"{{upstream}}"}</code> 引用上游输出</p>
+            </div>
+          )}
 
-        {node.type === "transform" && (
-          <>
-            <div className="mb-3">
-              <label className="mb-1 block text-[11px] font-medium text-muted-foreground">转换类型</label>
+          {node.type === "database" && (
+            <div className="mb-3 space-y-2">
+              <div className="flex gap-2">
+                <select
+                  value={config.dbOperation || "query"}
+                  onChange={(e) => setConfig({ ...config, dbOperation: e.target.value as NodeConfig["dbOperation"] })}
+                  className="w-28 rounded-xl border border-border bg-background px-2 py-2 text-sm outline-none focus:border-cognition"
+                >
+                  <option value="query">查询</option>
+                  <option value="create">创建</option>
+                  <option value="update">更新</option>
+                  <option value="delete">删除</option>
+                </select>
+                <select
+                  value={config.dbModel || "idea"}
+                  onChange={(e) => setConfig({ ...config, dbModel: e.target.value })}
+                  className="flex-1 rounded-xl border border-border bg-background px-2 py-2 text-sm outline-none focus:border-cognition"
+                >
+                  <option value="idea">灵感</option>
+                  <option value="task">任务</option>
+                  <option value="memory">记忆</option>
+                  <option value="cognition">认知</option>
+                  <option value="skill">技能</option>
+                </select>
+              </div>
+              {config.dbOperation === "query" && (
+                <div>
+                  <label className="mb-1 block text-[11px] font-medium text-muted-foreground">查询数量</label>
+                  <input
+                    type="number"
+                    value={config.dbQuery || "10"}
+                    onChange={(e) => setConfig({ ...config, dbQuery: e.target.value })}
+                    className="w-full rounded-xl border border-border bg-background px-3 py-2 text-sm outline-none focus:border-cognition"
+                  />
+                </div>
+              )}
+            </div>
+          )}
+
+          {node.type === "transform" && (
+            <div className="mb-3 space-y-2">
               <select
                 value={config.transformType || "template"}
                 onChange={(e) => setConfig({ ...config, transformType: e.target.value as NodeConfig["transformType"] })}
@@ -2517,48 +2502,161 @@ function NodeConfigPanel({
                 <option value="regex">正则匹配</option>
                 <option value="javascript">JavaScript 表达式</option>
               </select>
-            </div>
-            {(config.transformType === "jsonpath" || config.transformType === "regex" || config.transformType === "javascript") && (
-              <div className="mb-3">
-                <label className="mb-1 block text-[11px] font-medium text-muted-foreground">表达式</label>
-                <input
-                  value={config.transformExpression || ""}
-                  onChange={(e) => setConfig({ ...config, transformExpression: e.target.value })}
-                  placeholder={config.transformType === "jsonpath" ? "data.items.0.name" : config.transformType === "regex" ? "(\\d+)" : "upstream.toUpperCase()"}
-                  className="w-full rounded-xl border border-border bg-background px-3 py-2 font-mono text-sm outline-none focus:border-cognition"
-                />
-              </div>
-            )}
-            {config.transformType === "template" && (
-              <div className="mb-3">
-                <label className="mb-1 block text-[11px] font-medium text-muted-foreground">模板内容</label>
+              {config.transformType === "template" ? (
                 <textarea
                   value={config.transformTemplate || ""}
                   onChange={(e) => setConfig({ ...config, transformTemplate: e.target.value })}
                   placeholder="结果：{{upstream}}"
-                  rows={3}
+                  rows={2}
                   className="w-full resize-none rounded-xl border border-border bg-background px-3 py-2 font-mono text-sm outline-none focus:border-cognition"
                 />
-                <p className="mt-1 text-[10px] text-muted-foreground">用 {"{{upstream}}"} 引用上游输出</p>
+              ) : (
+                <input
+                  value={config.transformExpression || ""}
+                  onChange={(e) => setConfig({ ...config, transformExpression: e.target.value })}
+                  placeholder={config.transformType === "jsonpath" ? "data.name" : config.transformType === "regex" ? "(\\d+)" : "upstream.toUpperCase()"}
+                  className="w-full rounded-xl border border-border bg-background px-3 py-2 font-mono text-sm outline-none focus:border-cognition"
+                />
+              )}
+            </div>
+          )}
+
+          {node.type === "delay" && (
+            <div className="mb-3">
+              <label className="mb-1 block text-[11px] font-medium text-muted-foreground">延时时长</label>
+              <div className="flex items-center gap-2">
+                <input
+                  type="number"
+                  value={config.delayMs || 1000}
+                  onChange={(e) => setConfig({ ...config, delayMs: Math.min(parseInt(e.target.value, 10) || 1000, 60000) })}
+                  className="flex-1 rounded-xl border border-border bg-background px-3 py-2 text-sm outline-none focus:border-cognition"
+                />
+                <span className="text-xs text-muted-foreground">毫秒</span>
               </div>
-            )}
-          </>
-        )}
+              <div className="mt-2 flex gap-1.5">
+                {[
+                  { label: "1s", val: 1000 },
+                  { label: "5s", val: 5000 },
+                  { label: "10s", val: 10000 },
+                  { label: "30s", val: 30000 },
+                ].map((q) => (
+                  <button
+                    key={q.val}
+                    onClick={() => setConfig({ ...config, delayMs: q.val })}
+                    className={cn(
+                      "rounded-md border px-2 py-1 text-[10px] transition-colors",
+                      config.delayMs === q.val
+                        ? "border-cognition bg-cognition/10 text-cognition"
+                        : "border-border text-muted-foreground hover:bg-muted"
+                    )}
+                  >
+                    {q.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
 
-        {node.type === "delay" && (
-          <div className="mb-3">
-            <label className="mb-1 block text-[11px] font-medium text-muted-foreground">延时（毫秒，最大 60000）</label>
-            <input
-              type="number"
-              value={config.delayMs || 1000}
-              onChange={(e) => setConfig({ ...config, delayMs: Math.min(parseInt(e.target.value, 10) || 1000, 60000) })}
-              className="w-full rounded-xl border border-border bg-background px-3 py-2 text-sm outline-none focus:border-cognition"
-            />
-          </div>
-        )}
+          {/* 高级设置（可折叠） */}
+          {(node.type === "hermes" || node.type === "http") && (
+            <div className="mt-4 border-t border-border pt-3">
+              <button
+                onClick={() => setShowAdvanced(!showAdvanced)}
+                className="flex w-full items-center justify-between text-[11px] font-medium text-muted-foreground hover:text-foreground"
+              >
+                <span>高级设置</span>
+                <ChevronDown className={cn("h-3 w-3 transition-transform", showAdvanced && "rotate-180")} />
+              </button>
+              {showAdvanced && (
+                <div className="mt-2 space-y-2">
+                  {node.type === "hermes" && (
+                    <>
+                      <div>
+                        <label className="mb-1 block text-[10px] text-muted-foreground">工作目录（可选）</label>
+                        <input
+                          value={config.workDir || ""}
+                          onChange={(e) => setConfig({ ...config, workDir: e.target.value })}
+                          placeholder="C:\Users\..."
+                          className="w-full rounded-lg border border-border bg-background px-2 py-1.5 font-mono text-xs outline-none focus:border-cognition"
+                        />
+                      </div>
+                      <div>
+                        <label className="mb-1 block text-[10px] text-muted-foreground">超时时间（秒）</label>
+                        <input
+                          type="number"
+                          value={config.timeout || 120}
+                          onChange={(e) => setConfig({ ...config, timeout: parseInt(e.target.value, 10) || 120 })}
+                          className="w-full rounded-lg border border-border bg-background px-2 py-1.5 text-xs outline-none focus:border-cognition"
+                        />
+                      </div>
+                    </>
+                  )}
+                  {node.type === "http" && (
+                    <>
+                      <div>
+                        <label className="mb-1 block text-[10px] text-muted-foreground">请求头（JSON，可选）</label>
+                        <textarea
+                          value={config.httpHeaders ? JSON.stringify(config.httpHeaders, null, 2) : ""}
+                          onChange={(e) => {
+                            try {
+                              const headers = e.target.value.trim() ? JSON.parse(e.target.value) : {};
+                              setConfig({ ...config, httpHeaders: headers });
+                            } catch {}
+                          }}
+                          placeholder={'{"Authorization": "Bearer xxx"}'}
+                          rows={2}
+                          className="w-full resize-none rounded-lg border border-border bg-background px-2 py-1.5 font-mono text-xs outline-none focus:border-cognition"
+                        />
+                      </div>
+                      {["POST", "PUT", "PATCH"].includes(config.httpMethod || "GET") && (
+                        <div>
+                          <label className="mb-1 block text-[10px] text-muted-foreground">请求体（可选）</label>
+                          <textarea
+                            value={config.httpBody || ""}
+                            onChange={(e) => setConfig({ ...config, httpBody: e.target.value })}
+                            placeholder='{"key": "value"}'
+                            rows={2}
+                            className="w-full resize-none rounded-lg border border-border bg-background px-2 py-1.5 font-mono text-xs outline-none focus:border-cognition"
+                          />
+                        </div>
+                      )}
+                      <div>
+                        <label className="mb-1 block text-[10px] text-muted-foreground">超时时间（秒）</label>
+                        <input
+                          type="number"
+                          value={config.timeout || 30}
+                          onChange={(e) => setConfig({ ...config, timeout: parseInt(e.target.value, 10) || 30 })}
+                          className="w-full rounded-lg border border-border bg-background px-2 py-1.5 text-xs outline-none focus:border-cognition"
+                        />
+                      </div>
+                    </>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
 
-        {/* 底部操作 */}
-        <div className="mt-5 flex items-center justify-end gap-2">
+          {(node.type === "database" && (config.dbOperation === "create" || config.dbOperation === "update")) && (
+            <div className="mt-3">
+              <label className="mb-1 block text-[11px] font-medium text-muted-foreground">数据（JSON）</label>
+              <textarea
+                value={config.dbData ? JSON.stringify(config.dbData, null, 2) : ""}
+                onChange={(e) => {
+                  try {
+                    const data = e.target.value.trim() ? JSON.parse(e.target.value) : {};
+                    setConfig({ ...config, dbData: data });
+                  } catch {}
+                }}
+                placeholder={'{"content": "示例内容"}'}
+                rows={3}
+                className="w-full resize-none rounded-xl border border-border bg-background px-3 py-2 font-mono text-xs outline-none focus:border-cognition"
+              />
+            </div>
+          )}
+        </div>
+
+        {/* 底部操作（固定） */}
+        <div className="flex items-center justify-end gap-2 border-t border-border px-5 py-3">
           <Button variant="ghost" onClick={onClose}>
             取消
           </Button>

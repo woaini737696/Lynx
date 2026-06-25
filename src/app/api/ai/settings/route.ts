@@ -30,6 +30,7 @@ export async function PUT(req: NextRequest) {
 
     const allowedFields = [
       "assistantName",
+      "assistantAvatar",
       "avatarUrl",
       "personaStyle",
       "distilledStyle",
@@ -56,6 +57,14 @@ export async function PUT(req: NextRequest) {
         );
       }
       updateData.assistantName = updateData.assistantName.trim().slice(0, 20);
+    }
+
+    // 校验 assistantAvatar（Emoji 头像，限 16 字符）
+    if (updateData.assistantAvatar !== undefined) {
+      if (typeof updateData.assistantAvatar !== "string") {
+        return NextResponse.json({ error: "助理头像格式错误" }, { status: 400 });
+      }
+      updateData.assistantAvatar = updateData.assistantAvatar.trim().slice(0, 16) || "🤖";
     }
 
     // 校验 avatarUrl

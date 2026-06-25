@@ -260,6 +260,12 @@ export async function testHermesConnection(
 /**
  * 执行 Hermes 任务
  * 优先通过 HTTP API（如果 dashboard 在运行），回退到命令行 `hermes -z "prompt"`
+ *
+ * 改进点：
+ * 1. HTTP API 尝试多个常见端点（/api/task、/api/run、/api/execute、/task）
+ * 2. HTTP 超时不再被 30s 封顶（桌面任务可能需要更长时间）
+ * 3. 命令行模式去掉 --cli 标志（该标志导致 "no final response was produced"）
+ * 4. 更友好的错误提示
  */
 export async function executeHermesTask(
   config: HermesConfig,
@@ -267,57 +273,89 @@ export async function executeHermesTask(
 ): Promise<HermesTaskResult> {
   const start = Date.now();
   const timeoutMs = (request.timeout ?? 120) * 1000;
+  const mode = request.mode || "auto";
 
   // 1. 先尝试 HTTP API（如果 dashboard 服务在运行）
-  try {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), Math.min(timeoutMs, 30000));
-    const res = await hermesFetch(config, "/api/task", {
-      method: "POST",
-      body: JSON.stringify({
-        prompt: request.prompt,
-        mode: request.mode || "auto",
-        work_dir: request.workDir,
-        options: request.options,
-      }),
-      signal: controller.signal,
-    });
-    clearTimeout(timeout);
+  // 尝试多个可能的端点，因为不同版本 Hermes Dashboard 的 API 路径可能不同
+  const httpEndpoints = ["/api/task", "/api/run", "/api/execute", "/task", "/run"];
+  for (const endpoint of httpEndpoints) {
+    try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), Math.min(timeoutMs, 180_000));
+      const res = await hermesFetch(config, endpoint, {
+        method: "POST",
+        body: JSON.stringify({
+          prompt: request.prompt,
+          mode,
+          work_dir: request.workDir,
+          options: request.options,
+        }),
+        signal: controller.signal,
+      });
+      clearTimeout(timeout);
 
-    if (res.ok) {
-      const data = await res.json();
-      return {
-        success: true,
-        output: data.output || data.result || "",
-        steps: data.steps,
-        screenshots: data.screenshots,
-        durationMs: data.durationMs || Date.now() - start,
-      };
+      if (res.ok) {
+        const data = await res.json().catch(() => ({}));
+        return {
+          success: true,
+          output: data.output || data.result || data.message || "(任务已完成)",
+          steps: data.steps,
+          screenshots: data.screenshots,
+          durationMs: data.durationMs || Date.now() - start,
+        };
+      }
+      // 404 表示端点不存在，尝试下一个；其他状态码（如 400/500）说明端点存在但请求出错
+      if (res.status !== 404) {
+        const errBody = await res.json().catch(() => ({}));
+        return {
+          success: false,
+          output: "",
+          error: errBody.error || errBody.message || `HTTP ${res.status}：${endpoint}`,
+          durationMs: Date.now() - start,
+        };
+      }
+    } catch {
+      // 当前端点不可用，尝试下一个
     }
-    // HTTP 失败则回退到命令行
-  } catch {
-    // HTTP 不可用，回退到命令行
   }
 
-  // 2. 回退：通过命令行 `hermes -z "prompt" --cli` 执行
-  const args = ["-z", request.prompt, "--cli", "--yolo"];
-  if (request.workDir) {
-    // hermes 不直接支持 workDir 参数，通过 cwd 选项设置
-  }
+  // 2. 回退：通过命令行 `hermes -z "prompt" --yolo` 执行
+  // 注意：去掉 --cli 标志，因为该标志在某些版本会导致 "no final response was produced"
+  // --yolo 用于跳过交互式确认，使命令在非交互模式下运行
+  const args = ["-z", request.prompt, "--yolo"];
 
   const result = await execHermes(args, timeoutMs);
   if (result.success) {
+    const output = result.stdout.trim() || result.stderr.trim();
     return {
       success: true,
-      output: result.stdout.trim() || "(任务已完成，无输出)",
+      output: output || "(任务已完成，无控制台输出。如需查看详细执行过程，请打开 Dashboard)",
       durationMs: Date.now() - start,
     };
+  }
+
+  // 命令行执行失败 — 给出有针对性的错误提示
+  const errLower = (result.error || "").toLowerCase();
+  let friendlyError: string;
+  if (errLower.includes("no final response") || errLower.includes("no final")) {
+    friendlyError =
+      "Hermes 命令行模式未产生最终响应。这通常发生在需要桌面控制（如打开浏览器、截图）的任务中。\n" +
+      "建议：\n" +
+      "1. 确保 Hermes Dashboard 已启动（设置页 → 启动 Hermes）\n" +
+      "2. 通过 Dashboard 网页界面执行该任务（支持桌面控制）\n" +
+      "3. 或在任务描述中加入 'shell' 关键字，强制使用命令行模式";
+  } else if (errLower.includes("timeout") || errLower.includes("etimedout")) {
+    friendlyError = `任务执行超时（${timeoutMs / 1000}秒）。可在执行时增加 timeout 参数。`;
+  } else if (errLower.includes("not found") || errLower.includes("enoent")) {
+    friendlyError = "未找到 hermes 可执行文件，请确认已安装 hermes-agent（pip install hermes-agent）";
+  } else {
+    friendlyError = result.error || result.stderr || "任务执行失败";
   }
 
   return {
     success: false,
     output: "",
-    error: result.error || result.stderr || "任务执行失败",
+    error: friendlyError,
     durationMs: Date.now() - start,
   };
 }

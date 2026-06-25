@@ -1,4 +1,4 @@
-import { get, post, del } from "./request.js";
+import { get, put, post, del } from "./request.js";
 
 /**
  * 语音识别（ASR）
@@ -111,14 +111,7 @@ export function getAISettings() {
  * 后端契约：PUT /api/ai/settings { ...fields }
  */
 export function updateAISettings(data) {
-  return fetch(`/api/ai/settings`, {
-    method: "PUT",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${getToken()}`,
-    },
-    body: JSON.stringify(data),
-  }).then((r) => r.json());
+  return put("/api/ai/settings", data);
 }
 
 /**

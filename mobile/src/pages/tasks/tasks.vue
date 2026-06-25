@@ -9,7 +9,9 @@
             <text class="sync-dot" :class="syncDotClass"></text>
             <text class="sync-text">{{ syncLabel }}</text>
           </template>
-          <text class="sync-refresh">↻</text>
+          <view class="sync-refresh-icon">
+            <Icon name="refresh" :size="24" :color="isDark ? '#f5f5f7' : '#1d1d1f'" />
+          </view>
         </view>
       </view>
       <text class="header-count">{{ tasks.length }} 项</text>
@@ -30,7 +32,7 @@
     </view>
 
     <view v-if="cacheInfo" class="offline-banner">
-      <text class="offline-icon">📡</text>
+      <Icon name="wifiOff" :size="28" color="#f59e0b" />
       <text class="offline-text">离线浏览 · 缓存于 {{ formatCacheTime(cacheInfo.cachedAt) }}</text>
     </view>
 
@@ -39,7 +41,7 @@
     </view>
 
     <view v-else-if="filteredTasks.length === 0" class="empty">
-      <text class="empty-icon">📋</text>
+      <Icon name="list" :size="80" :color="isDark ? '#48484a' : '#d1d1d6'" />
       <text class="empty-text">暂无任务</text>
       <text v-if="!isOnline" class="empty-hint">网络未连接，显示缓存数据</text>
     </view>
@@ -53,17 +55,22 @@
         @click="showDetail(task)"
       >
         <view class="task-check" :class="{ checked: task.completed }" @click.stop="toggleTask(task)">
-          <text v-if="task.completed" class="check-icon">✓</text>
+          <Icon v-if="task.completed" name="check" :size="24" color="#ffffff" />
         </view>
         <view class="task-info">
           <text class="task-summary">{{ task.summary }}</text>
           <view class="task-meta">
-            <text v-if="task.dueAt" class="meta-due">📅 {{ formatDate(task.dueAt) }}</text>
+            <view v-if="task.dueAt" class="meta-due-row">
+              <Icon name="clock" :size="22" :color="isDark ? '#98989d' : '#86868b'" />
+              <text class="meta-due">{{ formatDate(task.dueAt) }}</text>
+            </view>
             <text v-if="task.parentTaskGuid" class="meta-sub">子任务</text>
             <text v-if="task.tasklistName" class="meta-list">{{ task.tasklistName }}</text>
           </view>
         </view>
-        <text class="task-arrow">›</text>
+        <view class="task-arrow">
+          <Icon name="chevronRight" :size="28" :color="isDark ? '#48484a' : '#d1d1d6'" />
+        </view>
       </view>
     </scroll-view>
 
@@ -73,7 +80,7 @@
         <view class="detail-header">
           <text class="detail-title">任务详情</text>
           <view class="detail-close" @click="closeDetail">
-            <text class="close-icon">×</text>
+            <Icon name="close" :size="32" :color="isDark ? '#f5f5f7' : '#1d1d1f'" />
           </view>
         </view>
 
@@ -120,9 +127,12 @@
             :class="detailTask.completed ? 'btn-restore' : 'btn-complete'"
             @click="toggleTask(detailTask)"
           >
-            <text class="detail-btn-text">
-              {{ detailTask.completed ? "↩ 重新打开" : "✓ 标记完成" }}
-            </text>
+            <view class="detail-btn-inner">
+              <Icon :name="detailTask.completed ? 'refresh' : 'check'" :size="28" color="#ffffff" />
+              <text class="detail-btn-text">
+                {{ detailTask.completed ? "重新打开" : "标记完成" }}
+              </text>
+            </view>
           </view>
         </view>
       </view>
@@ -138,7 +148,12 @@ import { ref, computed, onMounted, onUnmounted } from "vue";
 import { onShow, onPullDownRefresh } from "@dcloudio/uni-app";
 import { getLarkTasks, toggleLarkTask, getLarkTask, getSyncState, triggerSync } from "@/api/lark-tasks.js";
 import { setCache, getCache, formatCacheTime } from "@/utils/cache.js";
+import { useSettingsStore } from "@/store/settings.js";
 import TabBar from "@/components/TabBar.vue";
+import Icon from "@/components/Icon.vue";
+
+const settingsStore = useSettingsStore();
+const isDark = computed(() => settingsStore.theme === "dark");
 
 const tasks = ref([]);
 const loading = ref(false);

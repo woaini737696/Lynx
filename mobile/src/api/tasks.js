@@ -1,4 +1,4 @@
-import { get, post, put, del } from "./request.js";
+import { get, post, patch, del } from "./request.js";
 
 /** 获取看板任务列表 */
 export function getTasks() {
@@ -10,9 +10,9 @@ export function createTask(data) {
   return post("/api/tasks", data);
 }
 
-/** 更新任务（状态/列/位置） */
+/** 更新任务（状态/列/位置）- Web 端仅支持 PATCH */
 export function updateTask(id, data) {
-  return put(`/api/tasks/${id}`, data);
+  return patch(`/api/tasks/${id}`, data);
 }
 
 /** 删除任务 */

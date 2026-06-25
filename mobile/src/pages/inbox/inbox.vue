@@ -22,7 +22,7 @@
     </view>
 
     <view v-if="cacheInfo" class="offline-banner">
-      <text class="offline-icon">📡</text>
+      <Icon name="wifiOff" :size="28" color="#f59e0b" />
       <text class="offline-text">离线浏览 · 缓存于 {{ formatCacheTime(cacheInfo.cachedAt) }}</text>
     </view>
 
@@ -40,7 +40,10 @@
         :class="{ disabled: selectedIds.size === 0 || batchDeleting }"
         @click="batchDelete"
       >
-        <text class="batch-delete-text">{{ batchDeleting ? "删除中..." : "删除" }}</text>
+        <view class="batch-delete-inner">
+          <Icon name="trash" :size="26" color="#ffffff" />
+          <text class="batch-delete-text">{{ batchDeleting ? "删除中..." : "删除" }}</text>
+        </view>
       </view>
     </view>
 
@@ -49,9 +52,9 @@
     </view>
 
     <view v-else-if="ideas.length === 0" class="empty">
-      <text class="empty-icon">💡</text>
+      <Icon name="bulb" :size="80" :color="isDark ? '#48484a' : '#d1d1d6'" />
       <text class="empty-text">收件箱空空如也</text>
-      <text class="empty-hint">点击右下角 ⚡ 捕获灵感</text>
+      <text class="empty-hint">点击右下角闪电按钮捕获灵感</text>
     </view>
 
     <scroll-view v-else scroll-y class="idea-list" :class="{ 'multi-list': multiSelectMode }">
@@ -67,7 +70,7 @@
           class="checkbox"
           :class="{ checked: selectedIds.has(idea.id) }"
         >
-          <text v-if="selectedIds.has(idea.id)" class="checkbox-icon">✓</text>
+          <Icon v-if="selectedIds.has(idea.id)" name="check" :size="24" color="#ffffff" />
         </view>
         <view class="idea-main">
           <text class="idea-content">{{ idea.content }}</text>
@@ -75,9 +78,11 @@
             <text class="idea-time">{{ formatTime(idea.createdAt) }}</text>
             <view v-if="!multiSelectMode" class="idea-actions">
               <view class="action-btn board-btn" @click.stop="moveToBoard(idea)">
-                <text class="action-text">→看板</text>
+                <Icon name="arrowUp" :size="22" color="#f59e0b" />
+                <text class="action-text">看板</text>
               </view>
               <view class="action-btn danger-btn" @click.stop="abandon(idea)">
+                <Icon name="trash" :size="22" color="#ef4444" />
                 <text class="action-text danger-text">放弃</text>
               </view>
             </view>
@@ -91,11 +96,16 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from "vue";
+import { ref, onMounted, computed } from "vue";
 import { onShow } from "@dcloudio/uni-app";
 import { getInboxIdeas, moveIdeaToBoard, abandonIdea, batchDeleteIdeas } from "@/api/ideas.js";
 import CaptureBar from "@/components/CaptureBar.vue";
+import Icon from "@/components/Icon.vue";
 import { setCache, getCache, formatCacheTime } from "@/utils/cache.js";
+import { useSettingsStore } from "@/store/settings.js";
+
+const settingsStore = useSettingsStore();
+const isDark = computed(() => settingsStore.theme === "dark");
 
 const ideas = ref([]);
 const loading = ref(false);

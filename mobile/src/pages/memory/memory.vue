@@ -6,6 +6,9 @@
     </view>
 
     <view class="search-bar">
+      <view class="search-icon-wrap">
+        <Icon name="search" :size="28" :color="isDark ? '#98989d' : '#86868b'" />
+      </view>
       <input
         v-model="query"
         class="search-input"
@@ -37,7 +40,7 @@
     </view>
 
     <view v-else-if="searched" class="empty">
-      <text class="empty-icon">🔍</text>
+      <Icon name="search" :size="80" :color="isDark ? '#48484a' : '#d1d1d6'" />
       <text class="empty-text">未找到相关记忆</text>
     </view>
 
@@ -46,7 +49,10 @@
       <view v-for="node in memories" :key="node.id" class="result-card">
         <view class="result-header">
           <text class="result-type" :class="`type-${node.type}`">{{ typeLabel(node.type) }}</text>
-          <text v-if="node.strength" class="result-score">⚡ {{ node.strength }}</text>
+          <view v-if="node.strength" class="result-score-row">
+            <Icon name="bolt" :size="22" color="#f59e0b" />
+            <text class="result-score">{{ node.strength }}</text>
+          </view>
         </view>
         <text class="result-content">{{ node.label }}</text>
         <text v-if="node.fullContent && node.fullContent !== node.label" class="result-full">{{ node.fullContent }}</text>
@@ -54,7 +60,7 @@
     </view>
 
     <view v-else class="empty">
-      <text class="empty-icon">🧠</text>
+      <Icon name="brain" :size="80" :color="isDark ? '#48484a' : '#d1d1d6'" />
       <text class="empty-text">搜索你的记忆图谱</text>
       <text class="empty-hint">输入关键词进行语义检索</text>
     </view>
@@ -62,9 +68,14 @@
 </template>
 
 <script setup>
-import { ref } from "vue";
+import { ref, computed } from "vue";
 import { onShow } from "@dcloudio/uni-app";
 import { searchMemory, getMemoryGraph } from "@/api/memory.js";
+import Icon from "@/components/Icon.vue";
+import { useSettingsStore } from "@/store/settings.js";
+
+const settingsStore = useSettingsStore();
+const isDark = computed(() => settingsStore.theme === "dark");
 
 const query = ref("");
 const results = ref([]);

@@ -1,4 +1,4 @@
-import { get, post } from "./request.js";
+import { get, post, put, patch, del } from "./request.js";
 
 /** 获取对话会话列表 */
 export function getChatSessions() {
@@ -15,10 +15,30 @@ export function getChatMessages(sessionId) {
   return get(`/api/ai/chat/sessions/${sessionId}`);
 }
 
-/** 可用 AI 模型列表 */
+/** 更新会话（标题/置顶/provider/model） */
+export function updateChatSession(sessionId, data) {
+  return put(`/api/ai/chat/sessions/${sessionId}`, data);
+}
+
+/** 删除会话（级联删除消息） */
+export function deleteChatSession(sessionId) {
+  return del(`/api/ai/chat/sessions/${sessionId}`);
+}
+
+/** 向会话追加消息（持久化） */
+export function appendMessage(sessionId, data) {
+  return post(`/api/ai/chat/sessions/${sessionId}/messages`, data);
+}
+
+/** 获取可用 AI 模型列表 */
+export function getAIModels() {
+  return get("/api/ai/models");
+}
+
+/** 可用 AI 模型列表（icon 为 Icon 组件 name） */
 export const AI_PROVIDERS = [
-  { key: "deepseek", label: "DeepSeek", desc: "深度求索 · 推理强", icon: "🧠" },
-  { key: "mimo", label: "MiMo", desc: "小米 · 响应快", icon: "⚡" },
+  { key: "deepseek", label: "DeepSeek", desc: "深度求索 · 推理强", icon: "brain" },
+  { key: "mimo", label: "MiMo", desc: "小米 · 响应快", icon: "bolt" },
 ];
 
 /**

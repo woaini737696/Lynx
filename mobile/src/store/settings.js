@@ -33,8 +33,10 @@ export const useSettingsStore = defineStore("settings", {
   state: () => ({
     baseUrl: getBaseUrl(),
     theme: loadTheme(),
-    // AI 助理设置（新增字段，默认 null）
+    // AI 助理设置（与 Web 端共用 /api/ai/settings 接口，实时同步）
     aiSettings: {
+      assistantName: null,
+      assistantAvatar: null,
       avatarUrl: null,
       personaStyle: null,
       distilledStyle: null,
@@ -69,11 +71,13 @@ export const useSettingsStore = defineStore("settings", {
       applyTheme(this.theme);
     },
 
-    /** 加载 AI 助理设置（从后端读取新增字段） */
+    /** 加载 AI 助理设置（从后端读取，与 Web 端同一接口） */
     async loadAISettings() {
       try {
         const res = await get("/api/ai/settings");
         const s = (res && res.settings) || {};
+        this.aiSettings.assistantName = s.assistantName || null;
+        this.aiSettings.assistantAvatar = s.assistantAvatar || null;
         this.aiSettings.avatarUrl = s.avatarUrl || null;
         this.aiSettings.personaStyle = s.personaStyle || null;
         this.aiSettings.distilledStyle = s.distilledStyle || null;
@@ -82,10 +86,12 @@ export const useSettingsStore = defineStore("settings", {
       }
     },
 
-    /** 更新 AI 助理设置（支持 avatarUrl / personaStyle / distilledStyle） */
+    /** 更新 AI 助理设置（支持 assistantName / assistantAvatar / avatarUrl / personaStyle / distilledStyle） */
     async updateAISettings(data) {
       const res = await put("/api/ai/settings", data);
       const s = (res && res.settings) || {};
+      if ("assistantName" in s) this.aiSettings.assistantName = s.assistantName || null;
+      if ("assistantAvatar" in s) this.aiSettings.assistantAvatar = s.assistantAvatar || null;
       if ("avatarUrl" in s) this.aiSettings.avatarUrl = s.avatarUrl || null;
       if ("personaStyle" in s) this.aiSettings.personaStyle = s.personaStyle || null;
       if ("distilledStyle" in s) this.aiSettings.distilledStyle = s.distilledStyle || null;

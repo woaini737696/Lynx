@@ -18,7 +18,7 @@
 
     <view v-else-if="!focus || !focus.items || focus.items.length === 0" class="empty">
       <view class="empty-circle">
-        <text class="empty-icon">🎯</text>
+        <Icon name="target" :size="80" color="#f59e0b" />
       </view>
       <text class="empty-text">今天还没有聚焦任务</text>
       <text class="empty-hint">去决策看板添加任务，系统会自动生成今日聚焦</text>
@@ -47,7 +47,7 @@
         @click="toggle(item)"
       >
         <view class="card-check" :class="{ checked: item.completed }">
-          <text v-if="item.completed" class="check-icon">✓</text>
+          <Icon v-if="item.completed" name="check" :size="28" color="#ffffff" />
         </view>
         <view class="card-body">
           <view class="card-header">
@@ -74,6 +74,7 @@ import { onShow } from "@dcloudio/uni-app";
 import { getTodayFocus, toggleFocusItem } from "@/api/focus.js";
 import CaptureBar from "@/components/CaptureBar.vue";
 import TabBar from "@/components/TabBar.vue";
+import Icon from "@/components/Icon.vue";
 
 const loading = ref(false);
 const focus = ref(null);
@@ -124,7 +125,7 @@ async function toggle(item) {
     await toggleFocusItem(item.id, !item.completed);
     item.completed = !item.completed;
     if (completedCount.value === focus.value.items.length) {
-      uni.showToast({ title: "全部完成！🎉", icon: "none" });
+      uni.showToast({ title: "全部完成！", icon: "success" });
     }
   } catch (e) {
     uni.showToast({ title: e.message || "操作失败", icon: "none" });
