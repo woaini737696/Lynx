@@ -16,7 +16,7 @@ import {
   stripAction,
 } from "@/lib/ai-assistant-tools";
 import { executeTool } from "../assistant/tool-executor";
-import { executeAssistantViaHermes } from "@/lib/hermes-client";
+import { executeAssistantViaHermes, learnTaskPattern } from "@/lib/hermes-client";
 
 // ============ 关键词意图检测（Fallback）============
 // 当 AI 没有输出 action 块时，用关键词匹配检测用户意图
@@ -306,6 +306,7 @@ export async function POST(req: NextRequest) {
       // ============ Hermes Agent 接管模式（模式 C）============
       // 开启后：用户消息直接传给 Hermes Agent（带持久化 profile + 记忆上下文 + --learn 自动学习）
       // Hermes 输出作为助理回复，失败时回退到 LLM + Function Calling 模式
+      let hermesFallback = false;
       if (hermesTakeover) {
         // 提取最后一条用户消息
         const lastUserMsg = cleanMessages.filter((m) => m.role === "user").pop();
@@ -313,6 +314,11 @@ export async function POST(req: NextRequest) {
         if (userText.trim()) {
           const hermesResult = await executeAssistantViaHermes(user.id, userText, 120);
           if (hermesResult.success) {
+            // 异步学习任务模式（非阻塞，不影响响应延迟）
+            learnTaskPattern(user.id, userText, hermesResult.output).catch(() => {
+              // 学习失败不影响主流程
+            });
+
             return NextResponse.json({
               content: hermesResult.output,
               provider: "hermes",
@@ -329,6 +335,7 @@ export async function POST(req: NextRequest) {
             });
           }
           // Hermes 执行失败 → 回退到 LLM + Function Calling 模式（继续往下执行）
+          hermesFallback = true;
         }
       }
 
@@ -384,12 +391,22 @@ export async function POST(req: NextRequest) {
 
       // 无 action：直接返回回复（去除可能的 action 块）
       if (!action) {
+        // 异步学习任务模式（非阻塞，让每次交互都成为学习机会）
+        const lastUserMsgForLearn = cleanMessages.filter((m) => m.role === "user").pop();
+        const userTextForLearn = typeof lastUserMsgForLearn?.content === "string" ? lastUserMsgForLearn.content : "";
+        if (userTextForLearn.trim()) {
+          learnTaskPattern(user.id, userTextForLearn, firstResult.content).catch(() => {
+            // 学习失败不影响主流程
+          });
+        }
+
         return NextResponse.json({
           content: stripAction(firstResult.content),
           provider: firstResult.provider,
           model: firstResult.model,
           usage: firstResult.usage,
           toolCalled: null,
+          ...(hermesFallback ? { hermesFallback: true } : {}),
         });
       }
 
@@ -421,6 +438,15 @@ ${toolResultStr}
         maxTokens,
       });
 
+      // 异步学习任务模式（非阻塞，让每次交互都成为学习机会）
+      const lastUserMsgForLearn = cleanMessages.filter((m) => m.role === "user").pop();
+      const userTextForLearn = typeof lastUserMsgForLearn?.content === "string" ? lastUserMsgForLearn.content : "";
+      if (userTextForLearn.trim()) {
+        learnTaskPattern(user.id, userTextForLearn, secondResult.content).catch(() => {
+          // 学习失败不影响主流程
+        });
+      }
+
       return NextResponse.json({
         content: stripAction(secondResult.content),
         provider: secondResult.provider,
@@ -441,6 +467,7 @@ ${toolResultStr}
           args: action.args,
           result: toolResult,
         },
+        ...(hermesFallback ? { hermesFallback: true } : {}),
       });
     }
 

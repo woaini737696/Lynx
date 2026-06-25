@@ -97,6 +97,10 @@ interface Message {
   streaming?: boolean;
   images?: string[];
   toolCalled?: ToolCalled | null;
+  /** 标记本条回复由 Hermes Agent 生成（模式 C） */
+  hermesMode?: boolean;
+  /** 标记 Hermes 失败后回退到 LLM 模式生成 */
+  hermesFallback?: boolean;
 }
 
 interface AISettings {
@@ -343,6 +347,20 @@ function summarizeToolResult(result: any): string {
   return "已执行";
 }
 
+/** 任务模式（Task 7：auto-work） */
+interface TaskPatternItem {
+  id: string;
+  patternKey: string;
+  taskTemplate: string;
+  executionCount: number;
+  autoExecutedCount: number;
+  autoExecute: boolean;
+  lastExecutedAt: string | null;
+  lastAutoResult: string | null;
+  matchKeywords: string[];
+  createdAt: string;
+}
+
 export default function AIAssistantPage() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
@@ -428,6 +446,12 @@ export default function AIAssistantPage() {
   const [distillPreviewing, setDistillPreviewing] = useState(false);
   const [distillPreviewReply, setDistillPreviewReply] = useState<string | null>(null);
 
+  // 任务模式学习（Task 7：auto-work）
+  const [taskPatterns, setTaskPatterns] = useState<TaskPatternItem[]>([]);
+  const [taskPatternsLoading, setTaskPatternsLoading] = useState(false);
+  const [autoCheckInput, setAutoCheckInput] = useState("");
+  const [autoChecking, setAutoChecking] = useState(false);
+
   const [modelCatalog, setModelCatalog] = useState<{
     providers: Array<{ id: LLMProvider; models: Array<{ id: string; multimodal?: boolean }> }>;
   } | null>(null);
@@ -449,6 +473,10 @@ export default function AIAssistantPage() {
   const [favorites, setFavorites] = useState<Array<{ skillId: string; skillName: string; source: string; category: string }>>([]);
   const [executions, setExecutions] = useState<Array<{ id: string; skillId: string; skillName: string; source: string; success: boolean; durationMs: number; result: string; error: string | null; createdAt: string }>>([]);
   const [hermesSkills, setHermesSkills] = useState<Skill[]>([]);
+  // Hermes 技能来源与运行状态，用于空状态提示
+  const [hermesSource, setHermesSource] = useState<"hermes" | "database" | "filesystem">("hermes");
+  const [hermesRunning, setHermesRunning] = useState<boolean>(false);
+  const [hermesPreloading, setHermesPreloading] = useState(false);
   const [favoriteIds, setFavoriteIds] = useState<Set<string>>(new Set());
 
   const toggleToolExpand = useCallback((msgId: string) => {
@@ -616,6 +644,108 @@ export default function AIAssistantPage() {
     }
   };
 
+  // ============ 任务模式学习（Task 7：auto-work） ============
+  const fetchTaskPatterns = async () => {
+    try {
+      setTaskPatternsLoading(true);
+      const res = await fetch("/api/hermes/patterns?pageSize=50");
+      const data = await res.json();
+      if (Array.isArray(data.patterns)) {
+        setTaskPatterns(data.patterns as TaskPatternItem[]);
+      }
+    } catch {
+      // 静默失败，不打扰用户
+    } finally {
+      setTaskPatternsLoading(false);
+    }
+  };
+
+  const togglePatternAutoExecute = async (patternId: string, next: boolean) => {
+    // 乐观更新
+    setTaskPatterns((prev) =>
+      prev.map((p) => (p.id === patternId ? { ...p, autoExecute: next } : p))
+    );
+    try {
+      const res = await fetch(`/api/hermes/patterns/${patternId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ autoExecute: next }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        // 回滚
+        setTaskPatterns((prev) =>
+          prev.map((p) => (p.id === patternId ? { ...p, autoExecute: !next } : p))
+        );
+        toast(data.error || "更新失败", "error");
+      } else {
+        toast(next ? "已启用自动执行" : "已关闭自动执行", "success");
+      }
+    } catch {
+      setTaskPatterns((prev) =>
+        prev.map((p) => (p.id === patternId ? { ...p, autoExecute: !next } : p))
+      );
+      toast("更新失败", "error");
+    }
+  };
+
+  const deleteTaskPattern = async (patternId: string) => {
+    try {
+      const res = await fetch(`/api/hermes/patterns/${patternId}`, { method: "DELETE" });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setTaskPatterns((prev) => prev.filter((p) => p.id !== patternId));
+        toast("已删除任务模式", "success");
+      } else {
+        toast(data.error || "删除失败", "error");
+      }
+    } catch {
+      toast("删除失败", "error");
+    }
+  };
+
+  const runAutoCheck = async () => {
+    const desc = autoCheckInput.trim();
+    if (!desc) {
+      toast("请输入任务描述", "error");
+      return;
+    }
+    try {
+      setAutoChecking(true);
+      const res = await fetch("/api/hermes/patterns/auto-check", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ taskDescription: desc, execute: true }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        toast(data.error || "检查失败", "error");
+        return;
+      }
+      if (!data.matched) {
+        toast("未匹配到可自动执行的任务模式", "info");
+        return;
+      }
+      if (!data.executed) {
+        toast(`匹配到模式（得分 ${data.score?.toFixed(2)}），但未执行`, "info");
+        return;
+      }
+      const success = data.result?.success;
+      toast(
+        success
+          ? `✅ 自动执行成功（模式：${data.patternKey}）`
+          : `❌ 自动执行失败：${data.result?.error || "未知原因"}`,
+        success ? "success" : "error"
+      );
+      // 刷新列表以更新执行次数
+      fetchTaskPatterns();
+    } catch {
+      toast("检查失败", "error");
+    } finally {
+      setAutoChecking(false);
+    }
+  };
+
   const isMultimodal = (() => {
     if (!modelCatalog) return false;
     const provider = modelCatalog.providers.find((p) => p.id === modelConfig.provider);
@@ -627,6 +757,14 @@ export default function AIAssistantPage() {
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
   }, [messages, thinking]);
+
+  // 设置面板打开时拉取任务模式列表
+  useEffect(() => {
+    if (settingsOpen) {
+      fetchTaskPatterns();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [settingsOpen]);
 
   useEffect(() => {
     return () => {
@@ -1002,6 +1140,8 @@ export default function AIAssistantPage() {
       const aiModel: string | undefined = data.model;
       const aiUsage: TokenUsage | undefined = data.usage;
       const toolCalled: ToolCalled | null = data.toolCalled || null;
+      const hermesMode: boolean | undefined = data.hermesMode === true ? true : undefined;
+      const hermesFallback: boolean | undefined = data.hermesFallback === true ? true : undefined;
 
       setMessages((prev) =>
         prev.map((m) =>
@@ -1014,6 +1154,8 @@ export default function AIAssistantPage() {
                 model: aiModel,
                 usage: aiUsage,
                 toolCalled,
+                hermesMode,
+                hermesFallback,
               }
             : m
         )
@@ -1697,28 +1839,36 @@ export default function AIAssistantPage() {
     }
   };
 
-  // 加载 Hermes 技能列表
+  // 加载 Hermes 技能列表（Hermes 未运行时自动回退到数据库/文件系统）
   const fetchHermesSkills = async () => {
     setSkillsLoading(true);
     try {
       const res = await fetch("/api/hermes/skills");
       const data = await res.json();
+      if (!res.ok) {
+        toast(data.error || "加载 Hermes 技能失败", "error");
+        setHermesSkills([]);
+        return;
+      }
+      // 记录来源与运行状态，用于空状态提示
+      setHermesSource((data.source as "hermes" | "database" | "filesystem") || "hermes");
+      setHermesRunning(data.hermesRunning === true);
       if (Array.isArray(data.skills)) {
-        // 转换为前端 Skill 格式
-        setHermesSkills(data.skills.map((s: { id: string; name: string; description: string; category: string; parameters?: Array<{ name: string; type: string; description: string; required?: boolean; default?: unknown }>; tags?: string[]; usageCount?: number }) => ({
+        // 转换为前端 Skill 格式（兼容 Hermes / 数据库两种参数结构）
+        setHermesSkills(data.skills.map((s: { id: string; name: string; description: string; category: string; parameters?: Array<{ name?: string; key?: string; label?: string; type?: string; description?: string; required?: boolean; default?: unknown; defaultValue?: string; placeholder?: string; options?: string[] }>; tags?: string[]; usageCount?: number }) => ({
           id: `hermes-${s.id}`,
           name: s.name,
           description: s.description || "",
           category: s.category || "hermes",
           tags: s.tags || [],
           parameters: (s.parameters || []).map((p) => ({
-            key: p.name,
-            label: p.name,
+            key: p.key || p.name || "",
+            label: p.label || p.name || p.key || "",
             type: p.type === "number" ? "number" : p.type === "select" ? "select" : "text",
             required: p.required || false,
-            placeholder: p.description || "",
-            defaultValue: typeof p.default === "string" ? p.default : "",
-            options: [],
+            placeholder: p.placeholder || p.description || "",
+            defaultValue: typeof (p.defaultValue ?? p.default) === "string" ? ((p.defaultValue ?? p.default) as string) : "",
+            options: p.options || [],
           })),
           usageCount: s.usageCount || 0,
           source: "hermes" as const,
@@ -1727,8 +1877,28 @@ export default function AIAssistantPage() {
       }
     } catch {
       toast("加载 Hermes 技能失败", "error");
+      setHermesSkills([]);
     } finally {
       setSkillsLoading(false);
+    }
+  };
+
+  // 预加载默认 Hermes 技能（6 个 LynnHub 专用技能）
+  const handlePreloadHermesSkills = async () => {
+    setHermesPreloading(true);
+    try {
+      const res = await fetch("/api/hermes/skills/preload", { method: "POST" });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        toast(`已预加载 ${data.count} 个默认技能`, "success");
+        await fetchHermesSkills();
+      } else {
+        toast(data.error || "预加载失败", "error");
+      }
+    } catch {
+      toast("预加载技能失败", "error");
+    } finally {
+      setHermesPreloading(false);
     }
   };
 
@@ -2163,6 +2333,24 @@ export default function AIAssistantPage() {
               </button>
             </div>
           )}
+          <div className="mt-2 flex items-center justify-center gap-2">
+            {settings.hermesTakeover ? (
+              <span
+                className="inline-flex items-center gap-1 rounded-full border border-green-500/40 bg-green-500/10 px-2 py-0.5 text-[10px] font-medium text-green-600 dark:text-green-400"
+                title="Hermes Agent 接管模式（模式 C）：持久化记忆 + 持续学习，失败时自动回退到 LLM"
+              >
+                <Sparkles className="h-2.5 w-2.5" />
+                🤖 Hermes Agent 模式
+              </span>
+            ) : (
+              <span
+                className="inline-flex items-center gap-1 rounded-full border border-border bg-muted/40 px-2 py-0.5 text-[10px] font-medium text-muted-foreground"
+                title="LLM 模式：直接调用大模型回复，无持久化记忆"
+              >
+                💬 LLM 模式
+              </span>
+            )}
+          </div>
           <p className="mt-2 text-center text-[10px] text-muted-foreground/60">
             {modelConfig.provider === "deepseek" ? "DeepSeek" : "小米 MiMo"} · {modelConfig.model}
             {isMultimodal && " · 多模态"}
@@ -2511,18 +2699,32 @@ export default function AIAssistantPage() {
 
               <div className="space-y-3 rounded-xl border border-border p-4">
                 <h3 className="text-sm font-medium">🤖 Hermes Agent 超级助理</h3>
-                <p className="text-[10px] text-muted-foreground">
-                  开启后 AI 助理由 Hermes Agent 驱动：持久化记忆跨会话保留、任务完成后自动学习新技能、持续成长。
-                </p>
-                <label className="flex cursor-pointer items-center justify-between">
-                  <span className="text-xs">Hermes 接管模式（模式 C）</span>
-                  <input
-                    type="checkbox"
-                    checked={settings.hermesTakeover}
-                    onChange={(e) => { setSettings((s) => ({ ...s, hermesTakeover: e.target.checked })); updateSettings({ hermesTakeover: e.target.checked }); }}
-                    className="h-4 w-4 rounded accent-cognition"
-                  />
-                </label>
+                <div className={cn(
+                  "rounded-lg border p-3 transition-colors",
+                  settings.hermesTakeover
+                    ? "border-green-500/40 bg-green-500/5"
+                    : "border-border bg-muted/20"
+                )}>
+                  <label className="flex cursor-pointer items-center justify-between">
+                    <span className="text-xs font-semibold">
+                      Hermes 接管模式（模式 C）
+                      {settings.hermesTakeover && (
+                        <span className="ml-2 inline-flex items-center gap-1 rounded-full bg-green-500/15 px-1.5 py-0.5 text-[9px] font-medium text-green-600 dark:text-green-400">
+                          <Sparkles className="h-2 w-2" /> 已启用
+                        </span>
+                      )}
+                    </span>
+                    <input
+                      type="checkbox"
+                      checked={settings.hermesTakeover}
+                      onChange={(e) => { setSettings((s) => ({ ...s, hermesTakeover: e.target.checked })); updateSettings({ hermesTakeover: e.target.checked }); }}
+                      className="h-4 w-4 rounded accent-cognition"
+                    />
+                  </label>
+                  <p className="mt-1.5 text-[10px] leading-relaxed text-muted-foreground">
+                    开启后 AI 助理由 Hermes Agent 驱动，拥有持久化记忆和持续学习能力。失败时自动回退到 LLM 模式。
+                  </p>
+                </div>
                 <label className="flex cursor-pointer items-center justify-between">
                   <span className="text-xs">主动汇报（定时分析数据并推送）</span>
                   <input
@@ -2612,6 +2814,130 @@ export default function AIAssistantPage() {
                 >
                   <Sparkles className="mr-1 h-3 w-3" /> 预加载默认技能（6 个 LynnHub 技能）
                 </Button>
+              </div>
+
+              {/* 任务模式学习（Task 7：auto-work） */}
+              <div className="space-y-3 rounded-xl border border-border p-4">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-sm font-medium">🧠 任务模式学习</h3>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={fetchTaskPatterns}
+                    disabled={taskPatternsLoading}
+                    className="h-7 px-2 text-xs"
+                  >
+                    {taskPatternsLoading ? <Loader2 className="mr-1 h-3 w-3 animate-spin" /> : <RefreshCw className="mr-1 h-3 w-3" />}
+                    刷新
+                  </Button>
+                </div>
+                <p className="text-[10px] leading-relaxed text-muted-foreground">
+                  当你做某个任务两次以上，系统会自动学习该模式并启用自动执行。下次类似任务出现时，可直接交给 Hermes 自动完成。
+                </p>
+
+                {/* 自动执行检查器 */}
+                <div className="space-y-1.5 rounded-lg border border-border bg-background p-2.5">
+                  <label className="text-[10px] font-medium text-muted-foreground">检查自动执行（输入任务描述测试）</label>
+                  <div className="flex gap-1.5">
+                    <input
+                      type="text"
+                      value={autoCheckInput}
+                      onChange={(e) => setAutoCheckInput(e.target.value)}
+                      onKeyDown={(e) => { if (e.key === "Enter" && !autoChecking) runAutoCheck(); }}
+                      placeholder="如：创建灵感 关于AI的笔记"
+                      className="flex-1 rounded border border-border bg-background px-2 py-1 text-xs outline-none focus:border-cognition"
+                    />
+                    <Button
+                      size="sm"
+                      onClick={runAutoCheck}
+                      disabled={autoChecking || !autoCheckInput.trim()}
+                      className="h-7 px-2 text-xs"
+                    >
+                      {autoChecking ? <Loader2 className="mr-1 h-3 w-3 animate-spin" /> : <Zap className="mr-1 h-3 w-3" />}
+                      检查
+                    </Button>
+                  </div>
+                </div>
+
+                {/* 模式列表 */}
+                {taskPatterns.length === 0 ? (
+                  <div className="rounded-lg bg-muted/30 p-3 text-center text-[11px] text-muted-foreground">
+                    {taskPatternsLoading ? "加载中..." : "暂无学习的任务模式。多和助理互动几次，系统会自动学习。"}
+                  </div>
+                ) : (
+                  <div className="max-h-64 space-y-2 overflow-y-auto pr-1">
+                    {taskPatterns.map((p) => (
+                      <div key={p.id} className="rounded-lg border border-border bg-background p-2.5 text-xs">
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center gap-1.5">
+                              <span className="truncate font-medium text-foreground">{p.patternKey}</span>
+                              {p.autoExecute && (
+                                <span className="inline-flex items-center gap-0.5 rounded-full bg-green-500/15 px-1.5 py-0.5 text-[9px] font-medium text-green-600 dark:text-green-400">
+                                  <Sparkles className="h-2 w-2" /> 自动
+                                </span>
+                              )}
+                            </div>
+                            <p className="mt-0.5 line-clamp-1 text-[10px] text-muted-foreground">{p.taskTemplate}</p>
+                            <div className="mt-1 flex flex-wrap items-center gap-1 text-[9px] text-muted-foreground">
+                              <span>手动 {p.executionCount} 次</span>
+                              <span>·</span>
+                              <span>自动 {p.autoExecutedCount} 次</span>
+                              {p.lastExecutedAt && (
+                                <>
+                                  <span>·</span>
+                                  <span>最近 {new Date(p.lastExecutedAt).toLocaleDateString("zh-CN")}</span>
+                                </>
+                              )}
+                              {p.lastAutoResult && (
+                                <>
+                                  <span>·</span>
+                                  <span className={p.lastAutoResult === "success" ? "text-green-600 dark:text-green-400" : "text-red-500"}>
+                                    {p.lastAutoResult === "success" ? "✓" : "✗"}
+                                  </span>
+                                </>
+                              )}
+                            </div>
+                            {Array.isArray(p.matchKeywords) && p.matchKeywords.length > 0 && (
+                              <div className="mt-1 flex flex-wrap gap-1">
+                                {(p.matchKeywords as string[]).slice(0, 5).map((kw) => (
+                                  <span key={kw} className="rounded bg-muted px-1 py-0.5 text-[9px] text-muted-foreground">{kw}</span>
+                                ))}
+                                {(p.matchKeywords as string[]).length > 5 && (
+                                  <span className="text-[9px] text-muted-foreground">+{(p.matchKeywords as string[]).length - 5}</span>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                          <div className="flex shrink-0 flex-col items-end gap-1">
+                            <button
+                              onClick={() => togglePatternAutoExecute(p.id, !p.autoExecute)}
+                              title={p.autoExecute ? "关闭自动执行" : "启用自动执行"}
+                              className={cn(
+                                "relative h-4 w-7 rounded-full transition-colors",
+                                p.autoExecute ? "bg-cognition" : "bg-muted"
+                              )}
+                            >
+                              <span
+                                className={cn(
+                                  "absolute top-0.5 h-3 w-3 rounded-full bg-white transition-transform",
+                                  p.autoExecute ? "translate-x-3.5" : "translate-x-0.5"
+                                )}
+                              />
+                            </button>
+                            <button
+                              onClick={() => deleteTaskPattern(p.id)}
+                              title="删除模式"
+                              className="rounded p-1 text-muted-foreground hover:bg-muted hover:text-red-500"
+                            >
+                              <Trash2 className="h-3 w-3" />
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
 
               <div className="rounded-xl bg-muted/30 p-3">
@@ -2757,9 +3083,35 @@ export default function AIAssistantPage() {
                           <span className="text-sm">加载中...</span>
                         </div>
                       ) : (skillTab === "all" ? filteredSkills : hermesSkills).length === 0 ? (
-                        <div className="py-10 text-center text-sm text-muted-foreground">
-                          {skillTab === "hermes" ? "未加载到 Hermes 技能，请确认 Hermes Agent 已启动" : skills.length === 0 ? "暂无可用技能" : "未找到匹配的技能"}
-                        </div>
+                        skillTab === "hermes" ? (
+                          <div className="flex flex-col items-center gap-3 py-10 text-center">
+                            <p className="text-sm text-muted-foreground">
+                              {hermesRunning
+                                ? "暂无 Hermes 技能。点击「预加载默认技能」加载 6 个 LynnHub 专用技能。"
+                                : "Hermes Agent 未运行，显示已学习的技能。点击「预加载默认技能」可添加技能。"}
+                            </p>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={handlePreloadHermesSkills}
+                              disabled={hermesPreloading}
+                            >
+                              {hermesPreloading ? (
+                                <>
+                                  <Loader2 className="mr-1 h-3 w-3 animate-spin" /> 预加载中...
+                                </>
+                              ) : (
+                                <>
+                                  <Sparkles className="mr-1 h-3 w-3" /> 预加载默认技能
+                                </>
+                              )}
+                            </Button>
+                          </div>
+                        ) : (
+                          <div className="py-10 text-center text-sm text-muted-foreground">
+                            {skills.length === 0 ? "暂无可用技能" : "未找到匹配的技能"}
+                          </div>
+                        )
                       ) : (
                         <div className="space-y-2">
                           {(skillTab === "all" ? filteredSkills : hermesSkills).map((skill) => (

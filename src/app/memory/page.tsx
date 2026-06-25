@@ -22,6 +22,8 @@ import {
   Pencil,
   ArrowUpDown,
   ArrowLeft,
+  Bot,
+  RefreshCw,
 } from "lucide-react";
 import { toast } from "@/components/ui/toast";
 import { PageHeader, Card, Button, Skeleton } from "@/components/layout/PageHeader";
@@ -32,7 +34,7 @@ import { cn } from "@/lib/utils";
 type GraphNode = {
   id: string;
   label: string;
-  type: "idea" | "conversation" | "cognition";
+  type: "idea" | "conversation" | "cognition" | "hermes";
   color: string;
   strength: number;
   connections: string[];
@@ -46,6 +48,7 @@ const TYPE_LABELS: Record<GraphNode["type"], string> = {
   idea: "灵感",
   conversation: "对话",
   cognition: "认知",
+  hermes: "Hermes 记忆",
 };
 
 // 神经元网络配色（橙黑灰体系）
@@ -53,6 +56,7 @@ const TYPE_HSL: Record<GraphNode["type"], { h: number; s: number; l: number }> =
   idea: { h: 25, s: 95, l: 55 }, // 橙色
   conversation: { h: 0, s: 0, l: 45 }, // 深灰
   cognition: { h: 30, s: 80, l: 40 }, // 深橙棕
+  hermes: { h: 160, s: 70, l: 45 }, // 青绿色（Hermes Agent）
 };
 
 // 类型图标映射（用于列表展示）
@@ -60,6 +64,7 @@ const TYPE_ICON: Record<GraphNode["type"], typeof Lightbulb> = {
   idea: Lightbulb,
   conversation: MessageSquare,
   cognition: Brain,
+  hermes: Bot,
 };
 
 // 3D 力导向模拟节点
@@ -131,6 +136,7 @@ const FILTER_OPTIONS: { key: FilterType; label: string }[] = [
   { key: "idea", label: "灵感" },
   { key: "conversation", label: "对话" },
   { key: "cognition", label: "认知" },
+  { key: "hermes", label: "Hermes 记忆" },
 ];
 
 const SORT_OPTIONS: { key: SortBy; label: string }[] = [
@@ -225,6 +231,7 @@ export default function MemoryPage() {
   const [stats, setStats] = useState({ total: 0, edges: 0, isolated: 0, mode: "tfidf-fallback" });
   const [loading, setLoading] = useState(true);
   const [rebuilding, setRebuilding] = useState(false);
+  const [syncingHermes, setSyncingHermes] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [hoveredId, setHoveredId] = useState<string | null>(null);
   const [showHelp, setShowHelp] = useState(false);
@@ -510,6 +517,30 @@ export default function MemoryPage() {
       toast(e.message || "重建失败", "error");
     } finally {
       setRebuilding(false);
+    }
+  };
+
+  // 同步 Hermes 记忆：双向同步 Hermes ↔ LynnHub，完成后重新加载图谱
+  const syncHermes = async () => {
+    try {
+      setSyncingHermes(true);
+      const res = await fetch("/api/hermes/memory/sync", { method: "POST" });
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}));
+        throw new Error(d.error || "同步失败");
+      }
+      const data = await res.json();
+      await load();
+      toast(
+        `Hermes 记忆同步完成：导入 ${data.imported} 条，导出 ${data.exported} 条${
+          data.skipped ? `，跳过 ${data.skipped} 条` : ""
+        }`,
+        "success"
+      );
+    } catch (e: any) {
+      toast(e.message || "Hermes 记忆同步失败", "error");
+    } finally {
+      setSyncingHermes(false);
     }
   };
 
@@ -1148,6 +1179,7 @@ export default function MemoryPage() {
         idea: 0,
         conversation: 1,
         cognition: 2,
+        hermes: 3,
       };
       list.sort((a, b) => order[a.type] - order[b.type]);
     }
@@ -1197,7 +1229,11 @@ export default function MemoryPage() {
               <HelpCircle className="h-3.5 w-3.5" />
               <span className="hidden sm:inline">说明</span>
             </Button>
-            <Button onClick={rebuild} disabled={rebuilding}>
+            <Button onClick={syncHermes} disabled={syncingHermes || rebuilding}>
+              <RefreshCw className={`h-3.5 w-3.5 ${syncingHermes ? "animate-spin" : ""}`} />
+              {syncingHermes ? "同步中..." : "同步 Hermes 记忆"}
+            </Button>
+            <Button onClick={rebuild} disabled={rebuilding || syncingHermes}>
               <Database className={`h-3.5 w-3.5 ${rebuilding ? "animate-pulse" : ""}`} />
               {rebuilding ? "重建中..." : "重建图谱"}
             </Button>
@@ -1249,6 +1285,9 @@ export default function MemoryPage() {
                   </span>
                   <span className="flex items-center gap-1">
                     <span className="inline-block h-2 w-2 rounded-full" style={{ background: "hsl(30,80%,40%)" }} />认知
+                  </span>
+                  <span className="flex items-center gap-1">
+                    <span className="inline-block h-2 w-2 rounded-full" style={{ background: "hsl(160,70%,45%)" }} />Hermes
                   </span>
                   {clustering && (
                     <div className="mt-1 border-t border-border pt-1 text-[9px] text-cognition">

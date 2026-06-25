@@ -13,7 +13,11 @@ export async function GET(req: NextRequest) {
     const category = searchParams.get("category");
 
     const where = {
-      ...(category && category !== "all" ? { category } : {}),
+      ...(category === "hermes"
+        ? { source: { in: ["hermes-learned", "hermes-imported"] } }
+        : category && category !== "all"
+          ? { category }
+          : {}),
       ...buildUserFilter(user),
     };
 

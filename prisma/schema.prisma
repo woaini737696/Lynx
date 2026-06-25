@@ -39,6 +39,41 @@ model User {
   hermesReports  HermesReport[]
   skillFavorites SkillFavorite[]
   skillExecutions SkillExecution[]
+  taskPatterns  TaskPattern[]
+}
+
+// 任务模式学习：记录用户执行过的任务模式，用于自动执行同类任务
+// 当用户手动完成一个任务后，系统学习任务模式；下次类似任务出现时可以自动执行
+model TaskPattern {
+  id          String   @id @default(cuid())
+  userId      String
+  // 任务类型关键词（从任务内容提取，如"创建灵感"、"完成看板任务"等）
+  patternKey  String   @db.VarChar(200)
+  // 任务描述模板（含参数占位符，如"创建灵感：{content}"）
+  taskTemplate String  @db.Text
+  // 执行步骤（JSON 数组，记录用户执行过的操作序列）
+  steps       Json     @default("[]")
+  // 执行该模式所需的 Hermes prompt
+  hermesPrompt String  @db.LongText
+  // 匹配关键词（JSON 数组，用于检测新任务是否匹配此模式）
+  matchKeywords Json   @default("[]")
+  // 执行次数（用户手动执行 + 自动执行）
+  executionCount Int   @default(1)
+  // 自动执行次数
+  autoExecutedCount Int @default(0)
+  // 是否启用自动执行
+  autoExecute Boolean  @default(false)
+  // 最后一次执行时间
+  lastExecutedAt DateTime?
+  // 最后一次自动执行的结果（成功/失败）
+  lastAutoResult String? @db.VarChar(20)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, patternKey])
+  @@index([autoExecute])
 }
 
 // 灵感 - 闪电输入源头
@@ -365,9 +400,9 @@ model AISetting {
   // 飞书通知：是否启用紧急通知
   feishuNotify    Boolean  @default(false)
   // Hermes 接管模式：开启后 AI 助理由 Hermes Agent 驱动（持久化记忆 + 持续学习 + 自动成长）
-  hermesTakeover  Boolean  @default(false)
+  hermesTakeover  Boolean  @default(true)
   // Hermes 主动汇报：开启后 Hermes Cron 定时分析用户数据并推送汇报（模式 C：持续工作/主动汇报/跨平台响应）
-  hermesAutoReport Boolean @default(false)
+  hermesAutoReport Boolean @default(true)
   // Hermes 主动汇报 cron 表达式（默认每天 9:00）
   hermesReportCron String  @default("0 9 * * *") @db.VarChar(64)
   updatedAt       DateTime @updatedAt

@@ -5,6 +5,81 @@
 
 ---
 
+## 迭代 29 - 2026-06-26
+
+### 任务概要
+Hermes Agent 深度集成 8 大任务：(1) 技能管理新增 Hermes 分类；(2) Hermes 记忆与记忆图谱双向同步；(3) HermesCron 改造巡检打通 AI 助理；(4) 模式 C 默认开启+状态显示+飞书机器人汇报；(5) 持续调教训练使用说明（新增文档第 8 章 9 小节）；(6) Cron 任务设置简化（5 个预设）；(7) 自动工作（TaskPattern 模型：做一遍→自动学习→下次自动做）；(8) 修复 Hermes 技能 Tab 加载（多级回退）。
+
+### 完成内容
+
+#### 1. 技能管理新增 Hermes 分类
+- **`src/app/skills/page.tsx`**：`CATEGORIES` 新增 `{ key: "hermes", label: "Hermes", icon: Bot }`；`CATEGORY_BADGE` 新增 `hermes: "cognition"`；`SOURCE_LABEL` 新增 `hermes-learned`、`hermes-imported`、`marketplace`；侧边栏 hermes 分类按 `source` 计数。
+- **`src/app/api/skills/route.ts`**：`category === "hermes"` 时改用 `source: { in: ["hermes-learned", "hermes-imported"] }` 过滤。
+
+#### 2. Hermes 记忆与记忆图谱双向同步
+- **`src/lib/hermes-client.ts`**：新增 `syncHermesMemoryToLynnHub(userId)` 读取 Hermes memory 目录文件，创建 `type: "hermes"` 的 Memory 记录，用 `embedText` 生成 embedding；新增 `exportMemoryToHermes(userId)` 将数据库 Memory 导出为文件到 Hermes memory 目录。
+- **`src/app/api/hermes/memory/sync/route.ts`**（新建）：POST 端点触发双向同步。
+- **`src/app/memory/page.tsx`**：`GraphNode["type"]` 新增 `"hermes"`；`TYPE_LABELS`/`TYPE_HSL`/`TYPE_ICON`/`FILTER_OPTIONS` 新增 hermes；新增"同步 Hermes 记忆"按钮。
+- **`src/app/api/memory/route.ts`**：支持 hermes 类型。
+
+#### 3. HermesCron 改造巡检 + 打通 AI 助理
+- **`src/lib/hermes-client.ts`**：新增 `executeCronJobViaAssistant(userId, prompt)` 通过 AI 助理路径执行 cron 任务，成功后推送飞书。
+- **`src/app/api/hermes/cron/execute/route.ts`**（新建）：POST 端点触发 cron 任务执行。
+- **`src/app/api/hermes/cron/route.ts`**：新增 `validateCronExpression()` 严格校验 5 字段 cron 表达式；修复 JSDoc 注释 bug（`*/5` → `*\/5`）。
+- **`src/app/settings/patrol/page.tsx`**：新增"🤖 Hermes Cron 自动巡检"卡片（5 个预设时间按钮、prompt 输入、创建/试运行/接管按钮、已有任务列表）。
+
+#### 4. 模式 C 默认开启 + 状态显示 + 飞书机器人汇报
+- **`prisma/schema.prisma`**：`hermesTakeover` 默认值从 `false` 改为 `true`；`hermesAutoReport` 默认值从 `false` 改为 `true`。
+- **`src/app/ai/assistant/page.tsx`**：Message 接口新增 `hermesMode?` / `hermesFallback?`；AI 消息气泡新增绿色"Hermes Agent 回复"/琥珀色"LLM 回退"徽章；底部状态栏新增模式指示（`hermesTakeover` 为 true 时显示绿色"🤖 Hermes Agent 模式"）。
+- **`src/lib/hermes-client.ts`**：`generateProactiveReport` 新增飞书推送段，检查 `feishuNotify`，通过 `runLarkCliService("im", "+messages-send --user-id ... --text ...")` 发送。
+- **`src/app/api/hermes/chat-to-user/route.ts`**（新建）：POST 端点让 Hermes 主动通过飞书发消息给用户。
+
+#### 5. 持续调教训练使用说明（新增文档第 8 章）
+- **`docs/hermes-usage-guide.md`**：新增第 8 章"持续调教训练：让 Hermes 越来越懂你"，共 9 小节：
+  - 8.1 调教的四大方式（记忆调教/技能强化/任务模式学习/反馈纠正）
+  - 8.2 记忆调教：告诉 Hermes 偏好
+  - 8.3 技能强化：重复任务触发 /learn
+  - 8.4 任务模式学习：做一遍→自动做 ⭐（核心功能，含工作原理+操作步骤+适用场景+调教技巧）
+  - 8.5 反馈纠正：让 Hermes 不犯同样的错
+  - 8.6 模型选择策略（DeepSeek/MiMo/Auto）
+  - 8.7 调教进度评估（5 个指标+里程碑）
+  - 8.8 调教最佳实践清单（每日/每周/每月）
+  - 8.9 完整调教案例：从 0 到超级助理（30 天）
+  - 原章节 8-11 重新编号为 9-12。
+
+#### 6. Cron 任务设置简化
+- **`src/app/settings/patrol/page.tsx`**：新增 5 个一键选择预设（每天 9:00 / 每天 18:00 / 每小时 / 每周一 9:00 / 工作日 9:00），点击即填充 cron 表达式。
+
+#### 7. 自动工作（TaskPattern 模型）
+- **`prisma/schema.prisma`**：新增 `TaskPattern` 模型（patternKey/taskTemplate/steps/hermesPrompt/matchKeywords/executionCount/autoExecutedCount/autoExecute/lastExecutedAt/lastAutoResult），含 `@@index([userId, patternKey])` 和 `@@index([autoExecute])`；User 模型新增 `taskPatterns TaskPattern[]` 关系。
+- **`src/lib/hermes-client.ts`**：
+  - `learnTaskPattern(userId, taskDescription, taskResult)` 提取关键词、查找已存在模式、累加或新建；2 次以上自动启用 `autoExecute`。
+  - `findMatchingPattern(userId, taskDescription)` 在 autoExecute=true 的模式中按关键词命中率评分。
+  - `executePatternAutomatically(userId, pattern)` 通过 `executeAssistantViaHermes` 执行模式。
+- **`src/app/api/ai/chat/route.ts`**：三处 assistantMode 出口异步非阻塞调用 `learnTaskPattern(userId, userText, aiContent)`；新增 `hermesFallback` 跟踪变量，LLM 回退时返回 `hermesFallback: true`。
+- **`src/app/api/hermes/patterns/route.ts`**（新建）：GET 列表 / POST 手动学习。
+- **`src/app/api/hermes/patterns/[id]/route.ts`**（新建）：PATCH 更新 / DELETE 删除。
+- **`src/app/api/hermes/patterns/auto-check/route.ts`**（新建）：POST 检查匹配并自动执行。
+- **`src/app/ai/assistant/page.tsx`**：新增"任务模式学习"区块（列表显示已学习模式、autoExecute 开关、检查自动执行按钮）。
+
+#### 8. 修复 Hermes 技能 Tab 加载
+- **`src/app/api/hermes/skills/route.ts`**：重写为多级回退：
+  1. 尝试 Hermes Agent（如果运行中）
+  2. 回退到数据库查询 `source IN ["hermes-learned", "hermes-imported"]`
+  3. 回退到文件系统 `listLearnedSkills(userId)`
+  - 始终返回 HTTP 200，含 `{ skills, source, hermesRunning }`，不再返回 400。
+- **`src/app/ai/assistant/page.tsx`**：`fetchHermesSkills` 修复：检查 `res.ok`，保存 `hermesSource`/`hermesRunning` 状态，空状态显示预加载按钮；新增 `handlePreloadHermesSkills` 方法。
+
+### 自测结果
+- TypeScript 编译：`npx tsc --noEmit` 通过（exit 0，无错误）
+- Prisma schema 验证通过（TaskPattern 模型+索引）
+- 所有新增 API 路由遵循项目规范（端口 5176、橙黑灰配色、分页搜索筛选）
+
+### Commit
+`（待提交后填写）`
+
+---
+
 ## 迭代 28 - 2026-06-25
 
 ### 任务概要

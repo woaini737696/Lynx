@@ -126,6 +126,7 @@ const CATEGORIES = [
   { key: "knowledge", label: "知识", icon: FileText },
   { key: "meeting", label: "会议", icon: FileText },
   { key: "product", label: "产品", icon: FileText },
+  { key: "hermes", label: "Hermes", icon: Bot },
   { key: "custom", label: "自定义", icon: Wrench },
 ];
 
@@ -137,6 +138,7 @@ const CATEGORY_BADGE: Record<string, "task" | "cognition" | "northstar" | "campa
   knowledge: "campaign",
   meeting: "task",
   product: "campaign",
+  hermes: "cognition",
   custom: "default",
 };
 
@@ -148,6 +150,7 @@ const CATEGORY_LABEL: Record<string, string> = {
   knowledge: "知识",
   meeting: "会议",
   product: "产品",
+  hermes: "Hermes",
   custom: "自定义",
 };
 
@@ -155,6 +158,9 @@ const SOURCE_LABEL: Record<string, string> = {
   manual: "手动",
   imported: "导入",
   "ai-generated": "AI 生成",
+  "hermes-learned": "Hermes学习",
+  "hermes-imported": "Hermes导入",
+  marketplace: "广场",
 };
 
 const PARAM_TYPES: SkillParamType[] = [
@@ -458,7 +464,9 @@ export default function SkillsPage() {
               const count =
                 cat.key === "all"
                   ? skills.length
-                  : skills.filter((s) => s.category === cat.key).length;
+                  : cat.key === "hermes"
+                    ? skills.filter((s) => s.source === "hermes-learned" || s.source === "hermes-imported").length
+                    : skills.filter((s) => s.category === cat.key).length;
               return (
                 <button
                   key={cat.key}

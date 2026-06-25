@@ -17,6 +17,7 @@ import {
   Clock,
   AlertCircle,
   Pencil,
+  Zap,
 } from "lucide-react";
 import { PageHeader, Card, Button, Badge } from "@/components/layout/PageHeader";
 import { HelpButton } from "@/components/layout/HelpButton";
@@ -85,6 +86,23 @@ interface PatrolRuleDraft {
   enabled: boolean;
 }
 
+// Hermes Cron 任务类型
+interface CronJob {
+  id?: string;
+  schedule?: string;
+  prompt?: string;
+  enabled?: boolean;
+}
+
+// Hermes Cron 预设时间（一键选择）
+const CRON_PRESETS: Array<{ label: string; cron: string }> = [
+  { label: "每天 9:00", cron: "0 9 * * *" },
+  { label: "每天 18:00", cron: "0 18 * * *" },
+  { label: "每小时", cron: "0 * * * *" },
+  { label: "每周一 9:00", cron: "0 9 * * 1" },
+  { label: "工作日 9:00", cron: "0 9 * * 1-5" },
+];
+
 const SCOPE_LABELS: Record<string, string> = {
   inbox: "Inbox 灵感",
   board: "决策看板",
@@ -139,6 +157,15 @@ export default function PatrolSettingsPage() {
   const [logSearch, setLogSearch] = useState("");
   const [logLevel, setLogLevel] = useState<"all" | "info" | "warn" | "error">("all");
 
+  // Hermes Cron 快速设置状态
+  const [cronJobs, setCronJobs] = useState<CronJob[]>([]);
+  const [cronSchedule, setCronSchedule] = useState<string>("0 9 * * *");
+  const [cronPrompt, setCronPrompt] = useState<string>("");
+  const [creatingCron, setCreatingCron] = useState(false);
+  const [executingCron, setExecutingCron] = useState(false);
+  const [deletingCronId, setDeletingCronId] = useState<string | null>(null);
+  const [takeingOver, setTakeingOver] = useState(false);
+
   // 加载规则列表
   const loadRules = useCallback(async () => {
     try {
@@ -166,14 +193,134 @@ export default function PatrolSettingsPage() {
     }
   }, []);
 
+  // 加载 Hermes Cron 任务列表
+  const loadCronJobs = useCallback(async () => {
+    try {
+      const res = await fetch("/api/hermes/cron");
+      if (res.ok) {
+        const data = await res.json();
+        setCronJobs(data.jobs || []);
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  }, []);
+
   useEffect(() => {
     const load = async () => {
       setLoading(true);
-      await Promise.all([loadRules(), loadLogs()]);
+      await Promise.all([loadRules(), loadLogs(), loadCronJobs()]);
       setLoading(false);
     };
     load();
-  }, [loadRules, loadLogs]);
+  }, [loadRules, loadLogs, loadCronJobs]);
+
+  // 创建 Hermes Cron 任务
+  const createCronJob = async () => {
+    if (!cronSchedule.trim() || !cronPrompt.trim()) {
+      toast("请填写 cron 表达式和任务描述", "error");
+      return;
+    }
+    setCreatingCron(true);
+    try {
+      const res = await fetch("/api/hermes/cron", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          schedule: cronSchedule.trim(),
+          prompt: cronPrompt.trim(),
+        }),
+      });
+      const data = await res.json();
+      if (res.ok && data.success !== false) {
+        toast(data.message || "Cron 任务已创建", "success");
+        setCronPrompt("");
+        loadCronJobs();
+      } else {
+        toast(data.error || "创建 Cron 任务失败", "error");
+      }
+    } catch {
+      toast("网络错误", "error");
+    } finally {
+      setCreatingCron(false);
+    }
+  };
+
+  // 删除 Hermes Cron 任务
+  const deleteCronJob = async (jobId: string) => {
+    if (!jobId) {
+      toast("无法删除：缺少任务 ID", "error");
+      return;
+    }
+    setDeletingCronId(jobId);
+    try {
+      const res = await fetch(`/api/hermes/cron/${jobId}`, { method: "DELETE" });
+      if (res.ok) {
+        toast("Cron 任务已删除", "success");
+        loadCronJobs();
+      } else {
+        const err = await res.json().catch(() => ({}));
+        toast(err.error || "删除失败", "error");
+      }
+    } catch {
+      toast("网络错误", "error");
+    } finally {
+      setDeletingCronId(null);
+    }
+  };
+
+  // 试运行 Cron 任务（通过 AI 助理路径执行当前 prompt）
+  const executeCronJob = async () => {
+    if (!cronPrompt.trim()) {
+      toast("请先填写任务描述", "error");
+      return;
+    }
+    setExecutingCron(true);
+    try {
+      const res = await fetch("/api/hermes/cron/execute", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ prompt: cronPrompt.trim() }),
+      });
+      const data = await res.json();
+      if (res.ok && data.success !== false) {
+        toast(data.message || "任务已执行", "success");
+      } else {
+        toast(data.error || "任务执行失败", "error");
+      }
+    } catch {
+      toast("网络错误", "error");
+    } finally {
+      setExecutingCron(false);
+    }
+  };
+
+  // 一键接管所有巡检规则到 Hermes Cron
+  const takeoverPatrol = async () => {
+    setTakeingOver(true);
+    try {
+      const res = await fetch("/api/hermes/patrol-takeover", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+      });
+      const data = await res.json();
+      if (res.ok && data.success !== false) {
+        toast(
+          data.migratedCount > 0
+            ? `已迁移 ${data.migratedCount} 条巡检规则到 Hermes Cron`
+            : data.message || "没有可迁移的规则",
+          "success"
+        );
+        loadCronJobs();
+      } else {
+        toast(data.error || "接管失败", "error");
+      }
+    } catch {
+      toast("网络错误", "error");
+    } finally {
+      setTakeingOver(false);
+    }
+  };
 
   // 滚动到聊天底部
   useEffect(() => {
@@ -474,6 +621,188 @@ export default function PatrolSettingsPage() {
           <HelpButton contentKey="settings-patrol" />
         }
       />
+
+      {/* 🤖 Hermes Cron 快速设置：一键创建定时任务并接管巡检 */}
+      <Card className="mb-4 p-0">
+        <div className="flex items-center justify-between border-b border-border px-4 py-3">
+          <div className="flex items-center gap-2">
+            <Bot className="h-4 w-4 text-cognition" />
+            <h2 className="text-sm font-semibold">🤖 Hermes Cron 自动巡检</h2>
+            <span className="ml-1 rounded-full bg-muted px-2 py-0.5 text-[10px] text-muted-foreground">
+              {cronJobs.length} 个定时任务
+            </span>
+          </div>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={takeoverPatrol}
+            disabled={takeingOver}
+            title="将所有启用的巡检规则迁移为 Hermes Cron 任务"
+          >
+            {takeingOver ? (
+              <Loader2 className="h-3 w-3 animate-spin" />
+            ) : (
+              <Zap className="h-3 w-3" />
+            )}
+            一键接管所有巡检规则
+          </Button>
+        </div>
+
+        <div className="space-y-3 p-4">
+          {/* 预设时间按钮 */}
+          <div>
+            <label className="mb-1.5 block text-[11px] text-muted-foreground">
+              ⏰ 选择预设时间
+            </label>
+            <div className="flex flex-wrap gap-2">
+              {CRON_PRESETS.map((preset) => (
+                <button
+                  key={preset.cron}
+                  type="button"
+                  onClick={() => setCronSchedule(preset.cron)}
+                  className={cn(
+                    "rounded-lg border px-2.5 py-1 text-[11px] transition-colors",
+                    cronSchedule === preset.cron
+                      ? "border-primary bg-primary/10 text-primary"
+                      : "border-border bg-transparent text-muted-foreground hover:bg-muted"
+                  )}
+                >
+                  {preset.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* 自定义 cron 表达式输入 */}
+          <div className="flex items-center gap-2">
+            <label className="shrink-0 text-[11px] text-muted-foreground">
+              自定义 cron：
+            </label>
+            <input
+              value={cronSchedule}
+              onChange={(e) => setCronSchedule(e.target.value)}
+              placeholder="0 9 * * *"
+              className="max-w-xs flex-1 rounded-lg border border-border bg-background px-2 py-1 font-mono text-[11px] outline-none focus:border-primary"
+            />
+            <span className="text-[10px] text-muted-foreground">
+              5 字段格式：分 时 日 月 周
+            </span>
+          </div>
+
+          {/* 任务 prompt 输入 */}
+          <div>
+            <textarea
+              value={cronPrompt}
+              onChange={(e) => setCronPrompt(e.target.value)}
+              rows={3}
+              placeholder="描述你想让 Hermes 自动做的事..."
+              className="w-full resize-none rounded-lg border border-border bg-background px-3 py-2 text-xs outline-none focus:border-primary"
+            />
+          </div>
+
+          {/* 操作按钮 */}
+          <div className="flex flex-wrap gap-2">
+            <Button
+              size="sm"
+              onClick={createCronJob}
+              disabled={
+                creatingCron ||
+                !cronSchedule.trim() ||
+                !cronPrompt.trim()
+              }
+            >
+              {creatingCron ? (
+                <Loader2 className="h-3 w-3 animate-spin" />
+              ) : (
+                <Plus className="h-3 w-3" />
+              )}
+              创建 Cron 任务
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={executeCronJob}
+              disabled={executingCron || !cronPrompt.trim()}
+              title="不创建任务，直接执行一次当前 prompt（用于测试）"
+            >
+              {executingCron ? (
+                <Loader2 className="h-3 w-3 animate-spin" />
+              ) : (
+                <Play className="h-3 w-3" />
+              )}
+              试运行
+            </Button>
+          </div>
+
+          {/* 现有 cron jobs 列表 */}
+          <div className="border-t border-border pt-3">
+            <div className="mb-2 flex items-center gap-1.5">
+              <Clock className="h-3 w-3 text-muted-foreground" />
+              <span className="text-[11px] font-medium text-muted-foreground">
+                已创建的 Cron 任务
+              </span>
+            </div>
+            {cronJobs.length === 0 ? (
+              <div className="rounded-xl border border-dashed border-border bg-muted/30 py-4 text-center text-[11px] text-muted-foreground">
+                暂无 Cron 任务
+                <br />
+                选择预设时间并描述任务后创建
+              </div>
+            ) : (
+              <div className="space-y-1.5">
+                {cronJobs.map((job, i) => (
+                  <div
+                    key={job.id || `cron-${i}`}
+                    className="flex items-start gap-2 rounded-lg border border-border bg-background p-2"
+                  >
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        <Badge color="cognition">
+                          {job.schedule || "未知"}
+                        </Badge>
+                        {job.enabled !== undefined && (
+                          <span
+                            className={cn(
+                              "text-[10px]",
+                              job.enabled
+                                ? "text-task"
+                                : "text-muted-foreground"
+                            )}
+                          >
+                            {job.enabled ? "已启用" : "已禁用"}
+                          </span>
+                        )}
+                        {job.id && (
+                          <span className="text-[9px] text-muted-foreground/70">
+                            #{job.id.slice(-8)}
+                          </span>
+                        )}
+                      </div>
+                      <p className="mt-1 line-clamp-2 text-[11px] text-foreground/80">
+                        {job.prompt || "(无提示词)"}
+                      </p>
+                    </div>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => job.id && deleteCronJob(job.id)}
+                      disabled={!job.id || deletingCronId === job.id}
+                      className="shrink-0 text-graveyard hover:bg-graveyard/10"
+                      title="删除该 Cron 任务"
+                    >
+                      {deletingCronId === job.id ? (
+                        <Loader2 className="h-3 w-3 animate-spin" />
+                      ) : (
+                        <Trash2 className="h-3 w-3" />
+                      )}
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      </Card>
 
       {/* 模板库：预置常用巡检规则模板 */}
       <Card className="mb-4 p-0">

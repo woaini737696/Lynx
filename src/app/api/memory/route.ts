@@ -224,6 +224,7 @@ export async function GET() {
       idea: "#f6ad55",
       conversation: "#63b3ed",
       cognition: "#a78bfa",
+      hermes: "#2dd4bf",
     };
 
     const nodes = memories.map((m) => {

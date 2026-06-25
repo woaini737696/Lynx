@@ -9,6 +9,7 @@
 
 import { prisma } from "@/lib/db";
 import { getLogger } from "@/lib/logger";
+import { embedText, float32ToBuffer } from "@/lib/embedding";
 
 const logger = getLogger("hermes-client");
 
@@ -2037,7 +2038,24 @@ ${dataSummary}
     }
   }
 
-  // 6. 异步同步 learned skills
+  // 6. 通过飞书机器人推送（如果 feishuNotify 开启）
+  if (result.success && reportId) {
+    try {
+      const aiSettings = await prisma.aISetting.findFirst();
+      if (aiSettings?.feishuNotify) {
+        const { runLarkCliService, getCurrentUser } = await import("@/lib/lark-sync");
+        const me = getCurrentUser();
+        if (me?.openId) {
+          const preview = result.output.slice(0, 500).replace(/[#*`]/g, "");
+          runLarkCliService("im", `+messages-send --user-id ${me.openId} --text "🤖 ${title}\n\n${preview}"`);
+        }
+      }
+    } catch (e) {
+      logger.warn({ err: e }, "飞书推送失败（非阻塞）");
+    }
+  }
+
+  // 7. 异步同步 learned skills
   if (result.success) {
     syncLearnedSkills(userId).catch(() => {});
   }
@@ -2113,4 +2131,580 @@ ${rule.prompt}
     migratedCount,
     errors,
   };
+}
+
+// ============ Hermes Cron 与 AI 助理集成（Task 3） ============
+
+/**
+ * 通过 AI 助理路径执行 Cron 任务
+ *
+ * 将 Cron 任务的 prompt 通过 `executeAssistantViaHermes` 走 AI 助理路径执行，
+ * 利用持久化记忆 + 跨会话上下文 + 自动学习能力。
+ *
+ * 流程：
+ * 1. 调用 executeAssistantViaHermes 执行 prompt（带记忆上下文）
+ * 2. 任务完成后生成简要报告
+ * 3. 若 AISetting.feishuNotify 为 true，通过飞书推送报告
+ * 4. 返回 { success, output, reported }
+ *
+ * 该函数目前可由 `POST /api/hermes/cron/execute` 手动触发，
+ * 未来接入 cron scheduler 后将由调度器自动调用。
+ */
+export async function executeCronJobViaAssistant(
+  userId: string,
+  prompt: string
+): Promise<{
+  success: boolean;
+  output: string;
+  reported: boolean;
+  error?: string;
+  durationMs?: number;
+}> {
+  const start = Date.now();
+
+  // 1. 通过 AI 助理路径执行（复用持久化记忆 + --learn）
+  const result = await executeAssistantViaHermes(userId, prompt, 180);
+
+  if (!result.success) {
+    return {
+      success: false,
+      output: result.output || "",
+      reported: false,
+      error: result.error,
+      durationMs: Date.now() - start,
+    };
+  }
+
+  // 2. 任务完成 → 生成简要报告
+  // 截取前 800 字作为报告正文，过长内容截断避免飞书消息超长
+  const truncatedOutput = result.output.length > 800
+    ? result.output.slice(0, 800) + "\n...(内容已截断)"
+    : result.output;
+
+  const timestamp = new Date().toLocaleString("zh-CN", { hour12: false });
+  const report = `🤖【Hermes Cron 任务执行报告】
+时间：${timestamp}
+任务：${prompt.slice(0, 120)}${prompt.length > 120 ? "..." : ""}
+
+执行结果：
+${truncatedOutput}`;
+
+  // 3. 若启用 feishuNotify，通过飞书推送
+  let reported = false;
+  try {
+    const settings = await prisma.aISetting.findFirst();
+    if (settings?.feishuNotify) {
+      const { getCurrentUser, runLarkCliService } = await import("@/lib/lark-sync");
+      const me = getCurrentUser();
+      if (me) {
+        const shellQuote = (s: string) => `"${s.replace(/"/g, '\\"')}"`;
+        const sendResult = runLarkCliService(
+          "im",
+          `+messages-send --user-id ${shellQuote(me.openId)} --text ${shellQuote(report)}`
+        );
+        reported = sendResult.ok;
+        if (!sendResult.ok) {
+          logger.warn(
+            { error: sendResult.error },
+            "Cron 任务报告飞书推送失败"
+          );
+        }
+      } else {
+        logger.warn("Cron 任务报告推送：无法获取当前用户 open_id");
+      }
+    }
+  } catch (e) {
+    // 飞书推送失败不影响任务成功状态
+    logger.warn({ err: e }, "Cron 任务报告飞书推送异常（非阻塞）");
+  }
+
+  return {
+    success: true,
+    output: result.output,
+    reported,
+    durationMs: Date.now() - start,
+  };
+}
+
+// ============ LynnHub ↔ Hermes 记忆双向同步 ============
+
+/**
+ * 将 Hermes profile/memory/ 目录下的记忆文件同步到 LynnHub Memory 表（Hermes → LynnHub）
+ *
+ * 读取 ~/.lynnhub/hermes-profiles/<userId>/hermes/memory/ 下的所有文本文件，
+ * 为每个文件创建一条 Memory 记录（type: "hermes"），并生成 embedding。
+ * 按 content 前 200 字符去重（与所有已存在记忆比对，避免循环导入），已存在的跳过。
+ *
+ * @returns { success, synced, skipped }
+ */
+export async function syncHermesMemoryToLynnHub(userId: string): Promise<{
+  success: boolean;
+  synced: number;
+  skipped: number;
+  error?: string;
+}> {
+  const fs = require("fs") as typeof import("fs");
+  const path = require("path") as typeof import("path");
+
+  try {
+    const memoryDir = path.join(getUserHermesDir(userId), "memory");
+    if (!fs.existsSync(memoryDir)) {
+      return { success: true, synced: 0, skipped: 0 };
+    }
+
+    // 扫描 memory 目录下的所有文本文件
+    const files = fs.readdirSync(memoryDir).filter((f: string) =>
+      /\.(txt|md|json|yaml|yml)$/i.test(f)
+    );
+
+    if (files.length === 0) {
+      return { success: true, synced: 0, skipped: 0 };
+    }
+
+    // 预取已存在的所有记忆（按 content 前 200 字符去重，覆盖所有类型避免循环导入）
+    const existingMemories = await prisma.memory.findMany({
+      where: { userId },
+      select: { content: true },
+    });
+    const existingKeys = new Set<string>();
+    for (const m of existingMemories) {
+      existingKeys.add(m.content.slice(0, 200));
+    }
+
+    let synced = 0;
+    let skipped = 0;
+    const pendingCreates: Array<{
+      type: string;
+      content: string;
+      embedding: Buffer;
+      userId: string;
+    }> = [];
+
+    for (const file of files) {
+      const filePath = path.join(memoryDir, file);
+      try {
+        const rawContent = fs.readFileSync(filePath, "utf-8");
+        // 截断到 8000 字符（与 embedText 的截断一致）
+        const content = rawContent.slice(0, 8000);
+        if (!content.trim()) {
+          skipped++;
+          continue;
+        }
+
+        // 去重：按 content 前 200 字符（与所有已存在记忆比对）
+        const dedupKey = content.slice(0, 200);
+        if (existingKeys.has(dedupKey)) {
+          skipped++;
+          continue;
+        }
+        existingKeys.add(dedupKey);
+
+        // 生成 embedding
+        const vec = await embedText(content);
+        const embeddingBuffer = float32ToBuffer(vec);
+
+        pendingCreates.push({
+          type: "hermes",
+          content,
+          embedding: embeddingBuffer,
+          userId,
+        });
+        synced++;
+      } catch (e) {
+        logger.warn({ err: e, file }, "读取 Hermes memory 文件失败，跳过");
+        skipped++;
+      }
+    }
+
+    // 批量创建
+    if (pendingCreates.length > 0) {
+      await prisma.$transaction(
+        pendingCreates.map((data) => prisma.memory.create({ data }))
+      );
+    }
+
+    logger.info({ userId, synced, skipped }, "Hermes 记忆同步到 LynnHub 完成");
+    return { success: true, synced, skipped };
+  } catch (e) {
+    return { success: false, synced: 0, skipped: 0, error: (e as Error).message };
+  }
+}
+
+/**
+ * 将 LynnHub Memory 表中的记忆导出到 Hermes profile/memory/ 目录（LynnHub → Hermes）
+ *
+ * 读取所有 type 为 idea/conversation/cognition 的 Memory 记录，
+ * 为每条记录写入一个文本文件 lynnhub-{type}-{id}.txt 到 Hermes memory 目录。
+ * 这让 Hermes Agent 在执行任务时能访问 LynnHub 的记忆。
+ *
+ * @returns { success, exported }
+ */
+export async function exportMemoryToHermes(userId: string): Promise<{
+  success: boolean;
+  exported: number;
+  error?: string;
+}> {
+  const fs = require("fs") as typeof import("fs");
+  const path = require("path") as typeof import("path");
+
+  try {
+    const memories = await prisma.memory.findMany({
+      where: {
+        userId,
+        type: { in: ["idea", "conversation", "cognition"] },
+      },
+      select: { id: true, type: true, content: true },
+    });
+
+    if (memories.length === 0) {
+      return { success: true, exported: 0 };
+    }
+
+    const memoryDir = path.join(getUserHermesDir(userId), "memory");
+    fs.mkdirSync(memoryDir, { recursive: true });
+
+    let exported = 0;
+    for (const m of memories) {
+      const fileName = `lynnhub-${m.type}-${m.id}.txt`;
+      const filePath = path.join(memoryDir, fileName);
+      try {
+        fs.writeFileSync(filePath, m.content, "utf-8");
+        exported++;
+      } catch (e) {
+        logger.warn({ err: e, fileName }, "写入 LynnHub 记忆到 Hermes 失败，跳过");
+      }
+    }
+
+    logger.info({ userId, exported }, "LynnHub 记忆导出到 Hermes 完成");
+    return { success: true, exported };
+  } catch (e) {
+    return { success: false, exported: 0, error: (e as Error).message };
+  }
+}
+
+// ============ 任务模式学习（Task 7：auto-work） ============
+
+/** 中文停用词与噪声词，提取关键词时过滤 */
+const STOP_WORDS = new Set([
+  "的", "了", "是", "在", "我", "有", "和", "就", "不", "人", "都", "一", "一个",
+  "上", "也", "很", "到", "说", "要", "去", "你", "会", "着", "没有", "看", "好",
+  "这", "那", "它", "他", "她", "我们", "你们", "他们", "吧", "吗", "呢", "啊",
+  "帮", "帮我", "帮忙", "请", "一下", "麻烦", "可以", "能够", "需要", "想",
+  "the", "a", "an", "to", "of", "in", "on", "for", "is", "are", "be", "with",
+  "and", "or", "not", "this", "that", "it", "i", "you", "we", "they",
+]);
+
+/**
+ * 从任务描述中提取关键词
+ * 简易分词：按空格、标点切分，过滤停用词与过短词
+ */
+function extractKeywords(text: string): string[] {
+  if (!text || typeof text !== "string") return [];
+  // 按空格、标点、中英文边界切分
+  const tokens = text
+    .toLowerCase()
+    .split(/[\s,，。.;；:：!！?？'""()\[\]{}【】<>《》\-_=+*&^%$#@~`|\\/]+/)
+    .map((t) => t.trim())
+    .filter((t) => t.length >= 2 && !STOP_WORDS.has(t));
+
+  // 去重并保留顺序
+  const seen = new Set<string>();
+  const result: string[] = [];
+  for (const t of tokens) {
+    if (!seen.has(t)) {
+      seen.add(t);
+      result.push(t);
+    }
+  }
+  return result.slice(0, 10);
+}
+
+/**
+ * 生成模式 Key
+ * 取前 3 个关键词用 "|" 连接，作为模式的唯一标识
+ */
+function buildPatternKey(keywords: string[]): string {
+  return keywords.slice(0, 3).join("|") || "default";
+}
+
+/**
+ * 构建 Hermes 执行 prompt
+ * 基于任务描述生成可直接交给 Hermes 的 prompt
+ */
+function buildHermesPrompt(taskDescription: string, taskResult: string): string {
+  return `## 任务模式学习
+
+用户之前执行过该任务，请基于以下模式自动完成类似任务。
+
+### 任务描述
+${taskDescription}
+
+### 上次执行的结果
+${taskResult.slice(0, 2000)}
+
+### 要求
+1. 按照相同的模式完成本次任务
+2. 如有参数变化，根据上下文调整
+3. 完成后简要汇报结果`;
+}
+
+/**
+ * 学习任务模式
+ *
+ * 当用户手动完成一个任务后调用：
+ * - 提取任务关键词
+ * - 检查是否已存在相同 patternKey 的模式
+ * - 已存在：executionCount + 1，更新 lastExecutedAt
+ * - 不存在：创建新模式
+ * - 同一模式手动执行 2 次以上时，自动启用 autoExecute
+ *
+ * @returns { success, patternId, autoExecute }
+ */
+export async function learnTaskPattern(
+  userId: string,
+  taskDescription: string,
+  taskResult: string
+): Promise<{
+  success: boolean;
+  patternId?: string;
+  autoExecute?: boolean;
+  error?: string;
+}> {
+  try {
+    if (!taskDescription || taskDescription.trim().length < 2) {
+      return { success: false, error: "任务描述过短，无法学习" };
+    }
+
+    const keywords = extractKeywords(taskDescription);
+    if (keywords.length === 0) {
+      return { success: false, error: "未能从任务描述中提取到有效关键词" };
+    }
+
+    const patternKey = buildPatternKey(keywords);
+    const hermesPrompt = buildHermesPrompt(taskDescription, taskResult);
+
+    // 检查是否已存在相同 patternKey 的模式
+    const existing = await prisma.taskPattern.findFirst({
+      where: { userId, patternKey },
+    });
+
+    if (existing) {
+      // 已存在：累加执行次数，合并关键词，可能启用自动执行
+      const mergedKeywords = Array.from(
+        new Set([
+          ...(Array.isArray(existing.matchKeywords)
+            ? (existing.matchKeywords as string[])
+            : []),
+          ...keywords,
+        ])
+      ).slice(0, 20);
+
+      const newExecutionCount = existing.executionCount + 1;
+      // 手动执行 2 次以上时自动启用 autoExecute
+      const shouldAutoExecute = newExecutionCount >= 2;
+
+      const updated = await prisma.taskPattern.update({
+        where: { id: existing.id },
+        data: {
+          executionCount: newExecutionCount,
+          lastExecutedAt: new Date(),
+          matchKeywords: mergedKeywords as never,
+          // 仅当尚未启用时才自动启用（已启用保持不变）
+          autoExecute: existing.autoExecute || shouldAutoExecute,
+          // 更新 hermesPrompt（保留最新的执行结果作为参考）
+          hermesPrompt,
+          // 更新 taskTemplate（保留最新描述）
+          taskTemplate: taskDescription.slice(0, 1000),
+        },
+      });
+
+      logger.info(
+        { userId, patternId: updated.id, patternKey, executionCount: newExecutionCount, autoExecute: updated.autoExecute },
+        "任务模式学习：已存在模式，累加执行次数"
+      );
+
+      return {
+        success: true,
+        patternId: updated.id,
+        autoExecute: updated.autoExecute,
+      };
+    }
+
+    // 新模式：创建
+    const created = await prisma.taskPattern.create({
+      data: {
+        userId,
+        patternKey,
+        taskTemplate: taskDescription.slice(0, 1000),
+        steps: [] as never,
+        hermesPrompt,
+        matchKeywords: keywords as never,
+        executionCount: 1,
+        autoExecutedCount: 0,
+        autoExecute: false,
+        lastExecutedAt: new Date(),
+      },
+    });
+
+    logger.info(
+      { userId, patternId: created.id, patternKey, keywords },
+      "任务模式学习：创建新模式"
+    );
+
+    return {
+      success: true,
+      patternId: created.id,
+      autoExecute: false,
+    };
+  } catch (e) {
+    logger.error({ err: e, userId }, "学习任务模式失败");
+    return { success: false, error: (e as Error).message };
+  }
+}
+
+/**
+ * 查找匹配的任务模式
+ *
+ * 在所有 autoExecute = true 的模式中，按关键词匹配度评分，
+ * 返回得分超过阈值的最佳匹配。
+ *
+ * @returns { pattern, score } score 为 0 时表示未匹配
+ */
+export async function findMatchingPattern(
+  userId: string,
+  taskDescription: string
+): Promise<{
+  pattern: Awaited<ReturnType<typeof prisma.taskPattern.findFirst>> | null;
+  score: number;
+}> {
+  try {
+    if (!taskDescription || taskDescription.trim().length < 2) {
+      return { pattern: null, score: 0 };
+    }
+
+    const taskKeywords = extractKeywords(taskDescription);
+    if (taskKeywords.length === 0) {
+      return { pattern: null, score: 0 };
+    }
+
+    // 查询所有已启用自动执行的模式
+    const patterns = await prisma.taskPattern.findMany({
+      where: { userId, autoExecute: true },
+    });
+
+    if (patterns.length === 0) {
+      return { pattern: null, score: 0 };
+    }
+
+    let bestPattern: Awaited<ReturnType<typeof prisma.taskPattern.findFirst>> | null = null;
+    let bestScore = 0;
+    const MATCH_THRESHOLD = 1; // 至少匹配 1 个关键词
+
+    for (const p of patterns) {
+      const patternKeywords = Array.isArray(p.matchKeywords)
+        ? (p.matchKeywords as string[])
+        : [];
+      if (patternKeywords.length === 0) continue;
+
+      // 统计关键词命中数
+      let hitCount = 0;
+      for (const kw of taskKeywords) {
+        if (patternKeywords.includes(kw)) hitCount++;
+      }
+
+      // 归一化分数：命中关键词数 / 较小的一方（任务关键词数 vs 模式关键词数）
+      const minLen = Math.min(taskKeywords.length, patternKeywords.length);
+      const score = minLen > 0 ? hitCount / minLen : 0;
+
+      if (score > bestScore) {
+        bestScore = score;
+        bestPattern = p;
+      }
+    }
+
+    if (bestPattern && bestScore >= MATCH_THRESHOLD) {
+      logger.info(
+        { userId, patternId: bestPattern.id, patternKey: bestPattern.patternKey, score: bestScore },
+        "找到匹配的任务模式"
+      );
+      return { pattern: bestPattern, score: bestScore };
+    }
+
+    return { pattern: null, score: bestScore };
+  } catch (e) {
+    logger.error({ err: e, userId }, "查找匹配任务模式失败");
+    return { pattern: null, score: 0 };
+  }
+}
+
+/**
+ * 自动执行任务模式
+ *
+ * 通过 executeAssistantViaHermes 执行模式的 hermesPrompt，
+ * 更新执行统计与结果。
+ *
+ * @returns { success, output, error }
+ */
+export async function executePatternAutomatically(
+  userId: string,
+  pattern: NonNullable<Awaited<ReturnType<typeof prisma.taskPattern.findFirst>>>
+): Promise<{
+  success: boolean;
+  output: string;
+  error?: string;
+  durationMs?: number;
+}> {
+  const start = Date.now();
+
+  try {
+    // 通过 Hermes 执行模式的 prompt
+    const result = await executeAssistantViaHermes(
+      userId,
+      pattern.hermesPrompt,
+      120
+    );
+
+    // 更新模式执行统计
+    try {
+      await prisma.taskPattern.update({
+        where: { id: pattern.id },
+        data: {
+          executionCount: { increment: 1 },
+          autoExecutedCount: { increment: 1 },
+          lastExecutedAt: new Date(),
+          lastAutoResult: result.success ? "success" : "failed",
+        },
+      });
+    } catch (e) {
+      logger.warn({ err: e, patternId: pattern.id }, "更新任务模式执行统计失败（非阻塞）");
+    }
+
+    return {
+      success: result.success,
+      output: result.output,
+      error: result.error,
+      durationMs: Date.now() - start,
+    };
+  } catch (e) {
+    // 即使异常也尝试记录失败结果
+    try {
+      await prisma.taskPattern.update({
+        where: { id: pattern.id },
+        data: {
+          autoExecutedCount: { increment: 1 },
+          lastExecutedAt: new Date(),
+          lastAutoResult: "failed",
+        },
+      });
+    } catch {
+      // 忽略
+    }
+
+    return {
+      success: false,
+      output: "",
+      error: (e as Error).message,
+      durationMs: Date.now() - start,
+    };
+  }
 }
