@@ -1,6 +1,102 @@
 # LynnHub 开发日志
 
 > 每次迭代开发时需先读取本文件，了解历史变更和当前状态。
+> **规范**：每次迭代完成并提交后，必须同步更新本文件，新增一个迭代区块。
+
+---
+
+## 迭代 28 - 2026-06-25
+
+### 任务概要
+修复用户反馈的 8 个问题：(1) 开发日志同步规范；(2) 全双工语音实时通话深度优化；(3) 关闭自动语音播放后仍播放的 bug；(4) 语音识别总识别为"透支"的 bug；(5) Hermes Agent 技能无法使用；(6)(7) Hermes Agent 使用说明 + 案例 + 最佳实践；(8) Hermes Agent 支持切换模型与系统 AI 模型打通。
+
+### 完成内容
+
+#### 1. 全双工语音通话深度优化
+- **`src/app/ai/assistant/page.tsx`**：
+  - 修复 VAD 截断 bug：`ondataavailable` 始终收集数据块（不再检查 `vadSpeechActiveRef`），`onstop` 中才快照 chunks，确保 `recorder.stop()` 的最终 flush 不丢失。**这是 ASR "透支"问题的根因**——之前每次录音丢失最后几百毫秒音频。
+  - 新增 TTS 打断：用户开口说话时立即调用 `stopSpeaking()` 停止 TTS 播放，实现全双工对话体验。
+  - 降低语音结束检测延迟：`SPEECH_END_MS` 从 800ms 降到 500ms，响应更迅速。
+  - 超时保护同步修复：同样在 `onstop` 中快照 chunks。
+
+#### 2. 修复自动语音播放 bug
+- **`src/app/ai/assistant/page.tsx`**：自动播放条件从 `(autoSpeak || voiceMode)` 改为 `(autoSpeak || (voiceMode && voiceCallActive))`，关闭 autoSpeak 后非语音通话中不再自动播放。
+
+#### 3. 修复语音识别"透支"问题
+- **`src/lib/audio-utils.ts`**：`webmToWav` 不再强制 `sampleRate: 16000`，改用 AudioBuffer 实际采样率编码 WAV，避免部分浏览器忽略 sampleRate 选项导致采样率错位。
+- **`src/app/ai/assistant/page.tsx`**：`transcribeAudio` 转换失败时不再将 webm 伪装成 wav 发送（ASR 无法解析），改为返回错误提示。
+
+#### 4. Hermes Agent 模型切换 + 系统打通
+- **`src/lib/hermes-client.ts`**：`configureHermesModel(provider)` 支持 `"deepseek" | "mimo" | "auto"`，auto 模式读取 `AISetting.defaultProvider` 决策。MiMo 分支写入 `MIMO_API_KEY` / `MIMO_BASE_URL` / `MIMO_MODEL`。
+- **`src/lib/hermes-client.ts`**：`isHermesModelConfigured()` 同时检测 DeepSeek 和 MiMo 的 API Key。
+- **`src/app/api/hermes/configure-model/route.ts`**：POST 接受 `provider` 参数；GET 返回 `availableModels` 和 `defaultProvider`。
+- **`src/app/settings/page.tsx`**：新增模型选择下拉框（自动 / DeepSeek / MiMo），配置时传递所选 provider。
+
+#### 5. Hermes Agent 技能预加载
+- **`src/lib/hermes-client.ts`**：新增 `preloadDefaultSkills(userId)` 函数，创建 6 个默认技能文件（lynnhub-overview / task-management / idea-capture / memory-search / daily-report / patrol-check）到用户 profile/skills/ 目录。
+- **`src/app/api/hermes/skills/preload/route.ts`**（新建）：POST 端点触发预加载。
+
+#### 6. Hermes Agent 使用文档
+- **`docs/hermes-usage-guide.md`**：从 186 行扩展到 638 行，覆盖 10 章：Hermes 是什么、安装启动、五大核心功能、主动汇报、如何发挥最大价值、10 个使用案例、最佳实践、10 个 FAQ、API 参考、注意事项。重点解答"为什么开了 Hermes 没感觉到作用"。
+
+### 自测结果
+- TypeScript 编译：`npx tsc --noEmit` 通过
+- 待提交后运行 E2E 测试
+
+### Commit
+（待提交）
+
+---
+
+## 迭代 27 - 2026-06-25
+
+### 任务概要
+Hermes Agent 五大功能完善（持久化 profile + /learn 回写 + Cron 接管巡检 + Skills 双向同步 + 模式 C 接管 AI 助理）+ 项目规范文件 + 公共技能广场。
+
+### 完成内容
+
+#### 1. 持久化 Profile（每用户独立记忆）
+- **`src/lib/hermes-client.ts`**：`getUserProfileDir(userId)` 返回 `~/.lynnhub/hermes-profiles/<userId>/`，`buildHermesEnv(userId)` 重定向 LOCALAPPDATA 实现隔离。Profile 内含 logs/skills/memory/sessions 子目录，记忆跨会话保留。
+
+#### 2. /learn 回写
+- **`src/lib/hermes-client.ts`**：`syncLearnedSkills(userId)` 扫描 profile/skills/ 目录，`parseHermesSkillFile()` 解析 YAML front matter，回写到 Skill 表（`source: "hermes-learned"`）。
+- **`src/app/api/hermes/execute/route.ts`**：任务成功后异步调用 `syncLearnedSkills()`（非阻塞）。
+
+#### 3. Hermes Cron 接管巡检
+- **`src/lib/hermes-client.ts`**：`listHermesCronJobs` / `createHermesCronJob` / `deleteHermesCronJob` + `takeoverPatrolWithHermes(userId)` 将 PatrolRule 转换为 Hermes Cron 任务。
+
+#### 4. Skills 双向同步
+- **`src/lib/hermes-client.ts`**：`exportSkillToHermes(skillId, userId)` 写 YAML+MD 文件；`importSkillFromHermes(fileName, userId)` 解析文件写数据库；`listLearnedSkills(userId)` 列出文件系统技能。
+
+#### 5. 模式 C：Hermes Agent 接管 AI 助理
+- **`src/lib/hermes-client.ts`**：`executeAssistantViaHermes(userId, message)` 构建带记忆上下文的 prompt，通过 Hermes CLI 执行，失败回退 LLM。`buildAssistantPrompt()` 注入持久化记忆 + 看板摘要 + 成长状态。`generateProactiveReport()` 分析用户数据生成汇报 + Web Push 跨平台推送。
+- **`src/app/api/ai/chat/route.ts`**：`hermesTakeover` 开启时优先走 Hermes Agent，失败静默回退 LLM。
+- **`src/app/ai/assistant/page.tsx`**：设置面板新增 Hermes 接管模式开关 + 主动汇报开关 + Cron 配置 + 立即生成汇报按钮 + 巡检接管按钮。
+
+#### 6. 新增 8 个 API 路由
+- `src/app/api/hermes/` 下：skills/sync、skills/learned、skills/export、skills/import、cron、cron/[id]、memory/search、profile、proactive-report、reports、patrol-takeover
+
+#### 7. 项目规范文件
+- **`DEVELOPMENT_SPEC.md`**（新建）：8 大强制规范（Git 同步 / 端口 / UI / 工程 / Hermes / 数据库 / 提交时机 / PowerShell）
+
+#### 8. 公共技能广场
+- **`prisma/schema.prisma`**：Skill 表新增 publicId / isPublic / publishedAt / downloadCount / ratingAvg 字段。
+- **`src/app/api/skills/marketplace/`**：4 个广场 API（列表 / 详情 / 评论 / 加载）。
+- **`src/app/skills/market/page.tsx`**：广场页面重写。
+
+#### 9. 修复
+- 移除 Hermes CLI 不支持的 `--learn` flag（改用 `syncLearnedSkills` 扫描目录）。
+- `memory search` 改为直接读取文件（Hermes CLI 不支持 search 子命令）。
+
+### 自测结果
+- TypeScript 编译通过
+- 19/19 E2E 测试通过
+- API 验证通过
+
+### Commit
+`7227e78` - feat(hermes): Hermes Agent 五大功能完善 + 模式C接管AI助理 + 项目规范
+`ca4f74a` - feat(skills): 公共技能广场 + 鉴权漏洞修复
+`9f278f7` - fix(hermes): HTTP 405 修复
 
 ---
 

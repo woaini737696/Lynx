@@ -2,14 +2,17 @@
 // MiMo ASR 仅支持 mp3/flac/m4a/wav/ogg，不支持 webm
 
 /**
- * 将 webm/opus Blob 转换为 WAV 格式（16kHz 单声道 16bit PCM）
+ * 将 webm/opus Blob 转换为 WAV 格式（单声道 16bit PCM）
+ * 使用 AudioBuffer 的实际采样率编码 WAV，避免强制重采样导致的失真
  * @param blob 浏览器 MediaRecorder 录制的音频 Blob（通常为 audio/webm;codecs=opus）
  * @returns WAV 格式的 Blob
  */
 export async function webmToWav(blob: Blob): Promise<Blob> {
   const arrayBuffer = await blob.arrayBuffer();
-  const audioContext = new (window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext)({ sampleRate: 16000 });
+  // 不强制 sampleRate，让浏览器用原生采样率解码（避免部分浏览器忽略 sampleRate 选项导致错位）
+  const audioContext = new (window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext)();
   const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
+  const sampleRate = audioBuffer.sampleRate;
   // 取单声道
   const channelData = audioBuffer.getChannelData(0);
   // 转为 16bit PCM
@@ -19,8 +22,8 @@ export async function webmToWav(blob: Blob): Promise<Blob> {
     const s = Math.max(-1, Math.min(1, channelData[i]));
     pcmData[i] = s < 0 ? s * 0x8000 : s * 0x7fff;
   }
-  // 构建 WAV 文件
-  const wavBuffer = encodeWav(pcmData, 16000);
+  // 构建 WAV 文件（使用实际采样率）
+  const wavBuffer = encodeWav(pcmData, sampleRate);
   audioContext.close();
   return new Blob([wavBuffer], { type: "audio/wav" });
 }

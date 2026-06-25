@@ -558,17 +558,22 @@ function getHermesConfigPath(): string {
 }
 
 /**
- * 自动配置 Hermes 的 LLM 模型（复用 LynnHub 的 DeepSeek API Key）
+ * 自动配置 Hermes 的 LLM 模型（复用 LynnHub 的 DeepSeek / MiMo API Key）
  *
  * 根因修复：Hermes 安装后默认未配置任何 LLM provider/model，
  * 执行 `-z` 任务时会因 "no model" 产生 "no final response was produced"。
  *
  * 本函数：
- * 1. 从 LynnHub 的 process.env.DEEPSEEK_API_KEY 或 AISetting.deepseekApiKey 读取密钥
- * 2. 写入 Hermes 的 .env 文件（DEEPSEEK_API_KEY / DEEPSEEK_BASE_URL）
- * 3. 通过 `hermes config set model deepseek-chat` 设置默认模型
+ * 1. 根据 provider 参数决定使用 DeepSeek 还是 MiMo（auto 时读 AISetting.defaultProvider）
+ * 2. 从 process.env 或 AISetting 读取对应密钥 / Base URL / 模型名
+ * 3. 写入 Hermes 的 .env 文件（<PROVIDER>_API_KEY / <PROVIDER>_BASE_URL / <PROVIDER>_MODEL）
+ * 4. 通过 `hermes config set model <name>` 设置默认模型
+ *
+ * @param provider "deepseek" | "mimo" | "auto"（默认 "auto"）
  */
-export async function configureHermesModel(): Promise<{
+export async function configureHermesModel(
+  provider: "deepseek" | "mimo" | "auto" = "auto"
+): Promise<{
   success: boolean;
   configured?: { provider: string; model: string; baseUrl: string };
   error?: string;
@@ -577,39 +582,73 @@ export async function configureHermesModel(): Promise<{
   const path = require("path");
 
   try {
-    // 1. 获取 DeepSeek API Key（优先环境变量，回退数据库）
-    let apiKey = process.env.DEEPSEEK_API_KEY || "";
-    let baseUrl = process.env.DEEPSEEK_BASE_URL || "https://api.deepseek.com/v1";
-    let modelName = process.env.DEEPSEEK_MODEL || "deepseek-chat";
+    // 1. 读取数据库 AISetting（用于 auto 模式决策与回退取值）
+    let setting: Awaited<ReturnType<typeof prisma.aISetting.findFirst>> = null;
+    try {
+      setting = await prisma.aISetting.findFirst();
+    } catch {
+      // 数据库读取失败，继续（仅依赖环境变量）
+    }
 
-    if (!apiKey) {
-      // 回退：从数据库 AISetting 读取
-      try {
-        const setting = await prisma.aISetting.findFirst();
-        if (setting?.deepseekApiKey) {
-          apiKey = setting.deepseekApiKey;
-          baseUrl = setting.deepseekBaseUrl || baseUrl;
-          modelName = setting.deepseekModel || modelName;
+    // 2. 决定实际使用的 provider
+    let actualProvider: "deepseek" | "mimo";
+    if (provider === "auto") {
+      const dbProvider = setting?.defaultProvider;
+      if (dbProvider === "mimo") {
+        actualProvider = "mimo";
+      } else if (dbProvider === "deepseek") {
+        actualProvider = "deepseek";
+      } else {
+        // 未显式配置：按可用 API Key 自动选择（优先 DeepSeek，回退 MiMo）
+        const hasDeepseek = process.env.DEEPSEEK_API_KEY || setting?.deepseekApiKey;
+        const hasMimo = process.env.MIMO_API_KEY || setting?.mimoApiKey;
+        if (hasMimo && !hasDeepseek) {
+          actualProvider = "mimo";
+        } else {
+          actualProvider = "deepseek";
         }
-      } catch {
-        // 数据库读取失败，继续
       }
+    } else {
+      actualProvider = provider;
+    }
+
+    // 3. 根据 provider 读取 API Key / Base URL / 模型名（优先环境变量，回退数据库）
+    const envPrefix = actualProvider.toUpperCase(); // DEEPSEEK | MIMO
+    let apiKey = "";
+    let baseUrl = "";
+    let modelName = "";
+
+    if (actualProvider === "deepseek") {
+      apiKey = process.env.DEEPSEEK_API_KEY || setting?.deepseekApiKey || "";
+      baseUrl =
+        process.env.DEEPSEEK_BASE_URL ||
+        setting?.deepseekBaseUrl ||
+        "https://api.deepseek.com/v1";
+      modelName =
+        process.env.DEEPSEEK_MODEL || setting?.deepseekModel || "deepseek-chat";
+    } else {
+      apiKey = process.env.MIMO_API_KEY || setting?.mimoApiKey || "";
+      baseUrl =
+        process.env.MIMO_BASE_URL ||
+        setting?.mimoBaseUrl ||
+        "https://api.mimo.com/v1";
+      modelName = process.env.MIMO_MODEL || setting?.mimoModel || "mimo-chat";
     }
 
     if (!apiKey) {
+      const providerName = actualProvider === "deepseek" ? "DeepSeek" : "MiMo";
       return {
         success: false,
-        error:
-          "未找到 DeepSeek API Key。请在 LynnHub 根目录 .env 设置 DEEPSEEK_API_KEY，或在 AI 助理设置中配置 DeepSeek 密钥。",
+        error: `未找到 ${providerName} API Key。请在 LynnHub 根目录 .env 设置 ${envPrefix}_API_KEY，或在 AI 助理设置中配置 ${providerName} 密钥。`,
       };
     }
 
-    // 2. 写入 Hermes .env 文件
+    // 4. 写入 Hermes .env 文件
     const envPath = getHermesEnvPath();
     const envDir = path.dirname(envPath);
     await fs.mkdir(envDir, { recursive: true });
 
-    // 读取现有 .env（如有），保留其它键，仅更新 DeepSeek 相关
+    // 读取现有 .env（如有），保留其它键，仅更新当前 provider 相关行
     let existingLines: string[] = [];
     try {
       const existing = await fs.readFile(envPath, "utf-8");
@@ -618,33 +657,29 @@ export async function configureHermesModel(): Promise<{
       // 文件不存在，忽略
     }
 
-    // 移除旧的 DeepSeek 相关行
+    // 移除旧的当前 provider 相关行
     const kept = existingLines.filter(
       (l: string) =>
-        !l.startsWith("DEEPSEEK_API_KEY=") &&
-        !l.startsWith("DEEPSEEK_BASE_URL=") &&
-        !l.startsWith("DEEPSEEK_MODEL=")
+        !l.startsWith(`${envPrefix}_API_KEY=`) &&
+        !l.startsWith(`${envPrefix}_BASE_URL=`) &&
+        !l.startsWith(`${envPrefix}_MODEL=`)
     );
 
     const newEnvContent = [
       ...kept,
-      `DEEPSEEK_API_KEY=${apiKey}`,
-      `DEEPSEEK_BASE_URL=${baseUrl}`,
-      `DEEPSEEK_MODEL=${modelName}`,
+      `${envPrefix}_API_KEY=${apiKey}`,
+      `${envPrefix}_BASE_URL=${baseUrl}`,
+      `${envPrefix}_MODEL=${modelName}`,
       "",
     ].join("\n");
 
     await fs.writeFile(envPath, newEnvContent, "utf-8");
-    logger.info({ envPath }, "已写入 Hermes .env (DeepSeek 配置)");
+    logger.info({ envPath, provider: actualProvider }, "已写入 Hermes .env (模型配置)");
 
-    // 3. 通过 `hermes config set model <name>` 设置默认模型（非交互）
-    // 注意：DeepSeek 模型在 Hermes 中通常以 "deepseek/<model>" 或 "<model>" 形式引用
-    // 尝试两种格式
-    const modelCandidates = [
-      modelName,
-      `deepseek/${modelName}`,
-      "deepseek-chat",
-    ];
+    // 5. 通过 `hermes config set model <name>` 设置默认模型（非交互）
+    // 注意：模型在 Hermes 中通常以 "<provider>/<model>" 或 "<model>" 形式引用
+    const fallbackModel = actualProvider === "deepseek" ? "deepseek-chat" : "mimo-chat";
+    const modelCandidates = [modelName, `${actualProvider}/${modelName}`, fallbackModel];
     let modelSet = false;
     for (const candidate of modelCandidates) {
       const setResult = await execHermes(
@@ -658,13 +693,13 @@ export async function configureHermesModel(): Promise<{
       }
     }
     if (!modelSet) {
-      // config set 失败不致命，.env 已写入，hermes 会自动检测 DEEPSEEK_API_KEY
+      // config set 失败不致命，.env 已写入，hermes 会自动检测 <PROVIDER>_API_KEY
       logger.warn("hermes config set model 失败，但 .env 已写入，将依赖自动检测");
     }
 
     return {
       success: true,
-      configured: { provider: "deepseek", model: modelName, baseUrl },
+      configured: { provider: actualProvider, model: modelName, baseUrl },
     };
   } catch (e) {
     return { success: false, error: (e as Error).message };
@@ -674,19 +709,31 @@ export async function configureHermesModel(): Promise<{
 /**
  * 检测 Hermes 是否已配置 LLM 模型
  * 通过 `hermes config show` 检查 Model 字段是否为空
+ *
+ * .env 中存在 DEEPSEEK_API_KEY 或 MIMO_API_KEY 即视为已配置 API Key。
  */
 export async function isHermesModelConfigured(): Promise<{
   configured: boolean;
   model?: string;
   hasApiKey: boolean;
+  provider?: string;
 }> {
-  // 1. 检查 .env 文件中是否有 DEEPSEEK_API_KEY
+  // 1. 检查 .env 文件中是否有 DEEPSEEK_API_KEY 或 MIMO_API_KEY
   let hasApiKey = false;
+  let provider: string | undefined;
   try {
     const fs = require("fs").promises;
     const envPath = getHermesEnvPath();
     const envContent = await fs.readFile(envPath, "utf-8");
-    hasApiKey = /^DEEPSEEK_API_KEY=.+/m.test(envContent);
+    if (/^MIMO_API_KEY=.+/m.test(envContent)) {
+      hasApiKey = true;
+      provider = "mimo";
+    }
+    if (/^DEEPSEEK_API_KEY=.+/m.test(envContent)) {
+      hasApiKey = true;
+      // 优先保留已检测到的 mimo，否则记为 deepseek
+      if (!provider) provider = "deepseek";
+    }
   } catch {
     hasApiKey = false;
   }
@@ -697,10 +744,10 @@ export async function isHermesModelConfigured(): Promise<{
     const modelMatch = result.stdout.match(/Model:\s*(.+)/i);
     const model = modelMatch?.[1]?.trim();
     const configured = !!model && !model.includes("not set") && model.length > 0;
-    return { configured, model, hasApiKey };
+    return { configured, model, hasApiKey, provider };
   }
 
-  return { configured: false, hasApiKey };
+  return { configured: false, hasApiKey, provider };
 }
 
 // ============ 安装管理 ============
@@ -1194,6 +1241,321 @@ export async function importSkillFromHermes(
     return { success: true, skillId: skill.id };
   } catch (e) {
     return { success: false, error: (e as Error).message };
+  }
+}
+
+/**
+ * 预置默认技能到用户 Hermes profile 的 skills 目录
+ *
+ * 路径：~/.lynnhub/hermes-profiles/<userId>/hermes/skills/
+ *
+ * 这些是 YAML front matter + Markdown 文件，Hermes 可直接加载使用，
+ * 让 Agent 一上线就具备 LynnHub 核心操作能力（任务管理、灵感捕获、记忆搜索等）。
+ *
+ * 已存在的同名文件会被覆盖（保持最新）。
+ */
+const DEFAULT_SKILLS: Array<{
+  fileName: string;
+  name: string;
+  description: string;
+  tags: string[];
+  prompt: string;
+  body: string;
+}> = [
+  {
+    fileName: "lynnhub-overview.md",
+    name: "LynnHub 概览",
+    description: "LynnHub 系统结构总览：灵感、任务、记忆、认知、技能五大模块",
+    tags: ["lynnhub", "概览"],
+    prompt: `你是 LynnHub 系统的智能助手。LynnHub 由五大模块组成：
+1. 灵感（Ideas）：捕获、归类、孵化想法
+2. 任务（Tasks）：创建、跟踪、完成任务
+3. 记忆（Memory）：持久化存储跨会话上下文
+4. 认知（Cognition）：AI 巡检、主动汇报、风格蒸馏
+5. 技能（Skills）：可复用的提示词模板与自动化能力
+
+当用户询问系统功能时，按此结构介绍；当用户需求不明确时，先判断属于哪个模块再行动。`,
+    body: `# LynnHub 概览
+
+LynnHub 是一个个人智能中台，融合「灵感管理 + 任务执行 + 持久化记忆 + AI 巡检」。
+
+## 五大模块
+
+### 1. 灵感（Ideas）
+- 收件箱（Inbox）：未分类想法暂存区
+- 看板（Board）：按状态流转的想法
+- 墓地（Graveyard）：被淘汰或搁置的想法
+
+### 2. 任务（Tasks）
+- 待办、进行中、已完成三态流转
+- 支持子任务、标签、截止时间
+- 可与灵感关联
+
+### 3. 记忆（Memory）
+- 基于 Hermes profile 的 FTS5 全文索引
+- 跨会话保留，自动检索相关上下文
+- 每个 userId 独立隔离
+
+### 4. 认知（Cognition）
+- AI 巡检：按规则定时分析灵感/任务
+- 主动汇报：定时生成每日总结
+- 风格蒸馏：从聊天记录提取真人说话风格
+
+### 5. 技能（Skills）
+- 提示词模板库
+- 双向同步 LynnHub ↔ Hermes skills 目录
+- /learn 自动生成新技能
+
+## 典型工作流
+1. 捕获灵感 → 2. 转化为任务 → 3. 执行（可能调用技能）→ 4. 结果写入记忆 → 5. 巡检复盘
+`,
+  },
+  {
+    fileName: "task-management.md",
+    name: "任务管理",
+    description: "创建、完成、查询任务的标准化流程",
+    tags: ["lynnhub", "任务管理"],
+    prompt: `当用户提到任务相关需求时，按以下流程操作：
+1. 创建任务：提取任务标题、描述、优先级、截止时间
+2. 查询任务：按状态（todo/doing/done）、标签、关键词检索
+3. 完成任务：标记完成并记录完成备注
+4. 拆分任务：复杂任务拆为子任务
+
+任务数据通过 LynnHub API（/api/tasks）管理，返回 JSON。`,
+    body: `# 任务管理技能
+
+## 创建任务
+调用 \`POST /api/tasks\`，body 示例：
+\`\`\`json
+{ "title": "完成季度报告", "description": "...", "priority": "high", "tags": ["工作"] }
+\`\`\`
+
+## 查询任务
+- \`GET /api/tasks?status=todo\` 查看待办
+- \`GET /api/tasks?tag=工作\` 按标签筛选
+- \`GET /api/tasks?q=报告\` 关键词搜索
+
+## 完成任务
+\`PATCH /api/tasks/<id>\` body \`{ "status": "done", "completionNote": "已完成..." }\`
+
+## 拆分子任务
+\`POST /api/tasks/<parentId>/subtasks\` 创建子任务。
+
+## 最佳实践
+- 每个任务必须有明确可验证的完成标准
+- 优先级 high 的任务要在每日汇报中重点提及
+- 长期任务定期更新进度备注
+`,
+  },
+  {
+    fileName: "idea-capture.md",
+    name: "灵感捕获",
+    description: "捕获、归类、孵化灵感的流程与方法",
+    tags: ["lynnhub", "灵感"],
+    prompt: `当用户表达新想法时，立即捕获到收件箱：
+1. 提取核心想法（一句话描述）
+2. 补充背景（为什么此刻想到）
+3. 标注初步分类标签
+4. 存入 Inbox 待后续孵化
+
+灵感先入箱再分类，不要在捕获阶段过度评判。`,
+    body: `# 灵感捕获技能
+
+## 捕获到收件箱
+\`POST /api/ideas\` body：
+\`\`\`json
+{ "content": "想法内容", "source": "chat", "tags": ["产品"] }
+\`\`\`
+
+## 流转状态
+- Inbox → Board：\`PATCH /api/ideas/<id>\` body \`{ "status": "board" }\`
+- Board → Graveyard：标记淘汰
+- Board → Task：转化为任务执行
+
+## 孵化建议
+- 收件箱每周清理一次，避免堆积
+- 看板上的想法定期评估，决定是否转任务
+- 墓地不是删除，是冷存储，可随时复活
+
+## 与任务联动
+灵感转化为任务时，保留关联 \`relatedIdeaId\`，便于追溯。
+`,
+  },
+  {
+    fileName: "memory-search.md",
+    name: "记忆搜索",
+    description: "搜索用户持久化记忆，获取跨会话上下文",
+    tags: ["lynnhub", "记忆"],
+    prompt: `回答用户问题前，先搜索记忆中是否有相关上下文：
+1. 提取问题关键词
+2. 调用记忆搜索（FTS5 全文匹配）
+3. 将命中的记忆注入 prompt 作为背景
+4. 若无相关记忆，正常回答并提示"这是新话题"
+
+记忆搜索让助手具备"记住之前对话"的能力。`,
+    body: `# 记忆搜索技能
+
+## 搜索接口
+\`GET /api/hermes/memory/search?q=<关键词>&limit=5\`
+
+返回最近命中的记忆片段，按相关度排序。
+
+## 记忆结构
+每条记忆包含：
+- content：记忆内容
+- createdAt：创建时间
+- tags：分类标签
+- sessionId：来源会话
+
+## 使用场景
+- 用户提到"之前说的..."：搜索历史记忆
+- 延续上次对话：按时间倒序取最近记忆
+- 决策参考：搜索相关主题的所有历史记录
+
+## 写入记忆
+重要对话结论会自动写入记忆，也可手动触发：
+\`POST /api/hermes/memory\` body \`{ "content": "...", "tags": [...] }\`
+
+## 隔离
+记忆按 userId 完全隔离，不同用户互不可见。
+`,
+  },
+  {
+    fileName: "daily-report.md",
+    name: "每日汇报",
+    description: "生成每日总结汇报的流程与格式",
+    tags: ["lynnhub", "汇报"],
+    prompt: `生成每日汇报时，收集以下数据并结构化输出：
+1. 今日完成任务（status=done, updatedToday）
+2. 进行中任务（status=doing）
+3. 新捕获灵感
+4. 巡检发现的问题
+5. 明日建议
+
+输出 Markdown 格式，按"完成 / 进行中 / 灵感 / 问题 / 建议"五段式。`,
+    body: `# 每日汇报技能
+
+## 数据收集
+- \`GET /api/tasks?status=done&updatedToday=true\` 今日完成
+- \`GET /api/tasks?status=doing\` 进行中
+- \`GET /api/ideas?createdToday=true\` 今日新灵感
+- \`GET /api/patrol-logs?today=true\` 今日巡检结果
+
+## 汇报模板
+\`\`\`markdown
+# 每日汇报 - {{date}}
+
+## ✅ 今日完成
+- [任务1] 完成备注
+- [任务2] ...
+
+## 🔄 进行中
+- [任务3] 进度 50%，预计明天完成
+
+## 💡 今日灵感
+- 想法1（待评估）
+
+## ⚠️ 巡检问题
+- 问题1：建议处理方式
+
+## 📋 明日建议
+1. 优先处理...
+2. 关注...
+\`\`\`
+
+## 触发方式
+- Hermes Cron 定时（默认每天 9:00）
+- 手动 \`POST /api/hermes/proactive-report\`
+
+## 推送渠道
+- 飞书通知（若开启 feishuNotify）
+- 应用内通知
+- 仪表盘待办
+`,
+  },
+  {
+    fileName: "patrol-check.md",
+    name: "巡检检查",
+    description: "运行系统巡检，发现并报告异常",
+    tags: ["lynnhub", "巡检"],
+    prompt: `执行巡检时：
+1. 读取启用的巡检规则
+2. 按规则 scope（inbox/board/graveyard/all）拉取数据
+3. 用规则 prompt 分析数据，发现异常或机会
+4. 命中阈值（默认 0.75）的记录写入巡检日志
+5. 按配置的 notifyChannels 推送通知
+
+巡检是 LynnHub 的"主动认知"能力，让系统自驱发现问题。`,
+    body: `# 巡检检查技能
+
+## 巡检规则
+\`GET /api/patrol-rules?enabled=true\` 获取启用规则。
+
+每条规则包含：
+- scope：巡检对象（inbox/board/graveyard/all）
+- triggerTime：触发时间（HH:mm 或 cron）
+- prompt：分析提示词
+- threshold：命中阈值（0-1）
+
+## 执行巡检
+\`POST /api/hermes/patrol-takeover\` 将规则转为 Hermes Cron。
+或手动 \`POST /api/patrol/run\` 立即执行。
+
+## 巡检日志
+\`GET /api/patrol-logs?today=true\` 查看今日结果。
+每条日志含：ruleName、hitCount、results（命中的具体项）、durationMs。
+
+## 通知渠道
+- toast：应用内弹窗
+- notification：系统通知中心
+- push：移动端推送
+- feishu：飞书消息（紧急）
+
+## 典型场景
+- 收件箱堆积超过 7 天未清理 → 提醒处理
+- 看板想法停滞 30 天 → 建议淘汰或推进
+- 墓地复活机会 → 提示重新评估
+- 任务逾期 → 紧急通知
+`,
+  },
+];
+
+export async function preloadDefaultSkills(
+  userId: string
+): Promise<{ success: boolean; count: number; files: string[]; error?: string }> {
+  const fs = require("fs") as typeof import("fs");
+  const path = require("path") as typeof import("path");
+
+  try {
+    const skillsDir = path.join(getUserHermesDir(userId), "skills");
+    fs.mkdirSync(skillsDir, { recursive: true });
+
+    const files: string[] = [];
+    for (const skill of DEFAULT_SKILLS) {
+      const tagsYaml = skill.tags.join(", ");
+      const content = [
+        "---",
+        `name: ${skill.name}`,
+        `description: ${skill.description}`,
+        "category: lynnhub",
+        `tags: [${tagsYaml}]`,
+        "prompt: |",
+        ...skill.prompt.split(/\r?\n/).map((line) => `  ${line}`),
+        "---",
+        "",
+        skill.body,
+        "",
+      ].join("\n");
+
+      const filePath = path.join(skillsDir, skill.fileName);
+      fs.writeFileSync(filePath, content, "utf-8");
+      files.push(skill.fileName);
+    }
+
+    logger.info({ userId, count: files.length, skillsDir }, "已预置默认技能到 Hermes profile");
+    return { success: true, count: files.length, files };
+  } catch (e) {
+    return { success: false, count: 0, files: [], error: (e as Error).message };
   }
 }
 

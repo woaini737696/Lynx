@@ -12,11 +12,11 @@ export interface VersionedHelpContent {
 export const HELP_CONTENT: Record<string, VersionedHelpContent> = {
   // ============ AI 中心 ============
   "ai-assistant": {
-    version: "2.2",
+    version: "3.0",
     updatedAt: "2026-06-25",
-    painPoint: "AI助理只能聊天，无法直接操作灵感、看板、记忆等功能，需要来回切换页面；技能调用体验差，无法收藏常用技能、查看执行历史，也无法操控本地电脑。",
-    need: "需要一个能主动访问和操作所有功能的AI助理，对话即可完成创建、搜索、执行等操作；同时支持技能收藏/历史/Hermes Agent 打通，实现真正的AI自动化工作流。",
-    solution: "AI助理支持Function Calling，能调用21个工具覆盖灵感/看板/记忆/认知/技能/工作流/巡检/通知/Hermes全功能，同时提供6个快捷指令一键触发。技能面板升级为四Tab结构（全部/收藏/历史/Hermes），支持技能收藏、执行历史追溯、Hermes Skills Hub 672+技能调用。",
+    painPoint: "AI助理只能聊天，无法直接操作灵感、看板、记忆等功能，需要来回切换页面；技能调用体验差，无法收藏常用技能、查看执行历史，也无法操控本地电脑。普通AI助理没有记忆，每次对话都是全新的。",
+    need: "需要一个能主动访问和操作所有功能的AI助理，对话即可完成创建、搜索、执行等操作；同时支持技能收藏/历史/Hermes Agent 打通，实现真正的AI自动化工作流。更需要持久化记忆、持续学习、自动成长的超级助理。",
+    solution: "AI助理支持Function Calling，能调用21个工具覆盖灵感/看板/记忆/认知/技能/工作流/巡检/通知/Hermes全功能。Hermes Agent 接管模式（模式C）让AI助理拥有持久化记忆（跨会话保留）、/learn自动学习（任务完成后自动学习新技能）、主动汇报（定时分析数据并推送）、模型可切换（DeepSeek/MiMo）。技能面板四Tab结构，支持672+官方技能 + 6个预加载LynnHub技能。",
     usage: [
       "直接对话描述需求，AI自动判断是否需要调用工具",
       "点击快捷指令按钮将指令插入输入框（可修改后发送）",
@@ -26,6 +26,12 @@ export const HELP_CONTENT: Record<string, VersionedHelpContent> = {
       "Hermes Tab需先在设置中启用Hermes Agent，启用后可调用672+官方技能操控本地电脑",
       "AI调用工具后会在聊天中显示工具调用卡片，可展开查看完整结果",
       "支持'帮我创建灵感''搜索记忆''执行巡检''用Hermes打开记事本'等自然语言指令",
+      "【Hermes模式C】设置中开启'Hermes接管模式'后，AI助理由Hermes Agent驱动，拥有持久化记忆和持续学习能力",
+      "【模型切换】设置中选择Hermes使用的模型（自动/DeepSeek/MiMo），与系统AI模型打通",
+      "【技能预加载】设置中点击'预加载默认技能'，一键加载6个LynnHub专用技能到Hermes profile",
+      "【主动汇报】设置中开启'主动汇报'，Hermes每天定时分析数据并推送汇报到浏览器",
+      "【巡检接管】设置中点击'巡检接管'，将巡检规则迁移到Hermes Cron自动执行",
+      "【全双工语音】语音通话中用户开口说话会自动打断AI播放，实现自然对话体验",
     ],
   },
   "ai-workspace": {

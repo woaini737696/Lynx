@@ -1036,7 +1036,11 @@ export default function AIAssistantPage() {
         fetchSessions();
       }
 
-      if ((settings.autoSpeak || settings.voiceMode) && aiContent) {
+      // 自动语音播放条件：
+      // - autoSpeak 开启时总是播放
+      // - voiceMode 开启且正在语音通话中时播放（非通话中不自动播放）
+      const shouldAutoSpeak = settings.autoSpeak || (settings.voiceMode && voiceCallActive);
+      if (shouldAutoSpeak && aiContent) {
         setTimeout(() => speak(aiContent, aiMsgId), 300);
       }
     } catch (e) {
@@ -1095,11 +1099,22 @@ export default function AIAssistantPage() {
     try {
       // 将 webm/mp4 转为 wav（MiMo ASR 只支持 wav/mp3/flac/m4a/ogg）
       let wavBlob: Blob;
+      let convertError: Error | null = null;
       try {
         wavBlob = await webmToWav(blob);
-      } catch {
-        // 转换失败则用原始 blob
-        wavBlob = blob;
+      } catch (e) {
+        convertError = e as Error;
+        // 转换失败：如果是原始 webm，不能伪装成 wav 发送（ASR 会解析失败）
+        // 只有原始格式本身就是 ASR 支持的格式时才直接发送
+        const rawType = blob.type || "";
+        if (rawType.includes("mp4") || rawType.includes("m4a") || rawType.includes("ogg")) {
+          wavBlob = blob;
+        } else {
+          // webm 格式无法转换也无法直接识别
+          console.error("[ASR] webmToWav 转换失败:", convertError);
+          toast("音频格式转换失败，请重试", "error");
+          return null;
+        }
       }
       const form = new FormData();
       // 根据转换后的 blob 类型设置扩展名
@@ -1217,7 +1232,9 @@ export default function AIAssistantPage() {
       const recorder = createMediaRecorder(stream);
       vadRecorderRef.current = recorder;
       recorder.ondataavailable = (e) => {
-        if (e.data.size > 0 && vadSpeechActiveRef.current) {
+        // 始终收集数据块（包括 recorder.stop() 触发的最终 flush）
+        // 之前的 bug：检查 vadSpeechActiveRef 导致最后几百毫秒音频被丢弃，ASR 误识别为"透支"
+        if (e.data.size > 0) {
           vadChunksRef.current.push(e.data);
         }
       };
@@ -1229,7 +1246,7 @@ export default function AIAssistantPage() {
 
     // VAD 参数（阈值会通过校准自适应）
     const SPEECH_START_MS = 300; // 音量超阈值持续 300ms 判定为语音开始
-    const SPEECH_END_MS = 800; // 音量低于阈值持续 800ms 判定为语音结束
+    const SPEECH_END_MS = 500; // 音量低于阈值持续 500ms 判定为语音结束（降低延迟，更接近实时对话）
     const MAX_SPEECH_MS = 30000; // 单次最长 30 秒
 
     let highVolumeStart = 0;
@@ -1292,6 +1309,10 @@ export default function AIAssistantPage() {
           vadSpeechStartRef.current = now;
           vadChunksRef.current = [];
           setVoiceCallListening(false);
+          // 全双工体验：用户开口说话时立即打断 TTS 播放
+          if (ttsPlayingRef.current) {
+            stopSpeaking();
+          }
         }
       } else {
         lowVolumeStart = lowVolumeStart || now;
@@ -1301,16 +1322,16 @@ export default function AIAssistantPage() {
         if (vadSpeechActiveRef.current && now - lowVolumeStart > SPEECH_END_MS) {
           // 收集音频并发送识别
           const speechDuration = now - vadSpeechStartRef.current;
-          vadSpeechActiveRef.current = false;
+          vadSpeechActiveRef.current = false; // 防止 VAD 重复触发
 
-          const chunks = [...vadChunksRef.current];
-          vadChunksRef.current = [];
-
-          if (chunks.length > 0 && speechDuration > 400) {
-            // 停止当前 recorder 并处理音频
+          if (speechDuration > 400) {
+            // 停止当前 recorder，在 onstop 中收集所有 chunks（包括最终 flush）
             const recorder = vadRecorderRef.current;
             if (recorder && recorder.state !== "inactive") {
               recorder.onstop = async () => {
+                // 在 onstop 中快照 chunks，此时 recorder.stop() 的最终 flush 已写入
+                const chunks = [...vadChunksRef.current];
+                vadChunksRef.current = [];
                 const blob = new Blob(chunks, { type: "audio/webm" });
                 if (blob.size > 2000 && voiceModeActiveRef.current) {
                   isProcessingVoiceRef.current = true;
@@ -1332,6 +1353,8 @@ export default function AIAssistantPage() {
               recorder.stop();
             }
           } else {
+            // 语音太短，丢弃
+            vadChunksRef.current = [];
             setVoiceCallListening(true);
           }
         }
@@ -1340,11 +1363,11 @@ export default function AIAssistantPage() {
       // 超时保护：单次语音超过 30 秒强制结束
       if (vadSpeechActiveRef.current && now - vadSpeechStartRef.current > MAX_SPEECH_MS) {
         vadSpeechActiveRef.current = false;
-        const chunks = [...vadChunksRef.current];
-        vadChunksRef.current = [];
         const recorder = vadRecorderRef.current;
         if (recorder && recorder.state !== "inactive") {
           recorder.onstop = async () => {
+            const chunks = [...vadChunksRef.current];
+            vadChunksRef.current = [];
             const blob = new Blob(chunks, { type: "audio/webm" });
             if (blob.size > 2000 && voiceModeActiveRef.current) {
               isProcessingVoiceRef.current = true;
@@ -2569,6 +2592,26 @@ export default function AIAssistantPage() {
                     <RefreshCw className="mr-1 h-3 w-3" /> 巡检接管
                   </Button>
                 </div>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={async () => {
+                    try {
+                      const res = await fetch("/api/hermes/skills/preload", { method: "POST" });
+                      const data = await res.json();
+                      if (data.success) {
+                        toast(`已预加载 ${data.count} 个默认技能`, "success");
+                      } else {
+                        toast(data.error || "预加载失败", "error");
+                      }
+                    } catch {
+                      toast("预加载技能失败", "error");
+                    }
+                  }}
+                  className="w-full"
+                >
+                  <Sparkles className="mr-1 h-3 w-3" /> 预加载默认技能（6 个 LynnHub 技能）
+                </Button>
               </div>
 
               <div className="rounded-xl bg-muted/30 p-3">

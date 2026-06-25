@@ -639,6 +639,11 @@ function HermesConfigSection() {
   // 模型配置相关状态
   const [modelConfigured, setModelConfigured] = useState<boolean | null>(null);
   const [configuringModel, setConfiguringModel] = useState(false);
+  // 模型 provider 选择：deepseek | mimo | auto
+  const [selectedProvider, setSelectedProvider] = useState<"deepseek" | "mimo" | "auto">("auto");
+  // 可用模型列表（来自 AISetting）
+  const [availableModels, setAvailableModels] = useState<Array<{ provider: string; model: string; configured: boolean }>>([]);
+  const [defaultProvider, setDefaultProvider] = useState<string>("auto");
 
   const loadStatus = async () => {
     try {
@@ -666,17 +671,33 @@ function HermesConfigSection() {
       if (res.ok) {
         const data = await res.json();
         setModelConfigured(data.configured === true);
+        if (Array.isArray(data.availableModels)) {
+          setAvailableModels(data.availableModels);
+        }
+        if (data.defaultProvider) {
+          setDefaultProvider(data.defaultProvider);
+          // 默认跟随数据库配置的 provider
+          if (data.defaultProvider === "deepseek" || data.defaultProvider === "mimo") {
+            setSelectedProvider(data.defaultProvider);
+          } else {
+            setSelectedProvider("auto");
+          }
+        }
       }
     } catch {
       // 静默失败
     }
   };
 
-  // 一键配置 Hermes 模型（复用 LynnHub 的 DeepSeek API Key）
+  // 一键配置 Hermes 模型（复用 LynnHub 的 DeepSeek / MiMo API Key）
   const handleConfigureModel = async () => {
     setConfiguringModel(true);
     try {
-      const res = await fetch("/api/hermes/configure-model", { method: "POST" });
+      const res = await fetch("/api/hermes/configure-model", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ provider: selectedProvider }),
+      });
       const data = await res.json();
       if (res.ok && data.success) {
         toast(data.message || "模型配置成功", "success");
@@ -998,25 +1019,46 @@ function HermesConfigSection() {
                 <span className="text-muted-foreground">· 检测中</span>
               )}
             </div>
-            <Button
-              size="sm"
-              variant={modelConfigured ? "outline" : "primary"}
-              onClick={handleConfigureModel}
-              disabled={configuringModel}
-              className="gap-1.5"
-            >
-              {configuringModel ? (
-                <><Loader2 className="h-3 w-3 animate-spin" /> 配置中...</>
-              ) : modelConfigured ? (
-                <><RefreshCw className="h-3 w-3" /> 重新配置</>
-              ) : (
-                <><Sparkles className="h-3 w-3" /> 一键配置模型</>
-              )}
-            </Button>
+            <div className="flex items-center gap-2">
+              {/* 模型 provider 选择器 */}
+              <select
+                value={selectedProvider}
+                onChange={(e) => setSelectedProvider(e.target.value as "deepseek" | "mimo" | "auto")}
+                disabled={configuringModel}
+                className="h-7 rounded border border-border/60 bg-background px-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-campaign disabled:opacity-50"
+                title="选择要配置的 LLM Provider"
+              >
+                <option value="auto">自动（按配置）</option>
+                <option value="deepseek">DeepSeek</option>
+                <option value="mimo">MiMo</option>
+              </select>
+              <Button
+                size="sm"
+                variant={modelConfigured ? "outline" : "primary"}
+                onClick={handleConfigureModel}
+                disabled={configuringModel}
+                className="gap-1.5"
+              >
+                {configuringModel ? (
+                  <><Loader2 className="h-3 w-3 animate-spin" /> 配置中...</>
+                ) : modelConfigured ? (
+                  <><RefreshCw className="h-3 w-3" /> 重新配置</>
+                ) : (
+                  <><Sparkles className="h-3 w-3" /> 一键配置模型</>
+                )}
+              </Button>
+            </div>
           </div>
           {modelConfigured === false && (
             <div className="mt-2 text-[11px] text-muted-foreground">
-              Hermes 需要配置 LLM 模型才能执行任务。点击「一键配置模型」会自动复用 LynnHub 的 DeepSeek API Key 写入 Hermes 配置。
+              Hermes 需要配置 LLM 模型才能执行任务。点击「一键配置模型」会自动复用 LynnHub 的 DeepSeek / MiMo API Key 写入 Hermes 配置。
+            </div>
+          )}
+          {availableModels.length > 0 && (
+            <div className="mt-2 text-[11px] text-muted-foreground">
+              已配置的 Provider：
+              {availableModels.map((m) => ` ${m.provider}（${m.model}）`).join("、")}
+              {defaultProvider && defaultProvider !== "auto" ? `　默认：${defaultProvider}` : ""}
             </div>
           )}
         </div>
