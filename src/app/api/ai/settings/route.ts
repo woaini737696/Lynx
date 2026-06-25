@@ -30,6 +30,9 @@ export async function PUT(req: NextRequest) {
 
     const allowedFields = [
       "assistantName",
+      "avatarUrl",
+      "personaStyle",
+      "distilledStyle",
       "defaultVoice",
       "autoSpeak",
       "voiceMode",
@@ -52,6 +55,23 @@ export async function PUT(req: NextRequest) {
         );
       }
       updateData.assistantName = updateData.assistantName.trim().slice(0, 20);
+    }
+
+    // 校验 avatarUrl
+    if (updateData.avatarUrl !== undefined && updateData.avatarUrl !== null) {
+      if (typeof updateData.avatarUrl !== "string") {
+        return NextResponse.json({ error: "头像 URL 格式错误" }, { status: 400 });
+      }
+      updateData.avatarUrl = updateData.avatarUrl.trim().slice(0, 500);
+    }
+
+    // 校验 personaStyle / distilledStyle
+    for (const textField of ["personaStyle", "distilledStyle"] as const) {
+      if (updateData[textField] !== undefined && updateData[textField] !== null) {
+        if (typeof updateData[textField] !== "string") {
+          return NextResponse.json({ error: `${textField} 格式错误` }, { status: 400 });
+        }
+      }
     }
 
     // 布尔字段校验

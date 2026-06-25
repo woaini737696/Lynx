@@ -863,13 +863,16 @@ function HermesConfigSection() {
             <div className="text-[11px] text-muted-foreground">开启后 AI 助理和工作流可调用 Hermes</div>
           </div>
           <button
+            type="button"
+            role="switch"
+            aria-checked={enabled}
             onClick={() => setEnabled(!enabled)}
-            className={`relative h-5 w-9 rounded-full transition-colors ${
+            className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus-visible:ring-2 focus-visible:ring-northstar focus-visible:ring-opacity-75 ${
               enabled ? "bg-northstar" : "bg-muted-foreground/30"
             }`}
           >
-            <span className={`absolute top-0.5 h-4 w-4 rounded-full bg-white transition-transform ${
-              enabled ? "translate-x-4" : "translate-x-0.5"
+            <span className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-lg ring-0 transition duration-200 ease-in-out ${
+              enabled ? "translate-x-5" : "translate-x-0"
             }`} />
           </button>
         </div>
@@ -881,7 +884,7 @@ function HermesConfigSection() {
             type="text"
             value={endpoint}
             onChange={(e) => setEndpoint(e.target.value)}
-            placeholder="http://localhost:7432"
+            placeholder="http://localhost:9119"
             className="w-full rounded-md border border-border/60 bg-background px-3 py-1.5 text-xs"
           />
         </div>
@@ -933,13 +936,16 @@ function HermesConfigSection() {
             <div className="text-[11px] text-muted-foreground">服务启动时自动拉起 Hermes Agent</div>
           </div>
           <button
+            type="button"
+            role="switch"
+            aria-checked={autoStart}
             onClick={() => setAutoStart(!autoStart)}
-            className={`relative h-5 w-9 rounded-full transition-colors ${
+            className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus-visible:ring-2 focus-visible:ring-northstar focus-visible:ring-opacity-75 ${
               autoStart ? "bg-northstar" : "bg-muted-foreground/30"
             }`}
           >
-            <span className={`absolute top-0.5 h-4 w-4 rounded-full bg-white transition-transform ${
-              autoStart ? "translate-x-4" : "translate-x-0.5"
+            <span className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-lg ring-0 transition duration-200 ease-in-out ${
+              autoStart ? "translate-x-5" : "translate-x-0"
             }`} />
           </button>
         </div>

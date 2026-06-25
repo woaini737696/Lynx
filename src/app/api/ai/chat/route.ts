@@ -7,6 +7,7 @@ import {
   type LLMProvider,
   type ReasoningMode,
 } from "@/lib/ai-provider";
+import { prisma } from "@/lib/db";
 import { rateLimit, getClientKey } from "@/lib/rate-limit";
 import { requireAuth } from "@/lib/auth-utils";
 import {
@@ -282,9 +283,43 @@ export async function POST(req: NextRequest) {
       if (auth.error) return auth.error;
       const user = auth.user;
 
+      // 读取 AI 助理设置（助理名称、风格描述、蒸馏风格）
+      let assistantName = "Lynn";
+      let personaStyle = "";
+      let distilledStyle = "";
+      try {
+        const aiSettings = await prisma.aISetting.findFirst();
+        if (aiSettings) {
+          assistantName = aiSettings.assistantName || "Lynn";
+          personaStyle = aiSettings.personaStyle || "";
+          distilledStyle = aiSettings.distilledStyle || "";
+        }
+      } catch {
+        // 读取失败不阻断对话
+      }
+
+      // 构建最终 system prompt：基础工具能力 + 自定义风格
+      let finalSystemPrompt = AI_ASSISTANT_SYSTEM_PROMPT;
+      const styleParts: string[] = [];
+      if (personaStyle.trim()) {
+        styleParts.push(`## 聊天风格要求\n${personaStyle.trim()}`);
+      }
+      if (distilledStyle.trim()) {
+        styleParts.push(`## 蒸馏的真人聊天风格\n请模仿以下风格特征与用户对话：\n${distilledStyle.trim()}`);
+      }
+      if (styleParts.length > 0) {
+        // 将风格要求插入到 system prompt 的"重要约束"之前
+        finalSystemPrompt = AI_ASSISTANT_SYSTEM_PROMPT.replace(
+          "## 重要约束",
+          `${styleParts.join("\n\n")}\n\n## 重要约束`
+        );
+      }
+      // 替换助理名称
+      finalSystemPrompt = finalSystemPrompt.replace(/LynnHub 的 AI 助理/g, `${assistantName}（LynnHub AI 助理）`);
+
       // 注入 AI 助理系统提示词（替换或前置到 messages）
       const assistantMessages: ChatMessage[] = [
-        { role: "system", content: AI_ASSISTANT_SYSTEM_PROMPT },
+        { role: "system", content: finalSystemPrompt },
         ...cleanMessages.filter((m) => m.role !== "system"),
       ];
 

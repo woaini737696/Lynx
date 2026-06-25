@@ -6,6 +6,7 @@ import {
   detectHermesInstall,
   installHermesAgent,
   startHermesAgent,
+  stopHermesAgent,
 } from "@/lib/hermes-client";
 import { getLogger } from "@/lib/logger";
 
@@ -100,7 +101,7 @@ export async function POST(req: NextRequest) {
           { status: 400 }
         );
       }
-      const targetPort = port || 7432;
+      const targetPort = port || 9119; // Hermes Dashboard 默认端口
       const result = await startHermesAgent(targetPort);
       if (result.success) {
         await upsertHermesConfig(auth.user.id, {
@@ -111,10 +112,15 @@ export async function POST(req: NextRequest) {
         });
         return NextResponse.json({
           success: true,
-          message: `Hermes Agent 已启动（端口 ${targetPort}）`,
+          message: `Hermes Agent Dashboard 已启动（端口 ${targetPort}）`,
           pid: result.pid,
         });
       } else {
+        await upsertHermesConfig(auth.user.id, {
+          status: "error",
+          lastError: result.error,
+          lastCheckedAt: new Date(),
+        });
         return NextResponse.json(
           { success: false, error: result.error },
           { status: 500 }
@@ -123,14 +129,17 @@ export async function POST(req: NextRequest) {
     }
 
     if (action === "stop") {
-      // 标记为已安装（实际停止进程由前端确认）
+      const config = await getHermesConfig(auth.user.id);
+      const targetPort = port || 9119;
+      const result = await stopHermesAgent(targetPort);
       await upsertHermesConfig(auth.user.id, {
         status: "installed",
         lastCheckedAt: new Date(),
+        lastError: result.success ? null : result.error,
       });
       return NextResponse.json({
-        success: true,
-        message: "Hermes Agent 已停止",
+        success: result.success,
+        message: result.success ? "Hermes Agent 已停止" : (result.error || "停止失败"),
       });
     }
 

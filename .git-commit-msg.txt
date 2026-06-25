@@ -1,0 +1,12 @@
+迭代22: Hermes修复+Inbox批量删除+AI风格自定义+脏数据清理+404修复
+
+1. Hermes Agent: 修复启动失败(findHermesExe+dashboard命令+端口9119)、
+   连接测试(HTTP+CLI双模式)、开关样式、使用说明
+2. Inbox: 批量删除API+多选UI
+3. AI助理: 聊天风格自定义(头像/名称/风格描述/真人聊天记录蒸馏)
+4. 脏数据清理: seed.ts重写(仅admin)、数据库清理脚本、DEFAULT_FLOWS假时间修复、
+   删除.ai-flows.json
+5. 404修复: pino logger sync:true避免worker thread崩溃
+6. Prisma: AISetting新增avatarUrl/personaStyle/distilledStyle字段
+
+自测: tsc通过, Playwright 19/19 passed, API全部200

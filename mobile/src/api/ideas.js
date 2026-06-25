@@ -6,8 +6,8 @@ export function getInboxIdeas() {
 }
 
 /** 闪电输入 - 创建灵感 */
-export function createIdea(content, source = "lightning", status = "inbox") {
-  return post("/api/ideas", { content, source, status });
+export function createIdea(content, source = "lightning", status = "inbox", attachments = []) {
+  return post("/api/ideas", { content, source, status, attachments });
 }
 
 /**

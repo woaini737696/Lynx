@@ -10,9 +10,9 @@ export function createChatSession(data = {}) {
   return post("/api/ai/chat/sessions", data);
 }
 
-/** 获取会话消息列表 */
+/** 获取会话消息列表（GET /api/ai/chat/sessions/[id] 返回会话+消息） */
 export function getChatMessages(sessionId) {
-  return get(`/api/ai/chat/sessions/${sessionId}/messages`);
+  return get(`/api/ai/chat/sessions/${sessionId}`);
 }
 
 /** 可用 AI 模型列表 */

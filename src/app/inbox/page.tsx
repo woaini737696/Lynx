@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useRef, useCallback } from "react";
-import { ArrowRight, Trash2, InboxIcon, Bot, Send, X, Sparkles, Check, Settings, Bell, AlertCircle, FileText } from "lucide-react";
+import { ArrowRight, Trash2, InboxIcon, Bot, Send, X, Sparkles, Check, Settings, Bell, AlertCircle, FileText, CheckSquare, Square } from "lucide-react";
 import { toast } from "@/components/ui/toast";
 import { PageHeader, Card, Button, Badge, Skeleton } from "@/components/layout/PageHeader";
 import { HelpButton } from "@/components/layout/HelpButton";
@@ -71,6 +71,11 @@ export default function InboxPage() {
 
   // 图片放大查看 modal
   const [previewImage, setPreviewImage] = useState<string | null>(null);
+
+  // 批量选择模式
+  const [multiSelectMode, setMultiSelectMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [batchDeleting, setBatchDeleting] = useState(false);
 
   useEffect(() => {
     let mounted = true;
@@ -157,6 +162,66 @@ export default function InboxPage() {
       toast("网络错误", "error");
     }
     setProcessing(null);
+  };
+
+  // 切换单条选择
+  const toggleSelect = (id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  // 全选/取消全选
+  const toggleSelectAll = () => {
+    if (selectedIds.size === ideas.length) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(ideas.map((i) => i.id)));
+    }
+  };
+
+  // 批量删除（真删除）
+  const batchDelete = async () => {
+    if (selectedIds.size === 0) {
+      toast("请先选择要删除的灵感", "error");
+      return;
+    }
+    if (!confirm(`确定要永久删除选中的 ${selectedIds.size} 条灵感吗？此操作不可恢复。`)) {
+      return;
+    }
+    setBatchDeleting(true);
+    try {
+      const res = await fetch("/api/ideas", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ids: Array.from(selectedIds) }),
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setIdeas((prev) => prev.filter((i) => !selectedIds.has(i.id)));
+        toast(`已删除 ${data.deleted} 条灵感`, "success");
+        setSelectedIds(new Set());
+        setMultiSelectMode(false);
+      } else {
+        toast(data.error || "批量删除失败", "error");
+      }
+    } catch {
+      toast("批量删除失败", "error");
+    }
+    setBatchDeleting(false);
+  };
+
+  // 进入/退出多选模式
+  const enterMultiSelect = () => {
+    setMultiSelectMode(true);
+    setSelectedIds(new Set());
+  };
+  const exitMultiSelect = () => {
+    setMultiSelectMode(false);
+    setSelectedIds(new Set());
   };
 
   const abandon = async () => {
@@ -456,11 +521,80 @@ export default function InboxPage() {
         />
       ) : (
         <div className="flex flex-col gap-3">
+          {/* 批量操作栏 */}
+          <div className="flex items-center justify-between rounded-lg border border-border/60 bg-muted/30 px-3 py-2">
+            {multiSelectMode ? (
+              <>
+                <div className="flex items-center gap-3">
+                  <button
+                    onClick={toggleSelectAll}
+                    className="flex items-center gap-1.5 text-xs font-medium text-foreground hover:text-northstar"
+                  >
+                    {selectedIds.size === ideas.length && ideas.length > 0 ? (
+                      <CheckSquare className="h-4 w-4 text-northstar" />
+                    ) : (
+                      <Square className="h-4 w-4" />
+                    )}
+                    {selectedIds.size === ideas.length && ideas.length > 0 ? "取消全选" : "全选"}
+                  </button>
+                  <span className="text-xs text-muted-foreground">
+                    已选 {selectedIds.size} / {ideas.length}
+                  </span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={exitMultiSelect}
+                    className="h-7 text-xs"
+                  >
+                    取消
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={batchDelete}
+                    disabled={selectedIds.size === 0 || batchDeleting}
+                    className="h-7 gap-1 text-xs text-graveyard hover:bg-graveyard/10 hover:text-graveyard"
+                  >
+                    <Trash2 className="h-3 w-3" />
+                    {batchDeleting ? "删除中..." : "批量删除"}
+                  </Button>
+                </div>
+              </>
+            ) : (
+              <>
+                <span className="text-xs text-muted-foreground">{ideas.length} 条灵感</span>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={enterMultiSelect}
+                  className="h-7 text-xs"
+                >
+                  <CheckSquare className="h-3 w-3" />
+                  批量操作
+                </Button>
+              </>
+            )}
+          </div>
           {ideas.map((idea, i) => {
             const isExpanding = expanding === idea.id;
+            const isSelected = selectedIds.has(idea.id);
             return (
-              <Card key={idea.id} className="p-0 overflow-hidden" hover>
+              <Card key={idea.id} className={`p-0 overflow-hidden ${isSelected ? "ring-2 ring-northstar/40" : ""}`} hover>
                 <div className="flex items-center gap-3 p-3 sm:gap-4 sm:p-4">
+                  {multiSelectMode && (
+                    <button
+                      onClick={() => toggleSelect(idea.id)}
+                      className="shrink-0"
+                    >
+                      {isSelected ? (
+                        <CheckSquare className="h-5 w-5 text-northstar" />
+                      ) : (
+                        <Square className="h-5 w-5 text-muted-foreground/50" />
+                      )}
+                    </button>
+                  )}
                   <span className="hidden w-6 text-right text-[11px] text-muted-foreground/60 sm:block">
                     {i + 1}
                   </span>

@@ -32,6 +32,7 @@ import {
   Star,
   History,
   CheckCircle2,
+  Sparkles,
 } from "lucide-react";
 import { Button } from "@/components/layout/PageHeader";
 import { HelpButton } from "@/components/layout/HelpButton";
@@ -100,6 +101,9 @@ interface Message {
 
 interface AISettings {
   assistantName: string;
+  avatarUrl: string | null;
+  personaStyle: string | null;
+  distilledStyle: string | null;
   clonedVoiceId: string | null;
   clonedVoiceName: string | null;
   clonedAt: string | null;
@@ -111,6 +115,9 @@ interface AISettings {
 
 const DEFAULT_SETTINGS: AISettings = {
   assistantName: "Lynn",
+  avatarUrl: null,
+  personaStyle: null,
+  distilledStyle: null,
   clonedVoiceId: null,
   clonedVoiceName: null,
   clonedAt: null,
@@ -531,6 +538,9 @@ export default function AIAssistantPage() {
       if (data.settings) {
         setSettings({
           assistantName: data.settings.assistantName || "Lynn",
+          avatarUrl: data.settings.avatarUrl || null,
+          personaStyle: data.settings.personaStyle || null,
+          distilledStyle: data.settings.distilledStyle || null,
           clonedVoiceId: data.settings.clonedVoiceId || null,
           clonedVoiceName: data.settings.clonedVoiceName || null,
           clonedAt: data.settings.clonedAt || null,
@@ -554,6 +564,9 @@ export default function AIAssistantPage() {
       if (data.settings) {
         setSettings({
           assistantName: data.settings.assistantName || "Lynn",
+          avatarUrl: data.settings.avatarUrl || null,
+          personaStyle: data.settings.personaStyle || null,
+          distilledStyle: data.settings.distilledStyle || null,
           clonedVoiceId: data.settings.clonedVoiceId || null,
           clonedVoiceName: data.settings.clonedVoiceName || null,
           clonedAt: data.settings.clonedAt || null,
@@ -1690,8 +1703,8 @@ export default function AIAssistantPage() {
       <div className="sticky top-0 z-20 shrink-0 border-b border-border bg-background/95 px-4 py-3 backdrop-blur sm:px-8">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-gradient-to-br from-cognition to-purple-600 text-white shadow-sm">
-              <Bot className="h-4 w-4" />
+            <div className="flex h-8 w-8 items-center justify-center overflow-hidden rounded-xl bg-gradient-to-br from-cognition to-purple-600 text-white shadow-sm">
+              {settings.avatarUrl ? <img src={settings.avatarUrl} alt="avatar" className="h-full w-full object-cover" /> : <Bot className="h-4 w-4" />}
             </div>
             <div>
               <h1 className="text-sm font-semibold">AI 专属助理 {settings.assistantName !== "Lynn" && <span className="text-cognition">· {settings.assistantName}</span>}</h1>
@@ -1784,13 +1797,13 @@ export default function AIAssistantPage() {
         <div className="mx-auto max-w-2xl space-y-4">
           {messages.map((msg) => (
             <div key={msg.id} className={cn("flex gap-3", msg.role === "user" && "flex-row-reverse")}>
-              <div className={cn("flex h-8 w-8 shrink-0 items-center justify-center rounded-xl text-white shadow-sm",
+              <div className={cn("flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-xl text-white shadow-sm",
                 msg.role === "assistant"
                   ? msg.error ? "bg-gradient-to-br from-graveyard to-red-700" : "bg-gradient-to-br from-cognition to-purple-600"
                   : "bg-gradient-to-br from-northstar to-orange-600"
               )}>
                 {msg.role === "assistant"
-                  ? msg.error ? <AlertCircle className="h-4 w-4" /> : <Bot className="h-4 w-4" />
+                  ? msg.error ? <AlertCircle className="h-4 w-4" /> : (settings.avatarUrl ? <img src={settings.avatarUrl} alt="avatar" className="h-full w-full object-cover" /> : <Bot className="h-4 w-4" />)
                   : <UserCircle className="h-4 w-4" />}
               </div>
 
@@ -1905,8 +1918,8 @@ export default function AIAssistantPage() {
 
           {thinking && messages[messages.length - 1]?.streaming && messages[messages.length - 1]?.content === "" && (
             <div className="flex gap-3">
-              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-cognition to-purple-600 text-white shadow-sm">
-                <Bot className="h-4 w-4" />
+              <div className="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-gradient-to-br from-cognition to-purple-600 text-white shadow-sm">
+                {settings.avatarUrl ? <img src={settings.avatarUrl} alt="avatar" className="h-full w-full object-cover" /> : <Bot className="h-4 w-4" />}
               </div>
               <div className="flex items-center gap-1 rounded-2xl border border-border bg-card px-4 py-3">
                 <span className="h-2 w-2 animate-bounce rounded-full bg-muted-foreground/60 [animation-delay:-0.3s]" />
@@ -2073,6 +2086,108 @@ export default function AIAssistantPage() {
                   className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:border-cognition"
                   placeholder="给你的AI助理取个名字"
                 />
+              </div>
+
+              {/* 头像 URL */}
+              <div>
+                <label className="mb-1.5 block text-xs font-medium">助理头像 URL</label>
+                <input
+                  type="text"
+                  value={settings.avatarUrl || ""}
+                  onChange={(e) => setSettings((s) => ({ ...s, avatarUrl: e.target.value || null }))}
+                  onBlur={() => updateSettings({ avatarUrl: settings.avatarUrl })}
+                  className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:border-cognition"
+                  placeholder="留空使用默认图标，或填写图片 URL"
+                />
+                {settings.avatarUrl && (
+                  <div className="mt-2 flex items-center gap-2">
+                    <div className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-xl bg-gradient-to-br from-cognition to-purple-600">
+                      <img src={settings.avatarUrl} alt="preview" className="h-full w-full object-cover" />
+                    </div>
+                    <button
+                      onClick={() => { setSettings((s) => ({ ...s, avatarUrl: null })); updateSettings({ avatarUrl: null }); }}
+                      className="text-xs text-graveyard hover:underline"
+                    >
+                      移除头像
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              {/* 聊天风格描述 */}
+              <div>
+                <label className="mb-1.5 block text-xs font-medium">聊天风格描述</label>
+                <textarea
+                  value={settings.personaStyle || ""}
+                  onChange={(e) => setSettings((s) => ({ ...s, personaStyle: e.target.value || null }))}
+                  onBlur={() => updateSettings({ personaStyle: settings.personaStyle })}
+                  rows={3}
+                  className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:border-cognition"
+                  placeholder="如：幽默、简洁、多用emoji、像朋友一样聊天..."
+                />
+                <p className="mt-1 text-[10px] text-muted-foreground">描述你希望 AI 助理的聊天风格，会注入到 system prompt</p>
+              </div>
+
+              {/* 蒸馏真人聊天风格 */}
+              <div className="space-y-2 rounded-xl border border-border p-4">
+                <h3 className="text-sm font-medium">🎭 蒸馏真人聊天风格</h3>
+                <p className="text-xs text-muted-foreground">上传一段真人聊天记录，AI 会自动提取风格特征，模仿该风格与你对话</p>
+                <textarea
+                  id="distill-chat-records"
+                  rows={4}
+                  className="w-full rounded-lg border border-border bg-background px-3 py-2 text-xs outline-none focus:border-cognition"
+                  placeholder="粘贴聊天记录（至少 10 字符，最多 20000 字符）..."
+                />
+                <div className="flex items-center gap-2">
+                  <Button
+                    size="sm"
+                    onClick={async () => {
+                      const textarea = document.getElementById("distill-chat-records") as HTMLTextAreaElement;
+                      const records = textarea?.value || "";
+                      if (records.trim().length < 10) {
+                        toast("请输入至少 10 字符的聊天记录", "error");
+                        return;
+                      }
+                      try {
+                        toast("正在蒸馏风格...", "info");
+                        const res = await fetch("/api/ai/distill-style", {
+                          method: "POST",
+                          headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify({ chatRecords: records }),
+                        });
+                        const data = await res.json();
+                        if (res.ok && data.success) {
+                          setSettings((s) => ({ ...s, distilledStyle: data.distilledStyle }));
+                          toast("风格蒸馏成功！AI 助理将模仿此风格", "success");
+                        } else {
+                          toast(data.error || "蒸馏失败", "error");
+                        }
+                      } catch {
+                        toast("蒸馏失败", "error");
+                      }
+                    }}
+                    className="gap-1.5"
+                  >
+                    <Sparkles className="h-3 w-3" />
+                    开始蒸馏
+                  </Button>
+                  {settings.distilledStyle && (
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => { setSettings((s) => ({ ...s, distilledStyle: null })); updateSettings({ distilledStyle: null }); }}
+                      className="text-xs text-graveyard"
+                    >
+                      清除蒸馏风格
+                    </Button>
+                  )}
+                </div>
+                {settings.distilledStyle && (
+                  <div className="rounded-lg bg-cognition/5 p-2 text-xs text-muted-foreground">
+                    <p className="mb-1 font-medium text-cognition">已蒸馏风格：</p>
+                    <p className="line-clamp-3">{settings.distilledStyle}</p>
+                  </div>
+                )}
               </div>
 
               <div className="space-y-3 rounded-xl border border-border p-4">

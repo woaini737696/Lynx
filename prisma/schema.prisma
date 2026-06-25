@@ -331,6 +331,12 @@ model LarkWebhookEvent {
 model AISetting {
   id              String   @id @default(cuid())
   assistantName   String   @default("Lynn")
+  // 自定义头像 URL（为空则使用默认 Bot 图标）
+  avatarUrl       String?  @db.VarChar(500)
+  // 聊天风格描述（如"幽默、简洁、用emoji"），注入 system prompt
+  personaStyle    String?  @db.Text
+  // 蒸馏的真人聊天风格（从聊天记录提取的风格特征）
+  distilledStyle  String?  @db.LongText
   // 音色复刻：克隆后的 voice_id（MiMo TTS VoiceClone 返回）
   clonedVoiceId   String?  @db.VarChar(255)
   clonedVoiceName String?  @db.VarChar(100)
@@ -531,8 +537,8 @@ model HermesConfig {
   userId        String   @unique
   // 是否启用 Hermes 集成
   enabled       Boolean  @default(false)
-  // Hermes Agent HTTP API 端点，默认 http://localhost:7432
-  endpoint      String   @default("http://localhost:7432") @db.VarChar(255)
+  // Hermes Agent Dashboard 端点，默认 http://localhost:9119
+  endpoint      String   @default("http://localhost:9119") @db.VarChar(255)
   // API Key（如 Hermes 启用了鉴权）
   apiKey        String?  @db.VarChar(255)
   // 是否随系统自动启动

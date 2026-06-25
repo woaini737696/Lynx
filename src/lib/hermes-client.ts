@@ -165,53 +165,113 @@ async function hermesFetch(
   return fetch(url, { ...options, headers });
 }
 
-// ============ Hermes Agent 操作 ============
+// ============ 命令行执行封装 ============
 
-/**
- * 测试与 Hermes Agent 的连接
- * 返回 { connected, version, capabilities }
- */
-export async function testHermesConnection(
-  config: HermesConfig
-): Promise<{ connected: boolean; version?: string; capabilities?: string[]; error?: string }> {
+/** 执行 hermes 命令并返回 stdout */
+async function execHermes(args: string[], timeoutMs: number = 30_000): Promise<{
+  success: boolean;
+  stdout: string;
+  stderr: string;
+  error?: string;
+}> {
+  const { execFile } = await import("child_process");
+  const { promisify } = await import("util");
+  const execFileAsync = promisify(execFile);
+
+  const hermesExe = await findHermesExe();
+  if (!hermesExe) {
+    return { success: false, stdout: "", stderr: "", error: "未找到 hermes 可执行文件" };
+  }
+
   try {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 5000);
-    const res = await hermesFetch(config, "/api/status", {
-      signal: controller.signal,
+    const { stdout, stderr } = await execFileAsync(hermesExe, args, {
+      timeout: timeoutMs,
+      maxBuffer: 1024 * 1024 * 10, // 10MB
+      cwd: process.env.HOME || process.env.USERPROFILE || undefined,
     });
-    clearTimeout(timeout);
-
-    if (!res.ok) {
-      return { connected: false, error: `HTTP ${res.status}` };
-    }
-    const data = await res.json();
-    return {
-      connected: true,
-      version: data.version || data.data?.version,
-      capabilities: data.capabilities || data.data?.capabilities || [],
-    };
+    return { success: true, stdout, stderr };
   } catch (e) {
+    const err = e as Error & { stdout?: string; stderr?: string; code?: string };
+    if (err.code === "ETIMEDOUT") {
+      return { success: false, stdout: "", stderr: "", error: `命令执行超时（${timeoutMs / 1000}秒）` };
+    }
     return {
-      connected: false,
-      error: (e as Error).name === "AbortError" ? "连接超时（5秒）" : (e as Error).message,
+      success: false,
+      stdout: err.stdout || "",
+      stderr: err.stderr || "",
+      error: err.message,
     };
   }
 }
 
+// ============ Hermes Agent 操作 ============
+
+/**
+ * 测试与 Hermes Agent 的连接
+ * 优先尝试 HTTP API（如果 dashboard 已启动），回退到命令行 `hermes status`
+ */
+export async function testHermesConnection(
+  config: HermesConfig
+): Promise<{ connected: boolean; version?: string; capabilities?: string[]; error?: string }> {
+  // 1. 先尝试 HTTP 连接（如果 dashboard 服务在运行）
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 5000);
+    const res = await hermesFetch(config, "/", {
+      signal: controller.signal,
+    });
+    clearTimeout(timeout);
+
+    if (res.ok) {
+      let version: string | undefined;
+      try {
+        const data = await res.json();
+        version = data.version || data.data?.version;
+      } catch {
+        // 非 JSON 响应也视为连接成功
+      }
+      return {
+        connected: true,
+        version,
+        capabilities: config.capabilities,
+      };
+    }
+  } catch {
+    // HTTP 连接失败，回退到命令行检测
+  }
+
+  // 2. 回退：通过 `hermes status` 命令检测
+  const result = await execHermes(["status"], 15000);
+  if (result.success && result.stdout.length > 0) {
+    const versionMatch = result.stdout.match(/Version:\s*(.+)/i);
+    return {
+      connected: true,
+      version: versionMatch?.[1]?.trim() || "unknown",
+      capabilities: config.capabilities,
+    };
+  }
+
+  return {
+    connected: false,
+    error: result.error || "Hermes Agent 未运行或未正确配置。请先点击'启动'按钮启动 Dashboard 服务。",
+  };
+}
+
 /**
  * 执行 Hermes 任务
+ * 优先通过 HTTP API（如果 dashboard 在运行），回退到命令行 `hermes -z "prompt"`
  */
 export async function executeHermesTask(
   config: HermesConfig,
   request: HermesTaskRequest
 ): Promise<HermesTaskResult> {
   const start = Date.now();
-  try {
-    const timeoutMs = (request.timeout ?? 120) * 1000;
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), timeoutMs);
+  const timeoutMs = (request.timeout ?? 120) * 1000;
 
+  // 1. 先尝试 HTTP API（如果 dashboard 服务在运行）
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), Math.min(timeoutMs, 30000));
     const res = await hermesFetch(config, "/api/task", {
       method: "POST",
       body: JSON.stringify({
@@ -224,41 +284,53 @@ export async function executeHermesTask(
     });
     clearTimeout(timeout);
 
-    const data = await res.json();
-    if (!res.ok) {
+    if (res.ok) {
+      const data = await res.json();
       return {
-        success: false,
-        output: "",
-        error: data.error || data.message || `HTTP ${res.status}`,
-        durationMs: Date.now() - start,
+        success: true,
+        output: data.output || data.result || "",
+        steps: data.steps,
+        screenshots: data.screenshots,
+        durationMs: data.durationMs || Date.now() - start,
       };
     }
+    // HTTP 失败则回退到命令行
+  } catch {
+    // HTTP 不可用，回退到命令行
+  }
+
+  // 2. 回退：通过命令行 `hermes -z "prompt" --cli` 执行
+  const args = ["-z", request.prompt, "--cli", "--yolo"];
+  if (request.workDir) {
+    // hermes 不直接支持 workDir 参数，通过 cwd 选项设置
+  }
+
+  const result = await execHermes(args, timeoutMs);
+  if (result.success) {
     return {
       success: true,
-      output: data.output || data.result || "",
-      steps: data.steps,
-      screenshots: data.screenshots,
-      durationMs: data.durationMs || Date.now() - start,
-    };
-  } catch (e) {
-    return {
-      success: false,
-      output: "",
-      error: (e as Error).name === "AbortError"
-        ? `任务执行超时（${request.timeout ?? 120}秒）`
-        : (e as Error).message,
+      output: result.stdout.trim() || "(任务已完成，无输出)",
       durationMs: Date.now() - start,
     };
   }
+
+  return {
+    success: false,
+    output: "",
+    error: result.error || result.stderr || "任务执行失败",
+    durationMs: Date.now() - start,
+  };
 }
 
 /**
  * 获取 Hermes Skills Hub 技能列表
+ * 通过 `hermes skills list` 命令获取已安装技能
  */
 export async function listHermesSkills(
   config: HermesConfig,
   category?: string
 ): Promise<{ skills: HermesSkill[]; error?: string }> {
+  // 1. 先尝试 HTTP API
   try {
     const path = category
       ? `/api/skills?category=${encodeURIComponent(category)}`
@@ -268,18 +340,46 @@ export async function listHermesSkills(
     const res = await hermesFetch(config, path, { signal: controller.signal });
     clearTimeout(timeout);
 
-    if (!res.ok) {
-      return { skills: [], error: `HTTP ${res.status}` };
+    if (res.ok) {
+      const data = await res.json();
+      const skills = (data.skills || data.data || []) as HermesSkill[];
+      if (skills.length > 0) return { skills };
     }
-    const data = await res.json();
-    const skills = (data.skills || data.data || []) as HermesSkill[];
-    return { skills };
-  } catch (e) {
-    return {
-      skills: [],
-      error: (e as Error).name === "AbortError" ? "请求超时" : (e as Error).message,
-    };
+  } catch {
+    // HTTP 不可用，回退到命令行
   }
+
+  // 2. 回退：通过 `hermes skills list` 命令
+  const result = await execHermes(["skills", "list"], 15000);
+  if (result.success) {
+    // 解析命令行输出为技能列表
+    const skills = parseSkillsListOutput(result.stdout);
+    return { skills };
+  }
+
+  return {
+    skills: [],
+    error: result.error || "无法获取技能列表，请确认 Hermes Agent 已安装",
+  };
+}
+
+/** 解析 `hermes skills list` 命令输出为技能数组 */
+function parseSkillsListOutput(stdout: string): HermesSkill[] {
+  const skills: HermesSkill[] = [];
+  const lines = stdout.split("\n");
+  for (const line of lines) {
+    // 尝试匹配常见格式：技能名 - 描述
+    const match = line.match(/^\s*[-•*]?\s*(.+?)\s*[-—:]\s*(.+)$/);
+    if (match) {
+      skills.push({
+        id: match[1].trim().toLowerCase().replace(/\s+/g, "_"),
+        name: match[1].trim(),
+        description: match[2].trim(),
+        category: "installed",
+      });
+    }
+  }
+  return skills;
 }
 
 /**
@@ -327,6 +427,50 @@ export async function executeHermesSkill(
 }
 
 // ============ 安装管理 ============
+
+/**
+ * 查找 hermes 可执行文件路径
+ * Windows: 优先检查 Scripts 目录（pip --user 安装时不在系统 PATH）
+ * Linux/macOS: 直接使用 "hermes"（通常在 PATH 中）
+ */
+export async function findHermesExe(): Promise<string | null> {
+  const { exec } = await import("child_process");
+  const { promisify } = await import("util");
+  const execAsync = promisify(exec);
+
+  // 1. 先尝试直接调用 hermes（如果在 PATH 中）
+  try {
+    const testCmd = process.platform === "win32" ? "where hermes" : "which hermes";
+    const { stdout } = await execAsync(testCmd, { timeout: 5000 });
+    const firstLine = stdout.trim().split("\n")[0].trim();
+    if (firstLine) return firstLine;
+  } catch {
+    // 不在 PATH 中，继续查找
+  }
+
+  // 2. Windows: 检查常见 Scripts 目录
+  if (process.platform === "win32") {
+    const path = require("path");
+    const fs = require("fs").promises;
+    const candidates = [
+      path.join(process.env.APPDATA || "", "Python", "Python313", "Scripts", "hermes.exe"),
+      path.join(process.env.APPDATA || "", "Python", "Python312", "Scripts", "hermes.exe"),
+      path.join(process.env.APPDATA || "", "Python", "Python311", "Scripts", "hermes.exe"),
+      path.join(process.env.LOCALAPPDATA || "", "Programs", "Python", "Python313", "Scripts", "hermes.exe"),
+      path.join(process.env.LOCALAPPDATA || "", "Programs", "Python", "Python312", "Scripts", "hermes.exe"),
+    ];
+    for (const candidate of candidates) {
+      try {
+        await fs.access(candidate);
+        return candidate;
+      } catch {
+        // 继续检查下一个
+      }
+    }
+  }
+
+  return null;
+}
 
 /**
  * 检测系统是否已安装 hermes-agent（检查 pip 包）
@@ -391,10 +535,11 @@ export async function installHermesAgent(): Promise<{
 }
 
 /**
- * 启动 Hermes Agent 服务（后台进程）
- * 使用 hermes serve --port 7432
+ * 启动 Hermes Agent Dashboard 服务（后台进程）
+ * 使用 `hermes dashboard --port 9119 --no-open --skip-build`
+ * 默认端口 9119（Hermes Dashboard 默认端口）
  */
-export async function startHermesAgent(port: number = 7432): Promise<{
+export async function startHermesAgent(port: number = 9119): Promise<{
   success: boolean;
   pid?: number;
   error?: string;
@@ -402,19 +547,88 @@ export async function startHermesAgent(port: number = 7432): Promise<{
   const { spawn } = await import("child_process");
 
   try {
-    const cmd = process.platform === "win32" ? "hermes" : "hermes3";
-    const child = spawn(cmd, ["serve", "--port", String(port)], {
+    const hermesExe = await findHermesExe();
+    if (!hermesExe) {
+      return { success: false, error: "未找到 hermes 可执行文件，请确认已安装 hermes-agent" };
+    }
+
+    logger.info({ hermesExe, port }, "启动 Hermes Agent Dashboard...");
+
+    const child = spawn(hermesExe, [
+      "dashboard",
+      "--port", String(port),
+      "--no-open",
+      "--skip-build", // 跳过 npm build（非交互环境）
+    ], {
       detached: true,
       stdio: "ignore",
       windowsHide: false,
+      cwd: process.env.HOME || process.env.USERPROFILE || undefined,
     });
-    child.unref();
 
-    if (child.pid) {
-      logger.info({ pid: child.pid, port }, "Hermes Agent 已启动");
+    // 等待短暂时间确认进程未立即退出
+    await new Promise((resolve) => setTimeout(resolve, 1500));
+
+    if (child.pid && !child.killed) {
+      logger.info({ pid: child.pid, port }, "Hermes Agent Dashboard 已启动");
+      child.unref();
       return { success: true, pid: child.pid };
     }
-    return { success: false, error: "无法获取进程 PID" };
+
+    // 检查进程是否已退出
+    if (child.exitCode !== null) {
+      return { success: false, error: `Hermes 进程立即退出（exit code ${child.exitCode}），可能缺少配置或依赖` };
+    }
+
+    return { success: false, error: "无法获取进程 PID，Hermes 可能未正确启动" };
+  } catch (e) {
+    return { success: false, error: (e as Error).message };
+  }
+}
+
+/**
+ * 停止 Hermes Agent 服务
+ * 通过端口查找并终止进程
+ */
+export async function stopHermesAgent(port: number = 9119): Promise<{
+  success: boolean;
+  error?: string;
+}> {
+  const { exec } = await import("child_process");
+  const { promisify } = await import("util");
+  const execAsync = promisify(exec);
+
+  try {
+    if (process.platform === "win32") {
+      // Windows: 通过端口查找 PID 并终止
+      const { stdout } = await execAsync(
+        `netstat -ano | findstr :${port}`,
+        { timeout: 5000 }
+      );
+      const pids = new Set<string>();
+      for (const line of stdout.trim().split("\n")) {
+        const parts = line.trim().split(/\s+/);
+        if (parts.length >= 5 && parts[1].endsWith(`:${port}`) && parts[3] === "LISTENING") {
+          pids.add(parts[4]);
+        }
+      }
+      for (const pid of pids) {
+        await execAsync(`taskkill /PID ${pid} /F`, { timeout: 5000 });
+      }
+      return { success: true };
+    } else {
+      // Linux/macOS: 通过 lsof 查找并终止
+      try {
+        const { stdout } = await execAsync(`lsof -ti :${port}`, { timeout: 5000 });
+        const pids = stdout.trim().split("\n").filter(Boolean);
+        for (const pid of pids) {
+          await execAsync(`kill -9 ${pid}`, { timeout: 5000 });
+        }
+      } catch {
+        // 没有进程占用端口
+      }
+      return { success: true };
+    }
   } catch (e) {
     return { success: false, error: (e as Error).message };
   }

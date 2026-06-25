@@ -119,3 +119,39 @@ export async function GET() {
     return NextResponse.json({ error: "服务器错误" }, { status: 500 });
   }
 }
+
+// 批量删除灵感（真删除，从数据库移除）
+// body: { ids: string[] }
+export async function DELETE(req: NextRequest) {
+  try {
+    const { user, error } = await requireAuth();
+    if (error) return error;
+
+    const body = await req.json().catch(() => ({}));
+    const ids = body?.ids;
+    if (!Array.isArray(ids) || ids.length === 0) {
+      return NextResponse.json({ error: "ids 参数必须为非空数组" }, { status: 400 });
+    }
+    if (ids.length > 100) {
+      return NextResponse.json({ error: "单次最多删除 100 条" }, { status: 400 });
+    }
+
+    // 只能删除自己的灵感
+    const result = await prisma.idea.deleteMany({
+      where: {
+        id: { in: ids },
+        ...buildUserFilter(user),
+      },
+    });
+
+    logger.info({ deleted: result.count, userId: user.id }, "批量删除灵感");
+
+    return NextResponse.json({
+      success: true,
+      deleted: result.count,
+    });
+  } catch (e) {
+    logger.error({ err: e }, "批量删除灵感失败");
+    return NextResponse.json({ error: "服务器错误" }, { status: 500 });
+  }
+}

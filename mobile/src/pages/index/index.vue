@@ -62,6 +62,9 @@
     </view>
 
     <capture-bar @saved="loadFocus" />
+
+    <!-- 底部导航 -->
+    <TabBar :current="0" />
   </view>
 </template>
 
@@ -70,6 +73,7 @@ import { ref, computed, onMounted } from "vue";
 import { onShow } from "@dcloudio/uni-app";
 import { getTodayFocus, toggleFocusItem } from "@/api/focus.js";
 import CaptureBar from "@/components/CaptureBar.vue";
+import TabBar from "@/components/TabBar.vue";
 
 const loading = ref(false);
 const focus = ref(null);
@@ -139,6 +143,7 @@ onShow(loadFocus);
 .page {
   min-height: 100vh;
   padding: 32rpx;
+  padding-bottom: calc(32rpx + env(safe-area-inset-bottom) + 120rpx);
   box-sizing: border-box;
 }
 

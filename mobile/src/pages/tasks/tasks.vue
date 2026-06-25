@@ -1,8 +1,18 @@
 <template>
   <view class="page">
     <view class="header">
-      <text class="header-title">飞书任务</text>
-      <text class="header-hint">数据由 Web 端同步</text>
+      <view class="header-left">
+        <text class="header-title">飞书任务</text>
+        <view class="sync-status" @click="manualSync">
+          <text v-if="syncing" class="sync-text syncing">同步中...</text>
+          <template v-else>
+            <text class="sync-dot" :class="syncDotClass"></text>
+            <text class="sync-text">{{ syncLabel }}</text>
+          </template>
+          <text class="sync-refresh">↻</text>
+        </view>
+      </view>
+      <text class="header-count">{{ tasks.length }} 项</text>
     </view>
 
     <!-- 分类标签 -->
@@ -19,6 +29,11 @@
       </view>
     </view>
 
+    <view v-if="cacheInfo" class="offline-banner">
+      <text class="offline-icon">📡</text>
+      <text class="offline-text">离线浏览 · 缓存于 {{ formatCacheTime(cacheInfo.cachedAt) }}</text>
+    </view>
+
     <view v-if="loading && filteredTasks.length === 0" class="loading">
       <text class="text-secondary">加载中...</text>
     </view>
@@ -26,6 +41,7 @@
     <view v-else-if="filteredTasks.length === 0" class="empty">
       <text class="empty-icon">📋</text>
       <text class="empty-text">暂无任务</text>
+      <text v-if="!isOnline" class="empty-hint">网络未连接，显示缓存数据</text>
     </view>
 
     <scroll-view v-else scroll-y class="task-list">
@@ -111,13 +127,18 @@
         </view>
       </view>
     </view>
+
+    <!-- 底部导航 -->
+    <TabBar :current="3" />
   </view>
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from "vue";
-import { onShow } from "@dcloudio/uni-app";
-import { getLarkTasks, toggleLarkTask, getLarkTask } from "@/api/lark-tasks.js";
+import { ref, computed, onMounted, onUnmounted } from "vue";
+import { onShow, onPullDownRefresh } from "@dcloudio/uni-app";
+import { getLarkTasks, toggleLarkTask, getLarkTask, getSyncState, triggerSync } from "@/api/lark-tasks.js";
+import { setCache, getCache, formatCacheTime } from "@/utils/cache.js";
+import TabBar from "@/components/TabBar.vue";
 
 const tasks = ref([]);
 const loading = ref(false);
@@ -125,6 +146,13 @@ const currentTab = ref("active");
 
 const detailVisible = ref(false);
 const detailTask = ref(null);
+
+// 同步状态
+const syncState = ref({ lastSyncAt: null, lastError: null, taskCount: 0 });
+const syncing = ref(false);
+const isOnline = ref(true);
+const cacheInfo = ref(null); // { cachedAt } 离线缓存信息
+let syncTimer = null;
 
 const tabs = computed(() => [
   { key: "active", label: "进行中", count: tasks.value.filter((t) => !t.completed).length },
@@ -138,6 +166,19 @@ const filteredTasks = computed(() => {
   return tasks.value;
 });
 
+const syncDotClass = computed(() => {
+  if (syncState.value.lastError) return "dot-error";
+  if (!syncState.value.lastSyncAt) return "dot-never";
+  return "dot-ok";
+});
+
+const syncLabel = computed(() => {
+  if (!syncState.value.lastSyncAt) {
+    return syncState.value.lastError ? "同步失败" : "未同步";
+  }
+  return `最后同步 ${formatRelative(syncState.value.lastSyncAt)}`;
+});
+
 function switchTab(key) {
   currentTab.value = key;
 }
@@ -148,10 +189,67 @@ async function loadTasks() {
     // 拉取全部任务（complete 不传 = 全部）
     const res = await getLarkTasks("my", null);
     tasks.value = res.tasks || [];
+    // 写入离线缓存
+    setCache("lark_tasks", res.tasks || []);
+    cacheInfo.value = null;
   } catch (e) {
-    uni.showToast({ title: e.message || "加载失败", icon: "none" });
+    // 网络失败时尝试读取离线缓存
+    const cache = getCache("lark_tasks");
+    if (cache && cache.data) {
+      tasks.value = cache.data;
+      cacheInfo.value = cache;
+      uni.showToast({
+        title: `离线浏览（${formatCacheTime(cache.cachedAt)}）`,
+        icon: "none",
+        duration: 2000,
+      });
+    } else {
+      uni.showToast({ title: e.message || "加载失败", icon: "none" });
+    }
   } finally {
     loading.value = false;
+  }
+}
+
+async function loadSyncState() {
+  try {
+    const res = await getSyncState();
+    if (res.state) syncState.value = res.state;
+  } catch (e) {
+    // 静默失败
+  }
+}
+
+/** 自动后台同步：页面加载时静默触发，不显示 loading */
+async function autoSync() {
+  try {
+    const res = await triggerSync();
+    if (res.state) syncState.value = res.state;
+    if (res.success) {
+      // 同步成功后静默刷新任务列表
+      await loadTasks();
+    }
+  } catch (e) {
+    // 静默失败，不影响用户体验
+  }
+}
+
+async function manualSync() {
+  if (syncing.value) return;
+  syncing.value = true;
+  try {
+    const res = await triggerSync();
+    if (res.state) syncState.value = res.state;
+    uni.showToast({
+      title: res.success ? "同步完成" : "同步失败",
+      icon: res.success ? "success" : "none",
+      duration: 1000,
+    });
+    if (res.success) await loadTasks();
+  } catch (e) {
+    uni.showToast({ title: e.message || "同步失败", icon: "none" });
+  } finally {
+    syncing.value = false;
   }
 }
 
@@ -211,26 +309,138 @@ function formatDateTime(d) {
   return `${date.getMonth() + 1}/${date.getDate()} ${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}`;
 }
 
-onMounted(loadTasks);
-onShow(loadTasks);
+/** 相对时间格式化：刚刚 / X分钟前 / X小时前 / X天前 */
+function formatRelative(d) {
+  if (!d) return "";
+  const date = new Date(d);
+  const diff = Date.now() - date.getTime();
+  const min = Math.floor(diff / 60000);
+  if (min < 1) return "刚刚";
+  if (min < 60) return `${min}分钟前`;
+  const hr = Math.floor(min / 60);
+  if (hr < 24) return `${hr}小时前`;
+  const day = Math.floor(hr / 24);
+  if (day < 7) return `${day}天前`;
+  return `${date.getMonth() + 1}/${date.getDate()}`;
+}
+
+// 下拉刷新
+onPullDownRefresh(async () => {
+  try {
+    await Promise.all([loadTasks(), loadSyncState()]);
+  } finally {
+    uni.stopPullDownRefresh();
+  }
+});
+
+// 网络状态监听：恢复后自动刷新
+function onNetworkStatusChange(res) {
+  isOnline.value = res.isConnected;
+  if (res.isConnected) {
+    // 网络恢复，自动刷新数据
+    loadTasks();
+    loadSyncState();
+  }
+}
+
+onMounted(() => {
+  loadTasks();
+  loadSyncState();
+  // 自动后台同步：页面加载时静默触发一次
+  autoSync();
+  // 每 60 秒刷新一次同步状态 + 自动同步
+  syncTimer = setInterval(() => {
+    loadSyncState();
+    autoSync();
+  }, 60 * 1000);
+  // 监听网络状态
+  uni.onNetworkStatusChange(onNetworkStatusChange);
+  // 初始网络状态
+  uni.getNetworkType({
+    success: (res) => {
+      isOnline.value = res.networkType !== "none";
+    },
+  });
+});
+
+onUnmounted(() => {
+  if (syncTimer) {
+    clearInterval(syncTimer);
+    syncTimer = null;
+  }
+});
+
+onShow(() => {
+  loadTasks();
+  loadSyncState();
+  // 页面重新显示时静默自动同步
+  autoSync();
+});
 </script>
 
 <style scoped>
 .page {
   min-height: 100vh;
   padding: 32rpx;
+  padding-bottom: calc(32rpx + env(safe-area-inset-bottom) + 120rpx);
   box-sizing: border-box;
 }
 .header {
   display: flex;
   justify-content: space-between;
-  align-items: center;
+  align-items: flex-start;
   margin-bottom: 24rpx;
+}
+.header-left {
+  display: flex;
+  flex-direction: column;
+  gap: 8rpx;
 }
 .header-title {
   font-size: 48rpx;
   font-weight: 700;
   color: #1d1d1f;
+}
+.header-count {
+  font-size: 26rpx;
+  color: #86868b;
+  margin-top: 8rpx;
+}
+
+.sync-status {
+  display: flex;
+  align-items: center;
+  gap: 8rpx;
+  padding: 6rpx 16rpx;
+  background-color: rgba(245, 158, 11, 0.08);
+  border-radius: 20rpx;
+  align-self: flex-start;
+}
+.sync-dot {
+  width: 12rpx;
+  height: 12rpx;
+  border-radius: 50%;
+}
+.dot-ok {
+  background-color: #10b981;
+}
+.dot-error {
+  background-color: #ef4444;
+}
+.dot-never {
+  background-color: #aeaeb2;
+}
+.sync-text {
+  font-size: 22rpx;
+  color: #86868b;
+}
+.sync-text.syncing {
+  color: #f59e0b;
+}
+.sync-refresh {
+  font-size: 24rpx;
+  color: #f59e0b;
+  margin-left: 4rpx;
 }
 
 .tabs {
@@ -286,9 +496,31 @@ onShow(loadTasks);
   color: #86868b;
   font-size: 28rpx;
 }
+.empty-hint {
+  color: #aeaeb2;
+  font-size: 22rpx;
+  margin-top: 8rpx;
+}
+
+.offline-banner {
+  display: flex;
+  align-items: center;
+  gap: 8rpx;
+  padding: 12rpx 24rpx;
+  background-color: rgba(59, 130, 246, 0.08);
+  border-radius: 12rpx;
+  margin-bottom: 16rpx;
+}
+.offline-icon {
+  font-size: 24rpx;
+}
+.offline-text {
+  font-size: 24rpx;
+  color: #3b82f6;
+}
 
 .task-list {
-  height: calc(100vh - 320rpx);
+  height: calc(100vh - 360rpx);
 }
 .task-item {
   display: flex;

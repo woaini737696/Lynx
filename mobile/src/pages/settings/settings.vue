@@ -25,6 +25,20 @@
       </view>
     </view>
 
+    <!-- 外观 -->
+    <view class="section">
+      <text class="section-title">外观</text>
+      <view class="menu-item" @click="toggleTheme">
+        <text class="menu-icon">{{ settingsStore.theme === "dark" ? "🌙" : "☀️" }}</text>
+        <text class="menu-label">深色模式</text>
+        <view class="switch-wrap" @click.stop="toggleTheme">
+          <view class="switch-track" :class="{ on: settingsStore.theme === 'dark' }">
+            <view class="switch-thumb"></view>
+          </view>
+        </view>
+      </view>
+    </view>
+
     <view class="section">
       <text class="section-title">服务器配置</text>
       <view class="setting-item">
@@ -58,6 +72,9 @@
     <view class="logout-btn" @click="onLogout">
       <text class="logout-text">退出登录</text>
     </view>
+
+    <!-- 底部导航 -->
+    <TabBar :current="4" />
   </view>
 </template>
 
@@ -65,6 +82,7 @@
 import { ref, computed } from "vue";
 import { useUserStore } from "@/store/user.js";
 import { useSettingsStore } from "@/store/settings.js";
+import TabBar from "@/components/TabBar.vue";
 
 const userStore = useUserStore();
 const settingsStore = useSettingsStore();
@@ -84,6 +102,15 @@ const roleLabel = computed(() => {
 function saveBaseUrl() {
   settingsStore.setBaseUrl(baseUrl.value);
   uni.showToast({ title: "已保存", icon: "success" });
+}
+
+function toggleTheme() {
+  settingsStore.toggleTheme();
+  uni.showToast({
+    title: settingsStore.theme === "dark" ? "已切换深色模式" : "已切换浅色模式",
+    icon: "none",
+    duration: 1000,
+  });
 }
 
 function goInbox() {
@@ -110,16 +137,18 @@ function onLogout() {
 .page {
   min-height: 100vh;
   padding: 32rpx;
+  padding-bottom: calc(32rpx + env(safe-area-inset-bottom) + 120rpx);
   box-sizing: border-box;
+  background-color: var(--bg-page);
 }
 .profile {
   display: flex;
   align-items: center;
-  background-color: #ffffff;
+  background-color: var(--bg-card);
   border-radius: 20rpx;
   padding: 32rpx;
   margin-bottom: 32rpx;
-  box-shadow: 0 2rpx 12rpx rgba(0, 0, 0, 0.04);
+  box-shadow: var(--shadow-card);
 }
 .avatar {
   width: 112rpx;
@@ -141,26 +170,26 @@ function onLogout() {
   display: block;
   font-size: 36rpx;
   font-weight: 600;
-  color: #1d1d1f;
+  color: var(--text-primary);
 }
 .profile-role {
   display: block;
   font-size: 24rpx;
-  color: #86868b;
+  color: var(--text-secondary);
   margin-top: 8rpx;
 }
 
 .section {
-  background-color: #ffffff;
+  background-color: var(--bg-card);
   border-radius: 20rpx;
   padding: 32rpx;
   margin-bottom: 24rpx;
-  box-shadow: 0 2rpx 12rpx rgba(0, 0, 0, 0.04);
+  box-shadow: var(--shadow-card);
 }
 .section-title {
   display: block;
   font-size: 26rpx;
-  color: #86868b;
+  color: var(--text-secondary);
   margin-bottom: 24rpx;
   font-weight: 600;
 }
@@ -169,7 +198,7 @@ function onLogout() {
   display: flex;
   align-items: center;
   padding: 24rpx 0;
-  border-bottom: 1rpx solid #f2f2f7;
+  border-bottom: 1rpx solid var(--border-light);
 }
 .menu-item:last-child {
   border-bottom: none;
@@ -180,12 +209,41 @@ function onLogout() {
 }
 .menu-label {
   flex: 1;
-  color: #1d1d1f;
+  color: var(--text-primary);
   font-size: 30rpx;
 }
 .menu-arrow {
-  color: #c7c7cc;
+  color: var(--text-tertiary);
   font-size: 36rpx;
+}
+
+.switch-wrap {
+  padding: 4rpx 0;
+}
+.switch-track {
+  width: 88rpx;
+  height: 52rpx;
+  border-radius: 26rpx;
+  background-color: #e5e5ea;
+  position: relative;
+  transition: background-color 0.3s;
+}
+.switch-track.on {
+  background: linear-gradient(135deg, #f59e0b, #f97316);
+}
+.switch-thumb {
+  position: absolute;
+  top: 4rpx;
+  left: 4rpx;
+  width: 44rpx;
+  height: 44rpx;
+  border-radius: 50%;
+  background-color: #ffffff;
+  box-shadow: 0 2rpx 8rpx rgba(0, 0, 0, 0.15);
+  transition: transform 0.3s;
+}
+.switch-track.on .switch-thumb {
+  transform: translateX(36rpx);
 }
 
 .setting-item {
@@ -193,24 +251,24 @@ function onLogout() {
   justify-content: space-between;
   align-items: center;
   padding: 20rpx 0;
-  border-bottom: 1rpx solid #f2f2f7;
+  border-bottom: 1rpx solid var(--border-light);
 }
 .setting-label {
-  color: #1d1d1f;
+  color: var(--text-primary);
   font-size: 28rpx;
 }
 .setting-value {
-  color: #86868b;
+  color: var(--text-secondary);
   font-size: 26rpx;
 }
 .setting-input {
   flex: 1;
   text-align: right;
-  color: #1d1d1f;
+  color: var(--text-primary);
   font-size: 26rpx;
 }
 .placeholder {
-  color: #aeaeb2;
+  color: var(--text-tertiary);
 }
 
 .save-btn-wrap {
@@ -231,14 +289,14 @@ function onLogout() {
 }
 
 .logout-btn {
-  background-color: #ffffff;
+  background-color: var(--bg-card);
   border-radius: 16rpx;
   height: 96rpx;
   display: flex;
   align-items: center;
   justify-content: center;
   margin-top: 32rpx;
-  box-shadow: 0 2rpx 12rpx rgba(0, 0, 0, 0.04);
+  box-shadow: var(--shadow-card);
 }
 .logout-text {
   color: #ef4444;

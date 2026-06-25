@@ -5,6 +5,11 @@
       <text class="header-count">{{ ideas.length }} 条</text>
     </view>
 
+    <view v-if="cacheInfo" class="offline-banner">
+      <text class="offline-icon">📡</text>
+      <text class="offline-text">离线浏览 · 缓存于 {{ formatCacheTime(cacheInfo.cachedAt) }}</text>
+    </view>
+
     <view v-if="loading && ideas.length === 0" class="loading">
       <text class="text-secondary">加载中...</text>
     </view>
@@ -41,17 +46,33 @@ import { ref, onMounted } from "vue";
 import { onShow } from "@dcloudio/uni-app";
 import { getInboxIdeas, moveIdeaToBoard, abandonIdea } from "@/api/ideas.js";
 import CaptureBar from "@/components/CaptureBar.vue";
+import { setCache, getCache, formatCacheTime } from "@/utils/cache.js";
 
 const ideas = ref([]);
 const loading = ref(false);
+const cacheInfo = ref(null);
 
 async function loadIdeas() {
   loading.value = true;
   try {
     const res = await getInboxIdeas();
     ideas.value = res.ideas || [];
+    setCache("inbox_ideas", res.ideas || []);
+    cacheInfo.value = null;
   } catch (e) {
-    uni.showToast({ title: e.message || "加载失败", icon: "none" });
+    // 离线回退
+    const cache = getCache("inbox_ideas");
+    if (cache && cache.data) {
+      ideas.value = cache.data;
+      cacheInfo.value = cache;
+      uni.showToast({
+        title: `离线浏览（${formatCacheTime(cache.cachedAt)}）`,
+        icon: "none",
+        duration: 2000,
+      });
+    } else {
+      uni.showToast({ title: e.message || "加载失败", icon: "none" });
+    }
   } finally {
     loading.value = false;
   }
@@ -146,6 +167,23 @@ onShow(loadIdeas);
 .empty-hint {
   color: #aeaeb2;
   font-size: 24rpx;
+}
+
+.offline-banner {
+  display: flex;
+  align-items: center;
+  gap: 8rpx;
+  padding: 12rpx 24rpx;
+  background-color: rgba(59, 130, 246, 0.08);
+  border-radius: 12rpx;
+  margin-bottom: 16rpx;
+}
+.offline-icon {
+  font-size: 24rpx;
+}
+.offline-text {
+  font-size: 24rpx;
+  color: #3b82f6;
 }
 
 .idea-list {

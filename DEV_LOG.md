@@ -4,6 +4,72 @@
 
 ---
 
+## 迭代 22 - 2026-06-25
+
+### 任务概要
+修复 Hermes Agent 启动/连接问题、Hermes 开关样式、添加使用说明；Inbox 批量删除；AI 助理聊天风格自定义（含真人聊天记录蒸馏）；清除脏数据/假数据；修复 404 间歇性崩溃。
+
+### 完成内容
+
+#### 1. Hermes Agent 启动/连接/使用说明
+- **启动失败修复**：`hermes-client.ts` 新增 `findHermesExe()` 自动查找 pip --user 安装路径（Python313/312/311 Scripts 目录）；改用 `hermes dashboard --port 9119 --no-open --skip-build` 命令（非 `serve`）；等待 1.5s 确认进程存活
+- **连接测试修复**：`testHermesConnection` 改为 HTTP + 命令行双模式——先试 `GET /`，失败回退 `hermes status`
+- **任务执行/技能列表**：`executeHermesTask`/`listHermesSkills` 同样支持 HTTP + 命令行双模式
+- **进程停止**：新增 `stopHermesAgent(port)` — Windows 用 `netstat + taskkill`，Linux/macOS 用 `lsof + kill`
+- **端口修正**：HermesConfig 默认端口从 7432 改为 9119（Hermes Dashboard 实际端口）
+- **使用说明**：`help-content.ts` settings 版本升至 2.2，添加 Hermes 安装/启动/连接/路径查找详细说明
+
+#### 2. Hermes 启用开关样式修复
+- `settings/page.tsx` 两个 toggle（启用 Hermes + 自动启动）从 `h-5 w-9` + `h-4 w-4` 改为标准 `h-6 w-11` + `h-5 w-5`
+- 添加 `role="switch"`, `aria-checked`, `type="button"`, focus ring 样式
+
+#### 3. Inbox 批量删除
+- **API**：`/api/ideas` 新增 DELETE 方法，接收 `{ ids: string[] }`，单次最多 100 条
+- **前端**：`inbox/page.tsx` 新增多选模式（`selectedIds` Set 状态）、批量操作栏（全选/取消/批量删除）、每条卡片复选框
+
+#### 4. AI 助理聊天风格自定义
+- **数据模型**：AISetting 新增 3 个字段——`avatarUrl`（头像 URL）、`personaStyle`（风格描述）、`distilledStyle`（蒸馏的真人风格）
+- **风格蒸馏 API**：`/api/ai/distill-style` 接收聊天记录，用 AI 分析提取语气/用词/句式/emoji/节奏特征，保存到 `distilledStyle`
+- **风格注入**：`/api/ai/chat` assistantMode 分支读取 AISetting，将 `personaStyle` 和 `distilledStyle` 插入 system prompt 的"重要约束"之前；替换助理名称
+- **前端 UI**：`ai/assistant/page.tsx` 设置面板新增——头像 URL 输入 + 预览、聊天风格描述 textarea、蒸馏真人聊天风格区块（textarea + 开始蒸馏按钮 + 结果展示 + 清除按钮）；3 处头像位置支持自定义 URL
+
+#### 5. 清除脏数据/假数据
+- **seed.ts 重写**：仅创建 admin 用户（upsert），添加生产环境守卫，不再注入任何假数据
+- **数据库清理**：`scripts/cleanup-seed-data.ts` 按精确内容匹配删除 seed 数据——11 ideas、14 tasks、2 memories、4 conversations、7 cognitions、3 graveyard、10 skills、20 skillReviews、15 larkTasks、8 dailyFocusItems
+- **DEFAULT_FLOWS 修复**：`flow-store.ts` 中 3 个默认工作流的 `lastRun` 从假时间（"10分钟前"/"1小时前"）改为"未运行"，节点 status 从 "done" 改为 "idle"
+- **.ai-flows.json 删除**：迁移备份文件含假数据，已删除
+- **清理后数据**：idea 37、task 8、memory 70、conversation 2、cognition 9、graveyard 0、skill 8、skillReview 0、larkTask 222（全部为真实用户数据）
+
+#### 6. 404 间歇性崩溃修复
+- **根因**：pino-pretty transport 使用 worker thread（thread-stream），`.next` 缓存损坏时 `worker.js` MODULE_NOT_FOUND 导致 uncaughtException，引发间歇性 404
+- **修复**：`logger.ts` 添加 `sync: true` 选项，使 pino-pretty 在同步模式运行不使用 worker thread
+
+### 自测结果
+- TypeScript 编译：`tsc --noEmit` 通过（0 errors）
+- Playwright E2E：19/19 passed（28.3s），无回归
+- API 验证：Login/Ideas/AI Settings/Flows/Hermes Config/Hermes Status/Inbox DELETE 全部 200
+- AI Settings 新字段验证：avatarUrl/personaStyle/distilledStyle 正确返回 null
+- Hermes Config 端口更新：7432 → 9119
+
+### 关键文件变更
+- `src/lib/hermes-client.ts` — 大幅重写（findHermesExe + dashboard 命令 + HTTP/CLI 双模式）
+- `src/lib/logger.ts` — sync: true 修复 404
+- `src/lib/flow-store.ts` — DEFAULT_FLOWS 假时间修复
+- `src/lib/help-content.ts` — Hermes 使用说明
+- `prisma/seed.ts` — 重写为仅 admin 用户
+- `prisma/schema.prisma` — AISetting 3 新字段 + HermesConfig 端口默认值
+- `src/app/api/ideas/route.ts` — DELETE 批量删除
+- `src/app/api/ai/distill-style/route.ts` — 新建风格蒸馏 API
+- `src/app/api/ai/chat/route.ts` — 风格注入 system prompt
+- `src/app/api/ai/settings/route.ts` — 新字段校验
+- `src/app/api/hermes/install/route.ts` — 端口 + stopHermesAgent
+- `src/app/settings/page.tsx` — 开关样式修复
+- `src/app/inbox/page.tsx` — 批量删除 UI
+- `src/app/ai/assistant/page.tsx` — 风格自定义 UI + 头像支持
+- `scripts/cleanup-seed-data.ts` — 新建脏数据清理脚本
+
+---
+
 ## 迭代 21 - 2026-06-25
 
 ### 任务概要

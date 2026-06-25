@@ -20,7 +20,11 @@
     },
     {
       "path": "pages/tasks/tasks",
-      "style": { "navigationBarTitleText": "飞书任务" }
+      "style": {
+        "navigationBarTitleText": "飞书任务",
+        "enablePullDownRefresh": true,
+        "backgroundTextStyle": "dark"
+      }
     },
     {
       "path": "pages/settings/settings",
@@ -49,6 +53,7 @@
     }
   },
   "tabBar": {
+    "custom": true,
     "color": "#86868b",
     "selectedColor": "#f59e0b",
     "backgroundColor": "#ffffff",
@@ -56,7 +61,7 @@
     "list": [
       { "pagePath": "pages/index/index", "text": "聚焦" },
       { "pagePath": "pages/board/board", "text": "看板" },
-      { "pagePath": "pages/ai/chat/chat", "text": "AI" },
+      { "pagePath": "pages/ai/chat/chat", "text": "助理" },
       { "pagePath": "pages/tasks/tasks", "text": "任务" },
       { "pagePath": "pages/settings/settings", "text": "我的" }
     ]

@@ -90,24 +90,24 @@ const DEFAULT_FLOWS: Array<{
   {
     name: "灵感自动分类",
     description: "新灵感入库后，AI 自动判断归属并打标签",
-    lastRun: "10分钟前",
+    lastRun: "未运行",
     enabled: true,
     nodes: [
-      { id: "n1", type: "trigger", label: "Inbox 新增灵感", status: "done" },
-      { id: "n2", type: "action", label: "AI 分析内容", status: "done" },
-      { id: "n3", type: "condition", label: "判断归属", status: "done" },
-      { id: "n4", type: "output", label: "打标签 + 推荐看板列", status: "done" },
+      { id: "n1", type: "trigger", label: "Inbox 新增灵感", status: "idle" },
+      { id: "n2", type: "action", label: "AI 分析内容", status: "idle" },
+      { id: "n3", type: "condition", label: "判断归属", status: "idle" },
+      { id: "n4", type: "output", label: "打标签 + 推荐看板列", status: "idle" },
     ],
   },
   {
     name: "对话资产自动提取",
     description: "粘贴对话后，AI 提取结论、待办、提示词",
-    lastRun: "1小时前",
+    lastRun: "未运行",
     enabled: true,
     nodes: [
-      { id: "n1", type: "trigger", label: "对话捕获", status: "done" },
-      { id: "n2", type: "action", label: "AI 提取结构", status: "done" },
-      { id: "n3", type: "output", label: "写入认知库", status: "done" },
+      { id: "n1", type: "trigger", label: "对话捕获", status: "idle" },
+      { id: "n2", type: "action", label: "AI 提取结构", status: "idle" },
+      { id: "n3", type: "output", label: "写入认知库", status: "idle" },
     ],
   },
   {
