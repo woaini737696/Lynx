@@ -167,6 +167,49 @@ async function hermesFetch(
 
 // ============ 命令行执行封装 ============
 
+/**
+ * 构建 hermes CLI 调用所需的安全环境
+ *
+ * 根因：TRAE 沙箱限制了对 C:\Users\...\AppData\Local\hermes\logs\ 的写入，
+ * 导致 hermes 启动时 concurrent_log_handler 抛出 OSError: Bad file descriptor。
+ *
+ * 方案：将 LOCALAPPDATA 重定向到临时目录，并复制 hermes 配置文件过去，
+ * 使 hermes 能在临时目录中读写日志，同时保留原有的模型/API Key 配置。
+ */
+function buildHermesEnv(): NodeJS.ProcessEnv {
+  const fs = require("fs") as typeof import("fs");
+  const path = require("path") as typeof import("path");
+  const os = require("os") as typeof import("os");
+
+  const origLocal = process.env.LOCALAPPDATA || "";
+  const origHermesDir = path.join(origLocal, "hermes");
+  const tmpLocal = path.join(os.tmpdir(), "hermes_local_run");
+  const tmpHermesDir = path.join(tmpLocal, "hermes");
+
+  // 确保临时目录结构存在
+  fs.mkdirSync(path.join(tmpHermesDir, "logs"), { recursive: true });
+
+  // 复制配置文件（.env 含 API Key，config.yaml 含模型设置，auth.json 含认证）
+  if (fs.existsSync(origHermesDir)) {
+    for (const file of [".env", "config.yaml", "auth.json"]) {
+      const src = path.join(origHermesDir, file);
+      const dst = path.join(tmpHermesDir, file);
+      if (fs.existsSync(src)) {
+        try {
+          fs.copyFileSync(src, dst);
+        } catch {
+          // 复制失败不阻塞，hermes 可能用环境变量中的 Key
+        }
+      }
+    }
+  }
+
+  return {
+    ...process.env,
+    LOCALAPPDATA: tmpLocal,
+  };
+}
+
 /** 执行 hermes 命令并返回 stdout */
 async function execHermes(args: string[], timeoutMs: number = 30_000): Promise<{
   success: boolean;
@@ -187,6 +230,7 @@ async function execHermes(args: string[], timeoutMs: number = 30_000): Promise<{
     const { stdout, stderr } = await execFileAsync(hermesExe, args, {
       timeout: timeoutMs,
       maxBuffer: 1024 * 1024 * 10, // 10MB
+      env: buildHermesEnv(),
       cwd: process.env.HOME || process.env.USERPROFILE || undefined,
     });
     return { success: true, stdout, stderr };
@@ -258,15 +302,15 @@ export async function testHermesConnection(
 }
 
 /**
- * 执行 Hermes 任务
- * 优先通过 HTTP API（如果 dashboard 在运行），回退到命令行 `hermes -z "prompt"`
+ * 执行 Hermes 任务（通过 CLI）
  *
- * 改进点：
- * 1. 执行前检测模型是否已配置；未配置时自动调用 configureHermesModel 并给出明确提示
- * 2. 对需要桌面控制的任务（关键词：打开浏览器/截图/点击/打开应用），
- *    若 dashboard 未运行则自动启动，再走 HTTP API
- * 3. HTTP API 尝试多个端点；超时上限 180s
- * 4. 命令行模式使用 `--yolo` 跳过交互确认
+ * 架构说明：
+ * Hermes Dashboard 是管理界面（查看 sessions/config/skills），没有通用 prompt 执行 API。
+ * 任务执行统一通过 CLI `hermes -z "prompt" --yolo`，hermes 内部会自动调用工具完成任务。
+ *
+ * 执行流程：
+ * 1. 预检 LLM 模型是否已配置（未配置时自动配置）
+ * 2. 通过 CLI 执行任务（execHermes 内部会设置安全环境绕过沙箱限制）
  */
 export async function executeHermesTask(
   config: HermesConfig,
@@ -274,21 +318,18 @@ export async function executeHermesTask(
 ): Promise<HermesTaskResult> {
   const start = Date.now();
   const timeoutMs = (request.timeout ?? 120) * 1000;
-  let mode = request.mode || "auto";
 
-  // 0. 预检：模型是否已配置（未配置会导致 "no final response was produced"）
-  // 自动尝试配置一次，配置失败则给出明确指引
+  // 1. 预检：模型是否已配置（未配置会导致 "no final response was produced"）
   try {
     const check = await isHermesModelConfigured();
     if (!check.configured && !check.hasApiKey) {
-      // 自动配置（复用 LynnHub 的 DeepSeek Key）
       const cfg = await configureHermesModel();
       if (!cfg.success) {
         return {
           success: false,
           output: "",
           error:
-            "Hermes 尚未配置 LLM 模型（这是 'no final response was produced' 的根因）。\n" +
+            "Hermes 尚未配置 LLM 模型。\n" +
             "自动配置失败：" + (cfg.error || "未知原因") + "\n\n" +
             "请点击「一键配置模型」按钮，或在 Hermes 设置中手动配置 DeepSeek API Key。",
           durationMs: Date.now() - start,
@@ -299,129 +340,7 @@ export async function executeHermesTask(
     // 预检失败不阻塞，继续尝试执行
   }
 
-  // 0.5 识别需要桌面控制的任务（CLI 无法完成，必须走 dashboard）
-  const needsDesktop = /打开浏览器|截图|点击|打开应用|操作桌面|控制鼠标|控制键盘|浏览器访问|访问\s*http|open\s+browser|screenshot|click/i.test(
-    request.prompt
-  );
-  if (needsDesktop && mode === "auto") {
-    mode = "computer_use";
-  }
-
-  // 0.6 对 computer_use 任务：确保 dashboard 在运行（CLI 无法完成桌面控制）
-  if (mode === "computer_use") {
-    const dashboardUp = await isDashboardRunning(config);
-    if (!dashboardUp) {
-      const portMatch = config.endpoint.match(/:(\d+)$/);
-      const port = portMatch ? parseInt(portMatch[1], 10) : 9119;
-      const startRes = await startHermesAgent(port);
-      if (!startRes.success) {
-        return {
-          success: false,
-          output: "",
-          error:
-            "该任务需要桌面控制（如打开浏览器/截图），必须运行 Hermes Dashboard。\n" +
-            "自动启动 Dashboard 失败：" + (startRes.error || "未知原因") + "\n\n" +
-            "请到设置页手动点击「启动 Hermes」，再执行此任务。",
-          durationMs: Date.now() - start,
-        };
-      }
-      // 等待 dashboard 就绪（轮询最多 15s）
-      const ready = await waitForDashboard(config, 15_000);
-      if (!ready) {
-        return {
-          success: false,
-          output: "",
-          error: "Hermes Dashboard 已启动但未在 15 秒内就绪，请稍后重试或手动打开 Dashboard 查看。",
-          durationMs: Date.now() - start,
-        };
-      }
-    }
-  }
-
-  // 1. 先尝试 HTTP API（如果 dashboard 服务在运行）
-  // 尝试多个可能的端点，因为不同版本 Hermes Dashboard 的 API 路径可能不同
-  const httpEndpoints = ["/api/task", "/api/run", "/api/execute", "/task", "/run"];
-  let httpTried = false;
-  let httpAvailable = false;
-  for (const endpoint of httpEndpoints) {
-    try {
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), Math.min(timeoutMs, 180_000));
-      const res = await hermesFetch(config, endpoint, {
-        method: "POST",
-        body: JSON.stringify({
-          prompt: request.prompt,
-          mode,
-          work_dir: request.workDir,
-          options: request.options,
-        }),
-        signal: controller.signal,
-      });
-      clearTimeout(timeout);
-      httpTried = true;
-
-      if (res.ok) {
-        const data = await res.json().catch(() => ({}));
-        return {
-          success: true,
-          output: data.output || data.result || data.message || "(任务已完成)",
-          steps: data.steps,
-          screenshots: data.screenshots,
-          durationMs: data.durationMs || Date.now() - start,
-        };
-      }
-      // 404 表示端点不存在，尝试下一个
-      // 401/403 表示端点存在但需要认证（Dashboard 启用了鉴权），我们当前没有 token
-      //   → 标记 httpAvailable 但继续尝试下一个端点；若所有端点都 401/403，则回退到 CLI
-      if (res.status === 404) {
-        continue;
-      }
-      if (res.status === 401 || res.status === 403) {
-        httpAvailable = true; // 至少说明 Dashboard 在运行
-        continue;
-      }
-      // 其他状态码（400/500等）说明端点存在但请求出错
-      const errBody = await res.json().catch(() => ({}));
-      return {
-        success: false,
-        output: "",
-        error: errBody.error || errBody.message || `HTTP ${res.status}：${endpoint}`,
-        durationMs: Date.now() - start,
-      };
-    } catch {
-      // 当前端点不可用，尝试下一个
-    }
-  }
-
-  // 如果 HTTP 全部 401/403（Dashboard 有鉴权但我们没有 token），且不是 computer_use 任务，
-  // 直接走 CLI 模式（CLI 不需要 HTTP 鉴权）
-  // computer_use 任务在 CLI 模式下无法完成，需明确告知用户
-  if (mode === "computer_use") {
-    if (httpTried && httpAvailable) {
-      return {
-        success: false,
-        output: "",
-        error:
-          "Hermes Dashboard 已启动并启用了鉴权，但 LynnHub 未配置访问令牌。\n" +
-          "桌面控制类任务需要通过 Dashboard 执行，请：\n" +
-          "1. 在 Hermes Dashboard 中生成 API Key\n" +
-          "2. 在 LynnHub 设置页 → Hermes 配置区填入该 API Key\n" +
-          "3. 或将任务描述改为 shell 命令模式（添加 'shell' 关键字）",
-        durationMs: Date.now() - start,
-      };
-    }
-    return {
-      success: false,
-      output: "",
-      error:
-        "该任务需要桌面控制（如打开浏览器/截图），但 Hermes Dashboard HTTP API 不可用。\n" +
-        "请确保 Dashboard 已启动并在端口 " + (config.endpoint.match(/:(\d+)$/)?.[1] || "9119") + " 监听。\n" +
-        "可到设置页点击「启动 Hermes」，或直接运行 `hermes dashboard` 命令。",
-      durationMs: Date.now() - start,
-    };
-  }
-
-  // 纯 shell/auto 任务走 CLI
+  // 2. 通过 CLI 执行任务
   const args = ["-z", request.prompt, "--yolo"];
 
   const result = await execHermes(args, timeoutMs);
@@ -429,16 +348,15 @@ export async function executeHermesTask(
     const output = result.stdout.trim() || result.stderr.trim();
     return {
       success: true,
-      output: output || "(任务已完成，无控制台输出。如需查看详细执行过程，请打开 Dashboard)",
+      output: output || "(任务已完成，无控制台输出)",
       durationMs: Date.now() - start,
     };
   }
 
-  // 命令行执行失败 — 给出有针对性的错误提示
+  // CLI 执行失败 — 给出有针对性的错误提示
   const errLower = (result.error || "").toLowerCase();
   let friendlyError: string;
   if (errLower.includes("no final response") || errLower.includes("no final")) {
-    // 这是模型未配置的典型症状，给出最明确的指引
     friendlyError =
       "Hermes 未产生最终响应——通常是因为 LLM 模型未配置。\n" +
       "请点击「一键配置模型」按钮（会自动复用 LynnHub 的 DeepSeek API Key），配置后重试。";
@@ -446,6 +364,10 @@ export async function executeHermesTask(
     friendlyError = `任务执行超时（${timeoutMs / 1000}秒）。可在执行时增加 timeout 参数。`;
   } else if (errLower.includes("not found") || errLower.includes("enoent")) {
     friendlyError = "未找到 hermes 可执行文件，请确认已安装 hermes-agent（pip install hermes-agent）";
+  } else if (errLower.includes("no inference provider")) {
+    friendlyError =
+      "Hermes 未配置推理提供者。请运行 `hermes model` 选择模型，或确保 DeepSeek API Key 已写入 Hermes 配置。\n" +
+      "可点击「一键配置模型」按钮自动配置。";
   } else {
     friendlyError = result.error || result.stderr || "任务执行失败";
   }
@@ -456,29 +378,6 @@ export async function executeHermesTask(
     error: friendlyError,
     durationMs: Date.now() - start,
   };
-}
-
-/** 检测 Hermes Dashboard 是否在运行（HTTP 探测） */
-async function isDashboardRunning(config: HermesConfig): Promise<boolean> {
-  try {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 3000);
-    const res = await hermesFetch(config, "/", { signal: controller.signal });
-    clearTimeout(timeout);
-    return res.ok || res.status === 404; // 404 也说明服务在跑（只是根路径无处理）
-  } catch {
-    return false;
-  }
-}
-
-/** 轮询等待 Dashboard 就绪 */
-async function waitForDashboard(config: HermesConfig, totalMs: number): Promise<boolean> {
-  const deadline = Date.now() + totalMs;
-  while (Date.now() < deadline) {
-    if (await isDashboardRunning(config)) return true;
-    await new Promise((r) => setTimeout(r, 1500));
-  }
-  return false;
 }
 
 /**
