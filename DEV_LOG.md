@@ -4,6 +4,48 @@
 
 ---
 
+## 迭代 26 - 2026-06-25
+
+### 任务概要
+完成用户反馈的 6 个问题：(1) 左侧导航栏固定不动，右侧内容区独立滚动；(2) 所有列表页分页展示，默认 10 条可设置；(3) 所有列表页增加筛选+搜索功能；(4) Hermes Agent 执行失败 HTTP 401 修复；(5) UI 颜色从蓝紫色渐变改为橙黑灰高级感搭配；(6) 记忆图谱 3D 性能优化+滚轮缩放+点击节点聚焦子图+列表分页管理。
+
+### 完成内容
+
+#### 1. 导航栏固定
+- **`src/components/layout/AppShell.tsx`**：外层容器从 `min-h-screen` 改为 `h-screen overflow-hidden`，内容区 `overflow-y-auto`，实现导航栏与内容区独立滚动。
+- **`src/components/layout/Sidebar.tsx`**：aside 改为 `lg:sticky lg:top-0 lg:h-full`，确保桌面端固定。
+
+#### 2. 全列表分页+搜索+筛选（11 个页面）
+- **新建 `src/components/ui/ListControls.tsx`**：通用列表控件，导出 `SearchInput`、`FilterSelect`、`Pagination`、`useClientPagination` 四个组件/Hook。默认每页 10 条，可选 10/20/50/100。
+- 覆盖页面：inbox、converge、assets、graveyard、cognition、skills、skills/market、settings/users、settings/patrol、ai/lark-tasks、ai/assistant。每个页面添加搜索+筛选+分页，保留原有功能不破坏。
+
+#### 3. Hermes Agent HTTP 401 修复
+- **`src/lib/hermes-client.ts`**：HTTP API 遇到 401/403 时不再直接报错，而是标记 `httpAvailable=true` 并 `continue` 尝试下一个端点。若所有端点都 401/403，非 `computer_use` 任务直接回退到 CLI 模式（CLI 不需要 HTTP 鉴权）。
+
+#### 4. UI 橙黑灰高级感
+- **`src/app/globals.css`**：全局 CSS 变量从蓝紫色（hue=248）完全切换为橙色（hue=24）。浅色主题 `--primary: 24 95% 53%`，深色主题 `--primary: 24 95% 58%`。语义色 northstar/campaign/cognition 全部改为橙黑灰体系。Button/Card 组件从渐变改为实色。
+- **多文件**：所有 `purple`/`from-cognition to-purple-600`/`bg-gradient-to-*` 引用替换为 `bg-primary`、`bg-primary/10` 等语义色。覆盖 assistant/page.tsx、flows/page.tsx、login/page.tsx、layout.tsx、page.tsx、converge/page.tsx 等。
+
+#### 5. 记忆图谱 3D 优化
+- **`src/app/memory/page.tsx`**：
+  - **性能优化**：背景 40 个光点预渲染到 offscreen canvas（不再每帧重绘）；普通节点用纯色填充无 shadowBlur，仅选中/悬停/聚焦中心节点用 `createRadialGradient + shadowBlur`；worker tick 用 `requestAnimationFrame` 合并，同一帧只渲染一次。
+  - **滚轮缩放**：canvas 注册原生 `wheel` 事件（`passive: false`），`preventDefault` 阻止页面滚动，缩放范围 0.3-3x。
+  - **点击聚焦子图**：单击节点进入该节点的子图谱视图（只显示该节点+直接连接节点+它们之间的边），重新初始化力导向模拟。聚焦模式下点击其他节点递归切换聚焦，点击当前聚焦节点退出。顶部显示返回按钮和子图信息。
+  - **列表分页**：记忆列表使用 `useClientPagination` 分页，底部添加 `Pagination` 组件，列表高度从 340px 增加到 420px。
+  - **颜色更新**：类型颜色从蓝紫色改为橙黑灰（idea=橙、conversation=深灰、cognition=深橙棕）。
+- **`src/workers/force-simulation.worker.ts`**：大图（>80 节点）降低 tick 频率到 33ms（~30fps），小图保持 16ms（~60fps）。
+
+### 自测结果
+- TypeScript 编译：`npx tsc --noEmit` 通过（exit code 0）
+- E2E 测试：19/19 全部通过（18.7s）
+- API 验证：`/api/health` 返回 200
+- Dev server：`http://localhost:3000` 正常运行
+
+### Commit
+`bcb3a43` - 24 files changed, +1123/-253
+
+---
+
 ## 迭代 24 - 2026-06-25
 
 ### 任务概要
