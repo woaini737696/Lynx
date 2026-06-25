@@ -341,6 +341,8 @@ export async function executeHermesTask(
   // 1. 先尝试 HTTP API（如果 dashboard 服务在运行）
   // 尝试多个可能的端点，因为不同版本 Hermes Dashboard 的 API 路径可能不同
   const httpEndpoints = ["/api/task", "/api/run", "/api/execute", "/task", "/run"];
+  let httpTried = false;
+  let httpAvailable = false;
   for (const endpoint of httpEndpoints) {
     try {
       const controller = new AbortController();
@@ -356,6 +358,7 @@ export async function executeHermesTask(
         signal: controller.signal,
       });
       clearTimeout(timeout);
+      httpTried = true;
 
       if (res.ok) {
         const data = await res.json().catch(() => ({}));
@@ -367,24 +370,46 @@ export async function executeHermesTask(
           durationMs: data.durationMs || Date.now() - start,
         };
       }
-      // 404 表示端点不存在，尝试下一个；其他状态码（如 400/500）说明端点存在但请求出错
-      if (res.status !== 404) {
-        const errBody = await res.json().catch(() => ({}));
-        return {
-          success: false,
-          output: "",
-          error: errBody.error || errBody.message || `HTTP ${res.status}：${endpoint}`,
-          durationMs: Date.now() - start,
-        };
+      // 404 表示端点不存在，尝试下一个
+      // 401/403 表示端点存在但需要认证（Dashboard 启用了鉴权），我们当前没有 token
+      //   → 标记 httpAvailable 但继续尝试下一个端点；若所有端点都 401/403，则回退到 CLI
+      if (res.status === 404) {
+        continue;
       }
+      if (res.status === 401 || res.status === 403) {
+        httpAvailable = true; // 至少说明 Dashboard 在运行
+        continue;
+      }
+      // 其他状态码（400/500等）说明端点存在但请求出错
+      const errBody = await res.json().catch(() => ({}));
+      return {
+        success: false,
+        output: "",
+        error: errBody.error || errBody.message || `HTTP ${res.status}：${endpoint}`,
+        durationMs: Date.now() - start,
+      };
     } catch {
       // 当前端点不可用，尝试下一个
     }
   }
 
-  // 2. 回退：通过命令行 `hermes -z "prompt" --yolo` 执行
-  // 注意：computer_use 任务在 CLI 模式下无法完成，需明确告知用户
+  // 如果 HTTP 全部 401/403（Dashboard 有鉴权但我们没有 token），且不是 computer_use 任务，
+  // 直接走 CLI 模式（CLI 不需要 HTTP 鉴权）
+  // computer_use 任务在 CLI 模式下无法完成，需明确告知用户
   if (mode === "computer_use") {
+    if (httpTried && httpAvailable) {
+      return {
+        success: false,
+        output: "",
+        error:
+          "Hermes Dashboard 已启动并启用了鉴权，但 LynnHub 未配置访问令牌。\n" +
+          "桌面控制类任务需要通过 Dashboard 执行，请：\n" +
+          "1. 在 Hermes Dashboard 中生成 API Key\n" +
+          "2. 在 LynnHub 设置页 → Hermes 配置区填入该 API Key\n" +
+          "3. 或将任务描述改为 shell 命令模式（添加 'shell' 关键字）",
+        durationMs: Date.now() - start,
+      };
+    }
     return {
       success: false,
       output: "",

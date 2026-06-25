@@ -1,12 +1,13 @@
 "use client";
 
-import { useEffect, useState, useRef, useCallback } from "react";
+import { useEffect, useState, useRef, useCallback, useMemo } from "react";
 import { ArrowRight, Trash2, InboxIcon, Bot, Send, X, Sparkles, Check, Settings, Bell, AlertCircle, FileText, CheckSquare, Square } from "lucide-react";
 import { toast } from "@/components/ui/toast";
 import { PageHeader, Card, Button, Badge, Skeleton } from "@/components/layout/PageHeader";
 import { HelpButton } from "@/components/layout/HelpButton";
 import { EmptyState } from "@/components/layout/EmptyState";
 import { cn } from "@/lib/utils";
+import { SearchInput, FilterSelect, Pagination, useClientPagination } from "@/components/ui/ListControls";
 import type { ReviveSuggestion } from "@/lib/reminder-scheduler";
 
 /** 附件结构（与 Idea.attachments 字段一致） */
@@ -77,6 +78,9 @@ export default function InboxPage() {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [batchDeleting, setBatchDeleting] = useState(false);
 
+  const [searchQuery, setSearchQuery] = useState("");
+  const [filterTime, setFilterTime] = useState<"all" | "today" | "7days">("all");
+
   useEffect(() => {
     let mounted = true;
     const load = async () => {
@@ -140,6 +144,22 @@ export default function InboxPage() {
     setReviveSuggestions((prev) => prev.filter((s) => s.graveyardId !== id));
   }, []);
 
+  const filtered = useMemo(() => {
+    return ideas.filter((idea) => {
+      if (searchQuery && !idea.content.toLowerCase().includes(searchQuery.toLowerCase())) return false;
+      if (filterTime !== "all") {
+        const created = new Date(idea.createdAt).getTime();
+        const now = Date.now();
+        const dayMs = 24 * 60 * 60 * 1000;
+        if (filterTime === "today" && now - created > dayMs) return false;
+        if (filterTime === "7days" && now - created > 7 * dayMs) return false;
+      }
+      return true;
+    });
+  }, [ideas, searchQuery, filterTime]);
+
+  const { page, pageSize, total, paginated, onPageChange, onPageSizeChange } = useClientPagination(filtered);
+
   const board = async (idea: Idea, column: typeof COLUMNS[number]["key"]) => {
     setProcessing(idea.id);
     try {
@@ -176,10 +196,10 @@ export default function InboxPage() {
 
   // 全选/取消全选
   const toggleSelectAll = () => {
-    if (selectedIds.size === ideas.length) {
+    if (selectedIds.size === filtered.length) {
       setSelectedIds(new Set());
     } else {
-      setSelectedIds(new Set(ideas.map((i) => i.id)));
+      setSelectedIds(new Set(filtered.map((i) => i.id)));
     }
   };
 
@@ -530,15 +550,15 @@ export default function InboxPage() {
                     onClick={toggleSelectAll}
                     className="flex items-center gap-1.5 text-xs font-medium text-foreground hover:text-northstar"
                   >
-                    {selectedIds.size === ideas.length && ideas.length > 0 ? (
+                    {selectedIds.size === filtered.length && filtered.length > 0 ? (
                       <CheckSquare className="h-4 w-4 text-northstar" />
                     ) : (
                       <Square className="h-4 w-4" />
                     )}
-                    {selectedIds.size === ideas.length && ideas.length > 0 ? "取消全选" : "全选"}
+                    {selectedIds.size === filtered.length && filtered.length > 0 ? "取消全选" : "全选"}
                   </button>
                   <span className="text-xs text-muted-foreground">
-                    已选 {selectedIds.size} / {ideas.length}
+                    已选 {selectedIds.size} / {filtered.length}
                   </span>
                 </div>
                 <div className="flex items-center gap-2">
@@ -564,7 +584,7 @@ export default function InboxPage() {
               </>
             ) : (
               <>
-                <span className="text-xs text-muted-foreground">{ideas.length} 条灵感</span>
+                <span className="text-xs text-muted-foreground">{filtered.length} 条灵感</span>
                 <Button
                   size="sm"
                   variant="ghost"
@@ -577,7 +597,7 @@ export default function InboxPage() {
               </>
             )}
           </div>
-          {ideas.map((idea, i) => {
+          {paginated.map((idea, i) => {
             const isExpanding = expanding === idea.id;
             const isSelected = selectedIds.has(idea.id);
             return (
@@ -596,7 +616,7 @@ export default function InboxPage() {
                     </button>
                   )}
                   <span className="hidden w-6 text-right text-[11px] text-muted-foreground/60 sm:block">
-                    {i + 1}
+                    {(page - 1) * pageSize + i + 1}
                   </span>
                   <div className="flex-1 min-w-0">
                     <div className="text-sm leading-relaxed">{idea.content}</div>
@@ -715,6 +735,12 @@ export default function InboxPage() {
               </Card>
             );
           })}
+          {filtered.length === 0 && (
+            <div className="rounded-xl border border-dashed border-border bg-muted/30 px-4 py-12 text-center text-sm text-muted-foreground">
+              没有匹配的灵感
+            </div>
+          )}
+          <Pagination page={page} pageSize={pageSize} total={total} onPageChange={onPageChange} onPageSizeChange={onPageSizeChange} />
         </div>
       )}
 

@@ -163,7 +163,7 @@ export function Sidebar() {
 
       <aside
         className={cn(
-          "fixed left-0 top-0 z-50 flex h-screen flex-col border-r border-border bg-card transition-all duration-300 ease-in-out lg:static",
+          "fixed left-0 top-0 z-50 flex h-screen flex-col border-r border-border bg-card transition-all duration-300 ease-in-out lg:sticky lg:top-0 lg:h-full",
           collapsed ? "w-[72px] px-2" : "w-[210px] px-3",
           mobileOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
         )}
@@ -178,7 +178,7 @@ export function Sidebar() {
               collapsed ? "opacity-0" : "opacity-100"
             )}
           >
-            <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-gradient-to-br from-[hsl(248_84%_62%)] to-[hsl(262_70%_58%)] text-sm font-bold text-white shadow-md">
+            <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-primary text-sm font-bold text-primary-foreground shadow-sm">
               L
             </div>
             <span className="text-sm font-semibold tracking-tight">LynnHub</span>

@@ -154,7 +154,7 @@ const NODE_STYLES: Record<FlowNode["type"], { color: string; bg: string; icon: R
   action: { color: "text-cognition", bg: "bg-cognition/10", icon: Workflow },
   condition: { color: "text-campaign", bg: "bg-campaign/10", icon: GitBranch },
   output: { color: "text-task", bg: "bg-task/10", icon: CheckCircle2 },
-  hermes: { color: "text-purple-600", bg: "bg-purple-500/10", icon: Cpu },
+  hermes: { color: "text-primary", bg: "bg-primary/10", icon: Cpu },
   http: { color: "text-blue-600", bg: "bg-blue-500/10", icon: Globe },
   database: { color: "text-emerald-600", bg: "bg-emerald-500/10", icon: Database },
   transform: { color: "text-orange-600", bg: "bg-orange-500/10", icon: Shuffle },
@@ -2622,7 +2622,7 @@ function NodeConfigPanel({
 
           {node.type === "hermes" && (
             <div className="mb-3">
-              <div className="mb-2 rounded-md border border-purple-300/30 bg-purple-50/50 p-2 text-[10px] text-purple-700">
+              <div className="mb-2 rounded-md border border-primary/30 bg-primary/5 p-2 text-[10px] text-primary">
                 调用本地 Hermes Agent 执行桌面操作（需先在设置中启动 Hermes）
               </div>
               <label className="mb-1 block text-[11px] font-medium text-muted-foreground">任务描述</label>

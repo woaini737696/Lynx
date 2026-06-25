@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef, Suspense } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef, Suspense } from "react";
 import {
   Store,
   Star,
@@ -27,6 +27,7 @@ import {
 import { HelpButton } from "@/components/layout/HelpButton";
 import { toast } from "@/components/ui/toast";
 import { cn } from "@/lib/utils";
+import { SearchInput, FilterSelect, Pagination, useClientPagination } from "@/components/ui/ListControls";
 import type { SkillParameter } from "@/lib/skill-parser";
 import { useSearchParams } from "next/navigation";
 
@@ -118,6 +119,8 @@ function SkillMarketContent() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [reviewsMap, setReviewsMap] = useState<Record<string, ReviewStats>>({});
   const [reviewModal, setReviewModal] = useState<Skill | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [categoryFilter, setCategoryFilter] = useState<string>("all");
 
   const fetchSkills = useCallback(async () => {
     setLoading(true);
@@ -173,6 +176,32 @@ function SkillMarketContent() {
   useEffect(() => {
     fetchSkills();
   }, [fetchSkills]);
+
+  // 前端搜索 + 分类过滤
+  const filteredSkills = useMemo(() => {
+    let list = skills;
+    if (categoryFilter !== "all") {
+      list = list.filter((s) => s.category === categoryFilter);
+    }
+    if (searchQuery.trim()) {
+      const q = searchQuery.trim().toLowerCase();
+      list = list.filter(
+        (s) =>
+          s.name?.toLowerCase().includes(q) ||
+          s.description?.toLowerCase().includes(q)
+      );
+    }
+    return list;
+  }, [skills, searchQuery, categoryFilter]);
+
+  const {
+    page,
+    pageSize,
+    total,
+    paginated,
+    onPageChange,
+    onPageSizeChange,
+  } = useClientPagination(filteredSkills);
 
   // Skills 加载完成后获取评论数据
   useEffect(() => {
@@ -433,6 +462,28 @@ function SkillMarketContent() {
         )}
       </Card>
 
+      {/* 搜索 + 分类筛选 */}
+      <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center">
+        <SearchInput
+          value={searchQuery}
+          onChange={setSearchQuery}
+          placeholder="按名称或描述搜索..."
+          className="flex-1"
+        />
+        <FilterSelect
+          value={categoryFilter}
+          onChange={setCategoryFilter}
+          label="分类"
+          options={[
+            { value: "all", label: "全部" },
+            ...Object.entries(CATEGORY_LABEL).map(([k, v]) => ({
+              value: k,
+              label: v,
+            })),
+          ]}
+        />
+      </div>
+
       {/* Skill 列表 */}
       {loading ? (
         <LoadingState title="Skill 市场" />
@@ -447,20 +498,37 @@ function SkillMarketContent() {
             </Button>
           }
         />
+      ) : paginated.length === 0 ? (
+        <EmptyState
+          icon={<Store className="h-7 w-7" />}
+          title="未匹配到结果"
+          description="尝试更换搜索关键词或分类"
+        />
       ) : (
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
-          {skills.map((skill) => (
-            <MarketSkillCard
-              key={skill.id}
-              skill={skill}
-              reviewStats={reviewsMap[skill.id]}
-              onExport={() => handleExport(skill)}
-              onExportJson={() => handleExportJson(skill)}
-              onShare={() => handleShare(skill)}
-              onReview={() => setReviewModal(skill)}
+        <>
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+            {paginated.map((skill) => (
+              <MarketSkillCard
+                key={skill.id}
+                skill={skill}
+                reviewStats={reviewsMap[skill.id]}
+                onExport={() => handleExport(skill)}
+                onExportJson={() => handleExportJson(skill)}
+                onShare={() => handleShare(skill)}
+                onReview={() => setReviewModal(skill)}
+              />
+            ))}
+          </div>
+          <div className="mt-5">
+            <Pagination
+              page={page}
+              pageSize={pageSize}
+              total={total}
+              onPageChange={onPageChange}
+              onPageSizeChange={onPageSizeChange}
             />
-          ))}
-        </div>
+          </div>
+        </>
       )}
 
       {/* 导入弹窗 */}

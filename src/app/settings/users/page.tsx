@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useMemo } from "react";
 import {
   Users as UsersIcon,
   Plus,
@@ -19,6 +19,7 @@ import {
   LoadingState,
 } from "@/components/layout/PageHeader";
 import { toast } from "@/components/ui/toast";
+import { SearchInput, FilterSelect, Pagination, useClientPagination } from "@/components/ui/ListControls";
 
 type User = {
   id: string;
@@ -63,6 +64,9 @@ export default function UsersPage() {
   const [saving, setSaving] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<User | null>(null);
   const [deleting, setDeleting] = useState(false);
+
+  const [searchQuery, setSearchQuery] = useState("");
+  const [filterRole, setFilterRole] = useState<"all" | "admin" | "editor" | "viewer">("all");
 
   // 加载用户列表和当前用户
   const load = useCallback(async () => {
@@ -202,6 +206,19 @@ export default function UsersPage() {
     }
   };
 
+  const filtered = useMemo(() => {
+    return users.filter((u) => {
+      if (searchQuery) {
+        const q = searchQuery.toLowerCase();
+        if (!u.username.toLowerCase().includes(q) && !u.displayName.toLowerCase().includes(q)) return false;
+      }
+      if (filterRole !== "all" && u.role !== filterRole) return false;
+      return true;
+    });
+  }, [users, searchQuery, filterRole]);
+
+  const { page, pageSize, total, paginated, onPageChange, onPageSizeChange } = useClientPagination(filtered);
+
   if (loading) {
     return <LoadingState title="用户管理" />;
   }
@@ -218,6 +235,21 @@ export default function UsersPage() {
           </Button>
         }
       />
+
+      {/* 搜索 + 筛选 */}
+      <div className="mb-4 flex flex-wrap items-center gap-2">
+        <SearchInput value={searchQuery} onChange={setSearchQuery} placeholder="搜索用户名或显示名..." className="max-w-xs" />
+        <FilterSelect
+          value={filterRole}
+          onChange={setFilterRole}
+          options={[
+            { value: "all", label: "全部角色" },
+            { value: "admin", label: "管理员" },
+            { value: "editor", label: "编辑者" },
+            { value: "viewer", label: "访客" },
+          ]}
+        />
+      </div>
 
       {/* 用户列表 */}
       <Card className="overflow-hidden p-0">
@@ -244,8 +276,17 @@ export default function UsersPage() {
                     暂无用户数据
                   </td>
                 </tr>
+              ) : filtered.length === 0 ? (
+                <tr>
+                  <td
+                    colSpan={7}
+                    className="px-4 py-12 text-center text-muted-foreground"
+                  >
+                    没有匹配的用户
+                  </td>
+                </tr>
               ) : (
-                users.map((user) => (
+                paginated.map((user) => (
                   <tr
                     key={user.id}
                     className="border-b border-border/60 transition-colors last:border-0 hover:bg-muted/20"
@@ -316,6 +357,11 @@ export default function UsersPage() {
             </tbody>
           </table>
         </div>
+        {filtered.length > 0 && (
+          <div className="px-4 py-3">
+            <Pagination page={page} pageSize={pageSize} total={total} onPageChange={onPageChange} onPageSizeChange={onPageSizeChange} />
+          </div>
+        )}
       </Card>
 
       {/* 创建/编辑弹窗 */}

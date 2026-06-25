@@ -18,6 +18,7 @@ import { toast } from "@/components/ui/toast";
 import { PageHeader, Card, Button, Badge, LoadingState } from "@/components/layout/PageHeader";
 import { HelpButton } from "@/components/layout/HelpButton";
 import { EmptyState } from "@/components/layout/EmptyState";
+import { Pagination, useClientPagination } from "@/components/ui/ListControls";
 import { cn } from "@/lib/utils";
 
 interface GraveyardItem {
@@ -102,6 +103,16 @@ export default function GraveyardPage() {
     });
     return sorted;
   }, [items, searchQuery, sortBy]);
+
+  // 分页（基于搜索+排序后的列表）
+  const {
+    page,
+    pageSize,
+    total,
+    paginated,
+    onPageChange,
+    onPageSizeChange,
+  } = useClientPagination(visibleItems);
 
   // 统计信息
   const stats = useMemo(() => {
@@ -219,21 +230,21 @@ export default function GraveyardPage() {
     });
   }, []);
 
-  // 全选 / 取消全选（仅当前可见项）
+  // 全选 / 取消全选（仅当前页可见项）
   const toggleSelectAll = useCallback(() => {
     setSelectedIds((prev) => {
-      if (visibleItems.every((it) => prev.has(it.id))) {
+      if (paginated.every((it) => prev.has(it.id))) {
         // 全部已选则取消
         const next = new Set(prev);
-        visibleItems.forEach((it) => next.delete(it.id));
+        paginated.forEach((it) => next.delete(it.id));
         return next;
       }
       // 否则全选
       const next = new Set(prev);
-      visibleItems.forEach((it) => next.add(it.id));
+      paginated.forEach((it) => next.add(it.id));
       return next;
     });
-  }, [visibleItems]);
+  }, [paginated]);
 
   // 退出批量模式
   const exitBatchMode = useCallback(() => {
@@ -296,7 +307,7 @@ export default function GraveyardPage() {
   }, [selectedIds]);
 
   const allVisibleSelected =
-    visibleItems.length > 0 && visibleItems.every((it) => selectedIds.has(it.id));
+    paginated.length > 0 && paginated.every((it) => selectedIds.has(it.id));
 
   return (
     <div className="p-4 sm:p-8">
@@ -428,7 +439,7 @@ export default function GraveyardPage() {
         />
       ) : (
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          {visibleItems.map((item) => {
+          {paginated.map((item) => {
             const isRevived = !!item.revivedAt;
             const isSelected = selectedIds.has(item.id);
             return (
@@ -534,6 +545,18 @@ export default function GraveyardPage() {
               </Card>
             );
           })}
+        </div>
+      )}
+
+      {total > 0 && (
+        <div className="mt-5">
+          <Pagination
+            page={page}
+            pageSize={pageSize}
+            total={total}
+            onPageChange={onPageChange}
+            onPageSizeChange={onPageSizeChange}
+          />
         </div>
       )}
 

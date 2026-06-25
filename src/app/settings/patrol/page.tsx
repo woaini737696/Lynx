@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useRef, useCallback } from "react";
+import { useEffect, useState, useRef, useCallback, useMemo } from "react";
 import {
   Bot,
   Plus,
@@ -22,6 +22,7 @@ import { PageHeader, Card, Button, Badge } from "@/components/layout/PageHeader"
 import { HelpButton } from "@/components/layout/HelpButton";
 import { toast } from "@/components/ui/toast";
 import { cn } from "@/lib/utils";
+import { SearchInput, FilterSelect, Pagination, useClientPagination } from "@/components/ui/ListControls";
 import {
   PATROL_TEMPLATES,
   type PatrolTemplate,
@@ -133,6 +134,11 @@ export default function PatrolSettingsPage() {
   // 编辑模式下选中的规则 ID
   const [editTargetRuleId, setEditTargetRuleId] = useState<string>("");
 
+  // 搜索与筛选
+  const [ruleSearch, setRuleSearch] = useState("");
+  const [logSearch, setLogSearch] = useState("");
+  const [logLevel, setLogLevel] = useState<"all" | "info" | "warn" | "error">("all");
+
   // 加载规则列表
   const loadRules = useCallback(async () => {
     try {
@@ -150,7 +156,7 @@ export default function PatrolSettingsPage() {
   // 加载日志
   const loadLogs = useCallback(async () => {
     try {
-      const res = await fetch("/api/patrol/logs?limit=10");
+      const res = await fetch("/api/patrol/logs?limit=200");
       if (res.ok) {
         const data = await res.json();
         setLogs(data.logs || []);
@@ -431,6 +437,34 @@ export default function PatrolSettingsPage() {
     }
   };
 
+  const filteredRules = useMemo(() => {
+    return rules.filter((r) => {
+      if (ruleSearch) {
+        const q = ruleSearch.toLowerCase();
+        if (!r.name.toLowerCase().includes(q) && !r.description.toLowerCase().includes(q)) return false;
+      }
+      return true;
+    });
+  }, [rules, ruleSearch]);
+
+  const rulePagination = useClientPagination(filteredRules);
+
+  const getLogLevel = (log: PatrolLog): "info" | "warn" | "error" => {
+    if (!log.success) return "error";
+    if (log.hitCount > 0) return "warn";
+    return "info";
+  };
+
+  const filteredLogs = useMemo(() => {
+    return logs.filter((l) => {
+      if (logSearch && !l.ruleName.toLowerCase().includes(logSearch.toLowerCase())) return false;
+      if (logLevel !== "all" && getLogLevel(l) !== logLevel) return false;
+      return true;
+    });
+  }, [logs, logSearch, logLevel]);
+
+  const logPagination = useClientPagination(filteredLogs);
+
   return (
     <div className="p-4 sm:p-8">
       <PageHeader
@@ -514,6 +548,10 @@ export default function PatrolSettingsPage() {
             </Button>
           </div>
 
+          <div className="border-b border-border px-3 py-2">
+            <SearchInput value={ruleSearch} onChange={setRuleSearch} placeholder="搜索规则名称或描述..." />
+          </div>
+
           <div className="max-h-[600px] space-y-2 overflow-y-auto p-3">
             {loading ? (
               <div className="flex h-32 items-center justify-center">
@@ -527,8 +565,12 @@ export default function PatrolSettingsPage() {
                   可在右侧通过 AI 对话快速创建
                 </span>
               </div>
+            ) : filteredRules.length === 0 ? (
+              <div className="flex h-20 flex-col items-center justify-center rounded-xl border border-dashed border-border bg-muted/30 text-center">
+                <span className="text-xs text-muted-foreground">没有匹配的规则</span>
+              </div>
             ) : (
-              rules.map((rule) => (
+              rulePagination.paginated.map((rule) => (
                 <div
                   key={rule.id}
                   className={cn(
@@ -616,6 +658,17 @@ export default function PatrolSettingsPage() {
               ))
             )}
           </div>
+          {filteredRules.length > 0 && (
+            <div className="border-t border-border/60 px-3 py-2">
+              <Pagination
+                page={rulePagination.page}
+                pageSize={rulePagination.pageSize}
+                total={rulePagination.total}
+                onPageChange={rulePagination.onPageChange}
+                onPageSizeChange={rulePagination.onPageSizeChange}
+              />
+            </div>
+          )}
         </Card>
 
         {/* 右侧：AI 对话配置区 */}
@@ -850,13 +903,31 @@ export default function PatrolSettingsPage() {
           </div>
         </div>
 
+        <div className="flex flex-wrap items-center gap-2 border-b border-border px-3 py-2">
+          <SearchInput value={logSearch} onChange={setLogSearch} placeholder="搜索规则名称..." className="max-w-xs" />
+          <FilterSelect
+            value={logLevel}
+            onChange={setLogLevel}
+            options={[
+              { value: "all", label: "全部级别" },
+              { value: "info", label: "正常 (info)" },
+              { value: "warn", label: "命中 (warn)" },
+              { value: "error", label: "失败 (error)" },
+            ]}
+          />
+        </div>
+
         <div className="space-y-2 p-3">
           {logs.length === 0 ? (
             <div className="flex h-20 flex-col items-center justify-center rounded-xl border border-dashed border-border bg-muted/30 text-center">
               <span className="text-xs text-muted-foreground">暂无巡检日志</span>
             </div>
+          ) : filteredLogs.length === 0 ? (
+            <div className="flex h-20 flex-col items-center justify-center rounded-xl border border-dashed border-border bg-muted/30 text-center">
+              <span className="text-xs text-muted-foreground">没有匹配的日志</span>
+            </div>
           ) : (
-            logs.map((log) => {
+            logPagination.paginated.map((log) => {
               const isExpanded = expandedLog === log.id;
               return (
                 <div
@@ -978,6 +1049,17 @@ export default function PatrolSettingsPage() {
             })
           )}
         </div>
+        {filteredLogs.length > 0 && (
+          <div className="px-3 py-2">
+            <Pagination
+              page={logPagination.page}
+              pageSize={logPagination.pageSize}
+              total={logPagination.total}
+              onPageChange={logPagination.onPageChange}
+              onPageSizeChange={logPagination.onPageSizeChange}
+            />
+          </div>
+        )}
       </Card>
 
       {/* 新增规则表单（折叠） */}

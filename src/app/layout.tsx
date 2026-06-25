@@ -40,10 +40,10 @@ export default function RootLayout({
       <head>
         <link
           rel="icon"
-          href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%23f6ad55'/%3E%3Ctext x='16' y='22' text-anchor='middle' font-size='18' font-weight='bold' fill='%23000'%3EL%3C/text%3E%3C/svg%3E"
+          href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%23f97316'/%3E%3Ctext x='16' y='22' text-anchor='middle' font-size='18' font-weight='bold' fill='%23fff'%3EL%3C/text%3E%3C/svg%3E"
           type="image/svg+xml"
         />
-        <link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 180 180'%3E%3Crect width='180' height='180' rx='32' fill='%23f6ad55'/%3E%3Ctext x='90' y='125' text-anchor='middle' font-size='100' font-weight='bold' fill='%23000'%3EL%3C/text%3E%3C/svg%3E" />
+        <link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 180 180'%3E%3Crect width='180' height='180' rx='32' fill='%23f97316'/%3E%3Ctext x='90' y='125' text-anchor='middle' font-size='100' font-weight='bold' fill='%23fff'%3EL%3C/text%3E%3C/svg%3E" />
       </head>
       <body className="min-h-screen bg-background text-foreground antialiased">
         <ThemeProvider>

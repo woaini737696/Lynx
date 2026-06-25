@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import {
   Search,
   RefreshCw,
@@ -43,6 +43,7 @@ import {
   Skeleton,
 } from "@/components/layout/PageHeader";
 import { toast } from "@/components/ui/toast";
+import { Pagination, useClientPagination } from "@/components/ui/ListControls";
 import { cn } from "@/lib/utils";
 
 // ==================== 类型定义 ====================
@@ -875,6 +876,21 @@ export default function LarkTasksPage() {
     { key: "all", label: "全部" },
   ];
 
+  // 列表视图：对排序后的根任务做客户端分页
+  const sortedRootTasks = useMemo(() => {
+    const rootTasks = tasks.filter((t) => !t.parentTaskGuid);
+    return [...rootTasks].sort((a, b) => {
+      if (a.completed !== b.completed) return a.completed ? 1 : -1;
+      if (a.due && !b.due) return -1;
+      if (!a.due && b.due) return 1;
+      if (a.due && b.due) {
+        return new Date(a.due).getTime() - new Date(b.due).getTime();
+      }
+      return 0;
+    });
+  }, [tasks]);
+  const taskPagination = useClientPagination(sortedRootTasks, 10);
+
   return (
     <div className="p-4 sm:p-8">
       <PageHeader
@@ -1215,18 +1231,6 @@ export default function LarkTasksPage() {
           {/* 使用 API 返回的 subtaskMap（从全量数据构建，子任务不丢失） */}
           {(() => {
             const rootTasks = tasks.filter(t => !t.parentTaskGuid);
-            // 按截止时间排序：未完成在前，已逾期优先，无截止时间排最后
-            const sortedRootTasks = [...rootTasks].sort((a, b) => {
-              // 未完成优先
-              if (a.completed !== b.completed) return a.completed ? 1 : -1;
-              // 有截止时间的优先
-              if (a.due && !b.due) return -1;
-              if (!a.due && b.due) return 1;
-              if (a.due && b.due) {
-                return new Date(a.due).getTime() - new Date(b.due).getTime();
-              }
-              return 0;
-            });
             const rootIncompleteCount = rootTasks.filter(t => !t.completed).length;
             const totalSubtasks = Object.values(subtaskMap).reduce((sum, arr) => sum + (arr?.length || 0), 0);
             return (
@@ -1247,7 +1251,7 @@ export default function LarkTasksPage() {
                   )}
                 </div>
                 <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
-                  {sortedRootTasks.map((task) => (
+                  {taskPagination.paginated.map((task) => (
                     <TaskCard
                       key={task.guid}
                       task={task}
@@ -1263,6 +1267,15 @@ export default function LarkTasksPage() {
                       myOpenId={myOpenId}
                     />
                   ))}
+                </div>
+                <div className="mt-4">
+                  <Pagination
+                    page={taskPagination.page}
+                    pageSize={taskPagination.pageSize}
+                    total={taskPagination.total}
+                    onPageChange={taskPagination.onPageChange}
+                    onPageSizeChange={taskPagination.onPageSizeChange}
+                  />
                 </div>
               </>
             );

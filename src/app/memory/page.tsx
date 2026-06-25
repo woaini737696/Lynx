@@ -21,10 +21,12 @@ import {
   Trash2,
   Pencil,
   ArrowUpDown,
+  ArrowLeft,
 } from "lucide-react";
 import { toast } from "@/components/ui/toast";
 import { PageHeader, Card, Button, Skeleton } from "@/components/layout/PageHeader";
 import { HelpButton } from "@/components/layout/HelpButton";
+import { Pagination, useClientPagination } from "@/components/ui/ListControls";
 import { cn } from "@/lib/utils";
 
 type GraphNode = {
@@ -46,11 +48,11 @@ const TYPE_LABELS: Record<GraphNode["type"], string> = {
   cognition: "认知",
 };
 
-// 神经元网络配色（浅色背景下的柔和色系）
+// 神经元网络配色（橙黑灰体系）
 const TYPE_HSL: Record<GraphNode["type"], { h: number; s: number; l: number }> = {
-  idea: { h: 25, s: 95, l: 60 }, // 橙色 #fb923c
-  conversation: { h: 217, s: 91, l: 68 }, // 蓝色 #60a5fa
-  cognition: { h: 255, s: 91, l: 76 }, // 紫色 #a78bfa
+  idea: { h: 25, s: 95, l: 55 }, // 橙色
+  conversation: { h: 0, s: 0, l: 45 }, // 深灰
+  cognition: { h: 30, s: 80, l: 40 }, // 深橙棕
 };
 
 // 类型图标映射（用于列表展示）
@@ -233,6 +235,8 @@ export default function MemoryPage() {
   const [rotX, setRotX] = useState(-0.32);
   const [rotY, setRotY] = useState(0.42);
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  // 聚焦模式：点击节点后进入该节点的子图谱视图
+  const [focusNodeId, setFocusNodeId] = useState<string | null>(null);
 
   // ---- 记忆列表管理状态 ----
   const [searchQuery, setSearchQuery] = useState("");
@@ -258,6 +262,10 @@ export default function MemoryPage() {
   const mouseDownPosRef = useRef<{ x: number; y: number } | null>(null);
   // drawCanvas 的 ref，供 worker 消息回调调用，避免闭包过期
   const drawCanvasRef = useRef<() => void>(() => {});
+  // 背景预渲染 canvas（避免每帧重绘 40 个光点）
+  const bgCanvasRef = useRef<HTMLCanvasElement | null>(null);
+  // worker tick 渲染合并标记（同一帧只渲染一次）
+  const rafPendingRef = useRef(false);
 
   // ---- 数据加载 ----
   const load = useCallback(async () => {
@@ -328,7 +336,14 @@ export default function MemoryPage() {
               n.z = p.z;
             }
           }
-          drawCanvasRef.current();
+          // 用 rAF 合并渲染请求，同一帧只渲染一次
+          if (!rafPendingRef.current) {
+            rafPendingRef.current = true;
+            requestAnimationFrame(() => {
+              rafPendingRef.current = false;
+              drawCanvasRef.current();
+            });
+          }
           break;
         }
         case "settled":
@@ -364,6 +379,19 @@ export default function MemoryPage() {
     () => computeClusters(filteredNodes, filteredEdges),
     [filteredNodes, filteredEdges]
   );
+
+  // ---- 聚焦子图：聚焦节点 + 其直接连接节点 + 它们之间的边 ----
+  const focusSubgraph = useMemo(() => {
+    if (!focusNodeId) return null;
+    const center = nodes.find((n) => n.id === focusNodeId);
+    if (!center) return null;
+    const connectedIds = new Set<string>([focusNodeId, ...center.connections]);
+    const subNodes = nodes.filter((n) => connectedIds.has(n.id));
+    const subEdges = edges.filter(
+      (e) => connectedIds.has(e.from) && connectedIds.has(e.to)
+    );
+    return { center, subNodes, subEdges };
+  }, [focusNodeId, nodes, edges]);
 
   // ---- 初始化 3D 力导向模拟 ----
   const initSimulation = useCallback((nodeList: GraphNode[], edgeList: GraphEdge[]) => {
@@ -413,15 +441,20 @@ export default function MemoryPage() {
     }
   }, []);
 
-  // 过滤数据变化时重建模拟
+  // 过滤数据/聚焦变化时重建模拟
   useEffect(() => {
+    if (focusSubgraph) {
+      // 聚焦模式：使用子图节点和边
+      initSimulation(focusSubgraph.subNodes, focusSubgraph.subEdges);
+      return;
+    }
     if (filteredNodes.length === 0) {
       simNodesRef.current = [];
       edgeListRef.current = [];
       return;
     }
     initSimulation(filteredNodes, filteredEdges);
-  }, [filteredNodes, filteredEdges, initSimulation]);
+  }, [filteredNodes, filteredEdges, initSimulation, focusSubgraph]);
 
   // 增量渲染：节点逐步显现（分批渲染，每帧增加若干节点，营造高级感的"物质化"效果）
   useEffect(() => {
@@ -621,6 +654,30 @@ export default function MemoryPage() {
     return projected;
   }, [rotX, rotY]);
 
+  // ---- 背景预渲染：将 40 个光点一次性绘制到 offscreen canvas，避免每帧重绘 ----
+  useEffect(() => {
+    if (typeof document === "undefined") return;
+    const off = document.createElement("canvas");
+    off.width = WIDTH;
+    off.height = HEIGHT;
+    const octx = off.getContext("2d");
+    if (!octx) return;
+    octx.fillStyle = BG_COLOR;
+    octx.fillRect(0, 0, WIDTH, HEIGHT);
+    for (let i = 0; i < 40; i++) {
+      // 用确定性伪随机，避免每帧抖动
+      const seed = i * 9301 + 49297;
+      const px = ((seed % 233280) / 233280) * WIDTH;
+      const py = (((seed * 7) % 233280) / 233280) * HEIGHT;
+      const pr = 0.5 + (((seed * 13) % 100) / 100) * 1.5;
+      octx.beginPath();
+      octx.arc(px, py, pr, 0, Math.PI * 2);
+      octx.fillStyle = "rgba(148,163,184,0.12)";
+      octx.fill();
+    }
+    bgCanvasRef.current = off;
+  }, []);
+
   // ---- Canvas 绘制（大脑神经元网络风格） ----
   const drawCanvas = useCallback(() => {
     const canvas = canvasRef.current;
@@ -644,24 +701,14 @@ export default function MemoryPage() {
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.scale(dpr, dpr);
 
-    // ---- 浅色背景 ----
-    ctx.fillStyle = BG_COLOR;
-    ctx.fillRect(0, 0, WIDTH, HEIGHT);
-
-    // ---- 背景神经元纹理：散布的淡色光点，营造显微镜下的呼吸感 ----
-    ctx.save();
-    for (let i = 0; i < 40; i++) {
-      // 用确定性伪随机，避免每帧抖动
-      const seed = i * 9301 + 49297;
-      const px = (seed % 233280) / 233280 * WIDTH;
-      const py = ((seed * 7) % 233280) / 233280 * HEIGHT;
-      const pr = 0.5 + ((seed * 13) % 100) / 100 * 1.5;
-      ctx.beginPath();
-      ctx.arc(px, py, pr, 0, Math.PI * 2);
-      ctx.fillStyle = "rgba(148,163,184,0.12)";
-      ctx.fill();
+    // ---- 浅色背景（从预渲染的 offscreen canvas 一次绘制，避免每帧重绘 40 个光点） ----
+    const bg = bgCanvasRef.current;
+    if (bg) {
+      ctx.drawImage(bg, 0, 0, WIDTH, HEIGHT);
+    } else {
+      ctx.fillStyle = BG_COLOR;
+      ctx.fillRect(0, 0, WIDTH, HEIGHT);
     }
-    ctx.restore();
 
     const allProjected = computeProjection();
     if (allProjected.length === 0) return;
@@ -715,13 +762,16 @@ export default function MemoryPage() {
       ctx.stroke();
     }
 
-    // ---- 绘制节点（神经元细胞体：径向渐变 + 柔和阴影） ----
+    // ---- 绘制节点（神经元细胞体） ----
+    // 性能优化：普通节点用纯色填充，仅选中/悬停/展开/聚焦中心节点使用径向渐变 + 阴影
     for (let nodeIdx = 0; nodeIdx < projected.length; nodeIdx++) {
       const p = projected[nodeIdx];
       const { node } = p;
       const isSelected = node.id === selectedId;
       const isHovered = node.id === hoveredId;
       const isExpanded = node.id === expandedId;
+      const isFocusCenter = focusNodeId === node.id;
+      const useGradient = isSelected || isHovered || isExpanded || isFocusCenter;
       const { h, s, l } = nodeHSL(node.data);
       const depthNorm = (p.depth + Z_RANGE) / (2 * Z_RANGE);
       let opacity = Math.max(0.6, Math.min(1, 0.7 + depthNorm * 0.3));
@@ -734,46 +784,56 @@ export default function MemoryPage() {
       // 节点半径：基础半径（由强度决定）× 透视缩放（保留 3D 近大远小）
       const baseR = Math.max(8, Math.min(24, 8 + node.data.strength * 1.5));
       const r = baseR * p.scale;
-      // 选中/悬停/展开时放大（神经元呼吸感）
+      // 选中/悬停/展开/聚焦中心时放大（神经元呼吸感）
       const nodeR = isSelected
         ? r * 1.2
-        : isHovered || isExpanded
+        : isHovered || isExpanded || isFocusCenter
         ? r * 1.12
         : r;
 
       ctx.globalAlpha = opacity;
 
-      // ---- 径向渐变填充：模拟神经元细胞体的立体感 ----
-      const grad = ctx.createRadialGradient(
-        p.sx - nodeR * 0.35,
-        p.sy - nodeR * 0.35,
-        nodeR * 0.1,
-        p.sx,
-        p.sy,
-        Math.max(0.1, nodeR)
-      );
-      grad.addColorStop(0, `hsla(${h}, ${s}%, ${Math.min(85, l + 12)}%, 0.95)`);
-      grad.addColorStop(0.65, `hsla(${h}, ${s}%, ${l}%, 0.75)`);
-      grad.addColorStop(1, `hsla(${h}, ${s}%, ${l}%, 0.4)`);
+      if (useGradient) {
+        // ---- 径向渐变填充：模拟神经元细胞体的立体感（仅高亮节点） ----
+        const grad = ctx.createRadialGradient(
+          p.sx - nodeR * 0.35,
+          p.sy - nodeR * 0.35,
+          nodeR * 0.1,
+          p.sx,
+          p.sy,
+          Math.max(0.1, nodeR)
+        );
+        grad.addColorStop(0, `hsla(${h}, ${s}%, ${Math.min(85, l + 12)}%, 0.95)`);
+        grad.addColorStop(0.65, `hsla(${h}, ${s}%, ${l}%, 0.75)`);
+        grad.addColorStop(1, `hsla(${h}, ${s}%, ${l}%, 0.4)`);
 
-      // 柔和阴影（光晕），选中/悬停时更强
-      ctx.shadowColor = `hsla(${h}, ${s}%, ${l}%, ${isSelected ? 0.55 : isHovered ? 0.4 : 0.25})`;
-      ctx.shadowBlur = isSelected ? 18 : isHovered || isExpanded ? 13 : 8;
+        // 柔和阴影（光晕）
+        ctx.shadowColor = `hsla(${h}, ${s}%, ${l}%, ${
+          isSelected ? 0.55 : isHovered || isFocusCenter ? 0.4 : 0.25
+        })`;
+        ctx.shadowBlur = isSelected ? 18 : isHovered || isExpanded || isFocusCenter ? 13 : 8;
 
-      ctx.beginPath();
-      ctx.arc(p.sx, p.sy, Math.max(0.1, nodeR), 0, Math.PI * 2);
-      ctx.fillStyle = grad;
-      ctx.fill();
+        ctx.beginPath();
+        ctx.arc(p.sx, p.sy, Math.max(0.1, nodeR), 0, Math.PI * 2);
+        ctx.fillStyle = grad;
+        ctx.fill();
 
-      // 清除阴影，避免影响后续绘制
-      ctx.shadowBlur = 0;
+        // 清除阴影，避免影响后续绘制
+        ctx.shadowBlur = 0;
+      } else {
+        // ---- 普通节点：纯色填充 + 半透明描边，无阴影 ----
+        ctx.beginPath();
+        ctx.arc(p.sx, p.sy, Math.max(0.1, nodeR), 0, Math.PI * 2);
+        ctx.fillStyle = `hsla(${h}, ${s}%, ${l}%, 0.85)`;
+        ctx.fill();
+      }
 
-      // 描边：选中加粗，悬停/展开轻微
+      // 描边：选中加粗，悬停/展开/聚焦中心轻微
       if (isSelected) {
         ctx.strokeStyle = `hsl(${h}, ${s}%, ${Math.max(35, l - 25)}%)`;
         ctx.lineWidth = 2.5;
         ctx.stroke();
-      } else if (isHovered || isExpanded) {
+      } else if (isHovered || isExpanded || isFocusCenter) {
         ctx.strokeStyle = `hsla(${h}, ${s}%, ${l}%, 0.7)`;
         ctx.lineWidth = 1.5;
         ctx.stroke();
@@ -806,6 +866,7 @@ export default function MemoryPage() {
     selectedId,
     hoveredId,
     expandedId,
+    focusNodeId,
     highlightIds,
     nodeHSL,
   ]);
@@ -830,6 +891,19 @@ export default function MemoryPage() {
     const onResize = () => drawCanvasRef.current();
     window.addEventListener("resize", onResize);
     return () => window.removeEventListener("resize", onResize);
+  }, []);
+
+  // ---- 滚轮缩放（用原生 listener 以便 preventDefault 阻止页面滚动） ----
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const handler = (e: WheelEvent) => {
+      e.preventDefault();
+      const delta = e.deltaY > 0 ? -0.12 : 0.12;
+      setScale((s) => Math.max(0.3, Math.min(3, s + delta * s)));
+    };
+    canvas.addEventListener("wheel", handler, { passive: false });
+    return () => canvas.removeEventListener("wheel", handler);
   }, []);
 
   // ---- 命中检测：返回鼠标位置下的节点 ----
@@ -997,7 +1071,8 @@ export default function MemoryPage() {
     setHoveredId(null);
   }, []);
 
-  // 点击选中节点（区分拖拽和点击：mousedown 和 mouseup 之间无明显移动）
+  // 点击节点：进入/退出/切换聚焦模式（同时选中显示详情）
+  // 区分拖拽和点击：mousedown 和 mouseup 之间无明显移动才视为点击
   const handleClick = useCallback(
     (e: React.MouseEvent) => {
       if (!mouseDownPosRef.current) return;
@@ -1007,24 +1082,39 @@ export default function MemoryPage() {
       const { x, y } = toCanvasCoords(e);
       const hit = hitTest(x, y);
       if (hit) {
-        setSelectedId((prev) => (prev === hit.id ? null : hit.id));
+        // 聚焦模式：点击当前聚焦节点 → 退出；点击其他节点 → 进入/切换聚焦
+        if (focusNodeId === hit.id) {
+          setFocusNodeId(null);
+        } else {
+          setFocusNodeId(hit.id);
+        }
+        // 同时选中以显示右侧详情
+        setSelectedId(hit.id);
       } else {
         setSelectedId(null);
       }
     },
-    [hitTest, toCanvasCoords]
+    [hitTest, toCanvasCoords, focusNodeId]
   );
 
+  // 双击节点：聚焦模式下递归聚焦到该节点；非聚焦模式下展开二级关联
   const handleDoubleClick = useCallback(
     (e: React.MouseEvent) => {
       const { x, y } = toCanvasCoords(e);
       const hit = hitTest(x, y);
       if (hit) {
         setSelectedId(hit.id);
-        setExpandedId((prev) => (prev === hit.id ? null : hit.id));
+        if (focusNodeId) {
+          // 聚焦模式下：切换聚焦到新节点（递归进入其子图谱）
+          setFocusNodeId(hit.id);
+          setExpandedId(null);
+        } else {
+          // 非聚焦模式下：展开/收起二级关联
+          setExpandedId((prev) => (prev === hit.id ? null : hit.id));
+        }
       }
     },
-    [hitTest, toCanvasCoords]
+    [hitTest, toCanvasCoords, focusNodeId]
   );
 
   // ---- 记忆列表：搜索 + 类型筛选 + 排序 ----
@@ -1063,6 +1153,16 @@ export default function MemoryPage() {
     }
     return list;
   }, [filteredNodes, filterType, searchQuery, sortBy]);
+
+  // 列表分页（客户端）
+  const {
+    page,
+    pageSize,
+    total: listTotal,
+    paginated,
+    onPageChange,
+    onPageSizeChange,
+  } = useClientPagination(listNodes, 10);
 
   const editingNode = editingId
     ? filteredNodes.find((n) => n.id === editingId) || nodes.find((n) => n.id === editingId) || null
@@ -1142,13 +1242,13 @@ export default function MemoryPage() {
                 <div className="mb-1 font-semibold text-foreground/80">图例</div>
                 <div className="space-y-1 text-muted-foreground">
                   <span className="flex items-center gap-1">
-                    <span className="inline-block h-2 w-2 rounded-full" style={{ background: "hsl(25,95%,60%)" }} />灵感
+                    <span className="inline-block h-2 w-2 rounded-full" style={{ background: "hsl(25,95%,55%)" }} />灵感
                   </span>
                   <span className="flex items-center gap-1">
-                    <span className="inline-block h-2 w-2 rounded-full" style={{ background: "hsl(217,91%,68%)" }} />对话
+                    <span className="inline-block h-2 w-2 rounded-full" style={{ background: "hsl(0,0%,45%)" }} />对话
                   </span>
                   <span className="flex items-center gap-1">
-                    <span className="inline-block h-2 w-2 rounded-full" style={{ background: "hsl(255,91%,76%)" }} />认知
+                    <span className="inline-block h-2 w-2 rounded-full" style={{ background: "hsl(30,80%,40%)" }} />认知
                   </span>
                   {clustering && (
                     <div className="mt-1 border-t border-border pt-1 text-[9px] text-cognition">
@@ -1162,6 +1262,29 @@ export default function MemoryPage() {
                   )}
                 </div>
               </div>
+
+              {/* 聚焦模式提示条 */}
+              {focusNodeId && focusSubgraph && (
+                <div className="absolute left-1/2 top-3 flex -translate-x-1/2 items-center gap-2 rounded-xl border border-cognition/40 bg-card/95 px-3 py-1.5 text-[11px] shadow-lg backdrop-blur">
+                  <button
+                    onClick={() => setFocusNodeId(null)}
+                    className="flex items-center gap-1 font-medium text-cognition transition-colors hover:text-cognition/80"
+                    aria-label="返回全图"
+                  >
+                    <ArrowLeft className="h-3 w-3" />
+                    返回全图
+                  </button>
+                  <span className="text-muted-foreground/60">|</span>
+                  <span className="font-medium text-foreground">
+                    聚焦：{focusSubgraph.center.label.length > 12
+                      ? focusSubgraph.center.label.slice(0, 12) + "…"
+                      : focusSubgraph.center.label}
+                  </span>
+                  <span className="text-[10px] text-muted-foreground">
+                    {focusSubgraph.subNodes.length} 节点 · {focusSubgraph.subEdges.length} 边
+                  </span>
+                </div>
+              )}
 
               {/* 控制按钮 */}
               <div className="absolute right-3 top-3 flex flex-col gap-1">
@@ -1184,7 +1307,12 @@ export default function MemoryPage() {
                     setRotX(-0.32);
                     setRotY(0.42);
                     setScale(1);
-                    initSimulation(filteredNodes, filteredEdges);
+                    if (focusNodeId) {
+                      // 聚焦模式下：退出聚焦，由 useEffect 重建为全图
+                      setFocusNodeId(null);
+                    } else {
+                      initSimulation(filteredNodes, filteredEdges);
+                    }
                   }}
                   className="flex h-7 w-7 items-center justify-center rounded-lg border border-border bg-card/90 text-muted-foreground shadow-sm backdrop-blur hover:bg-muted"
                   aria-label="重置视角"
@@ -1214,7 +1342,7 @@ export default function MemoryPage() {
 
               {/* 操作提示 */}
               <div className="absolute bottom-3 left-3 rounded-lg border border-border bg-card/80 px-2 py-1 text-[10px] text-muted-foreground backdrop-blur">
-                拖拽空白旋转 · 拖拽节点移动 · 点击选中 · 双击展开二级关联
+                拖拽空白旋转 · 拖拽节点移动 · 滚轮缩放 · 点击聚焦子图 · 双击展开二级关联
               </div>
             </div>
           )}
@@ -1369,14 +1497,14 @@ export default function MemoryPage() {
             </div>
 
             {/* 列表 */}
-            <div className="max-h-[340px] flex-1 overflow-auto pr-1">
+            <div className="max-h-[420px] flex-1 overflow-auto pr-1">
               {listNodes.length === 0 ? (
                 <div className="py-4 text-center text-[11px] text-muted-foreground">
                   未找到匹配记忆
                 </div>
               ) : (
                 <div className="space-y-1">
-                  {listNodes.map((node) => {
+                  {paginated.map((node) => {
                     const Icon = TYPE_ICON[node.type];
                     const isSelected = node.id === selectedId;
                     return (
@@ -1445,6 +1573,19 @@ export default function MemoryPage() {
                 </div>
               )}
             </div>
+
+            {/* 分页 */}
+            {listTotal > 0 && (
+              <div className="mt-2">
+                <Pagination
+                  page={page}
+                  pageSize={pageSize}
+                  total={listTotal}
+                  onPageChange={onPageChange}
+                  onPageSizeChange={onPageSizeChange}
+                />
+              </div>
+            )}
           </Card>
 
           <div className="grid grid-cols-3 gap-2">
@@ -1543,13 +1684,14 @@ export default function MemoryPage() {
             </div>
             <div className="space-y-2 text-xs text-foreground/80">
               <p>1. <strong>3D 旋转</strong>：在空白处按住鼠标拖动，可沿 X/Y 轴旋转整个图谱，节点在三维空间中分布，近大远小。</p>
-              <p>2. <strong>点击节点</strong>：选中后右侧显示详情，关联节点与边高亮。</p>
-              <p>3. <strong>双击节点</strong>：展开该节点的二级关联（关联的关联），以高亮显示。</p>
+              <p>2. <strong>点击节点</strong>：进入该节点的子图谱（聚焦模式），仅显示该节点及其直接关联；再次点击同一节点退出聚焦，点击其他节点切换聚焦。聚焦模式下双击节点可递归进入其子图谱。</p>
+              <p>3. <strong>双击节点</strong>：非聚焦模式下展开该节点的二级关联（关联的关联），以高亮显示。</p>
               <p>4. <strong>拖拽节点</strong>：按住节点拖动可调整其位置，拖拽方向已根据旋转角度自动校正，节点跟随鼠标移动。</p>
-              <p>5. <strong>聚类着色</strong>：按连通分量聚类，每个聚类在类型色基础上微调色相，可用右上角图层按钮开关。</p>
-              <p>6. <strong>时间过滤</strong>：顶部选择全部/近7天/近30天/近90天，过滤显示节点。</p>
-              <p>7. <strong>记忆列表</strong>：右侧面板支持搜索、类型筛选、排序，点击列表项可在图谱中聚焦该节点，支持编辑标签与删除。</p>
-              <p>8. <strong>性能优化</strong>：力导向计算在 Web Worker 中运行，主线程仅负责渲染，节点超过 100 也能流畅交互。</p>
+              <p>5. <strong>滚轮缩放</strong>：在图谱上滚动鼠标滚轮可放大/缩小视图（0.3x ~ 3x）。</p>
+              <p>6. <strong>聚类着色</strong>：按连通分量聚类，每个聚类在类型色基础上微调色相，可用右上角图层按钮开关。</p>
+              <p>7. <strong>时间过滤</strong>：顶部选择全部/近7天/近30天/近90天，过滤显示节点。</p>
+              <p>8. <strong>记忆列表</strong>：右侧面板支持搜索、类型筛选、排序与分页，点击列表项可在图谱中聚焦该节点，支持编辑标签与删除。</p>
+              <p>9. <strong>性能优化</strong>：力导向计算在 Web Worker 中运行，主线程仅负责渲染；背景预渲染、节点按需渐变、rAF 合并 tick，节点超过 100 也能流畅交互。</p>
             </div>
             <div className="mt-4 flex justify-end">
               <Button size="sm" onClick={() => setShowHelp(false)}>

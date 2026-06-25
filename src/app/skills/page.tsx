@@ -36,6 +36,7 @@ import { HelpButton } from "@/components/layout/HelpButton";
 import { EmptyState } from "@/components/layout/EmptyState";
 import { toast } from "@/components/ui/toast";
 import { cn } from "@/lib/utils";
+import { SearchInput, Pagination, useClientPagination } from "@/components/ui/ListControls";
 import { RichTextEditor } from "@/components/editor/RichTextEditor";
 import type {
   SkillParameter,
@@ -279,6 +280,7 @@ export default function SkillsPage() {
   const [activeCategory, setActiveCategory] = useState("all");
   const [modal, setModal] = useState<ModalMode>(null);
   const [editingSkill, setEditingSkill] = useState<Skill | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
 
   const fetchSkills = useCallback(async () => {
     setLoading(true);
@@ -302,6 +304,32 @@ export default function SkillsPage() {
   useEffect(() => {
     fetchSkills();
   }, [fetchSkills]);
+
+  // 前端搜索过滤（基于当前分类下的 skills）
+  const filteredSkills = useMemo(() => {
+    if (!searchQuery.trim()) return skills;
+    const q = searchQuery.trim().toLowerCase();
+    return skills.filter(
+      (s) =>
+        s.name?.toLowerCase().includes(q) ||
+        s.description?.toLowerCase().includes(q)
+    );
+  }, [skills, searchQuery]);
+
+  const {
+    page,
+    pageSize,
+    total,
+    paginated,
+    onPageChange,
+    onPageSizeChange,
+  } = useClientPagination(filteredSkills);
+
+  // 分类切换时回到第 1 页
+  useEffect(() => {
+    onPageChange(1);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeCategory]);
 
   const openCreate = () => {
     setEditingSkill(null);
@@ -445,18 +473,46 @@ export default function SkillsPage() {
               }
             />
           ) : (
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
-              {skills.map((skill) => (
-                <SkillCard
-                  key={skill.id}
-                  skill={skill}
-                  onEdit={() => openEdit(skill)}
-                  onDelete={() => handleDelete(skill)}
-                  onExport={() => handleExport(skill)}
-                  onUse={() => handleUse(skill)}
+            <>
+              <div className="mb-4">
+                <SearchInput
+                  value={searchQuery}
+                  onChange={setSearchQuery}
+                  placeholder="按名称或描述搜索..."
                 />
-              ))}
-            </div>
+              </div>
+              {paginated.length === 0 ? (
+                <EmptyState
+                  icon={Wrench}
+                  title="未匹配到结果"
+                  description="尝试更换搜索关键词"
+                />
+              ) : (
+                <>
+                  <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+                    {paginated.map((skill) => (
+                      <SkillCard
+                        key={skill.id}
+                        skill={skill}
+                        onEdit={() => openEdit(skill)}
+                        onDelete={() => handleDelete(skill)}
+                        onExport={() => handleExport(skill)}
+                        onUse={() => handleUse(skill)}
+                      />
+                    ))}
+                  </div>
+                  <div className="mt-5">
+                    <Pagination
+                      page={page}
+                      pageSize={pageSize}
+                      total={total}
+                      onPageChange={onPageChange}
+                      onPageSizeChange={onPageSizeChange}
+                    />
+                  </div>
+                </>
+              )}
+            </>
           )}
         </div>
       </div>

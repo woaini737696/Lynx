@@ -159,7 +159,9 @@ function step() {
   }
 
   if (running) {
-    timer = setTimeout(step, 16);
+    // 大图降低刷新率避免卡顿：>80 节点用 33ms(~30fps)，否则 16ms(~60fps)
+    const interval = nodes.length > 80 ? 33 : 16;
+    timer = setTimeout(step, interval);
   }
 }
 

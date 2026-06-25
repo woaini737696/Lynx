@@ -4,66 +4,66 @@
 
 @layer base {
   :root {
-    /* 浅色主题 — 豆包设计风格（Doubao Design） */
-    --background: 250 20% 98%;
-    --foreground: 230 28% 12%;
+    /* 浅色主题 — 高级感橙黑灰搭配 */
+    --background: 0 0% 99%;
+    --foreground: 0 0% 12%;
     --card: 0 0% 100%;
-    --card-foreground: 230 28% 12%;
+    --card-foreground: 0 0% 12%;
     --popover: 0 0% 100%;
-    --popover-foreground: 230 28% 12%;
-    --primary: 248 84% 62%;
+    --popover-foreground: 0 0% 12%;
+    --primary: 24 95% 53%;
     --primary-foreground: 0 0% 100%;
-    --primary-soft: 248 84% 96%;
-    --secondary: 250 20% 96%;
-    --secondary-foreground: 230 28% 12%;
-    --muted: 250 16% 95%;
-    --muted-foreground: 240 8% 50%;
-    --accent: 248 84% 96%;
-    --accent-foreground: 248 84% 55%;
-    --destructive: 0 84% 60%;
+    --primary-soft: 24 95% 96%;
+    --secondary: 0 0% 96%;
+    --secondary-foreground: 0 0% 12%;
+    --muted: 0 0% 95%;
+    --muted-foreground: 0 0% 45%;
+    --accent: 24 95% 96%;
+    --accent-foreground: 24 95% 45%;
+    --destructive: 0 72% 51%;
     --destructive-foreground: 0 0% 100%;
-    --border: 250 20% 92%;
-    --input: 250 20% 92%;
-    --ring: 248 84% 62%;
-    --radius: 1.125rem;
+    --border: 0 0% 90%;
+    --input: 0 0% 90%;
+    --ring: 24 95% 53%;
+    --radius: 0.75rem;
 
     /* LynnHub 语义色 - 浅色 */
-    --northstar: 32 91% 55%;
-    --campaign: 210 100% 60%;
-    --task: 150 65% 50%;
-    --graveyard: 0 80% 65%;
-    --cognition: 262 60% 70%;
+    --northstar: 24 95% 53%;
+    --campaign: 0 0% 45%;
+    --task: 142 50% 45%;
+    --graveyard: 0 72% 51%;
+    --cognition: 0 0% 40%;
   }
 
   .dark {
-    /* 深色主题 — 豆包风格 */
-    --background: 230 18% 6%;
-    --foreground: 240 15% 94%;
-    --card: 230 16% 9%;
-    --card-foreground: 240 15% 94%;
-    --popover: 230 16% 9%;
-    --popover-foreground: 240 15% 94%;
-    --primary: 248 85% 70%;
-    --primary-foreground: 230 20% 8%;
-    --primary-soft: 248 50% 18%;
-    --secondary: 230 12% 14%;
-    --secondary-foreground: 240 15% 94%;
-    --muted: 230 12% 14%;
-    --muted-foreground: 240 8% 60%;
-    --accent: 248 50% 18%;
-    --accent-foreground: 248 85% 75%;
-    --destructive: 0 72% 58%;
+    /* 深色主题 — 高级感橙黑灰搭配 */
+    --background: 0 0% 7%;
+    --foreground: 0 0% 95%;
+    --card: 0 0% 10%;
+    --card-foreground: 0 0% 95%;
+    --popover: 0 0% 10%;
+    --popover-foreground: 0 0% 95%;
+    --primary: 24 95% 58%;
+    --primary-foreground: 0 0% 7%;
+    --primary-soft: 24 30% 16%;
+    --secondary: 0 0% 14%;
+    --secondary-foreground: 0 0% 95%;
+    --muted: 0 0% 14%;
+    --muted-foreground: 0 0% 60%;
+    --accent: 24 30% 16%;
+    --accent-foreground: 24 95% 65%;
+    --destructive: 0 62% 50%;
     --destructive-foreground: 0 0% 100%;
-    --border: 230 12% 18%;
-    --input: 230 12% 18%;
-    --ring: 248 85% 70%;
+    --border: 0 0% 18%;
+    --input: 0 0% 18%;
+    --ring: 24 95% 58%;
 
     /* LynnHub 语义色 - 深色 */
-    --northstar: 36 100% 68%;
-    --campaign: 210 100% 68%;
-    --task: 150 65% 55%;
-    --graveyard: 0 85% 70%;
-    --cognition: 262 70% 75%;
+    --northstar: 24 95% 62%;
+    --campaign: 0 0% 65%;
+    --task: 142 50% 55%;
+    --graveyard: 0 72% 60%;
+    --cognition: 0 0% 70%;
   }
 }
 
@@ -103,39 +103,37 @@
 }
 
 @layer components {
-  /* 豆包风格：渐变主色按钮 */
+  /* 高级感：实色主按钮（橙色），非渐变 */
   .btn-doubao {
-    @apply relative overflow-hidden rounded-xl bg-gradient-to-br from-[hsl(248_84%_62%)] to-[hsl(262_70%_58%)] text-white shadow-md transition-all;
-    background-size: 150% 150%;
+    @apply relative overflow-hidden rounded-xl bg-primary text-primary-foreground shadow-sm transition-all;
   }
   .btn-doubao:hover {
-    background-position: 100% 100%;
-    @apply shadow-lg;
+    @apply brightness-105 shadow-md;
   }
   .btn-doubao:active {
     @apply scale-[0.98];
   }
 
-  /* 豆包风格：柔和卡片阴影 */
+  /* 高级感：柔和卡片阴影（中性灰调） */
   .card-doubao {
-    @apply rounded-2xl border border-border bg-card;
+    @apply rounded-xl border border-border bg-card;
     box-shadow:
-      0 1px 2px hsl(var(--foreground) / 0.04),
-      0 4px 16px -4px hsl(var(--primary) / 0.06);
+      0 1px 2px hsl(0 0% 0% / 0.04),
+      0 2px 8px -2px hsl(0 0% 0% / 0.06);
   }
   .card-doubao:hover {
     box-shadow:
-      0 2px 8px hsl(var(--foreground) / 0.06),
-      0 8px 24px -6px hsl(var(--primary) / 0.1);
+      0 2px 6px hsl(0 0% 0% / 0.06),
+      0 6px 20px -4px hsl(0 0% 0% / 0.08);
   }
 
-  /* 豆包风格：聚焦输入框 */
+  /* 高级感：聚焦输入框 */
   .input-doubao {
     @apply rounded-xl border border-border bg-card transition-all;
   }
   .input-doubao:focus {
     @apply border-primary;
-    box-shadow: 0 0 0 3px hsl(var(--primary) / 0.12);
+    box-shadow: 0 0 0 3px hsl(var(--primary) / 0.1);
   }
 }
 

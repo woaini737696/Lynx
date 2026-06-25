@@ -70,11 +70,11 @@ function ConvergeReminder() {
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   return (
-    <div className="flex min-h-screen flex-col bg-background">
+    <div className="flex h-screen flex-col overflow-hidden bg-background">
       <CaptureBar />
       <div className="flex flex-1 overflow-hidden">
         <Sidebar />
-        <main className="relative flex-1 overflow-auto bg-background">
+        <main className="relative flex-1 overflow-y-auto overflow-x-hidden bg-background">
           <div className="pointer-events-none absolute inset-0 -z-10 bg-[radial-gradient(ellipse_at_top,hsl(var(--primary)/0.05),transparent_50%)]" />
           {children}
         </main>

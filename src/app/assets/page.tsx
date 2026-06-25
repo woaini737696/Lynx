@@ -1,11 +1,12 @@
 "use client";
 
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, useMemo } from "react";
 import { MessageSquare, Plus, Sparkles, ChevronDown, ChevronUp, UploadCloud, Loader2, CheckCircle2, XCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { CONVERSATION_SOURCES, type ConversationSource } from "@/lib/utils";
 import { toast } from "@/components/ui/toast";
 import { PageHeader, EmptyState, Card, Button, Badge, Skeleton } from "@/components/layout/PageHeader";
+import { SearchInput, FilterSelect, Pagination, useClientPagination } from "@/components/ui/ListControls";
 import {
   getFileType,
   fileTypeToSource,
@@ -103,6 +104,9 @@ export default function AssetsPage() {
   const [uploads, setUploads] = useState<UploadItem[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const captureFileInputRef = useRef<HTMLInputElement>(null);
+
+  const [searchQuery, setSearchQuery] = useState("");
+  const [filterSource, setFilterSource] = useState<ConversationSource | "all">("all");
 
   useEffect(() => {
     let mounted = true;
@@ -341,6 +345,19 @@ export default function AssetsPage() {
 
   const clearUploads = () => setUploads([]);
 
+  const filtered = useMemo(() => {
+    return conversations.filter((c) => {
+      if (searchQuery) {
+        const q = searchQuery.toLowerCase();
+        if (!c.title.toLowerCase().includes(q) && !c.rawContent.toLowerCase().includes(q)) return false;
+      }
+      if (filterSource !== "all" && c.source !== filterSource) return false;
+      return true;
+    });
+  }, [conversations, searchQuery, filterSource]);
+
+  const { page, pageSize, total, paginated, onPageChange, onPageSizeChange } = useClientPagination(filtered);
+
   return (
     <div className="p-4 sm:p-8">
       <PageHeader
@@ -544,7 +561,18 @@ export default function AssetsPage() {
         />
       ) : (
         <div className="flex flex-col gap-3">
-          {conversations.map((c) => {
+          <div className="flex flex-wrap items-center gap-2">
+            <SearchInput value={searchQuery} onChange={setSearchQuery} placeholder="搜索标题或内容..." className="max-w-xs" />
+            <FilterSelect
+              value={filterSource}
+              onChange={setFilterSource}
+              options={[
+                { value: "all", label: "全部来源" },
+                ...CONVERSATION_SOURCE_LIST.map((s) => ({ value: s.key, label: s.label })),
+              ]}
+            />
+          </div>
+          {paginated.map((c) => {
             const isExpanded = expandedId === c.id;
             return (
               <Card key={c.id} className="p-0 overflow-hidden" hover>
@@ -578,6 +606,12 @@ export default function AssetsPage() {
               </Card>
             );
           })}
+          {filtered.length === 0 && (
+            <div className="rounded-xl border border-dashed border-border bg-muted/30 px-4 py-12 text-center text-sm text-muted-foreground">
+              没有匹配的对话
+            </div>
+          )}
+          <Pagination page={page} pageSize={pageSize} total={total} onPageChange={onPageChange} onPageSizeChange={onPageSizeChange} />
         </div>
       )}
     </div>

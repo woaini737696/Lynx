@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect, Fragment, useCallback } from "react";
+import { useState, useRef, useEffect, Fragment, useCallback, useMemo } from "react";
 import {
   Send,
   Brain,
@@ -37,6 +37,7 @@ import { Button } from "@/components/layout/PageHeader";
 import { HelpButton } from "@/components/layout/HelpButton";
 import { ModelSwitcher, type ModelSwitcherValue } from "@/components/ui/ModelSwitcher";
 import { toast } from "@/components/ui/toast";
+import { SearchInput, Pagination, useClientPagination } from "@/components/ui/ListControls";
 import { cn } from "@/lib/utils";
 import type { LLMProvider } from "@/lib/ai-provider";
 import { QUICK_COMMANDS } from "@/lib/ai-assistant-tools";
@@ -358,6 +359,13 @@ export default function AIAssistantPage() {
     pinned: boolean;
   }>>([]);
   const [showSessionList, setShowSessionList] = useState(false);
+  const [sessionQuery, setSessionQuery] = useState("");
+  const filteredSessions = useMemo(() => {
+    const q = sessionQuery.trim().toLowerCase();
+    if (!q) return sessions;
+    return sessions.filter((s) => s.title.toLowerCase().includes(q));
+  }, [sessions, sessionQuery]);
+  const sessionPagination = useClientPagination(filteredSessions, 10);
 
   const [settings, setSettings] = useState<AISettings>(DEFAULT_SETTINGS);
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -1750,7 +1758,7 @@ export default function AIAssistantPage() {
       <div className="sticky top-0 z-20 shrink-0 border-b border-border bg-background/95 px-4 py-3 backdrop-blur sm:px-8">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <div className="flex h-8 w-8 items-center justify-center overflow-hidden rounded-xl bg-gradient-to-br from-cognition to-purple-600 text-white shadow-sm">
+            <div className="flex h-8 w-8 items-center justify-center overflow-hidden rounded-xl bg-primary text-primary-foreground shadow-sm">
               {settings.avatarUrl ? <img src={settings.avatarUrl} alt="avatar" className="h-full w-full object-cover" /> : <span className="text-base leading-none">{settings.assistantAvatar}</span>}
             </div>
             <div>
@@ -1813,11 +1821,21 @@ export default function AIAssistantPage() {
                 <X className="h-3.5 w-3.5" />
               </button>
             </div>
+            {sessions.length > 0 && (
+              <SearchInput
+                value={sessionQuery}
+                onChange={setSessionQuery}
+                placeholder="搜索对话标题..."
+                className="mb-2"
+              />
+            )}
             <div className="max-h-64 space-y-1 overflow-y-auto">
               {sessions.length === 0 ? (
                 <p className="py-4 text-center text-xs text-muted-foreground">暂无历史对话</p>
+              ) : filteredSessions.length === 0 ? (
+                <p className="py-4 text-center text-xs text-muted-foreground">未找到匹配的对话</p>
               ) : (
-                sessions.map((s) => (
+                sessionPagination.paginated.map((s) => (
                   <button
                     key={s.id}
                     onClick={() => {
@@ -1836,6 +1854,17 @@ export default function AIAssistantPage() {
                 ))
               )}
             </div>
+            {filteredSessions.length > 0 && (
+              <div className="mt-2">
+                <Pagination
+                  page={sessionPagination.page}
+                  pageSize={sessionPagination.pageSize}
+                  total={sessionPagination.total}
+                  onPageChange={sessionPagination.onPageChange}
+                  onPageSizeChange={sessionPagination.onPageSizeChange}
+                />
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -1846,8 +1875,8 @@ export default function AIAssistantPage() {
             <div key={msg.id} className={cn("flex gap-3", msg.role === "user" && "flex-row-reverse")}>
               <div className={cn("flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-xl text-white shadow-sm",
                 msg.role === "assistant"
-                  ? msg.error ? "bg-gradient-to-br from-graveyard to-red-700" : "bg-gradient-to-br from-cognition to-purple-600"
-                  : "bg-gradient-to-br from-northstar to-orange-600"
+                  ? msg.error ? "bg-destructive" : "bg-primary"
+                  : "bg-northstar"
               )}>
                 {msg.role === "assistant"
                   ? msg.error ? <AlertCircle className="h-4 w-4" /> : (settings.avatarUrl ? <img src={settings.avatarUrl} alt="avatar" className="h-full w-full object-cover" /> : <span className="text-base leading-none">{settings.assistantAvatar}</span>)
@@ -1965,7 +1994,7 @@ export default function AIAssistantPage() {
 
           {thinking && messages[messages.length - 1]?.streaming && messages[messages.length - 1]?.content === "" && (
             <div className="flex gap-3">
-              <div className="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-gradient-to-br from-cognition to-purple-600 text-white shadow-sm">
+              <div className="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-primary text-primary-foreground shadow-sm">
                 {settings.avatarUrl ? <img src={settings.avatarUrl} alt="avatar" className="h-full w-full object-cover" /> : <span className="text-base leading-none">{settings.assistantAvatar}</span>}
               </div>
               <div className="flex items-center gap-1 rounded-2xl border border-border bg-card px-4 py-3">
@@ -2185,7 +2214,7 @@ export default function AIAssistantPage() {
                 </div>
                 {settings.avatarUrl && (
                   <div className="mt-2 flex items-center gap-2">
-                    <div className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-xl bg-gradient-to-br from-cognition to-purple-600">
+                    <div className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-xl bg-primary text-primary-foreground">
                       <img src={settings.avatarUrl} alt="preview" className="h-full w-full object-cover" />
                     </div>
                     <button
@@ -2578,7 +2607,7 @@ export default function AIAssistantPage() {
 
                     <div className="min-h-0 flex-1 overflow-y-auto px-5 py-3">
                       {skillTab === "hermes" && (
-                        <div className="mb-3 rounded-md border border-purple-300/30 bg-purple-50/50 p-2 text-[10px] text-purple-700">
+                        <div className="mb-3 rounded-md border border-primary/30 bg-primary/5 p-2 text-[10px] text-primary">
                           Hermes Skills Hub 提供 672+ 官方技能，需先在设置中启用 Hermes Agent。
                         </div>
                       )}
@@ -2611,7 +2640,7 @@ export default function AIAssistantPage() {
                                       </span>
                                     )}
                                     {skill.source === "hermes" && (
-                                      <span className="shrink-0 rounded bg-purple-100 px-1.5 py-0.5 text-[10px] text-purple-700">Hermes</span>
+                                      <span className="shrink-0 rounded bg-primary/10 px-1.5 py-0.5 text-[10px] text-primary">Hermes</span>
                                     )}
                                   </div>
                                   <p className="mt-0.5 line-clamp-2 text-xs text-muted-foreground">
@@ -2678,7 +2707,7 @@ export default function AIAssistantPage() {
                                     <Star className="h-3 w-3 shrink-0 fill-yellow-400 text-yellow-400" />
                                     <span className="truncate text-sm font-medium">{fav.skillName}</span>
                                     {fav.source === "hermes" && (
-                                      <span className="shrink-0 rounded bg-purple-100 px-1.5 py-0.5 text-[10px] text-purple-700">Hermes</span>
+                                      <span className="shrink-0 rounded bg-primary/10 px-1.5 py-0.5 text-[10px] text-primary">Hermes</span>
                                     )}
                                   </div>
                                   <div className="mt-0.5 text-[10px] text-muted-foreground">{fav.category}</div>
@@ -2718,7 +2747,7 @@ export default function AIAssistantPage() {
                                   )}
                                   <span className="truncate text-sm font-medium">{exec.skillName}</span>
                                   {exec.source === "hermes" && (
-                                    <span className="shrink-0 rounded bg-purple-100 px-1.5 py-0.5 text-[10px] text-purple-700">Hermes</span>
+                                    <span className="shrink-0 rounded bg-primary/10 px-1.5 py-0.5 text-[10px] text-primary">Hermes</span>
                                   )}
                                 </div>
                                 <div className="mt-1 line-clamp-2 text-[11px] text-muted-foreground">

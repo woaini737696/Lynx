@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { ArrowRight, Moon, Trash2, Sparkles } from "lucide-react";
 import { toast } from "@/components/ui/toast";
 import { PageHeader, EmptyState, Card, Button, LoadingState } from "@/components/layout/PageHeader";
+import { SearchInput, FilterSelect, Pagination, useClientPagination } from "@/components/ui/ListControls";
 
 interface Idea {
   id: string;
@@ -28,6 +29,9 @@ export default function ConvergePage() {
   const [reason, setReason] = useState("");
   const [condition, setCondition] = useState("");
   const [now, setNow] = useState(new Date());
+
+  const [searchQuery, setSearchQuery] = useState("");
+  const [filterTime, setFilterTime] = useState<"all" | "today" | "7days">("all");
 
   useEffect(() => {
     let mounted = true;
@@ -110,6 +114,22 @@ export default function ConvergePage() {
     setProcessing(null);
   };
 
+  const filtered = useMemo(() => {
+    return ideas.filter((idea) => {
+      if (searchQuery && !idea.content.toLowerCase().includes(searchQuery.toLowerCase())) return false;
+      if (filterTime !== "all") {
+        const created = new Date(idea.createdAt).getTime();
+        const elapsed = now.getTime() - created;
+        const dayMs = 24 * 60 * 60 * 1000;
+        if (filterTime === "today" && elapsed > dayMs) return false;
+        if (filterTime === "7days" && elapsed > 7 * dayMs) return false;
+      }
+      return true;
+    });
+  }, [ideas, searchQuery, filterTime, now]);
+
+  const { page, pageSize, total: pageTotal, paginated, onPageChange, onPageSizeChange } = useClientPagination(filtered);
+
   const isConvergeTime = now.getHours() >= 23 || now.getHours() < 6;
   const total = initialCount;
   const done = total - ideas.length;
@@ -136,7 +156,7 @@ export default function ConvergePage() {
             </div>
             <div className="mt-1.5 h-2.5 rounded-full bg-muted/70 overflow-hidden">
               <div
-                className="h-full rounded-full bg-gradient-to-r from-northstar to-orange-500 transition-all"
+                className="h-full rounded-full bg-primary transition-all"
                 style={{ width: `${progress}%` }}
               />
             </div>
@@ -154,14 +174,26 @@ export default function ConvergePage() {
         />
       ) : (
         <>
+          <div className="flex flex-wrap items-center gap-2">
+            <SearchInput value={searchQuery} onChange={setSearchQuery} placeholder="搜索灵感内容..." className="max-w-xs" />
+            <FilterSelect
+              value={filterTime}
+              onChange={setFilterTime}
+              options={[
+                { value: "all", label: "全部时间" },
+                { value: "today", label: "今天" },
+                { value: "7days", label: "最近 7 天" },
+              ]}
+            />
+          </div>
           <div className="flex flex-col gap-3">
-            {ideas.map((idea, i) => {
+            {paginated.map((idea, i) => {
               const isExpanding = expanding === idea.id;
               return (
                 <Card key={idea.id} className="p-0 overflow-hidden" hover>
                   <div className="flex items-center gap-3 p-3 sm:gap-4 sm:p-4">
                     <span className="hidden w-6 text-right text-[11px] text-muted-foreground/60 sm:block">
-                      {i + 1}/{ideas.length}
+                      {(page - 1) * pageSize + i + 1}/{filtered.length}
                     </span>
                     <div className="flex-1 min-w-0">
                       <div className="text-sm leading-relaxed">{idea.content}</div>
@@ -207,6 +239,14 @@ export default function ConvergePage() {
               );
             })}
           </div>
+
+          {filtered.length === 0 && (
+            <div className="rounded-xl border border-dashed border-border bg-muted/30 px-4 py-12 text-center text-sm text-muted-foreground">
+              没有匹配的灵感
+            </div>
+          )}
+
+          <Pagination page={page} pageSize={pageSize} total={pageTotal} onPageChange={onPageChange} onPageSizeChange={onPageSizeChange} />
 
           {isConvergeTime && (
             <div className="mt-5 rounded-xl border border-destructive/30 bg-destructive/10 px-4 py-3 text-center text-xs text-destructive">

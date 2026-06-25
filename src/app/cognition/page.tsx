@@ -1,11 +1,12 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { BookOpen, Brain, Plus, Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { COGNITION_TYPES, type CognitionType } from "@/lib/utils";
 import { toast } from "@/components/ui/toast";
 import { PageHeader, EmptyState, Card, Button, Badge, Skeleton } from "@/components/layout/PageHeader";
+import { SearchInput, Pagination, useClientPagination } from "@/components/ui/ListControls";
 
 interface Cognition {
   id: string;
@@ -22,6 +23,7 @@ export default function CognitionPage() {
   const [showExtract, setShowExtract] = useState(false);
   const [extractContent, setExtractContent] = useState("");
   const [extracting, setExtracting] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
 
   useEffect(() => {
     let mounted = true;
@@ -88,8 +90,28 @@ export default function CognitionPage() {
     }
   };
 
-  const filtered =
-    filter === "all" ? cognitions : cognitions.filter((c) => c.type === filter);
+  const filtered = useMemo(() => {
+    let list =
+      filter === "all" ? cognitions : cognitions.filter((c) => c.type === filter);
+    if (searchQuery.trim()) {
+      const q = searchQuery.trim().toLowerCase();
+      list = list.filter(
+        (c) =>
+          c.content?.toLowerCase().includes(q) ||
+          c.source?.toLowerCase().includes(q)
+      );
+    }
+    return list;
+  }, [cognitions, filter, searchQuery]);
+
+  const {
+    page,
+    pageSize,
+    total,
+    paginated,
+    onPageChange,
+    onPageSizeChange,
+  } = useClientPagination(filtered);
 
   return (
     <div className="p-4 sm:p-8">
@@ -148,6 +170,15 @@ export default function CognitionPage() {
         ))}
       </div>
 
+      <div className="mb-5">
+        <SearchInput
+          value={searchQuery}
+          onChange={setSearchQuery}
+          placeholder="按内容或来源搜索..."
+          className="max-w-md"
+        />
+      </div>
+
       {loading ? (
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {Array.from({ length: 6 }).map((_, i) => (
@@ -178,17 +209,28 @@ export default function CognitionPage() {
           }
         />
       ) : (
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          {filtered.map((c) => (
-            <Card key={c.id} className="flex flex-col" hover>
-              <div className="mb-3 flex items-center justify-between">
-                <Badge color={c.type as any}>{COGNITION_TYPES[c.type].label}</Badge>
-                <span className="text-[10px] text-muted-foreground">{formatTime(c.createdAt)}</span>
-              </div>
-              <p className="flex-1 whitespace-pre-wrap text-sm leading-relaxed">{c.content}</p>
-            </Card>
-          ))}
-        </div>
+        <>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {paginated.map((c) => (
+              <Card key={c.id} className="flex flex-col" hover>
+                <div className="mb-3 flex items-center justify-between">
+                  <Badge color={c.type as any}>{COGNITION_TYPES[c.type].label}</Badge>
+                  <span className="text-[10px] text-muted-foreground">{formatTime(c.createdAt)}</span>
+                </div>
+                <p className="flex-1 whitespace-pre-wrap text-sm leading-relaxed">{c.content}</p>
+              </Card>
+            ))}
+          </div>
+          <div className="mt-5">
+            <Pagination
+              page={page}
+              pageSize={pageSize}
+              total={total}
+              onPageChange={onPageChange}
+              onPageSizeChange={onPageSizeChange}
+            />
+          </div>
+        </>
       )}
     </div>
   );
