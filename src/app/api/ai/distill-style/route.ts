@@ -7,7 +7,9 @@ import { getLogger } from "@/lib/logger";
 const logger = getLogger("distill-style-api");
 
 // POST /api/ai/distill-style - 从聊天记录蒸馏真人聊天风格
-// body: { chatRecords: string }
+// body: { chatRecords: string, preview?: boolean }
+// - preview=true 时仅返回蒸馏结果，不保存到数据库
+// - 默认保存到 AISetting.distilledStyle
 export async function POST(req: NextRequest) {
   const auth = await requireAuth();
   if (auth.user === null) return auth.error;
@@ -15,6 +17,7 @@ export async function POST(req: NextRequest) {
   try {
     const body = await req.json().catch(() => ({}));
     const chatRecords = body?.chatRecords;
+    const preview = body?.preview === true;
 
     if (!chatRecords || typeof chatRecords !== "string" || chatRecords.trim().length < 10) {
       return NextResponse.json(
@@ -63,6 +66,15 @@ ${chatRecords}
       );
     }
 
+    // 预览模式：不保存，仅返回结果
+    if (preview) {
+      return NextResponse.json({
+        success: true,
+        distilledStyle,
+        preview: true,
+      });
+    }
+
     // 保存到 AISetting
     let settings = await prisma.aISetting.findFirst();
     if (!settings) {
@@ -84,6 +96,56 @@ ${chatRecords}
     });
   } catch (e) {
     logger.error({ err: e }, "聊天风格蒸馏失败");
+    return NextResponse.json(
+      { error: "服务器错误：" + (e as Error).message },
+      { status: 500 }
+    );
+  }
+}
+
+// POST /api/ai/distill-style/preview - 预览蒸馏效果
+// body: { distilledStyle: string, testMessage: string }
+// 用蒸馏后的风格回复 testMessage，让用户确认效果
+export async function PUT(req: NextRequest) {
+  const auth = await requireAuth();
+  if (auth.user === null) return auth.error;
+
+  try {
+    const body = await req.json().catch(() => ({}));
+    const distilledStyle = body?.distilledStyle;
+    const testMessage = body?.testMessage || "你好，介绍一下你自己";
+
+    if (!distilledStyle || typeof distilledStyle !== "string") {
+      return NextResponse.json(
+        { error: "缺少 distilledStyle 参数" },
+        { status: 400 }
+      );
+    }
+
+    const PREVIEW_PROMPT = `你是一个聊天风格模仿专家。请严格按照以下风格特征，回复用户的消息。
+
+## 风格特征要求
+${distilledStyle}
+
+## 用户消息
+${testMessage}
+
+请用上述风格回复（仅输出回复内容，不要解释）：`;
+
+    const aiResp = await chat(
+      [{ role: "user", content: PREVIEW_PROMPT }],
+      {
+        reasoningMode: "fast",
+        temperature: 0.7,
+      }
+    );
+
+    return NextResponse.json({
+      success: true,
+      reply: aiResp.content.trim(),
+    });
+  } catch (e) {
+    logger.error({ err: e }, "风格预览失败");
     return NextResponse.json(
       { error: "服务器错误：" + (e as Error).message },
       { status: 500 }

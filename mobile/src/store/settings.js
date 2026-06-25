@@ -2,6 +2,8 @@ import { defineStore } from "pinia";
 import {
   getBaseUrl,
   setBaseUrl as setBaseUrlStorage,
+  get,
+  put,
 } from "@/api/request.js";
 
 const THEME_KEY = "lynnhub_theme";
@@ -31,6 +33,12 @@ export const useSettingsStore = defineStore("settings", {
   state: () => ({
     baseUrl: getBaseUrl(),
     theme: loadTheme(),
+    // AI 助理设置（新增字段，默认 null）
+    aiSettings: {
+      avatarUrl: null,
+      personaStyle: null,
+      distilledStyle: null,
+    },
   }),
   actions: {
     /** 设置后端 API 地址 */
@@ -59,6 +67,29 @@ export const useSettingsStore = defineStore("settings", {
     /** 初始化主题（应用启动时调用） */
     initTheme() {
       applyTheme(this.theme);
+    },
+
+    /** 加载 AI 助理设置（从后端读取新增字段） */
+    async loadAISettings() {
+      try {
+        const res = await get("/api/ai/settings");
+        const s = (res && res.settings) || {};
+        this.aiSettings.avatarUrl = s.avatarUrl || null;
+        this.aiSettings.personaStyle = s.personaStyle || null;
+        this.aiSettings.distilledStyle = s.distilledStyle || null;
+      } catch (e) {
+        // 静默失败，保留默认值
+      }
+    },
+
+    /** 更新 AI 助理设置（支持 avatarUrl / personaStyle / distilledStyle） */
+    async updateAISettings(data) {
+      const res = await put("/api/ai/settings", data);
+      const s = (res && res.settings) || {};
+      if ("avatarUrl" in s) this.aiSettings.avatarUrl = s.avatarUrl || null;
+      if ("personaStyle" in s) this.aiSettings.personaStyle = s.personaStyle || null;
+      if ("distilledStyle" in s) this.aiSettings.distilledStyle = s.distilledStyle || null;
+      return res;
     },
   },
 });

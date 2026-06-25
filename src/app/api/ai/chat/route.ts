@@ -283,16 +283,18 @@ export async function POST(req: NextRequest) {
       if (auth.error) return auth.error;
       const user = auth.user;
 
-      // 读取 AI 助理设置（助理名称、风格描述、蒸馏风格）
+      // 读取 AI 助理设置（助理名称、风格描述、蒸馏风格、风格强度）
       let assistantName = "Lynn";
       let personaStyle = "";
       let distilledStyle = "";
+      let styleStrength = 0.7;
       try {
         const aiSettings = await prisma.aISetting.findFirst();
         if (aiSettings) {
           assistantName = aiSettings.assistantName || "Lynn";
           personaStyle = aiSettings.personaStyle || "";
           distilledStyle = aiSettings.distilledStyle || "";
+          styleStrength = aiSettings.styleStrength ?? 0.7;
         }
       } catch {
         // 读取失败不阻断对话
@@ -305,7 +307,13 @@ export async function POST(req: NextRequest) {
         styleParts.push(`## 聊天风格要求\n${personaStyle.trim()}`);
       }
       if (distilledStyle.trim()) {
-        styleParts.push(`## 蒸馏的真人聊天风格\n请模仿以下风格特征与用户对话：\n${distilledStyle.trim()}`);
+        // 根据风格强度调整指令措辞
+        const strengthDesc = styleStrength >= 0.8
+          ? "请严格模仿以下风格特征与用户对话，尽可能还原说话方式"
+          : styleStrength >= 0.4
+          ? "请参考以下风格特征与用户对话，适度融入但保持 AI 助理的专业性"
+          : "请在保持 AI 助理专业性的前提下，轻微参考以下风格特征";
+        styleParts.push(`## 蒸馏的真人聊天风格\n${strengthDesc}（风格强度：${Math.round(styleStrength * 100)}%）：\n${distilledStyle.trim()}`);
       }
       if (styleParts.length > 0) {
         // 将风格要求插入到 system prompt 的"重要约束"之前

@@ -33,6 +33,7 @@ export async function PUT(req: NextRequest) {
       "avatarUrl",
       "personaStyle",
       "distilledStyle",
+      "styleStrength",
       "defaultVoice",
       "autoSpeak",
       "voiceMode",
@@ -72,6 +73,15 @@ export async function PUT(req: NextRequest) {
           return NextResponse.json({ error: `${textField} 格式错误` }, { status: 400 });
         }
       }
+    }
+
+    // 校验 styleStrength（0.0-1.0）
+    if (updateData.styleStrength !== undefined) {
+      const s = Number(updateData.styleStrength);
+      if (isNaN(s) || s < 0 || s > 1) {
+        return NextResponse.json({ error: "styleStrength 需为 0-1 之间的数字" }, { status: 400 });
+      }
+      updateData.styleStrength = s;
     }
 
     // 布尔字段校验

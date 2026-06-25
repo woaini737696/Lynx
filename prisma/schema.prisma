@@ -337,6 +337,8 @@ model AISetting {
   personaStyle    String?  @db.Text
   // 蒸馏的真人聊天风格（从聊天记录提取的风格特征）
   distilledStyle  String?  @db.LongText
+  // 风格强度（0.0-1.0，控制蒸馏风格对 AI 回复的影响程度，默认 0.7）
+  styleStrength   Float    @default(0.7)
   // 音色复刻：克隆后的 voice_id（MiMo TTS VoiceClone 返回）
   clonedVoiceId   String?  @db.VarChar(255)
   clonedVoiceName String?  @db.VarChar(100)

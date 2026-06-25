@@ -4,6 +4,85 @@
 
 ---
 
+## 迭代 23 - 2026-06-25
+
+### 任务概要
+完成 P1-P2 剩余任务：(1) AI 助理头像上传；(2) 聊天风格蒸馏增强（预览+强度调节）；(3) 数据导出备份验证 UI；(4) 404 监控+健康检查端点；(5) Hermes Agent 易用性改进（快速执行+自动刷新+使用说明链接）。修复 Hermes client 残留端口、TypeScript 编译错误、备份页面 useEffect 导入、诊断页 toast 导入。
+
+### 完成内容
+
+#### 1. P1.5 AI 助理头像上传
+- **API**：`/api/ai/avatar-upload` 新建，接收 multipart/form-data，校验类型（PNG/JPEG/GIF/WebP/SVG）和大小（2MB），保存到 `public/avatars/<userId>-<timestamp>.<ext>`
+- **前端**：`assistant/page.tsx` 头像区域改为 URL 输入 + 上传按钮并排，新增 `avatarUploading` 状态和 `handleAvatarUpload` 函数
+
+#### 2. P1.6 聊天风格蒸馏增强
+- **Schema**：`AISetting` 新增 `styleStrength Float @default(0.7)` 字段控制蒸馏风格影响程度
+- **distill-style API**：POST 新增 `preview` 参数（不保存 DB 仅返回结果）；新增 PUT 方法用蒸馏风格生成示例回复预览效果
+- **settings API**：新增 `styleStrength` 字段校验（0-1 范围）
+- **chat route**：根据强度值调整 system prompt 措辞——≥0.8 严格模仿、≥0.4 适度融入、<0.4 轻微参考
+- **前端**：蒸馏区域大幅重写——预览模式按钮、效果预览按钮、强度滑块（0-1 step 0.1）、清除按钮、保存按钮
+
+#### 3. P2.7 数据导出/备份验证
+- **API**：`/api/backup/verify` 新建，返回 7 种核心数据类型（ideas/tasks/conversations/cognitions/memories/skills/flows）的当前数据库计数
+- **前端**：`settings/backup/page.tsx` 新增「数据验证」区块——显示数据库计数、导出后对比计数、数量一致/不一致标识、刷新按钮、导入后自动刷新验证
+
+#### 4. P2.9 404 监控 + 健康检查端点
+- **健康监控模块**：`src/lib/health-monitor.ts` 新建——内存环形缓冲区 404 日志（最多 200 条）、`logNotFound`/`getRecentNotFoundLogs`/`getNotFoundStats`/`clearNotFoundLogs` 函数、`checkHealth` 函数（DB ping + 内存 + uptime + 404 统计）
+- **健康检查 API**：`/api/health` GET 公开（无需鉴权），返回 status/uptime/memory/db/notFound 统计
+- **404 监控 API**：`/api/health/404s` GET 获取日志+统计 / POST 客户端上报 / DELETE 清空（仅 admin）
+- **404 上报**：`not-found.tsx` 改为客户端组件，挂载时通过 `keepalive: true` 静默上报 404 路径
+- **中间件**：`middleware.ts` 新增 `/^\/api\/health$/` 到 publicPatterns，允许公开访问健康检查
+- **诊断页 UI**：`settings/diagnostics/page.tsx` 新增 404 监控区块——高频路径 Top 5、最近 30 条日志表格、清空按钮（admin）、刷新按钮、每 30 秒自动刷新
+
+#### 5. Hermes Agent 易用性改进
+- **使用说明文档**：`docs/hermes-usage-guide.md` 新建 9 章节完整使用说明（安装/启动/测试连接/AI 助理使用/工作流使用/FAQ/API 参考/安全/参考链接）
+- **状态自动刷新**：Hermes 配置区块每 10 秒自动拉取 `/api/hermes/status`，状态变化无需手动刷新
+- **快速执行区块**：服务运行中时显示输入框 + 执行按钮 + 4 个示例任务 chips（打开浏览器/查看文件/截图/查天气），回车直接执行，结果区显示输出+耗时
+- **使用说明入口**：说明区右上角新增「使用说明」链接（打开 docs/hermes-usage-guide.md）和「打开 Dashboard」链接（服务运行中时显示，新标签打开 endpoint）
+- **端口修复**：默认 endpoint 从 `http://localhost:7432` 改为 `http://localhost:9119`（Hermes Dashboard 实际端口），handleStart 回退端口同步修复
+- **hermes-client 修复**：`upsertHermesConfig` create 分支遗留的 7432 端口改为 9119
+
+#### 6. 移动端同步（subagent 完成）
+- `mobile/src/api/ideas.js` 新增 `batchDeleteIdeas(ids)` 批量删除函数
+- `mobile/src/pages/inbox/inbox.vue` 新增多选模式批量删除 UI
+- `mobile/src/store/settings.js` 新增 `avatarUrl/personaStyle/distilledStyle` 字段 + `loadAISettings/updateAISettings` actions
+- `mobile/src/pages/ai/chat/chat.vue` 设置弹窗支持头像 URL/风格描述/蒸馏区块
+
+### 错误修复
+- `assistant/page.tsx` line 2226 字符串引号冲突（中文双引号 `"保存并预览"` 破坏 JS 字符串），改用「」全角引号
+- `backup/page.tsx` 缺少 `useEffect` 导入
+- `diagnostics/page.tsx` 缺少 `toast` 导入
+- `prisma db push` 时 Prisma client DLL 重命名失败（Windows 文件锁），停止 dev server 后 `npx prisma generate` 修复
+
+### 关键文件
+- `prisma/schema.prisma` — AISetting 新增 styleStrength 字段
+- `src/app/api/ai/avatar-upload/route.ts` — 新建头像上传 API
+- `src/app/api/ai/distill-style/route.ts` — POST preview 参数 + PUT 效果预览
+- `src/app/api/ai/settings/route.ts` — styleStrength 校验
+- `src/app/api/ai/chat/route.ts` — 风格强度注入 system prompt
+- `src/app/ai/assistant/page.tsx` — 头像上传 UI + 蒸馏增强 UI
+- `src/app/api/backup/verify/route.ts` — 新建备份验证 API
+- `src/app/settings/backup/page.tsx` — 数据验证 UI
+- `src/lib/health-monitor.ts` — 新建健康监控模块
+- `src/app/api/health/route.ts` — 新建健康检查端点
+- `src/app/api/health/404s/route.ts` — 新建 404 监控端点
+- `src/app/not-found.tsx` — 客户端上报 404
+- `src/middleware.ts` — 放行 /api/health
+- `src/app/settings/diagnostics/page.tsx` — 404 监控 UI
+- `src/app/settings/page.tsx` — Hermes 快速执行 + 自动刷新 + 链接
+- `src/lib/hermes-client.ts` — 端口修复
+- `docs/hermes-usage-guide.md` — 新建使用说明
+- 移动端：`mobile/src/api/ideas.js`/`inbox.vue`/`settings.js`/`chat.vue`
+
+### 自测结果
+- TypeScript 编译通过（`npx tsc --noEmit`）
+- Prisma db push 同步成功 + Prisma client 重新生成
+- `/api/health` 返回 200 + 完整健康状态 JSON（DB connected、内存 426MB/456MB、版本 0.1.0）
+- Playwright E2E：19/19 全部通过（auth/backup/board/idea/search 流程无回归）
+- Dev server 正常运行于 http://localhost:3000（admin/admin123）
+
+---
+
 ## 迭代 22 - 2026-06-25
 
 ### 任务概要

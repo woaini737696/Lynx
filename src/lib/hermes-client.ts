@@ -111,7 +111,7 @@ export async function upsertHermesConfig(
     create: {
       userId,
       enabled: data.enabled ?? false,
-      endpoint: data.endpoint ?? "http://localhost:7432",
+      endpoint: data.endpoint ?? "http://localhost:9119",
       apiKey: data.apiKey ?? null,
       autoStart: data.autoStart ?? false,
       capabilities: (data.capabilities ?? ["computer_use", "shell", "skills_hub"]) as unknown as never,

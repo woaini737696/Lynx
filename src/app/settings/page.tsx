@@ -16,6 +16,10 @@ import {
   Play,
   Square,
   Wifi,
+  ExternalLink,
+  Send,
+  BookOpen,
+  Terminal,
 } from "lucide-react";
 import { PageHeader, Card, Button, LoadingState } from "@/components/layout/PageHeader";
 import { HelpButton } from "@/components/layout/HelpButton";
@@ -619,11 +623,16 @@ function HermesConfigSection() {
   const [saving, setSaving] = useState(false);
 
   // 编辑态
-  const [endpoint, setEndpoint] = useState("http://localhost:7432");
+  const [endpoint, setEndpoint] = useState("http://localhost:9119");
   const [apiKey, setApiKey] = useState("");
   const [autoStart, setAutoStart] = useState(false);
   const [enabled, setEnabled] = useState(false);
   const [capabilities, setCapabilities] = useState<string[]>(["computer_use", "shell", "skills_hub"]);
+
+  // 快速执行相关状态
+  const [quickTask, setQuickTask] = useState("");
+  const [quickExecuting, setQuickExecuting] = useState(false);
+  const [quickResult, setQuickResult] = useState<{ success: boolean; output: string; error?: string; durationMs?: number } | null>(null);
 
   const loadStatus = async () => {
     try {
@@ -632,7 +641,7 @@ function HermesConfigSection() {
       const data = await res.json();
       setStatus(data);
       if (data.config) {
-        setEndpoint(data.config.endpoint || "http://localhost:7432");
+        setEndpoint(data.config.endpoint || "http://localhost:9119");
         setEnabled(data.config.enabled);
         setAutoStart(data.config.autoStart);
         setCapabilities(data.config.capabilities || ["computer_use", "shell", "skills_hub"]);
@@ -646,7 +655,62 @@ function HermesConfigSection() {
 
   useEffect(() => {
     loadStatus();
+    // 每 10 秒自动刷新状态（监控 Hermes 服务状态变化）
+    const timer = setInterval(loadStatus, 10_000);
+    return () => clearInterval(timer);
   }, []);
+
+  // 快速执行 Hermes 任务
+  const handleQuickExecute = async () => {
+    const prompt = quickTask.trim();
+    if (!prompt) {
+      toast("请输入任务描述", "error");
+      return;
+    }
+    setQuickExecuting(true);
+    setQuickResult(null);
+    try {
+      const res = await fetch("/api/hermes/execute", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ prompt, mode: "auto", timeout: 120 }),
+      });
+      const data = await res.json();
+      if (res.ok && data.success !== false) {
+        setQuickResult({
+          success: true,
+          output: data.output || "(任务已完成，无输出)",
+          durationMs: data.durationMs,
+        });
+        toast("任务执行完成", "success");
+      } else {
+        setQuickResult({
+          success: false,
+          output: "",
+          error: data.error || "任务执行失败",
+          durationMs: data.durationMs,
+        });
+        toast(data.error || "任务执行失败", "error");
+      }
+    } catch (e: any) {
+      setQuickResult({
+        success: false,
+        output: "",
+        error: e.message || "请求失败",
+      });
+      toast("请求失败：" + e.message, "error");
+    } finally {
+      setQuickExecuting(false);
+    }
+  };
+
+  // 示例任务
+  const QUICK_EXAMPLES = [
+    "打开浏览器访问 github.com",
+    "查看当前目录文件列表",
+    "截图保存到桌面",
+    "查询今天北京天气",
+  ];
 
   const handleInstall = async () => {
     setInstalling(true);
@@ -783,7 +847,31 @@ function HermesConfigSection() {
     >
       {/* 说明 */}
       <div className="mb-4 rounded-md border border-northstar/20 bg-northstar/5 p-3 text-xs text-muted-foreground">
-        <div className="mb-1 font-medium text-foreground">🤖 Hermes Agent 是什么？</div>
+        <div className="mb-1 flex items-center justify-between">
+          <div className="font-medium text-foreground">🤖 Hermes Agent 是什么？</div>
+          <div className="flex items-center gap-2">
+            <a
+              href="/docs/hermes-usage-guide.md"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1 text-[11px] text-northstar hover:underline"
+              title="查看完整使用说明"
+            >
+              <BookOpen className="h-3 w-3" /> 使用说明
+            </a>
+            {isRunning && (
+              <a
+                href={endpoint}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1 text-[11px] text-campaign hover:underline"
+                title="在新标签打开 Hermes Dashboard"
+              >
+                <ExternalLink className="h-3 w-3" /> 打开 Dashboard
+              </a>
+            )}
+          </div>
+        </div>
         开源本地 AI 代理框架，安装后可让 AI 助理直接操控你的电脑（桌面控制、Shell 命令、Skills Hub 672+ 技能），
         实现「AI 自动化工作流」。所有操作在本地执行，数据不出本机。
       </div>
@@ -853,6 +941,80 @@ function HermesConfigSection() {
           </div>
         )}
       </div>
+
+      {/* 快速执行（仅在运行中时显示） */}
+      {isRunning && (
+        <div className="mb-4 rounded-md border border-campaign/30 bg-campaign/5 p-3">
+          <div className="mb-2 flex items-center gap-2">
+            <Terminal className="h-3.5 w-3.5 text-campaign" />
+            <span className="text-xs font-medium text-foreground">快速执行任务</span>
+            <span className="text-[10px] text-muted-foreground">直接在这里让 Hermes 执行任务，无需切换到 AI 助理</span>
+          </div>
+          <div className="flex gap-2">
+            <input
+              type="text"
+              value={quickTask}
+              onChange={(e) => setQuickTask(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && !quickExecuting) handleQuickExecute();
+              }}
+              placeholder="输入任务描述，如：打开浏览器访问 github.com"
+              className="flex-1 rounded-md border border-border/60 bg-background px-3 py-1.5 text-xs"
+              disabled={quickExecuting}
+            />
+            <Button
+              size="sm"
+              onClick={handleQuickExecute}
+              disabled={quickExecuting || !quickTask.trim()}
+              className="gap-1.5"
+            >
+              {quickExecuting ? (
+                <><Loader2 className="h-3 w-3 animate-spin" /> 执行中...</>
+              ) : (
+                <><Send className="h-3 w-3" /> 执行</>
+              )}
+            </Button>
+          </div>
+
+          {/* 示例任务 */}
+          <div className="mt-2 flex flex-wrap gap-1.5">
+            {QUICK_EXAMPLES.map((ex) => (
+              <button
+                key={ex}
+                type="button"
+                onClick={() => setQuickTask(ex)}
+                disabled={quickExecuting}
+                className="rounded-full border border-border/60 bg-background px-2 py-0.5 text-[10px] text-muted-foreground transition-colors hover:border-campaign/40 hover:text-campaign disabled:opacity-50"
+              >
+                {ex}
+              </button>
+            ))}
+          </div>
+
+          {/* 执行结果 */}
+          {quickResult && (
+            <div className="mt-3 rounded-md border border-border/60 bg-background p-2.5">
+              <div className="mb-1 flex items-center justify-between text-[11px]">
+                <span className={quickResult.success ? "text-task" : "text-graveyard"}>
+                  {quickResult.success ? "✓ 执行成功" : "✗ 执行失败"}
+                </span>
+                {quickResult.durationMs && (
+                  <span className="text-muted-foreground">
+                    耗时 {(quickResult.durationMs / 1000).toFixed(1)}s
+                  </span>
+                )}
+              </div>
+              {quickResult.success ? (
+                <pre className="max-h-48 overflow-y-auto whitespace-pre-wrap break-words text-[11px] text-foreground">
+                  {quickResult.output}
+                </pre>
+              ) : (
+                <div className="text-[11px] text-graveyard">{quickResult.error}</div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* 配置表单 */}
       <div className="space-y-3">

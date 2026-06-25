@@ -104,6 +104,7 @@ interface AISettings {
   avatarUrl: string | null;
   personaStyle: string | null;
   distilledStyle: string | null;
+  styleStrength: number;
   clonedVoiceId: string | null;
   clonedVoiceName: string | null;
   clonedAt: string | null;
@@ -118,6 +119,7 @@ const DEFAULT_SETTINGS: AISettings = {
   avatarUrl: null,
   personaStyle: null,
   distilledStyle: null,
+  styleStrength: 0.7,
   clonedVoiceId: null,
   clonedVoiceName: null,
   clonedAt: null,
@@ -403,6 +405,14 @@ export default function AIAssistantPage() {
   const [cloneTesting, setCloneTesting] = useState(false);
   const cloneFileRef = useRef<HTMLInputElement>(null);
 
+  // 头像上传
+  const [avatarUploading, setAvatarUploading] = useState(false);
+  const avatarFileRef = useRef<HTMLInputElement>(null);
+
+  // 风格蒸馏增强
+  const [distillPreviewing, setDistillPreviewing] = useState(false);
+  const [distillPreviewReply, setDistillPreviewReply] = useState<string | null>(null);
+
   const [modelCatalog, setModelCatalog] = useState<{
     providers: Array<{ id: LLMProvider; models: Array<{ id: string; multimodal?: boolean }> }>;
   } | null>(null);
@@ -541,6 +551,7 @@ export default function AIAssistantPage() {
           avatarUrl: data.settings.avatarUrl || null,
           personaStyle: data.settings.personaStyle || null,
           distilledStyle: data.settings.distilledStyle || null,
+          styleStrength: data.settings.styleStrength ?? 0.7,
           clonedVoiceId: data.settings.clonedVoiceId || null,
           clonedVoiceName: data.settings.clonedVoiceName || null,
           clonedAt: data.settings.clonedAt || null,
@@ -567,6 +578,7 @@ export default function AIAssistantPage() {
           avatarUrl: data.settings.avatarUrl || null,
           personaStyle: data.settings.personaStyle || null,
           distilledStyle: data.settings.distilledStyle || null,
+          styleStrength: data.settings.styleStrength ?? 0.7,
           clonedVoiceId: data.settings.clonedVoiceId || null,
           clonedVoiceName: data.settings.clonedVoiceName || null,
           clonedAt: data.settings.clonedAt || null,
@@ -1406,6 +1418,38 @@ export default function AIAssistantPage() {
     stopSpeaking();
   };
 
+  // 头像文件上传
+  const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 2 * 1024 * 1024) {
+      toast("头像文件过大，最大 2MB", "error");
+      return;
+    }
+    setAvatarUploading(true);
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      const res = await fetch("/api/ai/avatar-upload", {
+        method: "POST",
+        body: formData,
+      });
+      const data = await res.json();
+      if (res.ok && data.url) {
+        setSettings((s) => ({ ...s, avatarUrl: data.url }));
+        await updateSettings({ avatarUrl: data.url });
+        toast("头像上传成功", "success");
+      } else {
+        toast(data.error || "上传失败", "error");
+      }
+    } catch {
+      toast("上传失败", "error");
+    } finally {
+      setAvatarUploading(false);
+      if (avatarFileRef.current) avatarFileRef.current.value = "";
+    }
+  };
+
   const handleVoiceCloneUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -2088,17 +2132,36 @@ export default function AIAssistantPage() {
                 />
               </div>
 
-              {/* 头像 URL */}
+              {/* 头像 - 支持 URL 输入和文件上传 */}
               <div>
-                <label className="mb-1.5 block text-xs font-medium">助理头像 URL</label>
-                <input
-                  type="text"
-                  value={settings.avatarUrl || ""}
-                  onChange={(e) => setSettings((s) => ({ ...s, avatarUrl: e.target.value || null }))}
-                  onBlur={() => updateSettings({ avatarUrl: settings.avatarUrl })}
-                  className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:border-cognition"
-                  placeholder="留空使用默认图标，或填写图片 URL"
-                />
+                <label className="mb-1.5 block text-xs font-medium">助理头像</label>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="text"
+                    value={settings.avatarUrl || ""}
+                    onChange={(e) => setSettings((s) => ({ ...s, avatarUrl: e.target.value || null }))}
+                    onBlur={() => updateSettings({ avatarUrl: settings.avatarUrl })}
+                    className="flex-1 rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:border-cognition"
+                    placeholder="粘贴图片 URL 或点击右侧上传"
+                  />
+                  <input
+                    ref={avatarFileRef}
+                    type="file"
+                    accept="image/png,image/jpeg,image/gif,image/webp,image/svg+xml"
+                    onChange={handleAvatarUpload}
+                    className="hidden"
+                  />
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => avatarFileRef.current?.click()}
+                    disabled={avatarUploading}
+                    className="shrink-0"
+                  >
+                    {avatarUploading ? <Loader2 className="h-3 w-3 animate-spin" /> : <ImageIcon className="h-3 w-3" />}
+                    {avatarUploading ? "上传中" : "上传"}
+                  </Button>
+                </div>
                 {settings.avatarUrl && (
                   <div className="mt-2 flex items-center gap-2">
                     <div className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-xl bg-gradient-to-br from-cognition to-purple-600">
@@ -2112,6 +2175,7 @@ export default function AIAssistantPage() {
                     </button>
                   </div>
                 )}
+                <p className="mt-1 text-[10px] text-muted-foreground">支持 PNG/JPEG/GIF/WebP/SVG，最大 2MB</p>
               </div>
 
               {/* 聊天风格描述 */}
@@ -2153,12 +2217,13 @@ export default function AIAssistantPage() {
                         const res = await fetch("/api/ai/distill-style", {
                           method: "POST",
                           headers: { "Content-Type": "application/json" },
-                          body: JSON.stringify({ chatRecords: records }),
+                          body: JSON.stringify({ chatRecords: records, preview: true }),
                         });
                         const data = await res.json();
                         if (res.ok && data.success) {
                           setSettings((s) => ({ ...s, distilledStyle: data.distilledStyle }));
-                          toast("风格蒸馏成功！AI 助理将模仿此风格", "success");
+                          setDistillPreviewReply(null);
+                          toast("风格蒸馏成功！点击下方「保存并预览」确认效果", "success");
                         } else {
                           toast(data.error || "蒸馏失败", "error");
                         }
@@ -2172,21 +2237,112 @@ export default function AIAssistantPage() {
                     开始蒸馏
                   </Button>
                   {settings.distilledStyle && (
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      onClick={() => { setSettings((s) => ({ ...s, distilledStyle: null })); updateSettings({ distilledStyle: null }); }}
-                      className="text-xs text-graveyard"
-                    >
-                      清除蒸馏风格
-                    </Button>
+                    <>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={async () => {
+                          try {
+                            setDistillPreviewing(true);
+                            setDistillPreviewReply(null);
+                            const res = await fetch("/api/ai/distill-style", {
+                              method: "PUT",
+                              headers: { "Content-Type": "application/json" },
+                              body: JSON.stringify({
+                                distilledStyle: settings.distilledStyle,
+                                testMessage: "你好，今天有什么任务需要聚焦？",
+                              }),
+                            });
+                            const data = await res.json();
+                            if (res.ok && data.success) {
+                              setDistillPreviewReply(data.reply);
+                            } else {
+                              toast(data.error || "预览失败", "error");
+                            }
+                          } catch {
+                            toast("预览失败", "error");
+                          } finally {
+                            setDistillPreviewing(false);
+                          }
+                        }}
+                        disabled={distillPreviewing}
+                        className="gap-1.5"
+                      >
+                        {distillPreviewing ? <Loader2 className="h-3 w-3 animate-spin" /> : <MessageSquare className="h-3 w-3" />}
+                        {distillPreviewing ? "预览中" : "预览效果"}
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => {
+                          setSettings((s) => ({ ...s, distilledStyle: null }));
+                          updateSettings({ distilledStyle: null });
+                          setDistillPreviewReply(null);
+                        }}
+                        className="text-xs text-graveyard"
+                      >
+                        清除
+                      </Button>
+                    </>
                   )}
                 </div>
                 {settings.distilledStyle && (
-                  <div className="rounded-lg bg-cognition/5 p-2 text-xs text-muted-foreground">
-                    <p className="mb-1 font-medium text-cognition">已蒸馏风格：</p>
-                    <p className="line-clamp-3">{settings.distilledStyle}</p>
-                  </div>
+                  <>
+                    {/* 风格强度滑块 */}
+                    <div className="rounded-lg bg-muted/30 p-3">
+                      <div className="mb-1.5 flex items-center justify-between">
+                        <span className="text-xs font-medium">风格强度</span>
+                        <span className="text-xs text-cognition">{Math.round(settings.styleStrength * 100)}%</span>
+                      </div>
+                      <input
+                        type="range"
+                        min="0"
+                        max="1"
+                        step="0.1"
+                        value={settings.styleStrength}
+                        onChange={(e) => setSettings((s) => ({ ...s, styleStrength: parseFloat(e.target.value) }))}
+                        onMouseUp={() => updateSettings({ styleStrength: settings.styleStrength })}
+                        className="w-full accent-cognition"
+                      />
+                      <div className="mt-1 flex justify-between text-[10px] text-muted-foreground">
+                        <span>轻微参考</span>
+                        <span>适度融入</span>
+                        <span>严格模仿</span>
+                      </div>
+                    </div>
+                    {/* 蒸馏结果 */}
+                    <div className="rounded-lg bg-cognition/5 p-2 text-xs text-muted-foreground">
+                      <p className="mb-1 font-medium text-cognition">已蒸馏风格：</p>
+                      <p className="line-clamp-3">{settings.distilledStyle}</p>
+                    </div>
+                    {/* 预览回复 */}
+                    {distillPreviewing && (
+                      <div className="rounded-lg border border-cognition/30 bg-cognition/5 p-3">
+                        <p className="mb-1 text-[10px] font-medium text-cognition">AI 正在用蒸馏风格回复...</p>
+                        <Loader2 className="h-3 w-3 animate-spin text-cognition" />
+                      </div>
+                    )}
+                    {distillPreviewReply && (
+                      <div className="rounded-lg border border-cognition/30 bg-cognition/5 p-3">
+                        <p className="mb-1 text-[10px] font-medium text-cognition">预览回复（"你好，今天有什么任务需要聚焦？"）：</p>
+                        <p className="text-xs leading-relaxed text-foreground">{distillPreviewReply}</p>
+                      </div>
+                    )}
+                    {/* 保存按钮 */}
+                    <Button
+                      size="sm"
+                      className="w-full"
+                      onClick={() => {
+                        updateSettings({
+                          distilledStyle: settings.distilledStyle,
+                          styleStrength: settings.styleStrength,
+                        });
+                        toast("风格设置已保存", "success");
+                      }}
+                    >
+                      保存风格设置
+                    </Button>
+                  </>
                 )}
               </div>
 

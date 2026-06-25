@@ -6,7 +6,10 @@
         <text class="session-icon">☰</text>
       </view>
       <view class="top-title">
-        <text class="top-avatar">{{ assistantAvatar }}</text>
+        <view class="top-avatar">
+          <image v-if="hasAvatarUrl" :src="aiAvatarUrl" class="top-avatar-img" mode="aspectFill" />
+          <text v-else class="top-avatar-emoji">{{ assistantAvatar }}</text>
+        </view>
         <text class="top-name">{{ assistantName }}</text>
       </view>
       <view class="top-actions">
@@ -19,7 +22,7 @@
         >
           <text class="chip-label">{{ p.icon }}</text>
         </view>
-        <view class="icon-btn" @click="showSettings = true">
+        <view class="icon-btn" @click="openSettings">
           <text class="icon-text">⚙️</text>
         </view>
       </view>
@@ -96,6 +99,44 @@
               <view class="switch-thumb"></view>
             </view>
           </view>
+
+          <!-- 助理头像 URL -->
+          <view class="setting-row column-row">
+            <text class="setting-label">助理头像 URL</text>
+            <input v-model="editAvatarUrl" class="setting-input" placeholder="留空使用默认图标，或填写图片 URL" maxlength="500" />
+            <view v-if="editAvatarUrl" class="avatar-preview">
+              <image :src="editAvatarUrl" class="avatar-preview-img" mode="aspectFill" />
+              <view class="avatar-remove-btn" @click="editAvatarUrl = ''">
+                <text class="avatar-remove-text">移除头像</text>
+              </view>
+            </view>
+          </view>
+
+          <!-- 聊天风格描述 -->
+          <view class="setting-row column-row">
+            <text class="setting-label">聊天风格描述</text>
+            <textarea v-model="editPersonaStyle" class="setting-textarea" placeholder="如：幽默、简洁、多用emoji、像朋友一样聊天..." maxlength="500" />
+            <text class="setting-hint">描述你希望 AI 助理的聊天风格，会注入到 system prompt</text>
+          </view>
+
+          <!-- 蒸馏真人聊天风格 -->
+          <view class="distill-block">
+            <text class="distill-title">🎭 蒸馏真人聊天风格</text>
+            <text class="distill-desc">上传一段真人聊天记录，AI 会自动提取风格特征，模仿该风格与你对话</text>
+            <textarea v-model="distillInput" class="setting-textarea distill-textarea" placeholder="粘贴聊天记录（至少 10 字符，最多 20000 字符）..." maxlength="20000" />
+            <view class="distill-actions">
+              <view class="distill-btn" :class="{ disabled: distilling }" @click="startDistill">
+                <text class="distill-btn-text">{{ distilling ? "蒸馏中..." : "开始蒸馏" }}</text>
+              </view>
+              <view v-if="settingsStore.aiSettings.distilledStyle" class="distill-clear-btn" @click="clearDistilledStyle">
+                <text class="distill-clear-text">清除蒸馏风格</text>
+              </view>
+            </view>
+            <view v-if="settingsStore.aiSettings.distilledStyle" class="distill-result">
+              <text class="distill-result-title">已蒸馏风格：</text>
+              <text class="distill-result-text">{{ settingsStore.aiSettings.distilledStyle }}</text>
+            </view>
+          </view>
         </view>
         <view class="settings-footer">
           <view class="settings-save-btn" @click="saveSettings">
@@ -110,7 +151,8 @@
       <!-- 空状态欢迎 -->
       <view v-if="messages.length === 0" class="welcome">
         <view class="welcome-avatar" :class="{ 'voice-pulse': voiceCallActive }">
-          <text class="avatar-icon">{{ assistantAvatar }}</text>
+          <image v-if="hasAvatarUrl" :src="aiAvatarUrl" class="avatar-img-large" mode="aspectFill" />
+          <text v-else class="avatar-icon">{{ assistantAvatar }}</text>
         </view>
         <text class="welcome-title">你好，我是 {{ assistantName }}</text>
         <text class="welcome-desc">你的个人认知助手 · 能搜索、创建、执行操作</text>
@@ -124,7 +166,8 @@
         :class="msg.role"
       >
         <view v-if="msg.role === 'assistant'" class="msg-avatar">
-          <text class="msg-avatar-icon">{{ assistantAvatar }}</text>
+          <image v-if="hasAvatarUrl" :src="aiAvatarUrl" class="msg-avatar-img" mode="aspectFill" />
+          <text v-else class="msg-avatar-icon">{{ assistantAvatar }}</text>
         </view>
         <view class="msg-content">
           <view class="msg-bubble" @longpress="copyMessage(msg)">
@@ -177,7 +220,8 @@
       <!-- 加载中动画 -->
       <view v-if="loading" class="msg-row assistant">
         <view class="msg-avatar">
-          <text class="msg-avatar-icon">{{ assistantAvatar }}</text>
+          <image v-if="hasAvatarUrl" :src="aiAvatarUrl" class="msg-avatar-img" mode="aspectFill" />
+          <text v-else class="msg-avatar-icon">{{ assistantAvatar }}</text>
         </view>
         <view class="msg-bubble loading-bubble">
           <view class="typing-indicator">
@@ -287,7 +331,8 @@
             <view class="call-ring ring-2"></view>
             <view class="call-ring ring-3"></view>
             <view class="call-avatar" :class="{ speaking: isSpeaking, listening: !isSpeaking && !loading }">
-              <text class="call-avatar-icon">{{ assistantAvatar }}</text>
+              <image v-if="hasAvatarUrl" :src="aiAvatarUrl" class="call-avatar-img" mode="aspectFill" />
+              <text v-else class="call-avatar-icon">{{ assistantAvatar }}</text>
             </view>
           </view>
           <text class="call-name">{{ assistantName }}</text>
@@ -341,6 +386,7 @@ import {
 } from "@/api/voice.js";
 import { webmToWav } from "@/utils/audio-utils.js";
 import { useSettingsStore } from "@/store/settings.js";
+import { post } from "@/api/request.js";
 import MarkdownView from "@/components/MarkdownView.vue";
 import TabBar from "@/components/TabBar.vue";
 
@@ -359,6 +405,14 @@ const editName = ref(assistantName.value);
 const editAvatar = ref(assistantAvatar.value);
 const editAutoSpeak = ref(autoSpeak.value);
 const avatarOptions = ["🤖", "🐱", "🦊", "🐼", "🧠", "⚡", "🌟", "🎯"];
+
+// ===== AI 助理新字段（头像 URL / 聊天风格 / 蒸馏风格） =====
+const aiAvatarUrl = computed(() => settingsStore.aiSettings.avatarUrl);
+const hasAvatarUrl = computed(() => !!aiAvatarUrl.value);
+const editAvatarUrl = ref("");
+const editPersonaStyle = ref("");
+const distillInput = ref("");
+const distilling = ref(false);
 
 // ===== 会话管理 =====
 const sessions = ref([]);
@@ -482,6 +536,9 @@ function formatArgsReadable(args) {
 onMounted(async () => {
   await loadSessions();
   await loadAISettings();
+  // 加载后端 AI 助理新字段（avatarUrl / personaStyle / distilledStyle）
+  await settingsStore.loadAISettings();
+  syncAISettingsEdit();
   if (sessions.value.length === 0) {
     await createNewSession();
   } else {
@@ -499,13 +556,68 @@ onHide(() => {
 });
 
 // ===== AI助理设置 =====
-function saveSettings() {
+/** 同步 store 中的新字段到编辑状态 */
+function syncAISettingsEdit() {
+  editAvatarUrl.value = settingsStore.aiSettings.avatarUrl || "";
+  editPersonaStyle.value = settingsStore.aiSettings.personaStyle || "";
+}
+
+/** 打开设置弹窗前同步编辑字段 */
+function openSettings() {
+  syncAISettingsEdit();
+  showSettings.value = true;
+}
+
+/** 开始蒸馏真人聊天风格 */
+async function startDistill() {
+  if (distilling.value) return;
+  const records = distillInput.value.trim();
+  if (records.length < 10) {
+    uni.showToast({ title: "请输入至少 10 字符的聊天记录", icon: "none" });
+    return;
+  }
+  distilling.value = true;
+  try {
+    const res = await post("/api/ai/distill-style", { chatRecords: records });
+    if (res && res.success && res.distilledStyle) {
+      await settingsStore.updateAISettings({ distilledStyle: res.distilledStyle });
+      uni.showToast({ title: "风格蒸馏成功", icon: "success" });
+    } else {
+      uni.showToast({ title: (res && res.error) || "蒸馏失败", icon: "none" });
+    }
+  } catch (e) {
+    uni.showToast({ title: e.message || "蒸馏失败", icon: "none" });
+  } finally {
+    distilling.value = false;
+  }
+}
+
+/** 清除已蒸馏的聊天风格 */
+async function clearDistilledStyle() {
+  try {
+    await settingsStore.updateAISettings({ distilledStyle: null });
+    uni.showToast({ title: "已清除蒸馏风格", icon: "none" });
+  } catch (e) {
+    uni.showToast({ title: "清除失败", icon: "none" });
+  }
+}
+
+async function saveSettings() {
   assistantName.value = editName.value.trim() || "Lynn";
   assistantAvatar.value = editAvatar.value;
   autoSpeak.value = editAutoSpeak.value;
   uni.setStorageSync("ai_assistant_name", assistantName.value);
   uni.setStorageSync("ai_assistant_avatar", assistantAvatar.value);
   uni.setStorageSync("ai_auto_speak", autoSpeak.value ? "true" : "false");
+  // 同步助理头像 URL 与聊天风格描述到后端
+  try {
+    await settingsStore.updateAISettings({
+      avatarUrl: editAvatarUrl.value.trim() || null,
+      personaStyle: editPersonaStyle.value.trim() || null,
+    });
+  } catch (e) {
+    // 后端保存失败不阻塞本地保存
+  }
   showSettings.value = false;
   uni.showToast({ title: "已保存", icon: "success" });
 }
@@ -1140,7 +1252,22 @@ onUnmounted(() => {
   align-items: center;
   gap: 8rpx;
 }
-.top-avatar { font-size: 36rpx; }
+.top-avatar {
+  width: 48rpx;
+  height: 48rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.top-avatar-img {
+  width: 48rpx;
+  height: 48rpx;
+  border-radius: 50%;
+}
+.top-avatar-emoji { font-size: 36rpx; }
 .top-name {
   font-size: 30rpx;
   font-weight: 600;
@@ -1362,6 +1489,135 @@ onUnmounted(() => {
 }
 .save-btn-text { color: #ffffff; font-size: 30rpx; font-weight: 600; }
 
+/* 设置弹窗：纵向布局行（头像URL / 风格描述） */
+.setting-row.column-row {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 12rpx;
+}
+.column-row .setting-label {
+  margin-bottom: 4rpx;
+}
+.column-row .setting-input {
+  width: 100%;
+  text-align: left;
+  background-color: #f2f2f7;
+  border-radius: 12rpx;
+  padding: 16rpx 20rpx;
+  box-sizing: border-box;
+}
+.dark .column-row .setting-input { background-color: #2c2c2e; }
+.setting-textarea {
+  width: 100%;
+  min-height: 120rpx;
+  font-size: 26rpx;
+  color: #1d1d1f;
+  background-color: #f2f2f7;
+  border-radius: 12rpx;
+  padding: 16rpx 20rpx;
+  box-sizing: border-box;
+}
+.dark .setting-textarea { color: #f5f5f7; background-color: #2c2c2e; }
+.setting-hint {
+  font-size: 22rpx;
+  color: #aeaeb2;
+  line-height: 1.4;
+}
+
+/* 头像预览 */
+.avatar-preview {
+  display: flex;
+  align-items: center;
+  gap: 16rpx;
+  margin-top: 8rpx;
+}
+.avatar-preview-img {
+  width: 80rpx;
+  height: 80rpx;
+  border-radius: 16rpx;
+  background: linear-gradient(135deg, #f59e0b, #f97316);
+}
+.avatar-remove-btn {
+  background-color: rgba(239, 68, 68, 0.1);
+  border-radius: 20rpx;
+  padding: 8rpx 20rpx;
+}
+.avatar-remove-text {
+  font-size: 22rpx;
+  color: #ef4444;
+}
+
+/* 蒸馏真人聊天风格区块 */
+.distill-block {
+  margin-top: 24rpx;
+  padding: 24rpx;
+  border: 1rpx solid #e5e5ea;
+  border-radius: 16rpx;
+  display: flex;
+  flex-direction: column;
+  gap: 12rpx;
+}
+.dark .distill-block { border-color: #38383a; }
+.distill-title {
+  font-size: 28rpx;
+  font-weight: 600;
+  color: #1d1d1f;
+}
+.dark .distill-title { color: #f5f5f7; }
+.distill-desc {
+  font-size: 22rpx;
+  color: #86868b;
+  line-height: 1.4;
+}
+.distill-textarea {
+  min-height: 140rpx;
+  font-size: 24rpx;
+}
+.distill-actions {
+  display: flex;
+  align-items: center;
+  gap: 16rpx;
+}
+.distill-btn {
+  background: linear-gradient(135deg, #f59e0b, #f97316);
+  border-radius: 24rpx;
+  padding: 12rpx 28rpx;
+}
+.distill-btn.disabled { opacity: 0.5; }
+.distill-btn-text {
+  color: #ffffff;
+  font-size: 24rpx;
+  font-weight: 600;
+}
+.distill-clear-btn {
+  background-color: #f2f2f7;
+  border-radius: 24rpx;
+  padding: 12rpx 24rpx;
+}
+.dark .distill-clear-btn { background-color: #2c2c2e; }
+.distill-clear-text {
+  font-size: 22rpx;
+  color: #86868b;
+}
+.distill-result {
+  background-color: rgba(139, 92, 246, 0.06);
+  border-radius: 12rpx;
+  padding: 16rpx 20rpx;
+}
+.distill-result-title {
+  display: block;
+  font-size: 22rpx;
+  font-weight: 600;
+  color: #8b5cf6;
+  margin-bottom: 8rpx;
+}
+.distill-result-text {
+  display: block;
+  font-size: 22rpx;
+  color: #86868b;
+  line-height: 1.5;
+}
+
 /* 消息列表：可滚动区域 */
 .msg-list {
   flex: 1;
@@ -1395,6 +1651,11 @@ onUnmounted(() => {
   50% { transform: scale(1.08); box-shadow: 0 12rpx 32rpx rgba(245, 158, 11, 0.5); }
 }
 .avatar-icon { font-size: 56rpx; }
+.avatar-img-large {
+  width: 120rpx;
+  height: 120rpx;
+  border-radius: 50%;
+}
 .welcome-title { font-size: 40rpx; font-weight: 700; color: #1d1d1f; margin-bottom: 8rpx; }
 .dark .welcome-title { color: #f5f5f7; }
 .welcome-desc { font-size: 24rpx; color: #86868b; }
@@ -1416,6 +1677,11 @@ onUnmounted(() => {
   box-shadow: 0 2rpx 8rpx rgba(245, 158, 11, 0.2);
 }
 .msg-avatar-icon { font-size: 32rpx; }
+.msg-avatar-img {
+  width: 64rpx;
+  height: 64rpx;
+  border-radius: 50%;
+}
 .msg-content { max-width: 78%; }
 .msg-row.user .msg-content { max-width: 80%; }
 .msg-bubble { padding: 20rpx 28rpx; border-radius: 24rpx; }
@@ -1766,6 +2032,11 @@ onUnmounted(() => {
   50% { transform: scale(1.04); box-shadow: 0 12rpx 50rpx rgba(245, 158, 11, 0.6); }
 }
 .call-avatar-icon { font-size: 72rpx; }
+.call-avatar-img {
+  width: 160rpx;
+  height: 160rpx;
+  border-radius: 50%;
+}
 .call-name {
   font-size: 36rpx;
   font-weight: 600;

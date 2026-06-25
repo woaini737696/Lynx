@@ -2,12 +2,46 @@
   <view class="page">
     <view class="header">
       <text class="header-title">灵感收件箱</text>
-      <text class="header-count">{{ ideas.length }} 条</text>
+      <view class="header-right">
+        <text class="header-count">{{ ideas.length }} 条</text>
+        <view
+          v-if="!multiSelectMode && ideas.length > 0"
+          class="batch-btn"
+          @click="enterMultiSelect"
+        >
+          <text class="batch-btn-text">批量</text>
+        </view>
+        <view
+          v-if="multiSelectMode"
+          class="batch-btn cancel-btn"
+          @click="exitMultiSelect"
+        >
+          <text class="batch-btn-text">取消</text>
+        </view>
+      </view>
     </view>
 
     <view v-if="cacheInfo" class="offline-banner">
       <text class="offline-icon">📡</text>
       <text class="offline-text">离线浏览 · 缓存于 {{ formatCacheTime(cacheInfo.cachedAt) }}</text>
+    </view>
+
+    <!-- 批量操作栏 -->
+    <view v-if="multiSelectMode" class="batch-bar">
+      <view class="batch-bar-btn" @click="selectAll">
+        <text class="batch-bar-text">全选</text>
+      </view>
+      <view class="batch-bar-btn" @click="clearSelection">
+        <text class="batch-bar-text">清空</text>
+      </view>
+      <text class="batch-count">已选 {{ selectedIds.size }} 条</text>
+      <view
+        class="batch-delete-btn"
+        :class="{ disabled: selectedIds.size === 0 || batchDeleting }"
+        @click="batchDelete"
+      >
+        <text class="batch-delete-text">{{ batchDeleting ? "删除中..." : "删除" }}</text>
+      </view>
     </view>
 
     <view v-if="loading && ideas.length === 0" class="loading">
@@ -20,37 +54,109 @@
       <text class="empty-hint">点击右下角 ⚡ 捕获灵感</text>
     </view>
 
-    <scroll-view v-else scroll-y class="idea-list">
-      <view v-for="idea in ideas" :key="idea.id" class="idea-card">
-        <text class="idea-content">{{ idea.content }}</text>
-        <view class="idea-footer">
-          <text class="idea-time">{{ formatTime(idea.createdAt) }}</text>
-          <view class="idea-actions">
-            <view class="action-btn board-btn" @click="moveToBoard(idea)">
-              <text class="action-text">→看板</text>
-            </view>
-            <view class="action-btn danger-btn" @click="abandon(idea)">
-              <text class="action-text danger-text">放弃</text>
+    <scroll-view v-else scroll-y class="idea-list" :class="{ 'multi-list': multiSelectMode }">
+      <view
+        v-for="idea in ideas"
+        :key="idea.id"
+        class="idea-card"
+        :class="{ 'multi-card': multiSelectMode, 'selected-card': multiSelectMode && selectedIds.has(idea.id) }"
+        @click="multiSelectMode ? toggleSelect(idea.id) : null"
+      >
+        <view
+          v-if="multiSelectMode"
+          class="checkbox"
+          :class="{ checked: selectedIds.has(idea.id) }"
+        >
+          <text v-if="selectedIds.has(idea.id)" class="checkbox-icon">✓</text>
+        </view>
+        <view class="idea-main">
+          <text class="idea-content">{{ idea.content }}</text>
+          <view class="idea-footer">
+            <text class="idea-time">{{ formatTime(idea.createdAt) }}</text>
+            <view v-if="!multiSelectMode" class="idea-actions">
+              <view class="action-btn board-btn" @click.stop="moveToBoard(idea)">
+                <text class="action-text">→看板</text>
+              </view>
+              <view class="action-btn danger-btn" @click.stop="abandon(idea)">
+                <text class="action-text danger-text">放弃</text>
+              </view>
             </view>
           </view>
         </view>
       </view>
     </scroll-view>
 
-    <capture-bar @saved="loadIdeas" />
+    <capture-bar v-if="!multiSelectMode" @saved="loadIdeas" />
   </view>
 </template>
 
 <script setup>
 import { ref, onMounted } from "vue";
 import { onShow } from "@dcloudio/uni-app";
-import { getInboxIdeas, moveIdeaToBoard, abandonIdea } from "@/api/ideas.js";
+import { getInboxIdeas, moveIdeaToBoard, abandonIdea, batchDeleteIdeas } from "@/api/ideas.js";
 import CaptureBar from "@/components/CaptureBar.vue";
 import { setCache, getCache, formatCacheTime } from "@/utils/cache.js";
 
 const ideas = ref([]);
 const loading = ref(false);
 const cacheInfo = ref(null);
+
+// ===== 多选模式 =====
+const multiSelectMode = ref(false);
+const selectedIds = ref(new Set());
+const batchDeleting = ref(false);
+
+function enterMultiSelect() {
+  multiSelectMode.value = true;
+  selectedIds.value = new Set();
+}
+
+function exitMultiSelect() {
+  multiSelectMode.value = false;
+  selectedIds.value = new Set();
+}
+
+function toggleSelect(id) {
+  const next = new Set(selectedIds.value);
+  if (next.has(id)) next.delete(id);
+  else next.add(id);
+  selectedIds.value = next;
+}
+
+function selectAll() {
+  selectedIds.value = new Set(ideas.value.map((i) => i.id));
+}
+
+function clearSelection() {
+  selectedIds.value = new Set();
+}
+
+async function batchDelete() {
+  if (selectedIds.value.size === 0 || batchDeleting.value) return;
+  uni.showModal({
+    title: "批量删除",
+    content: `确定删除选中的 ${selectedIds.value.size} 条灵感吗？此操作不可恢复。`,
+    confirmColor: "#ef4444",
+    success: async (res) => {
+      if (!res.confirm) return;
+      batchDeleting.value = true;
+      try {
+        const ids = Array.from(selectedIds.value);
+        const result = await batchDeleteIdeas(ids);
+        uni.showToast({
+          title: `已删除 ${result.deleted || ids.length} 条`,
+          icon: "success",
+        });
+        exitMultiSelect();
+        await loadIdeas();
+      } catch (e) {
+        uni.showToast({ title: e.message || "删除失败", icon: "none" });
+      } finally {
+        batchDeleting.value = false;
+      }
+    },
+  });
+}
 
 async function loadIdeas() {
   loading.value = true;
@@ -143,9 +249,71 @@ onShow(loadIdeas);
   font-weight: 700;
   color: #1d1d1f;
 }
+.header-right {
+  display: flex;
+  align-items: center;
+  gap: 16rpx;
+}
 .header-count {
   font-size: 26rpx;
   color: #86868b;
+}
+.batch-btn {
+  background-color: rgba(245, 158, 11, 0.12);
+  border-radius: 24rpx;
+  padding: 8rpx 20rpx;
+}
+.batch-btn-text {
+  font-size: 24rpx;
+  color: #f59e0b;
+  font-weight: 600;
+}
+.cancel-btn {
+  background-color: #f2f2f7;
+}
+.cancel-btn .batch-btn-text {
+  color: #86868b;
+}
+
+/* 批量操作栏 */
+.batch-bar {
+  display: flex;
+  align-items: center;
+  gap: 16rpx;
+  padding: 16rpx 20rpx;
+  background-color: #ffffff;
+  border-radius: 16rpx;
+  margin-bottom: 16rpx;
+  box-shadow: 0 2rpx 8rpx rgba(0, 0, 0, 0.04);
+}
+.batch-bar-btn {
+  background-color: #f2f2f7;
+  border-radius: 20rpx;
+  padding: 8rpx 20rpx;
+}
+.batch-bar-text {
+  font-size: 24rpx;
+  color: #1d1d1f;
+  font-weight: 600;
+}
+.batch-count {
+  flex: 1;
+  font-size: 24rpx;
+  color: #86868b;
+  text-align: center;
+}
+.batch-delete-btn {
+  background-color: rgba(239, 68, 68, 0.1);
+  border-radius: 20rpx;
+  padding: 8rpx 24rpx;
+}
+.batch-delete-btn.disabled {
+  opacity: 0.4;
+}
+.batch-delete-text {
+  font-size: 24rpx;
+  color: #ef4444;
+  font-weight: 600;
 }
 
 .loading,
@@ -189,12 +357,51 @@ onShow(loadIdeas);
 .idea-list {
   height: calc(100vh - 200rpx);
 }
+.idea-list.multi-list {
+  height: calc(100vh - 300rpx);
+}
 .idea-card {
   background-color: #ffffff;
   border-radius: 16rpx;
   padding: 24rpx;
   margin-bottom: 16rpx;
   box-shadow: 0 2rpx 8rpx rgba(0, 0, 0, 0.04);
+}
+.idea-card.multi-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 16rpx;
+  border: 2rpx solid transparent;
+  transition: border-color 0.2s;
+}
+.idea-card.selected-card {
+  border-color: #f59e0b;
+  background-color: rgba(245, 158, 11, 0.04);
+}
+.checkbox {
+  width: 40rpx;
+  height: 40rpx;
+  border-radius: 50%;
+  border: 3rpx solid #d1d1d6;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  margin-top: 4rpx;
+  transition: all 0.2s;
+}
+.checkbox.checked {
+  background: linear-gradient(135deg, #f59e0b, #f97316);
+  border-color: #f59e0b;
+}
+.checkbox-icon {
+  color: #ffffff;
+  font-size: 24rpx;
+  font-weight: 700;
+}
+.idea-main {
+  flex: 1;
+  min-width: 0;
 }
 .idea-content {
   color: #1d1d1f;

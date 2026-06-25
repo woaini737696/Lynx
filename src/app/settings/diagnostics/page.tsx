@@ -14,8 +14,11 @@ import {
   XCircle,
   TrendingUp,
   Layers,
+  AlertTriangle,
+  Trash2,
 } from "lucide-react";
 import { PageHeader, Card, Button, LoadingState } from "@/components/layout/PageHeader";
+import { toast } from "@/components/ui/toast";
 import { cn } from "@/lib/utils";
 
 interface Diagnostics {
@@ -86,6 +89,25 @@ export default function DiagnosticsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  // 404 监控相关状态
+  const [nfData, setNfData] = useState<{
+    logs: Array<{
+      id: string;
+      path: string;
+      method: string;
+      referer: string | null;
+      ip: string | null;
+      timestamp: number;
+    }>;
+    stats: {
+      total: number;
+      uniquePaths: number;
+      topPaths: Array<{ path: string; count: number; lastSeen: number }>;
+    };
+  } | null>(null);
+  const [nfLoading, setNfLoading] = useState(false);
+  const [nfClearing, setNfClearing] = useState(false);
+
   const fetchDiagnostics = useCallback(async () => {
     setLoading(true);
     setError(null);
@@ -101,12 +123,53 @@ export default function DiagnosticsPage() {
     }
   }, []);
 
+  // 拉取 404 监控数据
+  const fetchNotFoundData = useCallback(async () => {
+    setNfLoading(true);
+    try {
+      const res = await fetch("/api/health/404s?limit=30");
+      if (!res.ok) throw new Error(`404 日志加载失败（${res.status}）`);
+      const json = await res.json();
+      setNfData({
+        logs: json.logs || [],
+        stats: json.stats || { total: 0, uniquePaths: 0, topPaths: [] },
+      });
+    } catch {
+      // 静默失败
+    } finally {
+      setNfLoading(false);
+    }
+  }, []);
+
+  // 清空 404 日志（仅 admin）
+  const clearNotFoundLogs = useCallback(async () => {
+    setNfClearing(true);
+    try {
+      const res = await fetch("/api/health/404s", { method: "DELETE" });
+      const json = await res.json();
+      if (!res.ok) {
+        toast(json.error || "清空失败", "error");
+      } else {
+        toast(`已清空 ${json.cleared} 条 404 日志`, "success");
+        await fetchNotFoundData();
+      }
+    } catch (e: any) {
+      toast(e.message || "清空失败", "error");
+    } finally {
+      setNfClearing(false);
+    }
+  }, [fetchNotFoundData]);
+
   useEffect(() => {
     fetchDiagnostics();
+    fetchNotFoundData();
     // 每 30 秒自动刷新
-    const timer = setInterval(fetchDiagnostics, 30000);
+    const timer = setInterval(() => {
+      fetchDiagnostics();
+      fetchNotFoundData();
+    }, 30000);
     return () => clearInterval(timer);
-  }, [fetchDiagnostics]);
+  }, [fetchDiagnostics, fetchNotFoundData]);
 
   if (loading && !data) {
     return <LoadingState title="性能监控" />;
@@ -337,6 +400,97 @@ export default function DiagnosticsPage() {
           </div>
         </Card>
       )}
+
+      {/* 404 监控 */}
+      <Card className="mt-4">
+        <div className="mb-3 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <AlertTriangle className="h-4 w-4 text-graveyard" />
+            <h2 className="text-sm font-semibold">404 访问监控</h2>
+            {nfData && (
+              <span className="text-[10px] text-muted-foreground">
+                共 {nfData.stats.total} 次 · {nfData.stats.uniquePaths} 个不同路径
+              </span>
+            )}
+          </div>
+          <div className="flex items-center gap-2">
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={fetchNotFoundData}
+              disabled={nfLoading}
+            >
+              <RefreshCw className={cn("h-3 w-3", nfLoading && "animate-spin")} />
+              刷新
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={clearNotFoundLogs}
+              disabled={nfClearing || !nfData?.stats.total}
+            >
+              {nfClearing ? <RefreshCw className="h-3 w-3 animate-spin" /> : <Trash2 className="h-3 w-3" />}
+              清空
+            </Button>
+          </div>
+        </div>
+
+        {nfData?.stats.topPaths && nfData.stats.topPaths.length > 0 ? (
+          <>
+            {/* Top 404 路径 */}
+            <div className="mb-3">
+              <div className="mb-1.5 text-[11px] font-medium text-muted-foreground">高频 404 路径</div>
+              <div className="space-y-1">
+                {nfData.stats.topPaths.slice(0, 5).map((p, i) => (
+                  <div
+                    key={i}
+                    className="flex items-center justify-between rounded-lg border border-border bg-muted/30 px-3 py-1.5 text-[11px]"
+                  >
+                    <span className="truncate font-mono text-foreground" title={p.path}>{p.path}</span>
+                    <span className="ml-2 shrink-0 rounded-full bg-graveyard/10 px-2 py-0.5 font-medium text-graveyard">
+                      {p.count} 次
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* 最近的 404 日志 */}
+            <div>
+              <div className="mb-1.5 text-[11px] font-medium text-muted-foreground">最近 404 访问</div>
+              <div className="max-h-64 overflow-y-auto rounded-lg border border-border">
+                <table className="w-full text-[11px]">
+                  <thead className="sticky top-0 bg-muted/60 text-muted-foreground">
+                    <tr>
+                      <th className="px-2 py-1.5 text-left font-medium">路径</th>
+                      <th className="px-2 py-1.5 text-left font-medium">IP</th>
+                      <th className="px-2 py-1.5 text-right font-medium">时间</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {nfData.logs.map((log) => (
+                      <tr key={log.id} className="border-t border-border">
+                        <td className="px-2 py-1.5 font-mono text-foreground" title={log.path}>
+                          <div className="max-w-[280px] truncate">{log.path}</div>
+                        </td>
+                        <td className="px-2 py-1.5 text-muted-foreground">{log.ip || "-"}</td>
+                        <td className="px-2 py-1.5 text-right text-muted-foreground">
+                          {new Date(log.timestamp).toLocaleString("zh-CN", { hour12: false })}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </>
+        ) : (
+          <div className="flex items-center gap-2 rounded-lg border border-border bg-muted/20 p-3 text-xs text-muted-foreground">
+            <CheckCircle2 className="h-4 w-4 text-task" />
+            暂无 404 访问记录
+          </div>
+        )}
+      </Card>
 
       <div className="mt-4 text-center text-[10px] text-muted-foreground/60">
         最后更新：{new Date(data.timestamp).toLocaleString("zh-CN")} · 每 30 秒自动刷新

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import {
   Database,
   Download,
@@ -9,6 +9,7 @@ import {
   XCircle,
   Loader2,
   FileJson,
+  ShieldCheck,
 } from "lucide-react";
 import { PageHeader, Card, Button } from "@/components/layout/PageHeader";
 import { toast } from "@/components/ui/toast";
@@ -36,6 +37,39 @@ export default function BackupPage() {
   const [importStats, setImportStats] = useState<ImportStats | null>(null);
   const [importError, setImportError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // 数据验证相关状态
+  const [dbCounts, setDbCounts] = useState<Record<string, number> | null>(null);
+  const [exportCounts, setExportCounts] = useState<Record<string, number> | null>(null);
+  const [verifying, setVerifying] = useState(false);
+  const [verifyError, setVerifyError] = useState<string | null>(null);
+
+  // 拉取数据库计数用于验证
+  const fetchDbCounts = async () => {
+    setVerifying(true);
+    setVerifyError(null);
+    try {
+      const res = await fetch("/api/backup/verify");
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || `校验失败（${res.status}）`);
+      }
+      setDbCounts(data.counts || {});
+      return data.counts as Record<string, number>;
+    } catch (e: any) {
+      setVerifyError(e.message || "校验失败");
+      toast(e.message || "校验失败", "error");
+      return null;
+    } finally {
+      setVerifying(false);
+    }
+  };
+
+  // 初次加载自动拉取一次计数
+  useEffect(() => {
+    fetchDbCounts();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // 切换类型选择
   const toggleType = (key: string) => {
@@ -97,6 +131,14 @@ export default function BackupPage() {
           data,
         };
       }
+
+      // 计算导出各类型条目数（用于验证对比）
+      const exportedData = (payload as { data?: Record<string, unknown[]> }).data || {};
+      const counts: Record<string, number> = {};
+      for (const [key, value] of Object.entries(exportedData)) {
+        counts[key] = Array.isArray(value) ? value.length : 0;
+      }
+      setExportCounts(counts);
 
       // 下载 JSON 文件
       const json = JSON.stringify(payload, null, 2);
@@ -166,6 +208,8 @@ export default function BackupPage() {
 
       setImportStats(result.stats || {});
       toast("导入完成", "success");
+      // 导入完成后刷新数据库计数，验证导入效果
+      await fetchDbCounts();
     } catch (e: any) {
       console.error("导入失败:", e);
       setImportError(e.message || "导入失败");
@@ -245,6 +289,95 @@ export default function BackupPage() {
             </>
           )}
         </Button>
+      </Card>
+
+      {/* 数据验证区域 */}
+      <Card className="mb-5">
+        <div className="mb-4 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <ShieldCheck className="h-4 w-4 text-cognition" />
+            <h2 className="text-sm font-semibold">数据验证</h2>
+          </div>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={fetchDbCounts}
+            disabled={verifying}
+          >
+            {verifying ? (
+              <>
+                <Loader2 className="h-3 w-3 animate-spin" /> 校验中...
+              </>
+            ) : (
+              <>刷新计数</>
+            )}
+          </Button>
+        </div>
+
+        {verifyError && (
+          <div className="mb-3 rounded-md border border-graveyard/30 bg-graveyard/5 p-2.5 text-xs text-graveyard">
+            {verifyError}
+          </div>
+        )}
+
+        {dbCounts && (
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-7">
+            {TYPE_OPTIONS.map((opt) => {
+              const dbCount = dbCounts[opt.key] ?? 0;
+              const expCount = exportCounts?.[opt.key];
+              const hasExport = exportCounts && expCount !== undefined;
+              const mismatch = hasExport && expCount !== dbCount;
+              return (
+                <div
+                  key={opt.key}
+                  className={cn(
+                    "rounded-lg border p-2.5",
+                    mismatch
+                      ? "border-graveyard/40 bg-graveyard/5"
+                      : hasExport
+                      ? "border-task/40 bg-task/5"
+                      : "border-border bg-muted/30"
+                  )}
+                >
+                  <div className="text-[10px] text-muted-foreground">
+                    {opt.label}
+                  </div>
+                  <div className="text-lg font-bold tabular-nums text-foreground">
+                    {dbCount}
+                  </div>
+                  {hasExport && (
+                    <div className={cn(
+                      "mt-0.5 text-[10px]",
+                      mismatch ? "text-graveyard" : "text-task"
+                    )}>
+                      导出 {expCount}
+                      {mismatch ? " ⚠" : " ✓"}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        {dbCounts && (
+          <div className="mt-3 text-[11px] text-muted-foreground">
+            共 <span className="font-semibold text-foreground">
+              {Object.values(dbCounts).reduce((s, n) => s + n, 0)}
+            </span> 条记录
+            {exportCounts && (
+              <span className="ml-3">
+                导出 <span className="font-semibold text-foreground">
+                  {Object.values(exportCounts).reduce((s, n) => s + n, 0)}
+                </span> 条
+                {Object.values(exportCounts).reduce((s, n) => s + n, 0) ===
+                  Object.values(dbCounts).reduce((s, n) => s + n, 0)
+                  ? " ✓ 数量一致"
+                  : " ⚠ 数量不一致"}
+              </span>
+            )}
+          </div>
+        )}
       </Card>
 
       {/* 导入区域 */}

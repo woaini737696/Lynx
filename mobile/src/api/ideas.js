@@ -1,4 +1,4 @@
-import { get, post, patch } from "./request.js";
+import { get, post, patch, del } from "./request.js";
 
 /** 获取 Inbox 灵感列表 */
 export function getInboxIdeas() {
@@ -24,4 +24,12 @@ export function moveIdeaToBoard(id, column) {
  */
 export function abandonIdea(id, reason, reviveCondition) {
   return patch(`/api/ideas/${id}`, { action: "abandon", reason, reviveCondition });
+}
+
+/**
+ * 批量删除灵感
+ * 后端契约：DELETE /api/ideas { ids: string[] } 返回 { success: true, deleted: count }
+ */
+export function batchDeleteIdeas(ids) {
+  return del("/api/ideas", { ids });
 }
