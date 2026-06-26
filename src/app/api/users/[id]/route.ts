@@ -82,10 +82,19 @@ export async function PATCH(
     }
 
     if (role !== undefined) {
-      const validRoles = ["admin", "editor", "viewer"];
-      if (!validRoles.includes(role)) {
+      // 动态校验 role：查 Role 表是否存在该 name（不再硬编码 admin/editor/viewer）
+      if (typeof role !== "string" || !role.trim()) {
         return NextResponse.json(
-          { error: "角色无效，可选：admin / editor / viewer" },
+          { error: "角色无效" },
+          { status: 400 }
+        );
+      }
+      const roleRecord = await prisma.role.findUnique({
+        where: { name: role },
+      });
+      if (!roleRecord) {
+        return NextResponse.json(
+          { error: "角色无效，请选择有效的角色" },
           { status: 400 }
         );
       }

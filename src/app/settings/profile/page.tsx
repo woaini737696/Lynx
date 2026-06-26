@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { Loader2, Save, User } from "lucide-react";
+import { useEffect, useState, useRef } from "react";
+import { Loader2, Save, User, Upload, X } from "lucide-react";
 import { PageHeader, Card, Button, LoadingState } from "@/components/layout/PageHeader";
+import { HelpButton } from "@/components/layout/HelpButton";
 import { toast } from "@/components/ui/toast";
 
 type UserProfile = {
@@ -30,6 +31,43 @@ export default function ProfileSettingsPage() {
   const [avatarUrl, setAvatarUrl] = useState("");
   const [displayName, setDisplayName] = useState("");
   const [profession, setProfession] = useState("");
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+
+  // 头像上传
+  const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    // 校验类型
+    if (!file.type.startsWith("image/")) {
+      toast("请选择图片文件", "error");
+      return;
+    }
+    // 校验大小（5MB）
+    if (file.size > 5 * 1024 * 1024) {
+      toast("图片不能超过 5MB", "error");
+      return;
+    }
+    setUploadingAvatar(true);
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      const res = await fetch("/api/upload", { method: "POST", body: formData });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || "上传失败");
+      }
+      const data = await res.json();
+      setAvatarUrl(data.url);
+      toast("头像上传成功", "success");
+    } catch (err) {
+      toast((err as Error).message || "上传失败", "error");
+    } finally {
+      setUploadingAvatar(false);
+      // 重置 input 以便重复选同一文件
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  };
 
   useEffect(() => {
     let mounted = true;
@@ -106,10 +144,11 @@ export default function ProfileSettingsPage() {
       <PageHeader
         title="个人资料"
         subtitle="管理你的头像、昵称和职业信息"
+        action={<HelpButton contentKey="settings-profile" />}
       />
 
       <Card className="max-w-2xl">
-        {/* 头像预览 */}
+        {/* 头像预览 + 上传 */}
         <div className="mb-6 flex items-center gap-4">
           {avatarUrl ? (
             // eslint-disable-next-line @next/next/no-img-element
@@ -123,12 +162,48 @@ export default function ProfileSettingsPage() {
               {previewInitial}
             </span>
           )}
-          <div>
+          <div className="flex-1">
             <div className="text-sm font-medium text-foreground">
               {displayName || profile.username}
             </div>
             <div className="text-xs text-muted-foreground">
               {ROLE_LABELS[profile.role] || profile.role}
+            </div>
+            <div className="mt-2 flex items-center gap-2">
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/jpeg,image/png,image/gif,image/webp"
+                onChange={handleAvatarUpload}
+                className="hidden"
+              />
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={uploadingAvatar}
+                className="text-xs"
+              >
+                  {uploadingAvatar ? (
+                    <Loader2 className="mr-1 h-3 w-3 animate-spin" />
+                  ) : (
+                    <Upload className="mr-1 h-3 w-3" />
+                  )}
+                  {uploadingAvatar ? "上传中..." : "上传头像"}
+              </Button>
+              {avatarUrl && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setAvatarUrl("")}
+                  className="text-xs"
+                >
+                  <X className="mr-1 h-3 w-3" />
+                  清除
+                </Button>
+              )}
             </div>
           </div>
         </div>

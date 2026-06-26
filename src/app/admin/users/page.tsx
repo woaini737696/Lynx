@@ -17,15 +17,18 @@ import {
   Button,
   LoadingState,
 } from "@/components/layout/PageHeader";
+import { HelpButton } from "@/components/layout/HelpButton";
 import { toast } from "@/components/ui/toast";
 import { SearchInput, FilterSelect, Pagination, useClientPagination } from "@/components/ui/ListControls";
+import { PROFESSION_ICON_MAP } from "@/lib/permissions";
 
 type User = {
   id: string;
   username: string;
   email: string | null;
   displayName: string;
-  role: string; // admin | editor | viewer
+  role: string;
+  profession?: string | null;
   active: boolean;
   createdAt: string;
 };
@@ -34,6 +37,14 @@ type CurrentUser = {
   id: string;
   role: string;
 } | null;
+
+// 角色选项（从 /api/admin/roles 动态拉取）
+type RoleOption = {
+  id: string;
+  name: string;
+  displayName: string;
+  profession?: string | null;
+};
 
 type FormData = {
   username: string;
@@ -49,12 +60,13 @@ const EMPTY_FORM: FormData = {
   password: "",
   email: "",
   displayName: "",
-  role: "viewer",
+  role: "",
   active: true,
 };
 
 export default function UsersPage() {
   const [users, setUsers] = useState<User[]>([]);
+  const [roles, setRoles] = useState<RoleOption[]>([]);
   const [currentUser, setCurrentUser] = useState<CurrentUser>(null);
   const [loading, setLoading] = useState(true);
   const [modalMode, setModalMode] = useState<"create" | "edit" | null>(null);
@@ -65,18 +77,47 @@ export default function UsersPage() {
   const [deleting, setDeleting] = useState(false);
 
   const [searchQuery, setSearchQuery] = useState("");
-  const [filterRole, setFilterRole] = useState<"all" | "admin" | "editor" | "viewer">("all");
+  // 筛选角色：动态拉取，"all" 表示全部
+  const [filterRole, setFilterRole] = useState<string>("all");
 
-  // 加载用户列表和当前用户
+  // 角色 name → RoleOption 映射，便于展示 displayName 与 profession 图标
+  const roleMap = useMemo(() => {
+    const m = new Map<string, RoleOption>();
+    roles.forEach((r) => m.set(r.name, r));
+    return m;
+  }, [roles]);
+
+  // 拼接角色选项的展示文本：绑定了职业则显示"职业图标 + displayName"，否则"displayName (name)"
+  const formatRoleLabel = useCallback((r: RoleOption): string => {
+    if (r.profession && PROFESSION_ICON_MAP[r.profession]) {
+      return `${PROFESSION_ICON_MAP[r.profession]} ${r.displayName}`;
+    }
+    return `${r.displayName} (${r.name})`;
+  }, []);
+
+  // 筛选器角色选项（动态）
+  const filterOptions = useMemo(() => {
+    return [
+      { value: "all", label: "全部角色" },
+      ...roles.map((r) => ({ value: r.name, label: formatRoleLabel(r) })),
+    ];
+  }, [roles, formatRoleLabel]);
+
+  // 加载用户列表、角色列表和当前用户
   const load = useCallback(async () => {
     try {
-      const [usersRes, sessionRes] = await Promise.all([
+      const [usersRes, sessionRes, rolesRes] = await Promise.all([
         fetch("/api/users"),
         fetch("/api/auth/session"),
+        fetch("/api/admin/roles"),
       ]);
       if (usersRes.ok) {
         const data = await usersRes.json();
         setUsers(data.users || []);
+      }
+      if (rolesRes.ok) {
+        const data = await rolesRes.json();
+        setRoles(data.roles || []);
       }
       if (sessionRes.ok) {
         const session = await sessionRes.json();
@@ -99,9 +140,12 @@ export default function UsersPage() {
     load();
   }, [load]);
 
-  // 打开创建弹窗
+  // 打开创建弹窗（默认选第一个角色，避免空值）
   const openCreate = () => {
-    setForm(EMPTY_FORM);
+    setForm({
+      ...EMPTY_FORM,
+      role: roles[0]?.name || "",
+    });
     setEditingId(null);
     setModalMode("create");
   };
@@ -228,10 +272,13 @@ export default function UsersPage() {
         title="用户管理"
         subtitle="管理系统用户账户与权限"
         action={
-          <Button onClick={openCreate}>
-            <Plus className="h-3.5 w-3.5" />
-            创建用户
-          </Button>
+          <div className="flex flex-wrap items-center gap-2">
+            <Button onClick={openCreate}>
+              <Plus className="h-3.5 w-3.5" />
+              创建用户
+            </Button>
+            <HelpButton contentKey="admin-users" />
+          </div>
         }
       />
 
@@ -241,12 +288,7 @@ export default function UsersPage() {
         <FilterSelect
           value={filterRole}
           onChange={setFilterRole}
-          options={[
-            { value: "all", label: "全部角色" },
-            { value: "admin", label: "管理员" },
-            { value: "editor", label: "编辑者" },
-            { value: "viewer", label: "访客" },
-          ]}
+          options={filterOptions}
         />
       </div>
 
@@ -309,7 +351,7 @@ export default function UsersPage() {
                       {user.email || "-"}
                     </td>
                     <td className="px-4 py-3">
-                      <RoleBadge role={user.role} />
+                      <RoleBadge role={user.role} roleMap={roleMap} />
                     </td>
                     <td className="px-4 py-3">
                       {user.active ? (
@@ -478,31 +520,23 @@ export default function UsersPage() {
                 />
               </div>
 
-              {/* 角色 */}
+              {/* 角色（动态拉取，下拉选择） */}
               <div className="space-y-1.5">
                 <label className="text-xs font-medium text-foreground">
                   角色
                 </label>
-                <div className="grid grid-cols-3 gap-2">
-                  {(["admin", "editor", "viewer"] as const).map((r) => (
-                    <button
-                      key={r}
-                      type="button"
-                      onClick={() => setForm({ ...form, role: r })}
-                      className={`rounded-xl border px-3 py-2 text-xs font-medium transition-all ${
-                        form.role === r
-                          ? r === "admin"
-                            ? "border-graveyard/40 bg-graveyard/10 text-graveyard"
-                            : r === "editor"
-                              ? "border-campaign/40 bg-campaign/10 text-campaign"
-                              : "border-border bg-muted text-muted-foreground"
-                          : "border-border bg-transparent text-muted-foreground hover:bg-muted"
-                      }`}
-                    >
-                      <RoleLabel role={r} />
-                    </button>
+                <select
+                  value={form.role}
+                  onChange={(e) => setForm({ ...form, role: e.target.value })}
+                  className="w-full rounded-xl border border-border bg-background/50 px-3 py-2 text-sm text-foreground transition-colors focus:border-northstar/50 focus:outline-none focus:ring-2 focus:ring-northstar/20"
+                >
+                  {roles.length === 0 && <option value="">暂无可用角色</option>}
+                  {roles.map((r) => (
+                    <option key={r.name} value={r.name}>
+                      {formatRoleLabel(r)}
+                    </option>
                   ))}
-                </div>
+                </select>
               </div>
 
               {/* 状态（仅编辑模式） */}
@@ -610,32 +644,26 @@ export default function UsersPage() {
   );
 }
 
-// 角色标签
-function RoleBadge({ role }: { role: string }) {
-  const styles: Record<string, string> = {
-    admin: "bg-graveyard/10 text-graveyard border-graveyard/20",
-    editor: "bg-campaign/10 text-campaign border-campaign/20",
-    viewer: "bg-muted text-muted-foreground border-border",
-  };
+// 角色标签（动态：从 roleMap 查找 displayName 与 profession 图标）
+function RoleBadge({
+  role,
+  roleMap,
+}: {
+  role: string;
+  roleMap: Map<string, RoleOption>;
+}) {
+  const roleOpt = roleMap.get(role);
+  const displayName = roleOpt?.displayName || role;
+  const profession = roleOpt?.profession;
+  const icon = profession ? PROFESSION_ICON_MAP[profession] : undefined;
+
   return (
-    <span
-      className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-[11px] font-medium ${
-        styles[role] || styles.viewer
-      }`}
-    >
+    <span className="inline-flex items-center rounded-full border border-border bg-muted/40 px-2.5 py-0.5 text-[11px] font-medium text-foreground/80">
       {role === "admin" && <Shield className="mr-1 h-2.5 w-2.5" />}
-      <RoleLabel role={role} />
+      {icon && <span className="mr-1">{icon}</span>}
+      {displayName}
     </span>
   );
-}
-
-function RoleLabel({ role }: { role: string }) {
-  const labels: Record<string, string> = {
-    admin: "管理员",
-    editor: "编辑者",
-    viewer: "访客",
-  };
-  return <>{labels[role] || role}</>;
 }
 
 // 格式化日期

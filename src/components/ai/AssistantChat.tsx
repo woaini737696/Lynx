@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, useCallback } from "react";
+import { createPortal } from "react-dom";
 import {
   Send,
   Loader2,
@@ -833,6 +834,19 @@ export function AssistantChat({ onClose }: AssistantChatProps = {}) {
   // 技能下拉菜单状态
   const [showSkillMenu, setShowSkillMenu] = useState(false);
   const skillMenuRef = useRef<HTMLDivElement | null>(null);
+  const skillButtonRef = useRef<HTMLButtonElement | null>(null);
+  const [skillMenuPos, setSkillMenuPos] = useState<{ top: number; left: number }>({ top: 0, left: 0 });
+
+  // 打开技能菜单时计算位置（portal 渲染到 body，避免被 overflow-hidden 裁剪）
+  const openSkillMenu = useCallback(() => {
+    const btn = skillButtonRef.current;
+    if (btn) {
+      const rect = btn.getBoundingClientRect();
+      // 菜单向上弹出，宽度 224px (w-56)
+      setSkillMenuPos({ top: rect.top - 8, left: rect.left });
+    }
+    setShowSkillMenu(true);
+  }, []);
 
   // 点击外部关闭技能下拉
   useEffect(() => {
@@ -1181,8 +1195,15 @@ export function AssistantChat({ onClose }: AssistantChatProps = {}) {
             {/* 「技能」下拉：点击展开所有 6 个快捷技能，选中后填入输入框 */}
             <div ref={skillMenuRef} className="relative shrink-0">
               <button
+                ref={skillButtonRef}
                 type="button"
-                onClick={() => setShowSkillMenu((v) => !v)}
+                onClick={() => {
+                  if (showSkillMenu) {
+                    setShowSkillMenu(false);
+                  } else {
+                    openSkillMenu();
+                  }
+                }}
                 disabled={sending}
                 title="选择技能填入输入框"
                 aria-label="选择技能"
@@ -1194,8 +1215,11 @@ export function AssistantChat({ onClose }: AssistantChatProps = {}) {
                   className={`h-3 w-3 transition-transform ${showSkillMenu ? "rotate-180" : ""}`}
                 />
               </button>
-              {showSkillMenu && (
-                <div className="absolute bottom-full left-0 z-50 mb-1 w-56 max-h-72 overflow-hidden rounded-lg border border-border bg-card shadow-lg">
+              {showSkillMenu && createPortal(
+                <div
+                  className="fixed z-[9999] w-56 max-h-72 overflow-hidden rounded-lg border border-border bg-card shadow-xl"
+                  style={{ top: `${skillMenuPos.top}px`, left: `${skillMenuPos.left}px`, transform: "translateY(-100%)" }}
+                >
                   <div className="border-b border-border px-2 py-1.5">
                     <span className="text-[10px] font-medium text-muted-foreground">
                       选择技能（点击填入输入框）
@@ -1224,7 +1248,8 @@ export function AssistantChat({ onClose }: AssistantChatProps = {}) {
                       </button>
                     ))}
                   </div>
-                </div>
+                </div>,
+                document.body
               )}
             </div>
             {visibleQuickCommands.map((cmd, i) => (
