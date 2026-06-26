@@ -49,7 +49,6 @@ class FocusViewModel @Inject constructor(
 
     fun toggleTask(task: FocusTaskDto) {
         val newCompleted = !task.completed
-        // 乐观更新
         _uiState.value = _uiState.value.copy(
             tasks = _uiState.value.tasks.map {
                 if (it.id == task.id) it.copy(completed = newCompleted) else it
@@ -59,12 +58,50 @@ class FocusViewModel @Inject constructor(
             try {
                 apiService.patchFocus(task.id, FocusPatchRequest(completed = newCompleted))
             } catch (e: Exception) {
-                // 回滚
                 _uiState.value = _uiState.value.copy(
                     tasks = _uiState.value.tasks.map {
                         if (it.id == task.id) it.copy(completed = !newCompleted) else it
                     },
                     error = "操作失败"
+                )
+            }
+        }
+    }
+
+    fun addTask(content: String) {
+        val tempId = System.currentTimeMillis().toString()
+        val newTask = FocusTaskDto(id = tempId, content = content, completed = false)
+        _uiState.value = _uiState.value.copy(
+            tasks = listOf(newTask) + _uiState.value.tasks
+        )
+        viewModelScope.launch {
+            try {
+                val response = apiService.createFocus(mapOf("content" to content))
+                _uiState.value = _uiState.value.copy(
+                    tasks = _uiState.value.tasks.map {
+                        if (it.id == tempId) response else it
+                    }
+                )
+            } catch (e: Exception) {
+                _uiState.value = _uiState.value.copy(
+                    tasks = _uiState.value.tasks.filterNot { it.id == tempId },
+                    error = "添加失败"
+                )
+            }
+        }
+    }
+
+    fun deleteTask(task: FocusTaskDto) {
+        _uiState.value = _uiState.value.copy(
+            tasks = _uiState.value.tasks.filterNot { it.id == task.id }
+        )
+        viewModelScope.launch {
+            try {
+                apiService.deleteFocus(task.id)
+            } catch (e: Exception) {
+                _uiState.value = _uiState.value.copy(
+                    tasks = listOf(task) + _uiState.value.tasks,
+                    error = "删除失败"
                 )
             }
         }

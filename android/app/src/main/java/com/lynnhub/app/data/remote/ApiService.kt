@@ -24,11 +24,17 @@ interface ApiService {
     @GET("api/focus")
     suspend fun getFocus(): FocusResponse
 
+    @POST("api/focus")
+    suspend fun createFocus(@Body body: Map<String, String>): FocusTaskDto
+
     @PATCH("api/focus/{id}")
     suspend fun patchFocus(
         @Path("id") id: String,
         @Body body: FocusPatchRequest
     ): SuccessResponse
+
+    @DELETE("api/focus/{id}")
+    suspend fun deleteFocus(@Path("id") id: String): SuccessResponse
 
     // ============ Tasks (看板) ============
     @GET("api/tasks")

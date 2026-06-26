@@ -3,6 +3,7 @@ package com.lynnhub.app.ui.screen.focus
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
@@ -25,6 +26,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
@@ -505,7 +507,7 @@ private fun FocusBottomBar(
 @Composable
 private fun EmptyFocus() {
     var isVisible by remember { mutableStateOf(false) }
-    val alpha by animateFloatAsState(
+    val emptyAlpha by animateFloatAsState(
         targetValue = if (isVisible) 1f else 0f,
         animationSpec = tween(durationMillis = 500),
         label = "emptyAlpha"
@@ -525,7 +527,7 @@ private fun EmptyFocus() {
             .fillMaxSize()
             .padding(bottom = 100.dp)
             .graphicsLayer {
-                alpha = alpha
+                alpha = emptyAlpha
                 translationY = offsetY
             },
         contentAlignment = Alignment.Center

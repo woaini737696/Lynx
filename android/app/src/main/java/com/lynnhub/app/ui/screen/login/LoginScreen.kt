@@ -341,7 +341,7 @@ private fun UsernameInput(
             onValueChange = { if (it.length <= 20) onValueChange(it) },
             modifier = Modifier
                 .fillMaxWidth()
-                .onFocusChanged { isFocused = it; onFocusChanged(it.isFocused) },
+                .onFocusChanged { focusState -> isFocused = focusState.isFocused; onFocusChanged(focusState.isFocused) },
             placeholder = {
                 Text(
                     "请输入用户名",
@@ -414,7 +414,7 @@ private fun PasswordInput(
             onValueChange = { if (it.length <= 30) onValueChange(it) },
             modifier = Modifier
                 .fillMaxWidth()
-                .onFocusChanged { isFocused = it; onFocusChanged(it.isFocused) },
+                .onFocusChanged { focusState -> isFocused = focusState.isFocused; onFocusChanged(focusState.isFocused) },
             placeholder = { Text("请输入密码") },
             leadingIcon = {
                 Icon(
@@ -465,7 +465,6 @@ private fun ChargeBar(progress: Float, isFocused: Boolean) {
             .fillMaxWidth()
             .height(3.dp)
             .padding(horizontal = 20.dp)
-            .align(Alignment.BottomCenter)
     ) {
         Box(
             modifier = Modifier

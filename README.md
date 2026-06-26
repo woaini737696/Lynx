@@ -132,6 +132,30 @@ src/
     └── schema.prisma       # 数据库模型
 ```
 
+## 开发规范
+
+### 磁盘空间规范（强制执行）
+
+**禁止将项目相关文件存放在 C 盘**，所有内容必须放在 D 盘。每次操作前务必遵守。
+
+| 类别 | 路径 | 说明 |
+|------|------|------|
+| 项目代码 | `D:\Lynn工作空间\LynnHub` | 项目根目录 |
+| Android SDK | `D:\Android\Sdk` | Android 开发工具包 |
+| Gradle 缓存 | `D:\AndroidCache\.gradle` | Gradle wrapper、依赖缓存等 |
+| Android AVD | `D:\AndroidCache\.android\avd` | 安卓模拟器镜像 |
+| 其他缓存 | `D:\AndroidCache\` | 统一放在此目录下 |
+
+**环境变量配置**（已设置）：
+- `GRADLE_USER_HOME=D:\AndroidCache\.gradle`
+- `ANDROID_AVD_HOME=D:\AndroidCache\.android\avd`
+- `ANDROID_HOME=D:\Android\Sdk`
+
+**项目配置**：
+- `android/gradle.properties` 中已设置 `org.gradle.user.home=D:\\AndroidCache\\.gradle`
+
+> 注意：`.trae-cn`（IDE配置）等系统级目录不受此限制。
+
 ## 常用命令
 
 ```bash
