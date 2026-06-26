@@ -59,6 +59,18 @@ export function AssistantGlobalEntry() {
 
   const close = useCallback(() => setOpen(false), []);
 
+  // 检测到未登录时立即弹窗引导（排除登录/注册页，避免在登录页本身弹窗）
+  useEffect(() => {
+    if (
+      authChecked &&
+      !isLoggedIn &&
+      pathname !== "/login" &&
+      pathname !== "/register"
+    ) {
+      setShowLoginModal(true);
+    }
+  }, [authChecked, isLoggedIn, pathname]);
+
   // Alt+J 唤出/收起（也要检查登录状态）
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {

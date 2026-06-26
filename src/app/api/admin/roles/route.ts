@@ -1,0 +1,155 @@
+import { NextRequest, NextResponse } from "next/server";
+import { prisma } from "@/lib/db";
+import { requireAdmin } from "@/lib/auth-utils";
+import { getLogger } from "@/lib/logger";
+import {
+  DEFAULT_ROLES,
+  PERMISSION_CATALOG,
+  isValidPermissionKey,
+} from "@/lib/permissions";
+
+const logger = getLogger("roles-api");
+
+// 角色 name → 用户数映射
+async function countUsersByRole(): Promise<Record<string, number>> {
+  const rows = await prisma.user.groupBy({
+    by: ["role"],
+    _count: { _all: true },
+  });
+  const map: Record<string, number> = {};
+  for (const r of rows) {
+    map[r.role] = r._count._all;
+  }
+  return map;
+}
+
+// 从数据库读取角色，若表为空则写入默认角色
+async function getOrCreateRoles() {
+  let roles = await prisma.role.findMany({
+    orderBy: [{ createdAt: "asc" }],
+  });
+
+  // 首次访问：表为空，写入默认角色
+  if (roles.length === 0) {
+    await prisma.role.createMany({
+      data: DEFAULT_ROLES.map((r) => ({
+        name: r.name,
+        displayName: r.displayName,
+        description: r.description,
+        permissions: r.permissions,
+        isSystem: r.isSystem,
+      })),
+    });
+    roles = await prisma.role.findMany({
+      orderBy: [{ createdAt: "asc" }],
+    });
+  }
+
+  return roles;
+}
+
+// GET /api/admin/roles - 返回所有角色及其权限配置
+export async function GET() {
+  try {
+    const auth = await requireAdmin();
+    if (auth.user === null) return auth.error;
+
+    const roles = await getOrCreateRoles();
+    const userCounts = await countUsersByRole();
+
+    const result = roles.map((r) => ({
+      id: r.id,
+      name: r.name,
+      displayName: r.displayName,
+      description: r.description,
+      permissions: r.permissions as string[],
+      isSystem: r.isSystem,
+      userCount: userCounts[r.name] || 0,
+    }));
+
+    return NextResponse.json({
+      roles: result,
+      permissions: PERMISSION_CATALOG,
+    });
+  } catch (e) {
+    logger.error({ err: e }, "获取角色列表失败");
+    return NextResponse.json({ error: "服务器错误" }, { status: 500 });
+  }
+}
+
+// PUT /api/admin/roles - 更新角色权限/描述（仅 admin）
+// body: { name: string, description?: string, permissions?: string[] }
+export async function PUT(req: NextRequest) {
+  try {
+    const auth = await requireAdmin();
+    if (auth.user === null) return auth.error;
+
+    const body = await req.json().catch(() => ({}));
+    const { name, description, permissions } = body;
+
+    if (!name || typeof name !== "string") {
+      return NextResponse.json({ error: "角色 name 不能为空" }, { status: 400 });
+    }
+
+    // 查找角色
+    const existing = await prisma.role.findUnique({ where: { name } });
+    if (!existing) {
+      return NextResponse.json({ error: "角色不存在" }, { status: 404 });
+    }
+
+    const data: Record<string, unknown> = {};
+
+    // 更新描述
+    if (description !== undefined) {
+      if (typeof description !== "string") {
+        return NextResponse.json({ error: "description 必须为字符串" }, { status: 400 });
+      }
+      data.description = description.trim();
+    }
+
+    // 更新权限
+    if (permissions !== undefined) {
+      if (!Array.isArray(permissions)) {
+        return NextResponse.json({ error: "permissions 必须为数组" }, { status: 400 });
+      }
+      // 校验每个权限 key
+      const invalid = permissions.filter(
+        (k: unknown) => typeof k !== "string" || !isValidPermissionKey(k as string)
+      );
+      if (invalid.length > 0) {
+        return NextResponse.json(
+          { error: `存在非法权限 key: ${invalid.join(", ")}` },
+          { status: 400 }
+        );
+      }
+      // 去重
+      data.permissions = Array.from(new Set(permissions as string[]));
+    }
+
+    if (Object.keys(data).length === 0) {
+      return NextResponse.json({ error: "没有需要更新的字段" }, { status: 400 });
+    }
+
+    const updated = await prisma.role.update({
+      where: { name },
+      data: data as never,
+      select: {
+        id: true,
+        name: true,
+        displayName: true,
+        description: true,
+        permissions: true,
+        isSystem: true,
+        updatedAt: true,
+      },
+    });
+
+    return NextResponse.json({ role: updated, success: true });
+  } catch (e) {
+    logger.error({ err: e }, "更新角色失败");
+    return NextResponse.json(
+      { error: "服务器错误：" + (e as Error).message },
+      { status: 500 }
+    );
+  }
+}

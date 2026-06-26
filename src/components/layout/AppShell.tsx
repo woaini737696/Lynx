@@ -32,6 +32,8 @@ const PAGE_TITLE_MAP: Record<string, string> = {
   "/settings/diagnostics": "性能监控",
   "/settings/backup": "数据备份",
   "/dev-log": "开发日志",
+  "/admin/users": "用户管理",
+  "/admin/roles": "角色管理",
 };
 
 function getPageTitle(pathname: string): string {

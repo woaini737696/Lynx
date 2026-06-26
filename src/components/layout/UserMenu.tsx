@@ -109,11 +109,14 @@ export function UserMenu() {
   const hasAvatar = !!user.avatarUrl;
 
   return (
-    <div ref={menuRef} className="relative">
+    <div
+      ref={menuRef}
+      className="relative"
+      onMouseEnter={() => setOpen(true)}
+      onMouseLeave={() => setOpen(false)}
+    >
       <button
         type="button"
-        onClick={() => setOpen((v) => !v)}
-        onMouseEnter={() => setOpen(true)}
         className="flex items-center gap-2 rounded-full border border-transparent py-1 pl-1 pr-2 transition-colors hover:border-border hover:bg-muted/60"
         aria-label="用户菜单"
         aria-expanded={open}
@@ -137,7 +140,6 @@ export function UserMenu() {
 
       {open && (
         <div
-          onMouseLeave={() => setOpen(false)}
           className="absolute right-0 mt-2 w-48 rounded-md border border-border bg-popover shadow-lg"
         >
           <button

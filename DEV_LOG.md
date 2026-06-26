@@ -5,6 +5,58 @@
 
 ---
 
+## 迭代 32 - 2026-06-26
+
+### 任务概要
+极简聊天抽屉深度增强+输入区固定+旧分类迁移+用户菜单/未登录 bug 修复+角色管理独立菜单。
+
+### 完成内容
+
+#### 1. 极简聊天抽屉深度增强
+- **`src/components/ai/AssistantChat.tsx`** 重写增强：
+  - 同步 AI 头像/名称（从 `/api/ai/settings` 拉取 assistantName/assistantAvatar/avatarUrl），header 显示头像+名称，AI 气泡前小头像
+  - 全双工语音实时沟通（复用 VoiceVAD/StreamASR/StreamTTS/BackchannelPlayer），Phone 接通/PhoneOff 挂断，状态条显示聆听/说话/AI回复，用户开口打断 TTS，浏览器不支持回退文本
+  - 输入框上方快捷技能（QUICK_COMMANDS 横向滚动按钮，点击直接发送）
+  - ModelSwitcher 模型切换（deepseek/mimo/auto），发送时带 provider
+  - 布局：header(shrink-0) + 消息区(flex-1 overflow-y-auto) + 快捷技能(shrink-0) + 输入区(shrink-0 固定底部)
+  - 用 ref 避免 stale closure，抽出 readChatStream 复用 SSE 解析
+- **`src/components/ai/AssistantDrawer.tsx`** 精简：移除自带 header（AssistantChat 自带），传 onClose 渲染关闭按钮
+
+#### 2. AI 助理完整页输入区固定（已满足）
+- `src/app/ai/assistant/page.tsx` 已是 `flex h-[calc(100vh-3.5rem)] flex-col` + header(sticky) + 消息区(flex-1 overflow-y-auto) + 输入区(shrink-0 border-t) 结构，输入区已固定底部
+
+#### 3. 旧 category 迁移脚本
+- **`scripts/migrate-skill-categories.ts`**（新建）：general→custom、report/review/product→pm、knowledge→creator、meeting→project、finance 保持
+- 运行结果：finance 5 条更新（同值），其余旧分类已无数据，迁移后 60 条技能全部为新岗位分类
+
+#### 4. 修复用户头像菜单 bug
+- **`src/components/layout/UserMenu.tsx`**：根因是 onClick 切换与 onMouseEnter 冲突 + onMouseLeave 未覆盖整体。改为纯 hover 模式（onMouseEnter/onMouseLeave 绑定在外层 menuRef 容器，覆盖按钮+菜单整体），移除 onClick 切换，保留点击外部关闭兜底
+
+#### 5. 修复未登录立即弹窗引导 bug
+- **`src/components/ai/AssistantGlobalEntry.tsx`**：新增 useEffect，检测到 `authChecked && !isLoggedIn && pathname 非 /login、/register` 时立即 setShowLoginModal(true)，无需等用户点击
+
+#### 6. 角色管理+用户管理独立一级菜单
+- **`prisma/schema.prisma`**：新增 Role 模型（id/name/displayName/description/permissions JSON/isSystem）
+- **`src/lib/permissions.ts`**（新建）：10 项权限目录 + 3 个默认角色定义（admin 10 权限/editor 7 权限/viewer 2 权限）
+- **`prisma/seed-roles.ts`**（新建）：upsert 初始化 3 个默认角色，运行成功
+- **`src/app/admin/users/page.tsx`**（新建）：从 settings/users 迁移，功能不变
+- **`src/app/admin/roles/page.tsx`**（新建）：角色卡片列表+权限编辑弹窗（仅 admin）
+- **`src/app/api/admin/roles/route.ts`**（新建）：GET 返回角色+权限+用户数，PUT 更新（requireAdmin）
+- **`src/app/settings/users/page.tsx`**：改为 `redirect("/admin/users")`
+- **`src/components/layout/Sidebar.tsx`**：新增"管理"一级菜单（用户管理+角色管理），从"系统"分组移除用户管理
+- **`src/components/layout/AppShell.tsx`**：PAGE_TITLE_MAP 新增 /admin/users、/admin/roles
+
+### 自测结果
+- TypeScript 编译：`npx tsc --noEmit` 通过（exit 0）
+- Prisma db push + generate 成功（Role 表创建）
+- 旧分类迁移脚本运行成功
+- 角色 seed 成功（3 个角色入库）
+
+### Commit
+`（待提交后填写）`
+
+---
+
 ## 迭代 31 - 2026-06-26
 
 ### 任务概要

@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect } from "react";
-import { X, Bot } from "lucide-react";
 import { AssistantChat } from "./AssistantChat";
 
 export interface AssistantDrawerProps {
@@ -15,7 +14,7 @@ export interface AssistantDrawerProps {
  * AI 助理抽屉面板
  * - 右侧滑入/滑出（transition-transform duration-200 ease-out）
  * - 桌面端 40% 宽度（min 400 / max 600），移动端全屏
- * - 内容区使用极简 AssistantChat 组件（无 iframe 加载延迟）
+ * - 内容区使用增强版 AssistantChat 组件（自带 header / 模型切换 / 语音通话 / 快捷技能）
  * - 桌面端：透明点击层，点击空白处收回（不遮挡主内容操作）
  * - 移动端：半透明遮罩（bg-black/20）点击关闭
  * - Esc 键关闭
@@ -51,7 +50,7 @@ export function AssistantDrawer({ open, onClose }: AssistantDrawerProps) {
         }`}
       />
 
-      {/* 抽屉面板 */}
+      {/* 抽屉面板：AssistantChat 自带 header（头像+名称+ModelSwitcher+语音按钮+关闭） */}
       <aside
         role="dialog"
         aria-label="AI 助理"
@@ -60,27 +59,9 @@ export function AssistantDrawer({ open, onClose }: AssistantDrawerProps) {
           open ? "translate-x-0" : "translate-x-full"
         }`}
       >
-        {/* Header */}
-        <header className="flex items-center justify-between border-b border-border bg-background px-4 py-3">
-          <div className="flex items-center gap-2">
-            <span className="flex h-7 w-7 items-center justify-center rounded-full bg-primary text-primary-foreground">
-              <Bot className="h-4 w-4" />
-            </span>
-            <h2 className="text-sm font-semibold text-foreground">AI 助理</h2>
-          </div>
-          <button
-            type="button"
-            onClick={onClose}
-            aria-label="关闭"
-            className="rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-          >
-            <X className="h-4 w-4" />
-          </button>
-        </header>
-
-        {/* 内容区：极简聊天组件 */}
-        <div className="relative flex-1 overflow-hidden bg-background">
-          <AssistantChat />
+        {/* 内容区：AssistantChat 占满高度，自带 header + 消息区 + 快捷技能 + 输入区 */}
+        <div className="min-h-0 flex-1 overflow-hidden">
+          <AssistantChat onClose={onClose} />
         </div>
       </aside>
     </>
