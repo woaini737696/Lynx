@@ -1,10 +1,15 @@
 import { test, expect } from "@playwright/test";
+import { cleanupTestData } from "./helpers/auth";
 
 /**
  * 看板流程 E2E 测试
  * 依赖 globalSetup 提供的 storageState（已登录状态）
  */
 test.describe("看板流程", () => {
+  test.afterEach(async ({ request }) => {
+    await cleanupTestData(request, ["E2E"]);
+  });
+
   test("访问 /board 页面应正常加载并显示三列看板", async ({ page }) => {
     await page.goto("/board");
     await expect(page).toHaveTitle(/LynnHub/);

@@ -5,6 +5,60 @@
 
 ---
 
+## 迭代 30 - 2026-06-26
+
+### 任务概要
+数据持久化与全双工语音升级 4 大任务：(1) 飞书机器人配置从 localStorage 迁移到数据库持久化；(2) e2e 脏数据清理 + 编码规范（清理脚本 + afterEach 自动清理 + DEVELOPMENT_SPEC 新增 2 节）；(3) AI 助理全局悬浮入口（右下角悬浮按钮 + 右侧抽屉 + Alt+J 快捷键）；(4) 全双工语音重写（Soul 级别：流式 ASR 边说边理解 + VAD 说完判定 + 流式 TTS + 后缀音反馈 + 主动打断 + stale closure 修复）。
+
+### 完成内容
+
+#### 1. 飞书机器人配置持久化到数据库
+- **`prisma/schema.prisma`**：AISetting 模型新增 `larkWebhookUrl String? @db.VarChar(500)` 和 `larkWebhookToken String? @db.VarChar(255)` 字段，`npx prisma db push` 同步成功。
+- **`src/app/api/ai/settings/route.ts`**：PUT 方法新增 `larkWebhookUrl` / `larkWebhookToken` 到 allowedFields，支持传 null 清空或字符串更新，按字段名限制长度。
+- **`src/app/settings/lark-bot/page.tsx`**：删除 localStorage 常量改为 `LEGACY_*` 仅用于迁移；页面加载 GET `/api/ai/settings` 拉取配置；保存 PUT 到数据库；**首次加载迁移逻辑**：检测 localStorage 旧 key → PUT 到数据库 → removeItem 清除 → toast 提示"已迁移旧配置到数据库"。
+- **`src/app/api/lark-bot/test/route.ts`**：`webhookUrl` 改为可选参数，前端未传时从数据库 AISetting 读取兜底。
+- **`src/lib/hermes-client.ts`**：新增 `pushToLarkWebhook(text)` helper（从 AISetting 读取 webhook，含签名校验）；`generateProactiveReport` 和 `executeCronJobViaAssistant` 的飞书推送从 `runLarkCliService` 改为调用 `pushToLarkWebhook`。
+
+#### 2. e2e 脏数据清理 + 规范
+- **`scripts/cleanup-e2e-data.ts`**（新建）：按 content 前缀（`E2E` / `E2E测试` / `测试灵感`）清理 Idea/Task/Memory/Cognition/Graveyard 表，含关联 Memory 清理，输出清理数量统计。运行结果：当前数据库无脏数据（0 条）。
+- **`e2e/helpers/auth.ts`**：新增 `cleanupTestData(request, prefixes)` 辅助函数，通过 API 搜索前缀匹配数据并删除（Idea/Task/Memory 逐个 DELETE，Cognition 无 DELETE API 输出警告由脚本兜底）。
+- **5 个 `e2e/*.spec.ts`**（idea-flow / board-flow / search-flow / backup-flow / auth-flow）：全部新增 `test.afterEach` 调用 `cleanupTestData(request, ["E2E"])`。
+- **`DEVELOPMENT_SPEC.md`**：新增 §1.5 数据持久化规范（强制）+ §1.6 自测数据清理规范（强制）。
+- **`package.json`**：新增 `dotenv` devDependency（清理脚本需要 `import "dotenv/config"`）。
+
+#### 3. AI 助理全局悬浮入口
+- **`src/components/ai/AssistantFloatingButton.tsx`**（新建）：右下角 `fixed bottom-6 right-6 z-40` 圆形悬浮按钮，橙色主题 `bg-primary`，hover scale-105，hover 显示"Alt+J"快捷键标签，无障碍 aria-label。
+- **`src/components/ai/AssistantDrawer.tsx`**（新建）：右侧抽屉桌面端 `md:w-[40%] md:min-w-[400px] md:max-w-[600px]`，移动端全屏；iframe 加载 `/ai/assistant` 保持功能完整；滑入动画 `transition-transform duration-300`；移动端遮罩 `bg-black/20`，桌面端无遮罩；Esc 键关闭；iframe 首次打开后才挂载避免重复加载。
+- **`src/components/ai/AssistantGlobalEntry.tsx`**（新建）：组合组件，`useState` 管理 open，`usePathname` 检测 `/ai/assistant` 路径不渲染悬浮按钮，`useEffect` 监听 `Alt+J` 快捷键唤出/收起。
+- **`src/app/layout.tsx`**：在 body 内挂载 `<AssistantGlobalEntry />`。
+
+#### 4. 全双工语音重写（Soul 级别）
+- **`src/lib/voice-vad.ts`**（新建）：VAD 引擎封装，requestAnimationFrame 循环分析频谱音量，阈值 SPEECH_THRESHOLD=0.05 / SILENCE_DURATION_MS=1500（说完判定）/ SHORT_PAUSE_MS=200（短停顿）/ MAX_SPEECH_MS=15000（主动打断），回调 onSpeechStart/onSpeechEnd/onShortPause/onVolumeChange。
+- **`src/lib/voice-asr-stream.ts`**（新建）：流式 ASR 封装 Web Speech API `SpeechRecognition`（continuous=true + interimResults=true，lang=zh-CN），`onInterim` 实时中间结果，`onFinal` 最终结果累积，`getAccumulatedText()` 获取累积文字，`reset()` 重置，`isStreamASRSupported()` 浏览器兼容检测，onend 自动重启。
+- **`src/lib/voice-tts-stream.ts`**（新建）：流式 TTS 播放，`feed(textChunk)` 接收 AI 流式响应按句分割边生成边播，`stop()` 立即停止（用户开口打断），`finish()` 标记流结束，复用 `/api/ai/tts` 端点，首字延迟 <500ms。
+- **`src/lib/voice-backchannel.ts`**（新建）：后缀音反馈，Web Audio OscillatorNode 合成"嗯"音，回退 SpeechSynthesis API。
+- **`src/app/ai/assistant/page.tsx`**：语音模块重写为全双工模式：
+  - 接通后持续 VoiceVAD 监听 + StreamASR 流式识别（边说边出文字显示在输入框）
+  - VAD 短停顿（<1.5s）→ BackchannelPlayer.play()（AI 回"嗯"）
+  - VAD 长静音（>1.5s）→ 判定说完，立即提交 ASR 累积文字给 LLM
+  - LLM 流式响应 → StreamTTS.feed() 边生成边播（说完即答，端到端延迟 <1.5s）
+  - TTS 播放中 VAD 检测用户开口 → StreamTTS.stop() 立即打断 → 重新监听
+  - AI 主动打断：用户说话 >15s 插话
+  - 按钮：接通语音通话 / 挂断（废弃旧的开始录音/结束录音）
+  - 浏览器不支持 SpeechRecognition 时回退到 MediaRecorder 模式 + toast 提示
+  - **stale closure 修复**：新增 useEffect 同步 `sendVoiceRef.current` / `handleVoiceSpeechEndRef.current`，VAD/fallback 通过 ref 调用最新闭包，解决多轮对话历史消息丢失 bug。
+
+### 自测结果
+- TypeScript 编译：`npx tsc --noEmit` 通过（exit 0，无错误）
+- e2e 脏数据清理脚本运行：当前数据库无脏数据（0 条）
+- Prisma db push 成功同步新字段
+- 所有新增代码遵循项目规范（端口 5176、橙黑灰配色、数据持久化规范、自测数据清理规范）
+
+### Commit
+`（待提交后填写）`
+
+---
+
 ## 迭代 29 - 2026-06-26
 
 ### 任务概要

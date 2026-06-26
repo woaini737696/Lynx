@@ -1,10 +1,15 @@
 import { test, expect } from "@playwright/test";
+import { cleanupTestData } from "./helpers/auth";
 
 /**
  * 灵感创建与流转 E2E 测试
  * 依赖 globalSetup 提供的 storageState（已登录状态）
  */
 test.describe("灵感创建与流转", () => {
+  test.afterEach(async ({ request }) => {
+    await cleanupTestData(request, ["E2E"]);
+  });
+
   test("创建新灵感并验证出现在列表中", async ({ request, page }) => {
     const uniqueContent = `E2E测试灵感-${Date.now()}-AI助手`;
 

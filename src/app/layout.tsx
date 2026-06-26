@@ -8,6 +8,7 @@ import { Toaster } from "@/components/ui/toast";
 import { ThemeProvider } from "@/components/theme/ThemeProvider";
 import { ReminderManager } from "@/components/layout/ReminderManager";
 import { PWARegister } from "@/components/layout/PWARegister";
+import { AssistantGlobalEntry } from "@/components/ai/AssistantGlobalEntry";
 
 export const metadata: Metadata = {
   title: "LynnHub · 个人认知操作系统",
@@ -53,6 +54,7 @@ export default function RootLayout({
           <CommandPalette />
           <ReminderManager />
           <PWARegister />
+          <AssistantGlobalEntry />
           <Toaster />
         </ThemeProvider>
       </body>

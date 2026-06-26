@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createHmac } from "crypto";
 import { requireAuth } from "@/lib/auth-utils";
+import { prisma } from "@/lib/db";
 
 // 生成飞书自定义机器人签名校验
 // 算法：sign = base64(hmac_sha256(timestamp + "\n" + secret, ""))
@@ -13,7 +14,8 @@ function generateSign(timestamp: number, secret: string): string {
 }
 
 // POST /api/lark-bot/test - 向配置的飞书 Webhook 发送测试消息
-// body: { webhookUrl, message?, webhookToken? }
+// body: { webhookUrl?, message?, webhookToken? }
+// 若未传 webhookUrl/webhookToken，则从数据库 AISetting 读取
 // 返回发送结果
 export async function POST(req: NextRequest) {
   try {
@@ -22,14 +24,25 @@ export async function POST(req: NextRequest) {
 
     const body = await req.json();
     const { webhookUrl, message, webhookToken } = body as {
-      webhookUrl: string;
+      webhookUrl?: string;
       message?: string;
       webhookToken?: string;
     };
 
-    if (!webhookUrl || !webhookUrl.trim()) {
+    // 前端未传 webhookUrl 时，从数据库 AISetting 兜底读取
+    let finalUrl = (webhookUrl || "").trim();
+    let finalToken = (webhookToken || "").trim();
+    if (!finalUrl) {
+      const settings = await prisma.aISetting.findFirst();
+      finalUrl = (settings?.larkWebhookUrl || "").trim();
+      if (!finalToken) {
+        finalToken = (settings?.larkWebhookToken || "").trim();
+      }
+    }
+
+    if (!finalUrl) {
       return NextResponse.json(
-        { error: "webhookUrl 不能为空" },
+        { error: "webhookUrl 不能为空，请先在设置中配置飞书机器人 Webhook" },
         { status: 400 }
       );
     }
@@ -37,7 +50,7 @@ export async function POST(req: NextRequest) {
     // 校验 URL 格式（飞书自定义机器人 webhook 通常为 https://open.feishu.cn/open-apis/bot/v2/hook/xxx）
     let parsedUrl: URL;
     try {
-      parsedUrl = new URL(webhookUrl.trim());
+      parsedUrl = new URL(finalUrl);
     } catch {
       return NextResponse.json(
         { error: "webhookUrl 格式不正确" },
@@ -60,11 +73,10 @@ export async function POST(req: NextRequest) {
     };
 
     // 如果配置了签名校验 secret，添加 timestamp 和 sign 字段
-    const token = (webhookToken || "").trim();
-    if (token) {
+    if (finalToken) {
       const timestamp = Math.floor(Date.now() / 1000);
       payload.timestamp = String(timestamp);
-      payload.sign = generateSign(timestamp, token);
+      payload.sign = generateSign(timestamp, finalToken);
     }
 
     const startTime = Date.now();

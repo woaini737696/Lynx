@@ -32,6 +32,8 @@ import {
   History,
   CheckCircle2,
   Sparkles,
+  Bot,
+  Headphones,
 } from "lucide-react";
 import { Button } from "@/components/layout/PageHeader";
 import { HelpButton } from "@/components/layout/HelpButton";
@@ -42,6 +44,10 @@ import { cn } from "@/lib/utils";
 import type { LLMProvider } from "@/lib/ai-provider";
 import { QUICK_COMMANDS } from "@/lib/ai-assistant-tools";
 import { webmToWav } from "@/lib/audio-utils";
+import { VoiceVAD } from "@/lib/voice-vad";
+import { StreamASR, isStreamASRSupported } from "@/lib/voice-asr-stream";
+import { StreamTTS } from "@/lib/voice-tts-stream";
+import { BackchannelPlayer } from "@/lib/voice-backchannel";
 
 interface TokenUsage {
   prompt_tokens?: number;
@@ -400,25 +406,35 @@ export default function AIAssistantPage() {
   const audioChunksRef = useRef<Blob[]>([]);
   const voiceModeActiveRef = useRef(false);
 
+  // ===== 全双工语音通话状态 =====
   const [voiceCallActive, setVoiceCallActive] = useState(false);
-  const [voiceCallListening, setVoiceCallListening] = useState(false);
+  /** 通话阶段：listening 聆听中 / speaking 用户说话中 / thinking AI 思考中 / replying AI 回复中 */
+  type VoicePhase = "listening" | "speaking" | "thinking" | "replying";
+  const [voiceCallPhase, setVoiceCallPhase] = useState<VoicePhase>("listening");
+  const voiceCallPhaseRef = useRef<VoicePhase>("listening");
+  /** ASR 实时中间文字（边说边显示） */
+  const [asrInterimText, setAsrInterimText] = useState("");
+  /** 实时音量（0~1，用于 UI 波形） */
+  const [voiceVolume, setVoiceVolume] = useState(0);
+  /** 浏览器是否支持流式 ASR（不支持则回退录音模式） */
+  const [voiceStreamSupported] = useState<boolean>(() => typeof window !== "undefined" && isStreamASRSupported());
+
   const voiceCallStreamRef = useRef<MediaStream | null>(null);
+  // 录音 fallback 模式使用（浏览器不支持 SpeechRecognition 时）
   const voiceCallRecorderRef = useRef<MediaRecorder | null>(null);
   const voiceCallSilenceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const isProcessingVoiceRef = useRef(false);
+  // 全双工引擎实例
+  const voiceVadRef = useRef<VoiceVAD | null>(null);
+  const streamAsrRef = useRef<StreamASR | null>(null);
+  const streamTtsRef = useRef<StreamTTS | null>(null);
+  const backchannelRef = useRef<BackchannelPlayer | null>(null);
+  // 防止 VAD 重复触发提交
+  const voiceSendLockRef = useRef(false);
+  // VAD/录音 fallback 持续运行，需通过 ref 调用最新的提交函数，避免读到旧的 messages 闭包
+  const sendVoiceRef = useRef<(text: string) => Promise<void>>(async () => {});
+  const handleVoiceSpeechEndRef = useRef<() => void>(() => {});
 
-  // VAD（语音活动检测）相关 refs
-  const audioContextRef = useRef<AudioContext | null>(null);
-  const analyserRef = useRef<AnalyserNode | null>(null);
-  const vadIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const vadSpeechActiveRef = useRef(false); // 当前是否在说话
-  const vadSpeechStartRef = useRef(0); // 说话开始时间
-  const vadChunksRef = useRef<Blob[]>([]); // 当前语音段的音频块
-  const vadRecorderRef = useRef<MediaRecorder | null>(null);
-  const vadThresholdRef = useRef(18); // 自适应音量阈值（dB），初始值 18
-  const vadCalibratingRef = useRef(false); // 是否正在校准环境噪声
-
-  // 流式 TTS 播放队列
+  // 单条消息语音播报（文本模式 / 消息列表播放按钮）队列，与全双工 StreamTTS 独立
   const ttsQueueRef = useRef<Array<{ url: string; text: string }>>([]);
   const ttsPlayingRef = useRef(false);
   const ttsAbortRef = useRef(false);
@@ -1179,9 +1195,8 @@ export default function AIAssistantPage() {
       }
 
       // 自动语音播放条件：
-      // - autoSpeak 开启时总是播放
-      // - voiceMode 开启且正在语音通话中时播放（非通话中不自动播放）
-      const shouldAutoSpeak = settings.autoSpeak || (settings.voiceMode && voiceCallActive);
+      // - autoSpeak 开启时总是播放（全双工通话中走 sendVoice 的 StreamTTS，不重复播报）
+      const shouldAutoSpeak = settings.autoSpeak && !voiceCallActive;
       if (shouldAutoSpeak && aiContent) {
         setTimeout(() => speak(aiContent, aiMsgId), 300);
       }
@@ -1315,6 +1330,231 @@ export default function AIAssistantPage() {
     setRecording(false);
   };
 
+  /** 同步更新通话阶段 state 与 ref（避免异步回调闭包读到旧值） */
+  const setPhase = useCallback((p: VoicePhase) => {
+    voiceCallPhaseRef.current = p;
+    setVoiceCallPhase(p);
+  }, []);
+
+  /**
+   * 全双工语音模式：流式发送用户语音文本给 LLM，边生成边喂给 StreamTTS 播放。
+   * 不走 assistantMode（工具调用会阻塞流式），最大化低延迟，实现"说完即答"。
+   */
+  const sendVoice = async (text: string) => {
+    const content = text.trim();
+    if (!content) return;
+    // 停止旧 TTS，准备接收新回复
+    streamTtsRef.current?.stop();
+    streamTtsRef.current?.reset();
+    stopSpeaking();
+
+    const userMsg: Message = {
+      id: `u-${Date.now()}`,
+      role: "user",
+      content,
+      time: "刚刚",
+    };
+    const nextMessages = [...messages, userMsg];
+    setMessages(nextMessages);
+    setThinking(true);
+    setPhase("thinking");
+
+    if (currentSessionId) {
+      fetch(`/api/ai/chat/sessions/${currentSessionId}/messages`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ role: "user", content }),
+      }).catch(() => {});
+    }
+
+    const aiMsgId = `a-${Date.now()}`;
+    setMessages((prev) => [
+      ...prev,
+      { id: aiMsgId, role: "assistant", content: "", time: "刚刚", streaming: true },
+    ]);
+
+    abortRef.current?.abort();
+    const controller = new AbortController();
+    abortRef.current = controller;
+
+    const apiMessages = nextMessages
+      .filter((m) => !m.error)
+      .map((m) => ({ role: m.role, content: m.content }));
+
+    const tts = streamTtsRef.current;
+    if (tts) {
+      tts.reset();
+      tts.onPlayStart = () => {
+        if (voiceModeActiveRef.current) setPhase("replying");
+      };
+      tts.onComplete = () => {
+        if (voiceModeActiveRef.current && voiceCallPhaseRef.current === "replying") {
+          setPhase("listening");
+        }
+      };
+    }
+
+    try {
+      const res = await fetch("/api/ai/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          messages: apiMessages,
+          provider: modelConfig.provider,
+          model: modelConfig.model,
+          reasoningMode: modelConfig.reasoningMode,
+          stream: true,
+        }),
+        signal: controller.signal,
+      });
+
+      if (!res.ok || !res.body) {
+        const data = await res.json().catch(() => null);
+        const errMsg = data?.error || `请求失败（${res.status}）`;
+        setMessages((prev) =>
+          prev.map((m) => (m.id === aiMsgId ? { ...m, content: errMsg, error: true, streaming: false } : m))
+        );
+        toast(errMsg, "error");
+        return;
+      }
+
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let aiContent = "";
+      let sseBuffer = "";
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        sseBuffer += decoder.decode(value, { stream: true });
+        const lines = sseBuffer.split("\n");
+        sseBuffer = lines.pop() || "";
+        for (const line of lines) {
+          const t = line.trim();
+          if (!t.startsWith("data:")) continue;
+          const payload = t.slice(5).trim();
+          if (!payload || payload === "[DONE]") continue;
+          try {
+            const obj = JSON.parse(payload);
+            if (obj.type === "delta" && typeof obj.content === "string") {
+              aiContent += obj.content;
+              tts?.feed(obj.content);
+              setMessages((prev) =>
+                prev.map((m) => (m.id === aiMsgId ? { ...m, content: aiContent } : m))
+              );
+            } else if (obj.type === "error") {
+              console.warn("[Voice LLM stream]", obj.message);
+            }
+          } catch {
+            /* ignore SSE parse error */
+          }
+        }
+      }
+      tts?.finish();
+      setMessages((prev) => prev.map((m) => (m.id === aiMsgId ? { ...m, streaming: false } : m)));
+
+      if (currentSessionId && aiContent) {
+        fetch(`/api/ai/chat/sessions/${currentSessionId}/messages`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            role: "assistant",
+            content: aiContent,
+            provider: modelConfig.provider,
+            model: modelConfig.model,
+          }),
+        }).catch(() => {});
+        fetchSessions();
+      }
+    } catch (e) {
+      const err = e as Error;
+      if (err.name === "AbortError") {
+        setMessages((prev) => prev.map((m) => (m.id === aiMsgId ? { ...m, streaming: false } : m)));
+      } else {
+        setMessages((prev) =>
+          prev.map((m) =>
+            m.id === aiMsgId ? { ...m, content: "网络错误：" + err.message, error: true, streaming: false } : m
+          )
+        );
+        toast("网络错误：" + err.message, "error");
+      }
+    } finally {
+      setThinking(false);
+      abortRef.current = null;
+      // TTS 仍在播放时保持 replying，否则回到聆听
+      if (voiceModeActiveRef.current && !streamTtsRef.current?.isPlaying) {
+        setPhase("listening");
+      }
+    }
+  };
+
+  /** VAD 检测到说话结束：获取 ASR 累积文字，立即提交，重置 ASR */
+  const handleVoiceSpeechEnd = () => {
+    if (!voiceModeActiveRef.current || voiceSendLockRef.current) return;
+    const asr = streamAsrRef.current;
+    if (!asr) return;
+    const text = asr.getAccumulatedText();
+    asr.reset();
+    setAsrInterimText("");
+    if (text && text.length >= 2) {
+      voiceSendLockRef.current = true;
+      setPhase("thinking");
+      sendVoice(text).finally(() => {
+        voiceSendLockRef.current = false;
+      });
+    } else {
+      setPhase("listening");
+    }
+  };
+
+  /**
+   * 录音 fallback 模式（浏览器不支持 SpeechRecognition 时）：
+   * 用 MediaRecorder 周期录音 + /api/ai/asr 转写 + sendVoice，模拟全双工体验。
+   */
+  const startVoiceFallbackRecording = () => {
+    const stream = voiceCallStreamRef.current;
+    if (!stream || !voiceModeActiveRef.current) return;
+    try {
+      const recorder = createMediaRecorder(stream);
+      const chunks: Blob[] = [];
+      recorder.ondataavailable = (e) => {
+        if (e.data.size > 0) chunks.push(e.data);
+      };
+      recorder.onstop = async () => {
+        if (!voiceModeActiveRef.current) return;
+        if (chunks.length === 0 || voiceSendLockRef.current) {
+          if (voiceModeActiveRef.current) startVoiceFallbackRecording();
+          return;
+        }
+        const blob = new Blob(chunks, { type: recorder.mimeType || "audio/webm" });
+        if (blob.size < 2000) {
+          if (voiceModeActiveRef.current) startVoiceFallbackRecording();
+          return;
+        }
+        voiceSendLockRef.current = true;
+        setPhase("thinking");
+        const text = await transcribeAudio(blob);
+        if (text && voiceModeActiveRef.current) {
+          await sendVoiceRef.current(text);
+        }
+        voiceSendLockRef.current = false;
+        if (voiceModeActiveRef.current) {
+          setPhase("listening");
+          startVoiceFallbackRecording();
+        }
+      };
+      recorder.start();
+      voiceCallRecorderRef.current = recorder;
+      if (voiceCallSilenceRef.current) clearTimeout(voiceCallSilenceRef.current);
+      // 定时 3s 切片，模拟 VAD 说话段
+      voiceCallSilenceRef.current = setTimeout(() => {
+        if (recorder.state !== "inactive") recorder.stop();
+      }, 3000);
+    } catch {
+      /* noop */
+    }
+  };
+
   const startVoiceCall = async () => {
     try {
       if (!navigator.mediaDevices?.getUserMedia) {
@@ -1325,271 +1565,90 @@ export default function AIAssistantPage() {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       voiceCallStreamRef.current = stream;
       voiceModeActiveRef.current = true;
+      voiceSendLockRef.current = false;
       setVoiceCallActive(true);
-      setVoiceCallListening(true);
-      isProcessingVoiceRef.current = false;
-      toast("语音对话已开启（VAD 已启用），开始说话即可", "success");
-      startVadRecording();
+      setAsrInterimText("");
+      setVoiceVolume(0);
+      setPhase("listening");
+
+      // 初始化流式 TTS（边生成边播）
+      const tts = new StreamTTS();
+      streamTtsRef.current = tts;
+      tts.onPlayStart = () => {
+        if (voiceModeActiveRef.current) setPhase("replying");
+      };
+      tts.onComplete = () => {
+        if (voiceModeActiveRef.current && voiceCallPhaseRef.current === "replying") {
+          setPhase("listening");
+        }
+      };
+
+      backchannelRef.current = new BackchannelPlayer();
+
+      if (!voiceStreamSupported) {
+        // 不支持流式 ASR：回退到 MediaRecorder 录音模式
+        toast("浏览器不支持流式 ASR，已回退到录音模式", "info");
+        startVoiceFallbackRecording();
+        return;
+      }
+
+      // 流式 ASR：边说边出文字
+      const asr = new StreamASR({
+        onInterim: (text) => {
+          if (voiceModeActiveRef.current) setAsrInterimText(text);
+        },
+        onFinal: () => {
+          // final 已累积到 ASR 内部，清掉 interim 展示
+          if (voiceModeActiveRef.current) setAsrInterimText("");
+        },
+        onError: (err) => {
+          console.warn("[Voice ASR]", err);
+        },
+      });
+      streamAsrRef.current = asr;
+      asr.start();
+
+      // VAD：持续监听，检测说话起止
+      const vad = new VoiceVAD(stream, {
+        onSpeechStart: () => {
+          if (!voiceModeActiveRef.current) return;
+          setPhase("speaking");
+          // 全双工：用户开口立即打断 TTS 播放
+          if (streamTtsRef.current?.isPlaying) {
+            streamTtsRef.current.stop();
+          }
+        },
+        onShortPause: () => {
+          if (!voiceModeActiveRef.current) return;
+          backchannelRef.current?.play();
+        },
+        onSpeechEnd: () => {
+          if (!voiceModeActiveRef.current) return;
+          handleVoiceSpeechEnd();
+        },
+        onVolumeChange: (v) => {
+          if (voiceModeActiveRef.current) setVoiceVolume(v);
+        },
+      });
+      voiceVadRef.current = vad;
+      vad.start();
+
+      toast("语音通话已接通，开始说话即可", "success");
     } catch (e) {
       toast("无法访问麦克风：" + (e as Error).message, "error");
+      stopVoiceCall();
     }
-  };
-
-  /**
-   * VAD（语音活动检测）录音：基于 Web Audio API AnalyserNode 实时分析音量，
-   * 精准检测语音起止，实现"说完即识别"的低延迟体验。
-   * - 音量高于阈值且持续 > 300ms → 语音开始
-   * - 音量低于阈值且持续 > 800ms → 语音结束，立即发送识别
-   */
-  const startVadRecording = () => {
-    const stream = voiceCallStreamRef.current;
-    if (!stream || !voiceModeActiveRef.current) return;
-
-    // 创建 AudioContext + AnalyserNode
-    try {
-      if (!audioContextRef.current || audioContextRef.current.state === "closed") {
-        audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
-      }
-      const ctx = audioContextRef.current;
-      const source = ctx.createMediaStreamSource(stream);
-      const analyser = ctx.createAnalyser();
-      analyser.fftSize = 512;
-      analyser.smoothingTimeConstant = 0.6;
-      source.connect(analyser);
-      analyserRef.current = analyser;
-    } catch (e) {
-      // AudioContext 创建失败，回退到旧方式
-      console.warn("VAD 初始化失败，回退到定时录音:", e);
-      startVoiceChunkRecordingLegacy();
-      return;
-    }
-
-    // 重置 VAD 状态
-    vadSpeechActiveRef.current = false;
-    vadSpeechStartRef.current = 0;
-    vadChunksRef.current = [];
-
-    // 创建 MediaRecorder，使用 timeslice 获取周期性数据块
-    try {
-      const recorder = createMediaRecorder(stream);
-      vadRecorderRef.current = recorder;
-      recorder.ondataavailable = (e) => {
-        // 始终收集数据块（包括 recorder.stop() 触发的最终 flush）
-        // 之前的 bug：检查 vadSpeechActiveRef 导致最后几百毫秒音频被丢弃，ASR 误识别为"透支"
-        if (e.data.size > 0) {
-          vadChunksRef.current.push(e.data);
-        }
-      };
-      recorder.start(200); // 每 200ms 产生一个数据块
-    } catch {
-      startVoiceChunkRecordingLegacy();
-      return;
-    }
-
-    // VAD 参数（阈值会通过校准自适应）
-    const SPEECH_START_MS = 300; // 音量超阈值持续 300ms 判定为语音开始
-    const SPEECH_END_MS = 500; // 音量低于阈值持续 500ms 判定为语音结束（降低延迟，更接近实时对话）
-    const MAX_SPEECH_MS = 30000; // 单次最长 30 秒
-
-    let highVolumeStart = 0;
-    let lowVolumeStart = 0;
-    const buffer = new Uint8Array(analyserRef.current!.frequencyBinCount);
-
-    // ===== 环境噪声校准（前 1 秒采集环境噪声基线，自适应设置阈值）=====
-    // 仅在首次启动或阈值未校准时执行
-    if (!vadCalibratingRef.current && vadThresholdRef.current === 18) {
-      vadCalibratingRef.current = true;
-      const noiseSamples: number[] = [];
-      const calibrationStart = Date.now();
-      const calibrationInterval = setInterval(() => {
-        if (!analyserRef.current) return;
-        analyserRef.current.getByteFrequencyData(buffer);
-        let sum = 0;
-        for (let i = 0; i < buffer.length; i++) sum += buffer[i] * buffer[i];
-        const rms = Math.sqrt(sum / buffer.length);
-        const vol = rms > 0 ? 20 * Math.log10(rms) : -100;
-        noiseSamples.push(vol);
-        if (Date.now() - calibrationStart >= 1000) {
-          clearInterval(calibrationInterval);
-          vadCalibratingRef.current = false;
-          if (noiseSamples.length > 0) {
-            // 取噪声样本的中位数作为基线（比均值更抗异常值）
-            const sorted = [...noiseSamples].sort((a, b) => a - b);
-            const median = sorted[Math.floor(sorted.length / 2)];
-            // 阈值 = 噪声基线 + 12dB（经验值，确保语音明显高于噪声）
-            // 限制在 [10, 35] 范围内，避免极端值
-            const adaptiveThreshold = Math.max(10, Math.min(35, median + 12));
-            vadThresholdRef.current = adaptiveThreshold;
-            console.log(`[VAD] 环境噪声校准完成: 基线=${median.toFixed(1)}dB, 阈值=${adaptiveThreshold.toFixed(1)}dB`);
-          }
-        }
-      }, 50);
-    }
-
-    vadIntervalRef.current = setInterval(() => {
-      if (!voiceModeActiveRef.current || isProcessingVoiceRef.current) return;
-      if (!analyserRef.current) return;
-
-      analyserRef.current.getByteFrequencyData(buffer);
-      // 计算平均音量（RMS 近似）
-      let sum = 0;
-      for (let i = 0; i < buffer.length; i++) sum += buffer[i] * buffer[i];
-      const rms = Math.sqrt(sum / buffer.length);
-      const volume = rms > 0 ? 20 * Math.log10(rms) : -100;
-
-      const now = Date.now();
-      // 使用自适应阈值
-      const VOLUME_THRESHOLD = vadThresholdRef.current;
-
-      if (volume > VOLUME_THRESHOLD) {
-        highVolumeStart = highVolumeStart || now;
-        lowVolumeStart = 0;
-
-        // 语音开始检测
-        if (!vadSpeechActiveRef.current && now - highVolumeStart > SPEECH_START_MS) {
-          vadSpeechActiveRef.current = true;
-          vadSpeechStartRef.current = now;
-          vadChunksRef.current = [];
-          setVoiceCallListening(false);
-          // 全双工体验：用户开口说话时立即打断 TTS 播放
-          if (ttsPlayingRef.current) {
-            stopSpeaking();
-          }
-        }
-      } else {
-        lowVolumeStart = lowVolumeStart || now;
-        highVolumeStart = 0;
-
-        // 语音结束检测
-        if (vadSpeechActiveRef.current && now - lowVolumeStart > SPEECH_END_MS) {
-          // 收集音频并发送识别
-          const speechDuration = now - vadSpeechStartRef.current;
-          vadSpeechActiveRef.current = false; // 防止 VAD 重复触发
-
-          if (speechDuration > 400) {
-            // 停止当前 recorder，在 onstop 中收集所有 chunks（包括最终 flush）
-            const recorder = vadRecorderRef.current;
-            if (recorder && recorder.state !== "inactive") {
-              recorder.onstop = async () => {
-                // 在 onstop 中快照 chunks，此时 recorder.stop() 的最终 flush 已写入
-                const chunks = [...vadChunksRef.current];
-                vadChunksRef.current = [];
-                const blob = new Blob(chunks, { type: "audio/webm" });
-                if (blob.size > 2000 && voiceModeActiveRef.current) {
-                  isProcessingVoiceRef.current = true;
-                  const text = await transcribeAudio(blob);
-                  if (text && voiceModeActiveRef.current) {
-                    await send(text);
-                  }
-                  isProcessingVoiceRef.current = false;
-                  if (voiceModeActiveRef.current) {
-                    setVoiceCallListening(true);
-                    // 重新启动 recorder
-                    startVadRecording();
-                  }
-                } else if (voiceModeActiveRef.current) {
-                  setVoiceCallListening(true);
-                  startVadRecording();
-                }
-              };
-              recorder.stop();
-            }
-          } else {
-            // 语音太短，丢弃
-            vadChunksRef.current = [];
-            setVoiceCallListening(true);
-          }
-        }
-      }
-
-      // 超时保护：单次语音超过 30 秒强制结束
-      if (vadSpeechActiveRef.current && now - vadSpeechStartRef.current > MAX_SPEECH_MS) {
-        vadSpeechActiveRef.current = false;
-        const recorder = vadRecorderRef.current;
-        if (recorder && recorder.state !== "inactive") {
-          recorder.onstop = async () => {
-            const chunks = [...vadChunksRef.current];
-            vadChunksRef.current = [];
-            const blob = new Blob(chunks, { type: "audio/webm" });
-            if (blob.size > 2000 && voiceModeActiveRef.current) {
-              isProcessingVoiceRef.current = true;
-              const text = await transcribeAudio(blob);
-              if (text && voiceModeActiveRef.current) await send(text);
-              isProcessingVoiceRef.current = false;
-              if (voiceModeActiveRef.current) {
-                setVoiceCallListening(true);
-                startVadRecording();
-              }
-            }
-          };
-          recorder.stop();
-        }
-      }
-    }, 100);
-  };
-
-  /** 旧版定时录音（VAD 不可用时的回退方案） */
-  const startVoiceChunkRecordingLegacy = () => {
-    if (!voiceCallStreamRef.current || !voiceModeActiveRef.current) return;
-    try {
-      const recorder = createMediaRecorder(voiceCallStreamRef.current);
-      const chunks: Blob[] = [];
-      recorder.ondataavailable = (e) => { if (e.data.size > 0) chunks.push(e.data); };
-      recorder.onstop = async () => {
-        if (chunks.length === 0 || isProcessingVoiceRef.current || !voiceModeActiveRef.current) {
-          if (voiceModeActiveRef.current && !isProcessingVoiceRef.current) startVoiceChunkRecordingLegacy();
-          return;
-        }
-        const blob = new Blob(chunks, { type: "audio/webm" });
-        if (blob.size < 2000) {
-          if (voiceModeActiveRef.current) startVoiceChunkRecordingLegacy();
-          return;
-        }
-        isProcessingVoiceRef.current = true;
-        setVoiceCallListening(false);
-        const text = await transcribeAudio(blob);
-        if (text && voiceModeActiveRef.current) {
-          await send(text);
-        }
-        isProcessingVoiceRef.current = false;
-        if (voiceModeActiveRef.current) {
-          setVoiceCallListening(true);
-          startVoiceChunkRecordingLegacy();
-        }
-      };
-      recorder.start();
-      voiceCallRecorderRef.current = recorder;
-      if (voiceCallSilenceRef.current) clearTimeout(voiceCallSilenceRef.current);
-      voiceCallSilenceRef.current = setTimeout(() => {
-        if (recorder.state !== "inactive") recorder.stop();
-      }, 3000);
-    } catch {}
   };
 
   const stopVoiceCall = () => {
     voiceModeActiveRef.current = false;
-    // 清理 VAD
-    if (vadIntervalRef.current) {
-      clearInterval(vadIntervalRef.current);
-      vadIntervalRef.current = null;
-    }
-    if (vadRecorderRef.current && vadRecorderRef.current.state !== "inactive") {
-      vadRecorderRef.current.stop();
-    }
-    vadRecorderRef.current = null;
-    vadSpeechActiveRef.current = false;
-    vadChunksRef.current = [];
-    vadThresholdRef.current = 18; // 重置阈值，下次启动重新校准
-    vadCalibratingRef.current = false;
-    if (analyserRef.current) {
-      analyserRef.current.disconnect();
-      analyserRef.current = null;
-    }
-    if (audioContextRef.current && audioContextRef.current.state !== "closed") {
-      audioContextRef.current.close().catch(() => {});
-      audioContextRef.current = null;
-    }
-    // 清理旧版定时器
+    voiceVadRef.current?.stop();
+    voiceVadRef.current = null;
+    streamAsrRef.current?.stop();
+    streamAsrRef.current = null;
+    streamTtsRef.current?.stop();
+    streamTtsRef.current = null;
+    backchannelRef.current = null;
     if (voiceCallSilenceRef.current) {
       clearTimeout(voiceCallSilenceRef.current);
       voiceCallSilenceRef.current = null;
@@ -1597,14 +1656,39 @@ export default function AIAssistantPage() {
     if (voiceCallRecorderRef.current && voiceCallRecorderRef.current.state !== "inactive") {
       voiceCallRecorderRef.current.stop();
     }
+    voiceCallRecorderRef.current = null;
     if (voiceCallStreamRef.current) {
       voiceCallStreamRef.current.getTracks().forEach((t) => t.stop());
       voiceCallStreamRef.current = null;
     }
     setVoiceCallActive(false);
-    setVoiceCallListening(false);
+    setPhase("listening");
+    setAsrInterimText("");
+    setVoiceVolume(0);
+    voiceSendLockRef.current = false;
     stopSpeaking();
   };
+
+  // 组件卸载时清理全双工资源，避免麦克风/音频上下文泄漏
+  useEffect(() => {
+    return () => {
+      voiceModeActiveRef.current = false;
+      voiceVadRef.current?.stop();
+      streamAsrRef.current?.stop();
+      streamTtsRef.current?.stop();
+      if (voiceCallStreamRef.current) {
+        voiceCallStreamRef.current.getTracks().forEach((t) => t.stop());
+      }
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // VAD/录音 fallback 持续运行，回调捕获的 sendVoice/handleVoiceSpeechEnd 闭包会读到旧的 messages。
+  // 通过 ref 持有最新版本，VAD onSpeechEnd 与 fallback 录音均通过 ref 调用，避免丢历史消息。
+  useEffect(() => {
+    sendVoiceRef.current = sendVoice;
+    handleVoiceSpeechEndRef.current = handleVoiceSpeechEnd;
+  });
 
   // 头像文件上传
   const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -1997,21 +2081,40 @@ export default function AIAssistantPage() {
 
       {voiceCallActive && (
         <div className="border-b border-cognition/20 bg-cognition/5 px-4 py-2 sm:px-8">
-          <div className="mx-auto flex max-w-2xl items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className={cn("flex h-10 w-10 items-center justify-center rounded-full", voiceCallListening ? "bg-northstar animate-pulse" : "bg-muted")}>
-                <Mic2 className={cn("h-5 w-5", voiceCallListening ? "text-white" : "text-muted-foreground")} />
+          <div className="mx-auto flex max-w-2xl items-center justify-between gap-3">
+            <div className="flex min-w-0 items-center gap-3">
+              <div className={cn(
+                "flex h-10 w-10 shrink-0 items-center justify-center rounded-full",
+                voiceCallPhase === "listening" ? "bg-northstar animate-pulse"
+                  : voiceCallPhase === "speaking" ? "bg-cognition animate-pulse"
+                  : voiceCallPhase === "thinking" ? "bg-muted"
+                  : "bg-cognition/70"
+              )}>
+                {voiceCallPhase === "listening" ? <Headphones className="h-5 w-5 text-white" />
+                  : voiceCallPhase === "speaking" ? <Mic className="h-5 w-5 text-white" />
+                  : voiceCallPhase === "thinking" ? <Loader2 className="h-5 w-5 text-muted-foreground animate-spin" />
+                  : <Bot className="h-5 w-5 text-white" />}
               </div>
-              <div>
-                <p className="text-sm font-medium">语音对话中</p>
-                <p className="text-[10px] text-muted-foreground">
-                  {voiceCallListening ? "正在聆听..." : thinking ? "思考中..." : "AI回复中..."}
+              <div className="min-w-0">
+                <p className="text-sm font-medium">语音通话中</p>
+                <p className="truncate text-[10px] text-muted-foreground">
+                  {voiceCallPhase === "listening" ? "正在聆听..."
+                    : voiceCallPhase === "speaking" ? (asrInterimText || "正在说话...")
+                    : voiceCallPhase === "thinking" ? "AI 思考中..."
+                    : "AI 正在回复..."}
                 </p>
               </div>
+              {/* 实时音量波形 */}
+              <div className="ml-1 flex h-5 items-center gap-0.5">
+                {[0, 1, 2, 3, 4].map((i) => (
+                  <span
+                    key={i}
+                    className="w-1 rounded-full bg-cognition/60 transition-all"
+                    style={{ height: `${4 + Math.min(16, voiceVolume * 80 * (1 - Math.abs(i - 2) / 3))}px` }}
+                  />
+                ))}
+              </div>
             </div>
-            <Button variant="danger" size="sm" onClick={stopVoiceCall}>
-              <PhoneOff className="h-4 w-4" /> 挂断
-            </Button>
           </div>
         </div>
       )}
@@ -2292,8 +2395,8 @@ export default function AIAssistantPage() {
                   : <Mic className="h-3.5 w-3.5" />}
               </Button>
               {settings.voiceMode && (
-                <Button variant="primary" size="md" onClick={startVoiceCall} title="开启全双工语音对话">
-                  <Phone className="h-3.5 w-3.5" />
+                <Button variant="primary" size="md" onClick={startVoiceCall} title="接通语音通话">
+                  <Phone className="h-3.5 w-3.5" /> 接通
                 </Button>
               )}
               {isMultimodal && (
@@ -2321,16 +2424,16 @@ export default function AIAssistantPage() {
               )}
             </div>
           ) : (
-            <div className="flex items-center justify-center py-4">
-              <button
-                onClick={recording ? stopRecording : startRecording}
-                className={cn(
-                  "flex h-16 w-16 items-center justify-center rounded-full shadow-lg transition-all",
-                  recording ? "bg-destructive animate-pulse" : "bg-northstar hover:bg-northstar/90"
-                )}
-              >
-                {recording ? <Square className="h-6 w-6 text-white" /> : <Mic className="h-6 w-6 text-white" />}
-              </button>
+            <div className="flex items-center gap-2 py-2">
+              <div className="flex-1 truncate rounded-xl border border-border bg-background px-4 py-2.5 text-sm text-muted-foreground">
+                {voiceCallPhase === "speaking" ? (asrInterimText || "正在说话...")
+                  : voiceCallPhase === "thinking" ? "AI 思考中..."
+                  : voiceCallPhase === "replying" ? "AI 正在回复..."
+                  : "正在聆听，说完即可..."}
+              </div>
+              <Button variant="danger" onClick={stopVoiceCall} title="挂断">
+                <PhoneOff className="h-4 w-4" /> 挂断
+              </Button>
             </div>
           )}
           <div className="mt-2 flex items-center justify-center gap-2">

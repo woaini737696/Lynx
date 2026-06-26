@@ -42,6 +42,8 @@ export async function PUT(req: NextRequest) {
       "hermesTakeover",
       "hermesAutoReport",
       "hermesReportCron",
+      "larkWebhookUrl",
+      "larkWebhookToken",
     ] as const;
 
     const updateData: Record<string, unknown> = {};
@@ -109,6 +111,17 @@ export async function PUT(req: NextRequest) {
         return NextResponse.json({ error: "hermesReportCron 格式错误" }, { status: 400 });
       }
       updateData.hermesReportCron = updateData.hermesReportCron.trim().slice(0, 64);
+    }
+
+    // 校验飞书机器人 Webhook 配置（支持传 null 清空，或传字符串更新）
+    for (const larkField of ["larkWebhookUrl", "larkWebhookToken"] as const) {
+      if (updateData[larkField] !== undefined && updateData[larkField] !== null) {
+        if (typeof updateData[larkField] !== "string") {
+          return NextResponse.json({ error: `${larkField} 格式错误` }, { status: 400 });
+        }
+        const maxLen = larkField === "larkWebhookUrl" ? 500 : 255;
+        updateData[larkField] = updateData[larkField].trim().slice(0, maxLen) || null;
+      }
     }
 
     let settings = await prisma.aISetting.findFirst();

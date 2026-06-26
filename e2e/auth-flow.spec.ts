@@ -1,4 +1,5 @@
 import { test, expect } from "@playwright/test";
+import { cleanupTestData } from "./helpers/auth";
 
 /**
  * 登录流程 E2E 测试
@@ -6,6 +7,10 @@ import { test, expect } from "@playwright/test";
  * 需要未登录状态的测试使用单独的 context
  */
 test.describe("认证流程", () => {
+  test.afterEach(async ({ request }) => {
+    await cleanupTestData(request, ["E2E"]);
+  });
+
   test("未登录访问 / 应重定向到 /login", async ({ browser }) => {
     // 使用全新上下文，不携带 storageState 中的 cookie
     const context = await browser.newContext({ storageState: undefined });

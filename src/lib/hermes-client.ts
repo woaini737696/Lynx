@@ -7,6 +7,7 @@
 // - Skills Hub（17 类 672+ 技能）
 // - 自我进化
 
+import { createHmac } from "crypto";
 import { prisma } from "@/lib/db";
 import { getLogger } from "@/lib/logger";
 import { embedText, float32ToBuffer } from "@/lib/embedding";
@@ -1892,6 +1893,76 @@ export async function executeAssistantViaHermes(
 }
 
 /**
+ * 通过飞书自定义机器人 Webhook 推送文本消息
+ *
+ * 从数据库 AISetting 读取 larkWebhookUrl / larkWebhookToken。
+ * 若未配置 Webhook URL，跳过推送并记录日志。
+ *
+ * @param text   要推送的纯文本消息
+ * @returns      { ok, skipped, error } skipped=true 表示因未配置而跳过
+ */
+async function pushToLarkWebhook(text: string): Promise<{
+  ok: boolean;
+  skipped: boolean;
+  error?: string;
+}> {
+  let webhookUrl = "";
+  let webhookToken = "";
+  try {
+    const settings = await prisma.aISetting.findFirst();
+    webhookUrl = (settings?.larkWebhookUrl || "").trim();
+    webhookToken = (settings?.larkWebhookToken || "").trim();
+  } catch (e) {
+    logger.warn({ err: e }, "飞书 Webhook 推送：读取 AISetting 失败，跳过");
+    return { ok: false, skipped: true, error: (e as Error).message };
+  }
+
+  if (!webhookUrl) {
+    logger.info("飞书 Webhook 推送：未配置 larkWebhookUrl，跳过推送");
+    return { ok: false, skipped: true };
+  }
+
+  try {
+    const payload: Record<string, unknown> = {
+      msg_type: "text",
+      content: { text },
+    };
+    if (webhookToken) {
+      const timestamp = Math.floor(Date.now() / 1000);
+      const stringToSign = `${timestamp}\n${webhookToken}`;
+      const hmac = createHmac("sha256", stringToSign);
+      hmac.update("");
+      payload.timestamp = String(timestamp);
+      payload.sign = hmac.digest("base64");
+    }
+
+    const res = await fetch(webhookUrl, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    if (!res.ok) {
+      logger.warn({ status: res.status }, "飞书 Webhook 推送：HTTP 状态码异常");
+      return { ok: false, skipped: false, error: `HTTP ${res.status}` };
+    }
+
+    const data = await res.json().catch(() => null);
+    const code =
+      (data as { code?: number; StatusCode?: number } | null)?.code ??
+      (data as { StatusCode?: number } | null)?.StatusCode;
+    if (code !== undefined && code !== 0) {
+      logger.warn({ code, data }, "飞书 Webhook 推送：业务错误码");
+      return { ok: false, skipped: false, error: `飞书错误码 ${code}` };
+    }
+
+    return { ok: true, skipped: false };
+  } catch (e) {
+    logger.warn({ err: e }, "飞书 Webhook 推送异常（非阻塞）");
+    return { ok: false, skipped: false, error: (e as Error).message };
+  }
+}
+
+/**
  * 生成主动汇报（模式 C：持续工作 / 主动汇报 / 跨平台响应）
  *
  * Hermes Cron 定时触发，让 Hermes 主动分析用户数据并生成汇报
@@ -2038,17 +2109,13 @@ ${dataSummary}
     }
   }
 
-  // 6. 通过飞书机器人推送（如果 feishuNotify 开启）
+  // 6. 通过飞书机器人 Webhook 推送（如果 feishuNotify 开启且配置了 Webhook）
   if (result.success && reportId) {
     try {
       const aiSettings = await prisma.aISetting.findFirst();
       if (aiSettings?.feishuNotify) {
-        const { runLarkCliService, getCurrentUser } = await import("@/lib/lark-sync");
-        const me = getCurrentUser();
-        if (me?.openId) {
-          const preview = result.output.slice(0, 500).replace(/[#*`]/g, "");
-          runLarkCliService("im", `+messages-send --user-id ${me.openId} --text "🤖 ${title}\n\n${preview}"`);
-        }
+        const preview = result.output.slice(0, 500).replace(/[#*`]/g, "");
+        await pushToLarkWebhook(`🤖 ${title}\n\n${preview}`);
       }
     } catch (e) {
       logger.warn({ err: e }, "飞书推送失败（非阻塞）");
@@ -2189,28 +2256,18 @@ export async function executeCronJobViaAssistant(
 执行结果：
 ${truncatedOutput}`;
 
-  // 3. 若启用 feishuNotify，通过飞书推送
+  // 3. 若启用 feishuNotify，通过飞书 Webhook 推送
   let reported = false;
   try {
     const settings = await prisma.aISetting.findFirst();
     if (settings?.feishuNotify) {
-      const { getCurrentUser, runLarkCliService } = await import("@/lib/lark-sync");
-      const me = getCurrentUser();
-      if (me) {
-        const shellQuote = (s: string) => `"${s.replace(/"/g, '\\"')}"`;
-        const sendResult = runLarkCliService(
-          "im",
-          `+messages-send --user-id ${shellQuote(me.openId)} --text ${shellQuote(report)}`
+      const pushResult = await pushToLarkWebhook(report);
+      reported = pushResult.ok;
+      if (!pushResult.ok && !pushResult.skipped) {
+        logger.warn(
+          { error: pushResult.error },
+          "Cron 任务报告飞书 Webhook 推送失败"
         );
-        reported = sendResult.ok;
-        if (!sendResult.ok) {
-          logger.warn(
-            { error: sendResult.error },
-            "Cron 任务报告飞书推送失败"
-          );
-        }
-      } else {
-        logger.warn("Cron 任务报告推送：无法获取当前用户 open_id");
       }
     }
   } catch (e) {

@@ -423,6 +423,10 @@ model AISetting {
   embeddingBaseUrl String? @db.VarChar(255)
   embeddingModel  String?  @db.VarChar(64)
 
+  // 飞书自定义机器人 Webhook 配置（从 localStorage 迁移到数据库持久化）
+  larkWebhookUrl   String? @db.VarChar(500)
+  larkWebhookToken String? @db.VarChar(255)
+
   @@unique([id])
 }
 

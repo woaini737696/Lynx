@@ -1,10 +1,15 @@
 import { test, expect } from "@playwright/test";
+import { cleanupTestData } from "./helpers/auth";
 
 /**
  * 搜索流程 E2E 测试
  * 依赖 globalSetup 提供的 storageState（已登录状态）
  */
 test.describe("搜索流程", () => {
+  test.afterEach(async ({ request }) => {
+    await cleanupTestData(request, ["E2E"]);
+  });
+
   test("GET /api/search?q=AI 应返回 JSON 且有搜索结果结构", async ({ request }) => {
     const res = await request.get("/api/search?q=AI");
     expect(res.ok(), "/api/search?q=AI 应返回 200").toBeTruthy();

@@ -44,3 +44,92 @@ export async function login(
 export async function loginViaPage(page: Page): Promise<void> {
   await login(page.request);
 }
+
+/**
+ * 清理 e2e 测试数据：按内容前缀（默认 "E2E"）匹配并通过 API 删除
+ *
+ * 实现思路：
+ *   - GET /api/ideas 拉取所有 inbox 灵感，过滤 content.startsWith(prefix)，批量 DELETE /api/ideas
+ *   - GET /api/tasks 拉取任务，过滤前缀后逐个 DELETE /api/tasks/[id]
+ *   - GET /api/memory 拉取记忆图谱节点，过滤前缀后逐个 DELETE /api/memory/[id]
+ *   - GET /api/cognitions 仅查询；Cognition 无 DELETE API，记录警告由数据库脚本清理
+ *
+ * 注意：本函数为 best-effort 清理，某些场景（如 Idea 已转 board）GET /api/ideas 不会返回，
+ *      需配合 scripts/cleanup-e2e-data.ts 做数据库层兜底清理。
+ *
+ * @param request 已登录的 APIRequestContext（继承 storageState）
+ * @param prefixes 内容前缀数组，默认 ["E2E"]
+ */
+export async function cleanupTestData(
+  request: APIRequestContext,
+  prefixes: string[] = ["E2E"]
+): Promise<void> {
+  const matches = (content: string | undefined | null): boolean =>
+    !!content && prefixes.some((p) => content.startsWith(p));
+
+  // 1. Ideas — GET /api/ideas（仅 inbox），批量 DELETE /api/ideas
+  try {
+    const ideasRes = await request.get("/api/ideas");
+    if (ideasRes.ok()) {
+      const { ideas } = await ideasRes.json();
+      const idsToDelete = (ideas as Array<{ id: string; content: string }>)
+        .filter((i) => matches(i.content))
+        .map((i) => i.id);
+      if (idsToDelete.length > 0) {
+        await request.delete("/api/ideas", { data: { ids: idsToDelete } });
+      }
+    }
+  } catch (e) {
+    console.warn("[cleanupTestData] 清理 Idea 失败:", e);
+  }
+
+  // 2. Tasks — GET /api/tasks，逐个 DELETE /api/tasks/[id]
+  try {
+    const tasksRes = await request.get("/api/tasks");
+    if (tasksRes.ok()) {
+      const { tasks } = await tasksRes.json();
+      const toDelete = (tasks as Array<{ id: string; content: string }>).filter(
+        (t) => matches(t.content)
+      );
+      for (const t of toDelete) {
+        await request.delete(`/api/tasks/${t.id}`);
+      }
+    }
+  } catch (e) {
+    console.warn("[cleanupTestData] 清理 Task 失败:", e);
+  }
+
+  // 3. Memory — GET /api/memory（返回 nodes/edges），逐个 DELETE /api/memory/[id]
+  try {
+    const memRes = await request.get("/api/memory");
+    if (memRes.ok()) {
+      const { nodes } = await memRes.json();
+      const toDelete = (
+        nodes as Array<{ id: string; fullContent?: string; label?: string }>
+      ).filter((n) => matches(n.fullContent) || matches(n.label));
+      for (const n of toDelete) {
+        await request.delete(`/api/memory/${n.id}`);
+      }
+    }
+  } catch (e) {
+    console.warn("[cleanupTestData] 清理 Memory 失败:", e);
+  }
+
+  // 4. Cognition — 仅查询；无 DELETE API，记录警告
+  try {
+    const cogRes = await request.get("/api/cognitions");
+    if (cogRes.ok()) {
+      const { cognitions } = await cogRes.json();
+      const e2eCount = (cognitions as Array<{ id: string; content: string }>).filter(
+        (c) => matches(c.content)
+      ).length;
+      if (e2eCount > 0) {
+        console.warn(
+          `[cleanupTestData] 检测到 ${e2eCount} 条 E2E Cognition，但 Cognition 无 DELETE API，请运行 npx tsx scripts/cleanup-e2e-data.ts 清理`
+        );
+      }
+    }
+  } catch (e) {
+    console.warn("[cleanupTestData] 查询 Cognition 失败:", e);
+  }
+}

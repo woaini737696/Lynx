@@ -13,9 +13,9 @@ import {
 import { PageHeader, Card, Button } from "@/components/layout/PageHeader";
 import { toast } from "@/components/ui/toast";
 
-// 本地存储键
-const WEBHOOK_URL_KEY = "lark-bot-webhook-url";
-const WEBHOOK_TOKEN_KEY = "lark-bot-webhook-token";
+// 旧版 localStorage 键（仅用于一次性迁移到数据库）
+const LEGACY_WEBHOOK_URL_KEY = "lark-bot-webhook-url";
+const LEGACY_WEBHOOK_TOKEN_KEY = "lark-bot-webhook-token";
 
 type ConnectionState = "idle" | "testing" | "connected" | "failed";
 
@@ -36,29 +36,80 @@ export default function LarkBotSettingsPage() {
   const [connectionState, setConnectionState] = useState<ConnectionState>("idle");
   const [testResult, setTestResult] = useState<TestResult | null>(null);
   const [testMessage, setTestMessage] = useState("");
+  const [loading, setLoading] = useState(true);
 
-  // 从 localStorage 加载已保存的配置
+  // 从数据库加载已保存的配置，并执行一次性 localStorage 迁移
   useEffect(() => {
-    const savedUrl = localStorage.getItem(WEBHOOK_URL_KEY) || "";
-    const savedToken = localStorage.getItem(WEBHOOK_TOKEN_KEY) || "";
-    setWebhookUrl(savedUrl);
-    setWebhookToken(savedToken);
-    if (savedUrl) {
-      setConnectionState("idle");
-    }
+    let cancelled = false;
+    (async () => {
+      try {
+        // 1. 检测 localStorage 是否有旧配置（首次迁移）
+        const legacyUrl = localStorage.getItem(LEGACY_WEBHOOK_URL_KEY);
+        const legacyToken = localStorage.getItem(LEGACY_WEBHOOK_TOKEN_KEY);
+        if (legacyUrl || legacyToken) {
+          // 将旧配置 PUT 到数据库
+          const migrateRes = await fetch("/api/ai/settings", {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              larkWebhookUrl: (legacyUrl || "").trim() || null,
+              larkWebhookToken: (legacyToken || "").trim() || null,
+            }),
+          });
+          if (migrateRes.ok && !cancelled) {
+            setWebhookUrl((legacyUrl || "").trim());
+            setWebhookToken((legacyToken || "").trim());
+            toast("已迁移旧配置到数据库", "success");
+          }
+          // 无论迁移成功与否，都清除旧 key，避免反复迁移
+          localStorage.removeItem(LEGACY_WEBHOOK_URL_KEY);
+          localStorage.removeItem(LEGACY_WEBHOOK_TOKEN_KEY);
+          if (cancelled) return;
+          setLoading(false);
+          return;
+        }
+
+        // 2. 无旧配置：从数据库读取
+        const res = await fetch("/api/ai/settings", { method: "GET" });
+        if (res.ok) {
+          const data = await res.json();
+          const settings = data.settings || {};
+          if (!cancelled) {
+            setWebhookUrl(settings.larkWebhookUrl || "");
+            setWebhookToken(settings.larkWebhookToken || "");
+          }
+        }
+      } catch {
+        // 加载失败不阻塞用户编辑
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
-  // 保存 Webhook URL
-  const handleSaveUrl = () => {
+  // 保存 Webhook URL 到数据库
+  const handleSaveUrl = async () => {
     if (!webhookUrl.trim()) {
       toast("Webhook URL 不能为空", "error");
       return;
     }
     setSavingUrl(true);
     try {
-      localStorage.setItem(WEBHOOK_URL_KEY, webhookUrl.trim());
-      toast("Webhook URL 已保存", "success");
-      setConnectionState("idle");
+      const res = await fetch("/api/ai/settings", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ larkWebhookUrl: webhookUrl.trim() }),
+      });
+      if (res.ok) {
+        toast("Webhook URL 已保存", "success");
+        setConnectionState("idle");
+      } else {
+        const data = await res.json().catch(() => null);
+        toast(data?.error || "保存失败", "error");
+      }
     } catch {
       toast("保存失败", "error");
     } finally {
@@ -66,12 +117,21 @@ export default function LarkBotSettingsPage() {
     }
   };
 
-  // 保存 Webhook Token
-  const handleSaveToken = () => {
+  // 保存 Webhook Token 到数据库
+  const handleSaveToken = async () => {
     setSavingToken(true);
     try {
-      localStorage.setItem(WEBHOOK_TOKEN_KEY, webhookToken.trim());
-      toast("Webhook Token 已保存", "success");
+      const res = await fetch("/api/ai/settings", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ larkWebhookToken: webhookToken.trim() || null }),
+      });
+      if (res.ok) {
+        toast("Webhook Token 已保存", "success");
+      } else {
+        const data = await res.json().catch(() => null);
+        toast(data?.error || "保存失败", "error");
+      }
     } catch {
       toast("保存失败", "error");
     } finally {
@@ -79,10 +139,10 @@ export default function LarkBotSettingsPage() {
     }
   };
 
-  // 发送测试消息
+  // 发送测试消息（传入当前输入框的值，无需先保存）
   const handleTest = async () => {
     if (!webhookUrl.trim()) {
-      toast("请先填写并保存 Webhook URL", "error");
+      toast("请先填写 Webhook URL", "error");
       return;
     }
     setTesting(true);
@@ -199,7 +259,7 @@ export default function LarkBotSettingsPage() {
           />
           <Button
             onClick={handleSaveUrl}
-            disabled={savingUrl}
+            disabled={loading || savingUrl}
             size="md"
             className="shrink-0"
           >
@@ -228,7 +288,7 @@ export default function LarkBotSettingsPage() {
           />
           <Button
             onClick={handleSaveToken}
-            disabled={savingToken}
+            disabled={loading || savingToken}
             variant="outline"
             size="md"
             className="shrink-0"
@@ -258,7 +318,7 @@ export default function LarkBotSettingsPage() {
         </div>
         <Button
           onClick={handleTest}
-          disabled={testing || !webhookUrl.trim()}
+          disabled={loading || testing || !webhookUrl.trim()}
           size="md"
         >
           {testing ? (
