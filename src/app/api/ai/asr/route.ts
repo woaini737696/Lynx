@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { requireAuth } from "@/lib/auth-utils";
 
 // POST /api/ai/asr
 // 接收音频文件（multipart/form-data，字段名 file）
@@ -8,6 +9,8 @@ import { NextRequest, NextResponse } from "next/server";
 // 文档：https://mimo.mi.com/docs/zh-CN/quick-start/usage-guide/audio/Speech-Recognition
 
 export async function POST(req: NextRequest) {
+  const auth = await requireAuth();
+  if (auth.error) return auth.error;
   try {
     const formData = await req.formData().catch(() => null);
     if (!formData) {

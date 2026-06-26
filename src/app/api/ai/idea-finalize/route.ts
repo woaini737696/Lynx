@@ -3,6 +3,7 @@ import { prisma } from "@/lib/db";
 import { IDEA_FINALIZE_PROMPT } from "@/lib/ai";
 import { chat, type ChatMessage, type LLMProvider } from "@/lib/ai-provider";
 import { writeMemoryForIdea, writeMemoryForCognition } from "@/lib/memory-sync";
+import { requireAuth } from "@/lib/auth-utils";
 
 interface FinalizeResult {
   summary: string;
@@ -56,6 +57,8 @@ function parseJSONResponse(text: string): any {
 // Request: { messages: [{role, content}], ideaDraft: string, ideaId?: string, provider?: "deepseek" | "mimo" }
 // Response: { idea, cognition?, summary, tags, suggestedColumn, reason }
 export async function POST(req: NextRequest) {
+  const auth = await requireAuth();
+  if (auth.error) return auth.error;
   try {
     const { messages = [], ideaDraft, ideaId, provider } = await req.json();
 

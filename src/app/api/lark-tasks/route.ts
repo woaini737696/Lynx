@@ -68,7 +68,7 @@ export async function GET(req: NextRequest) {
   // ===== 纯数据库模式（移动端）：完全不依赖 lark-cli，只读数据库 =====
   if (dbOnly) {
     const me = await getCurrentUser();
-    const myOpenId = me?.openId || "";
+    const myOpenId = (me as { openId?: string } | null)?.openId || "";
     const dbAllTasks = await getTasksFromDb({ complete: null });
     const filtered = applyClientFilters(dbAllTasks, {
       complete, q, assignee, tasklist, myOpenId, view,
@@ -147,7 +147,7 @@ export async function GET(req: NextRequest) {
     // ===== 快速模式：优先返回 DB 缓存，后台触发 lark-cli 刷新 =====
     if (fast && !refresh) {
       const me = await getCurrentUser();
-      const myOpenId = me?.openId || "";
+      const myOpenId = (me as { openId?: string } | null)?.openId || "";
       // 从 DB 读取全量任务（不含视图过滤，用于构建 subtaskMap）
       const dbAllTasks = await getTasksFromDb({ complete: null });
       if (dbAllTasks.length > 0) {

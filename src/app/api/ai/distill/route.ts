@@ -7,6 +7,7 @@ import {
   fillPromptTemplate,
   type SkillParameter,
 } from "@/lib/skill-parser";
+import { requireAuth } from "@/lib/auth-utils";
 
 // 性能优化：内存 flag 缓存，避免每请求都查 DB
 let skillsSeededFlag = false;
@@ -45,6 +46,8 @@ async function ensureSkillsSeeded() {
 // POST /api/ai/distill { templateId, parameters, provider? }
 // templateId 可以是 Skill.id，也可以是旧版 distill-template id（向后兼容）
 export async function POST(req: NextRequest) {
+  const auth = await requireAuth();
+  if (auth.error) return auth.error;
   try {
     const { templateId, parameters, provider } = await req.json();
 

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { IDEA_COACH_PROMPT } from "@/lib/ai";
 import { chat, type ChatMessage, type LLMProvider } from "@/lib/ai-provider";
+import { requireAuth } from "@/lib/auth-utils";
 
 // 降级回复（AI 调用失败或未配置时使用）
 const FALLBACK_REPLY =
@@ -27,6 +28,8 @@ function createTextStream(text: string): ReadableStream<Uint8Array> {
 // Request: { messages: [{role, content}], ideaDraft: string, provider?: "deepseek" | "mimo" }
 // Response: SSE stream of AI reply
 export async function POST(req: NextRequest) {
+  const auth = await requireAuth();
+  if (auth.error) return auth.error;
   try {
     const { messages = [], ideaDraft, provider } = await req.json();
 

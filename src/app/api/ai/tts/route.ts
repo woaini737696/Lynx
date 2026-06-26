@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
+import { requireAuth } from "@/lib/auth-utils";
 
 // POST /api/ai/tts
 // 接收 { text, voice?, speed? }，调用小米 MiMo TTS API
@@ -8,6 +9,8 @@ import { prisma } from "@/lib/db";
 // 返回 WAV 音频数据。
 
 export async function POST(req: NextRequest) {
+  const auth = await requireAuth();
+  if (auth.error) return auth.error;
   try {
     const body = await req.json().catch(() => null);
     if (!body || typeof body !== "object") {
