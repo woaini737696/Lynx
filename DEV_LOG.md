@@ -5,6 +5,56 @@
 
 ---
 
+## 迭代 34 - 2026-06-26
+
+### 任务概要
+C 盘数据迁移到 D 盘 + 磁盘使用规范写入强制规范文件 + npm 全局包路径迁移。
+
+### 完成内容
+
+#### 1. C 盘数据排查与迁移
+- **MySQL 数据目录**：从 `C:\lynnhub_mysql_data2`（约 250MB）迁移到 `D:\LynnHub\mysql_data`，通过 `--datadir` 启动参数指定
+- **Hermes profiles**：从 `C:\Users\lynnd\.lynnhub`（约 442MB）迁移到项目根目录 `.lynnhub/hermes-profiles/`
+- **npm 全局包**：配置 `npm config set prefix "D:\LynnHub\npm-global"`，从 `C:\Users\lynnd\AppData\Roaming\npm`（约 1.1GB）迁移
+- **C 盘累计释放**：约 1.8GB
+
+#### 2. 代码路径改造
+- **`src/lib/hermes-client.ts`**：`getUserProfileDir` 从 `os.homedir()`（C 盘）改为 `path.resolve(__dirname, "..", "..", "..")`（项目根目录），强制使用 D 盘
+- **`scripts/start-mysql.ps1`**（新建）：MySQL 启动脚本，统一使用 `--datadir=d:/LynnHub/mysql_data --port=3306 --console` 参数
+- **`scripts/reset-admin-user.ts`**：重建 lynn 超级管理员脚本（密码 ee9527ff），适配 D 盘数据库
+
+#### 3. 规范文件更新
+- **`DEVELOPMENT_SPEC.md`** 新增 §2.1 磁盘使用规范（强制）：
+  - 禁止在 C 盘写入任何项目数据（MySQL/Hermes profiles/日志/缓存/临时文件）
+  - 所有项目数据必须放在 D 盘
+  - MySQL 数据目录：`D:\LynnHub\mysql_data`
+  - Hermes profiles：`<项目根>/.lynnhub/hermes-profiles/`
+  - npm 全局包：`D:\LynnHub\npm-global`
+  - 临时文件：`os.tmpdir()` 返回 C 盘时改用项目目录下 `tmp/`
+- **`.gitignore`** 新增：`/mysql_data/`、`/.lynnhub/`、`/tmp/`、`*.log` 排除
+- **`debug.log`** 从 git 跟踪中移除（`git rm --cached`，已被 `*.log` 规则忽略）
+
+#### 4. 数据库适配
+- `npx prisma db push` 同步 schema 到 D 盘 MySQL（D 盘数据库是旧快照，缺少迭代31新增的 profession 字段）
+- 重建 lynn 超级管理员 + 3 个默认角色 seed
+
+### 自测结果
+- TypeScript 编译：`npx tsc --noEmit` 通过（exit 0）
+- MySQL 启动：`D:\LynnHub\mysql_data` 数据目录，端口 3306，2 个用户
+- dev server 运行：端口 5176，API 返回 200
+- npm 全局包路径：`npm config get prefix` 返回 `D:\LynnHub\npm-global`
+
+### 待用户手动操作
+C 盘旧数据目录沙箱 allowlist 限制无法自动删除，需用户手动清理：
+- `C:\lynnhub_mysql_data2`（约 250MB）
+- `C:\Users\lynnd\.lynnhub`（约 442MB）
+- `C:\Users\lynnd\AppData\Roaming\npm`（约 1.1GB，可删除老数据）
+
+### Commit
+（待提交）
+
+---
+
 ## 迭代 33 - 2026-06-26
 
 ### 任务概要

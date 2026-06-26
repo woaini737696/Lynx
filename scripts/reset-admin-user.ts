@@ -1,15 +1,10 @@
+// 重建 lynn 超级管理员（在 D 盘 MySQL 数据目录上）
 import "dotenv/config";
 import { prisma } from "../src/lib/db";
 import bcrypt from "bcryptjs";
 
 async function main() {
-  const users = await prisma.user.findMany({
-    select: { id: true, username: true, role: true, active: true, displayName: true },
-  });
-  console.log("当前用户列表：", JSON.stringify(users, null, 2));
-  console.log("用户总数：", users.length);
-
-  // 删除旧 admin（如果存在）
+  // 删除旧 admin
   const deleted = await prisma.user.deleteMany({ where: { username: "admin" } });
   console.log(`删除旧 admin 用户：${deleted.count} 条`);
 
@@ -35,7 +30,7 @@ async function main() {
 
   // 确认最终用户列表
   const finalUsers = await prisma.user.findMany({
-    select: { username: true, role: true, active: true },
+    select: { username: true, role: true, active: true, displayName: true },
   });
   console.log("最终用户列表：", JSON.stringify(finalUsers, null, 2));
 }

@@ -28,6 +28,14 @@ yarn-error.log*
 
 # typescript
 *.tsbuildinfo
+
+# 项目本地数据（D 盘迁移，不入版本控制）
+/mysql_data/
+/.lynnhub/
+/tmp/
+/mysql_data/
+*.log
+
 next-env.d.ts
 
 # prisma

@@ -188,8 +188,10 @@ async function hermesFetch(
  */
 export function getUserProfileDir(userId: string): string {
   const path = require("path") as typeof import("path");
-  const os = require("os") as typeof import("os");
-  return path.join(os.homedir(), ".lynnhub", "hermes-profiles", userId);
+  // 强制使用项目目录下的 .lynnhub，避免占用 C 盘
+  // 项目根目录 = 当前文件向上 3 层（src/lib/hermes-client.ts → src/lib → src → 项目根）
+  const projectRoot = path.resolve(__dirname, "..", "..", "..");
+  return path.join(projectRoot, ".lynnhub", "hermes-profiles", userId);
 }
 
 /**

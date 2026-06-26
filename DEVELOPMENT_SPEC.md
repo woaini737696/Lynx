@@ -56,6 +56,15 @@
 
 所有脚本、配置、文档、代理 target 均需遵循此规范。
 
+### 2.1 磁盘使用规范（强制）
+- **禁止在 C 盘写入任何项目数据**，包括但不限于：MySQL 数据目录、Hermes profiles、日志、缓存、临时文件
+- **所有项目数据必须放在 D 盘**（项目目录 `d:\Lynn工作空间\LynnHub\` 或 `D:\LynnHub\` 下）
+- **MySQL 数据目录**：`D:\LynnHub\mysql_data`（启动脚本：`scripts/start-mysql.ps1`）
+- **Hermes profiles**：`<项目根>/.lynnhub/hermes-profiles/`（代码中通过 `path.resolve(__dirname, "..", "..", "..")` 定位项目根，禁止用 `os.homedir()`）
+- **npm/pnpm 全局包**：如需安装全局包（如 hermes-agent），配置 `npm config set prefix "D:\LynnHub\npm-global"`，避免占用 `C:\Users\...\AppData\Roaming\npm`
+- **临时文件**：代码中 `os.tmpdir()` 返回 C 盘时，改用项目目录下 `tmp/` 子目录
+- **每次开发前检查**：不得在 C 盘新建任何项目相关目录或文件
+
 ## 3. UI 规范（强制）
 
 - **配色**：橙黑灰（orange-black-gray），禁止蓝紫渐变
