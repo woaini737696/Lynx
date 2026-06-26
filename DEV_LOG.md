@@ -5,6 +5,43 @@
 
 ---
 
+## 迭代 33 - 2026-06-26
+
+### 任务概要
+悬浮聊天窗与主 AI 助理共享会话 + 角色管理 CRUD（创建/编辑/删除）+ Role 绑定职业。
+
+### 完成内容
+
+#### 1. 悬浮聊天窗共享会话
+- **`src/components/ai/AssistantChat.tsx`** 重写改造：
+  - 加载最近会话：mount 时 GET /api/ai/chat/sessions?limit=10，取最近会话加载历史消息，无则创建新会话
+  - 发送消息持久化：POST /api/ai/chat 带 sessionId+assistantMode:true，AI 回复后 POST /api/ai/chat/sessions/{id}/messages 持久化
+  - 工具调用渲染对齐主页面：larkTaskCard 复用 LarkTaskCard 组件，通用工具调用可展开卡片（工具名+摘要+完整JSON）
+  - 会话切换 UI：header 显示当前会话标题，点击展开下拉列表（最近10个会话），可切换或新建
+  - 用 ref 持有最新闭包避免 stale closure
+  - 保留全双工语音、快捷技能、模型切换、LarkTaskCard 功能
+
+#### 2. 角色管理 CRUD + Role 绑定职业
+- **`prisma/schema.prisma`**：Role 模型新增 `profession String? @db.VarChar(100)`
+- **`src/lib/permissions.ts`**：新增 PROFESSIONS（12岗位 key/label/icon）、PROFESSION_LABEL_MAP、isValidProfessionKey
+- **`prisma/seed-roles.ts`**：3 个默认角色补充 profession=null
+- **`src/app/api/admin/roles/route.ts`**：GET 返回 profession+professions目录；新增 POST 创建角色（校验name唯一+格式、displayName、permissions、profession，强制 isSystem=false）；PUT 增加 profession/displayName 更新
+- **`src/app/api/admin/roles/[id]/route.ts`**（新建）：DELETE 删除角色（系统角色403，有用户引用400）
+- **`src/app/admin/roles/page.tsx`** 重写：创建角色按钮+创建/编辑共用弹窗（name/displayName/description/profession下拉+权限勾选）+删除按钮（非系统角色）+职业badge+权限数+用户数
+- **`src/app/api/users/route.ts`**：GET 增加 profession；POST 改为动态校验角色（查Role表），自动同步 user.profession=role.profession
+- **`src/app/api/users/[id]/route.ts`**：GET/PATCH 增加 profession；PATCH 角色变更时自动同步用户职业
+- **`src/app/admin/users/page.tsx`**：User 类型加 profession；角色选择器改为动态（含自定义角色）；表格新增职业列显示橙色 badge
+
+### 自测结果
+- TypeScript 编译：`npx tsc --noEmit` 通过（exit 0）
+- Prisma db push + generate 成功（Role 表新增 profession 字段）
+- dev server 运行正常（5176 端口）
+
+### Commit
+`（待提交后填写）`
+
+---
+
 ## 迭代 32 - 2026-06-26
 
 ### 任务概要

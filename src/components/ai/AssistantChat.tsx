@@ -11,6 +11,9 @@ import {
   Bot,
   X,
   Wrench,
+  ChevronDown,
+  ChevronRight,
+  MessageSquare,
 } from "lucide-react";
 import { LarkTaskCard, type LarkTaskCardData } from "@/components/ai/LarkTaskCard";
 import { ModelSwitcher, type ModelSwitcherValue } from "@/components/ui/ModelSwitcher";
@@ -23,17 +26,40 @@ import { BackchannelPlayer } from "@/lib/voice-backchannel";
 
 /**
  * 工具调用字段：当 type === "larkTaskCard" 时渲染飞书任务卡片。
+ * （旧字段，保留向后兼容）
  */
 export interface ToolCall {
   type: string;
   data: unknown;
 }
 
+/** 工具调用信息（与主页面 / 后端 assistantMode 返回一致） */
+export interface ToolCalled {
+  tool: string;
+  args: Record<string, any>;
+  result: any;
+}
+
 export interface ChatMessage {
   role: "user" | "assistant";
   content: string;
-  /** 预留：后续用于渲染工具调用卡片（如飞书任务） */
+  /** 旧字段：保留向后兼容（larkTaskCard） */
   toolCall?: ToolCall;
+  /** 新字段：与主页面一致，承载 assistantMode 返回的工具调用 */
+  toolCalled?: ToolCalled | null;
+  /** 标记本条回复由 Hermes Agent 生成 */
+  hermesMode?: boolean;
+  /** 标记 Hermes 失败后回退到 LLM 模式 */
+  hermesFallback?: boolean;
+}
+
+/** 历史会话条目（GET /api/ai/chat/sessions 返回） */
+interface SessionListItem {
+  id: string;
+  title: string;
+  updatedAt: string;
+  messageCount: number;
+  pinned: boolean;
 }
 
 export interface AssistantChatProps {
@@ -55,55 +81,57 @@ const DEFAULT_SETTINGS: AssistantSettings = {
 
 type VoicePhase = "listening" | "speaking" | "thinking" | "replying";
 
-/**
- * 读取 /api/ai/chat SSE 流，逐 delta 回调。
- * 抽出为模块级函数，避免 sendMessage / sendVoice 重复代码。
- */
-async function readChatStream(
-  res: Response,
-  onDelta: (chunk: string) => void,
-): Promise<void> {
-  if (!res.ok || !res.body) {
-    throw new Error(`HTTP ${res.status}`);
+/** AI 助理模式返回结果（与后端 /api/ai/chat assistantMode 响应一致） */
+interface AssistantModeResponse {
+  content: string;
+  provider?: string;
+  model?: string;
+  usage?: { prompt_tokens?: number; completion_tokens?: number; total_tokens?: number };
+  toolCalled?: ToolCalled | null;
+  hermesMode?: boolean;
+  hermesFallback?: boolean;
+}
+
+/** 生成工具调用结果的简短摘要（与主页面 summarizeToolResult 一致） */
+function summarizeToolResult(result: any): string {
+  if (!result) return "无结果";
+  if (result.error) return `失败：${String(result.error).slice(0, 30)}`;
+  if (typeof result.total === "number") return `${result.total} 项`;
+  if (typeof result.success === "boolean" && result.success) {
+    if (typeof result.count === "number") return `${result.count} 项`;
+    if (typeof result.sentCount === "number") return `已发送 ${result.sentCount}`;
+    if (typeof result.cognitionCount === "number") return `提取 ${result.cognitionCount} 条认知`;
+    if (typeof result.edges === "number") return `${result.edges} 条边`;
+    return "成功";
   }
-  const reader = res.body.getReader();
-  const decoder = new TextDecoder("utf-8");
-  let buffer = "";
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    buffer += decoder.decode(value, { stream: true });
-    const parts = buffer.split("\n\n");
-    buffer = parts.pop() || "";
-    for (const part of parts) {
-      for (const line of part.split("\n")) {
-        const trimmed = line.trim();
-        if (!trimmed.startsWith("data:")) continue;
-        const data = trimmed.slice(5).trim();
-        if (!data) continue;
-        let evt: { type: string; content?: string; message?: string };
-        try {
-          evt = JSON.parse(data);
-        } catch {
-          continue;
-        }
-        if (evt.type === "delta" && typeof evt.content === "string") {
-          onDelta(evt.content);
-        } else if (evt.type === "error") {
-          throw new Error(evt.message || "流式响应异常");
-        }
-      }
-    }
+  if (Array.isArray(result.ideas)) return `${result.ideas.length} 条灵感`;
+  if (Array.isArray(result.tasks)) return `${result.tasks.length} 条任务`;
+  if (Array.isArray(result.cognitions)) return `${result.cognitions.length} 条认知`;
+  if (Array.isArray(result.skills)) return `${result.skills.length} 个技能`;
+  if (Array.isArray(result.flows)) return `${result.flows.length} 个工作流`;
+  if (Array.isArray(result.rules)) return `${result.rules.length} 条规则`;
+  if (Array.isArray(result.logs)) return `${result.logs.length} 条日志`;
+  if (Array.isArray(result.results)) return `${result.results.length} 项结果`;
+  if (result.totalCompleted != null && result.totalActive != null) {
+    return `完成 ${result.totalCompleted} / 进行中 ${result.totalActive}`;
   }
+  if (result.output) return String(result.output).slice(0, 30);
+  return "已执行";
+}
+
+/** 判断 toolCalled 是否为飞书任务卡片类型 */
+function isLarkTaskCardTool(tc: ToolCalled | null | undefined): boolean {
+  return !!tc && tc.tool === "createLarkTask" && tc.result?.type === "larkTaskCard" && !!tc.result?.data;
 }
 
 /**
  * 增强版 AI 助理聊天组件
- * - 顶部 header：AI 头像 + 名称 + ModelSwitcher + 语音通话按钮
+ * - 顶部 header：AI 头像 + 会话标题（可切换）+ ModelSwitcher + 语音通话按钮
  * - 消息列表：可滚动，AI 消息带小头像
  * - 快捷技能：输入框上方横向滚动
  * - 输入区：固定底部
  * - 全双工语音：VAD + 流式 ASR + 流式 TTS + 后缀音 + 用户开口打断
+ * - 与主页面 /ai/assistant 共享同一会话（/api/ai/chat/sessions）
  */
 export function AssistantChat({ onClose }: AssistantChatProps = {}) {
   // ===== 消息 / 输入 / 设置 =====
@@ -117,6 +145,15 @@ export function AssistantChat({ onClose }: AssistantChatProps = {}) {
     model: "deepseek-chat",
     reasoningMode: "standard",
   });
+
+  // ===== 会话管理 state（与主页面共享同一会话）=====
+  const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
+  const [currentSessionTitle, setCurrentSessionTitle] = useState<string>("新对话");
+  const [sessions, setSessions] = useState<SessionListItem[]>([]);
+  const [showSessionList, setShowSessionList] = useState(false);
+  const [sessionLoading, setSessionLoading] = useState(true);
+  // 工具调用卡片展开状态（按消息索引记录）
+  const [expandedTools, setExpandedTools] = useState<Set<number>>(new Set());
 
   // ===== 全双工语音通话状态 =====
   const [voiceCallActive, setVoiceCallActive] = useState(false);
@@ -135,12 +172,29 @@ export function AssistantChat({ onClose }: AssistantChatProps = {}) {
   const voiceModeActiveRef = useRef(false);
   const voiceCallPhaseRef = useRef<VoicePhase>("listening");
   const voiceSendLockRef = useRef(false);
-  // 防止 stale closure：用 ref 持有最新的 sendVoice / handleSpeechEnd
+  // 防止 stale closure：用 ref 持有最新的 sendVoice / handleSpeechEnd / sendText
   const sendVoiceRef = useRef<(text: string) => Promise<void>>(async () => {});
   const handleSpeechEndRef = useRef<() => void>(() => {});
+  const sendTextRef = useRef<(text: string) => Promise<void>>(async () => {});
+  // 会话 id / model / messages 的 ref：异步回调中读取最新值，避免读到旧 state
+  const currentSessionIdRef = useRef<string | null>(null);
+  const modelConfigRef = useRef<ModelSwitcherValue>(modelConfig);
+  const messagesRef = useRef<ChatMessage[]>([]);
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const abortRef = useRef<AbortController | null>(null);
+  const sessionListRef = useRef<HTMLDivElement | null>(null);
+
+  // 同步 ref 与 state
+  useEffect(() => {
+    currentSessionIdRef.current = currentSessionId;
+  }, [currentSessionId]);
+  useEffect(() => {
+    modelConfigRef.current = modelConfig;
+  }, [modelConfig]);
+  useEffect(() => {
+    messagesRef.current = messages;
+  }, [messages]);
 
   // ===== 拉取 AI 设置 =====
   useEffect(() => {
@@ -173,7 +227,7 @@ export function AssistantChat({ onClose }: AssistantChatProps = {}) {
     scrollToBottom();
   }, [messages, scrollToBottom]);
 
-  // ===== 卸载时中断未完成的流和语音资源 =====
+  // ===== 卸载时中断未完成的请求和语音资源 =====
   useEffect(() => {
     return () => {
       abortRef.current?.abort();
@@ -193,6 +247,126 @@ export function AssistantChat({ onClose }: AssistantChatProps = {}) {
     setVoiceCallPhase(p);
   }, []);
 
+  // ===== 会话管理：与主页面 /api/ai/chat/sessions 共享 =====
+  const fetchSessions = useCallback(async (): Promise<SessionListItem[]> => {
+    try {
+      const res = await fetch("/api/ai/chat/sessions?limit=10");
+      const data = await res.json();
+      if (data.sessions) {
+        const list = data.sessions as SessionListItem[];
+        setSessions(list);
+        return list;
+      }
+    } catch {
+      /* noop */
+    }
+    return [];
+  }, []);
+
+  const loadSession = useCallback(async (sessionId: string) => {
+    try {
+      const res = await fetch(`/api/ai/chat/sessions/${sessionId}`);
+      if (!res.ok) return;
+      const data = await res.json();
+      if (data.session) {
+        setCurrentSessionId(sessionId);
+        currentSessionIdRef.current = sessionId;
+        setCurrentSessionTitle(data.session.title || "新对话");
+        const loaded: ChatMessage[] = (data.session.messages || []).map((m: any) => ({
+          role: m.role as "user" | "assistant",
+          content: m.content || "",
+        }));
+        setMessages(loaded);
+        messagesRef.current = loaded;
+      }
+    } catch {
+      /* noop */
+    }
+  }, []);
+
+  const createNewSession = useCallback(async () => {
+    try {
+      const res = await fetch("/api/ai/chat/sessions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title: "新对话",
+          provider: modelConfigRef.current.provider,
+          model: modelConfigRef.current.model,
+        }),
+      });
+      const data = await res.json();
+      if (data.session) {
+        setCurrentSessionId(data.session.id);
+        currentSessionIdRef.current = data.session.id;
+        setCurrentSessionTitle("新对话");
+        setMessages([]);
+        messagesRef.current = [];
+        void fetchSessions();
+      }
+    } catch {
+      /* noop */
+    }
+  }, [fetchSessions]);
+
+  // 初始化：加载最近会话或创建新会话（与主页面行为一致）
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const list = await fetchSessions();
+      if (cancelled) return;
+      if (list.length > 0) {
+        await loadSession(list[0].id);
+      } else {
+        await createNewSession();
+      }
+      if (!cancelled) setSessionLoading(false);
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // 点击会话下拉外部时关闭
+  useEffect(() => {
+    if (!showSessionList) return;
+    const handler = (e: MouseEvent) => {
+      if (sessionListRef.current && !sessionListRef.current.contains(e.target as Node)) {
+        setShowSessionList(false);
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [showSessionList]);
+
+  const toggleToolExpand = useCallback((idx: number) => {
+    setExpandedTools((prev) => {
+      const next = new Set(prev);
+      if (next.has(idx)) next.delete(idx);
+      else next.add(idx);
+      return next;
+    });
+  }, []);
+
+  /** 切换到指定会话 */
+  const handleSwitchSession = useCallback(
+    async (sessionId: string) => {
+      setShowSessionList(false);
+      if (sessionId === currentSessionIdRef.current) return;
+      abortRef.current?.abort();
+      await loadSession(sessionId);
+    },
+    [loadSession],
+  );
+
+  /** 开启新对话 */
+  const handleNewSession = useCallback(async () => {
+    setShowSessionList(false);
+    abortRef.current?.abort();
+    await createNewSession();
+  }, [createNewSession]);
+
   // ===== 文本模式发送（含快捷技能复用）=====
   const sendText = useCallback(
     async (text: string) => {
@@ -200,7 +374,8 @@ export function AssistantChat({ onClose }: AssistantChatProps = {}) {
       if (!content || sending) return;
 
       const userMsg: ChatMessage = { role: "user", content };
-      const history = [...messages, userMsg].map((m) => ({
+      // 构建 API 消息（读取最新 messages，避免 stale closure）
+      const apiMessages = [...messagesRef.current, userMsg].map((m) => ({
         role: m.role,
         content: m.content,
       }));
@@ -210,47 +385,98 @@ export function AssistantChat({ onClose }: AssistantChatProps = {}) {
         userMsg,
         { role: "assistant", content: "" },
       ]);
+      messagesRef.current = [...messagesRef.current, userMsg, { role: "assistant", content: "" }];
       setInput("");
       setSending(true);
       setError(null);
 
+      // 持久化用户消息到当前会话（非阻塞）
+      const sessionId = currentSessionIdRef.current;
+      if (sessionId) {
+        fetch(`/api/ai/chat/sessions/${sessionId}/messages`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ role: "user", content }),
+        }).catch(() => {
+          /* noop */
+        });
+      }
+
       const controller = new AbortController();
       abortRef.current = controller;
+      const cfg = modelConfigRef.current;
 
-      let acc = "";
       try {
+        // 调用 AI 助理模式（非流式，支持 Function Calling，与主页面一致）
         const res = await fetch("/api/ai/chat", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            messages: history,
-            stream: true,
-            provider: modelConfig.provider,
-            model: modelConfig.model || undefined,
-            reasoningMode: modelConfig.reasoningMode,
+            messages: apiMessages,
+            provider: cfg.provider,
+            model: cfg.model || undefined,
+            reasoningMode: cfg.reasoningMode,
+            stream: false,
+            assistantMode: true,
           }),
           signal: controller.signal,
         });
-        await readChatStream(res, (chunk) => {
-          acc += chunk;
-          setMessages((prev) => {
-            const next = [...prev];
-            const last = next[next.length - 1];
-            if (last && last.role === "assistant") {
-              next[next.length - 1] = { ...last, content: acc };
-            }
-            return next;
-          });
+
+        if (!res.ok) {
+          const errData = await res.json().catch(() => null);
+          throw new Error(errData?.error || `请求失败（${res.status}）`);
+        }
+
+        const data = (await res.json()) as AssistantModeResponse;
+        const aiContent: string = data.content || "(空回复)";
+        const toolCalled: ToolCalled | null = data.toolCalled || null;
+
+        setMessages((prev) => {
+          const next = [...prev];
+          const last = next[next.length - 1];
+          if (last && last.role === "assistant") {
+            next[next.length - 1] = {
+              ...last,
+              content: aiContent,
+              toolCalled,
+              hermesMode: data.hermesMode === true ? true : undefined,
+              hermesFallback: data.hermesFallback === true ? true : undefined,
+            };
+          }
+          messagesRef.current = next;
+          return next;
         });
+
+        // 持久化 AI 回复到当前会话（非阻塞），并刷新会话列表（标题可能已自动更新）
+        if (sessionId && aiContent) {
+          fetch(`/api/ai/chat/sessions/${sessionId}/messages`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              role: "assistant",
+              content: aiContent,
+              provider: data.provider,
+              model: data.model,
+              tokens: data.usage?.total_tokens,
+            }),
+          }).catch(() => {
+            /* noop */
+          });
+          void fetchSessions().then((list) => {
+            const cur = list.find((s) => s.id === sessionId);
+            if (cur) setCurrentSessionTitle(cur.title);
+          });
+        }
       } catch (e) {
         if ((e as Error).name === "AbortError") return;
-        setError("发送失败，请重试");
+        setError((e as Error).message || "发送失败，请重试");
         setMessages((prev) => {
           const next = [...prev];
           const last = next[next.length - 1];
           if (last && last.role === "assistant" && last.content === "") {
             next.pop();
           }
+          messagesRef.current = next;
           return next;
         });
       } finally {
@@ -258,14 +484,19 @@ export function AssistantChat({ onClose }: AssistantChatProps = {}) {
         abortRef.current = null;
       }
     },
-    [sending, messages, modelConfig],
+    [sending, fetchSessions],
   );
 
-  const sendMessage = useCallback(() => {
-    void sendText(input);
-  }, [input, sendText]);
+  // 同步 sendText 到 ref（供快捷技能 / sendMessage 等回调使用最新闭包）
+  useEffect(() => {
+    sendTextRef.current = sendText;
+  }, [sendText]);
 
-  // ===== 全双工语音：流式发送给 LLM，边生成边 TTS 播放 =====
+  const sendMessage = useCallback(() => {
+    void sendTextRef.current(input);
+  }, [input]);
+
+  // ===== 全双工语音：调用 assistantMode 非流式，拿到完整回复后 TTS 播放 =====
   const sendVoice = useCallback(
     async (text: string) => {
       const content = text.trim();
@@ -276,7 +507,8 @@ export function AssistantChat({ onClose }: AssistantChatProps = {}) {
       streamTtsRef.current?.reset();
 
       const userMsg: ChatMessage = { role: "user", content };
-      const history = [...messages, userMsg].map((m) => ({
+      // 读取最新 messages，避免 stale closure
+      const apiMessages = [...messagesRef.current, userMsg].map((m) => ({
         role: m.role,
         content: m.content,
       }));
@@ -286,6 +518,7 @@ export function AssistantChat({ onClose }: AssistantChatProps = {}) {
         userMsg,
         { role: "assistant", content: "" },
       ]);
+      messagesRef.current = [...messagesRef.current, userMsg, { role: "assistant", content: "" }];
       setInput("");
       setSending(true);
       setError(null);
@@ -310,42 +543,95 @@ export function AssistantChat({ onClose }: AssistantChatProps = {}) {
       const controller = new AbortController();
       abortRef.current = controller;
 
-      let acc = "";
+      // 持久化用户消息到当前会话（非阻塞）
+      const sessionId = currentSessionIdRef.current;
+      if (sessionId) {
+        fetch(`/api/ai/chat/sessions/${sessionId}/messages`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ role: "user", content }),
+        }).catch(() => {
+          /* noop */
+        });
+      }
+
+      const cfg = modelConfigRef.current;
       try {
         const res = await fetch("/api/ai/chat", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            messages: history,
-            stream: true,
-            provider: modelConfig.provider,
-            model: modelConfig.model || undefined,
-            reasoningMode: modelConfig.reasoningMode,
+            messages: apiMessages,
+            provider: cfg.provider,
+            model: cfg.model || undefined,
+            reasoningMode: cfg.reasoningMode,
+            stream: false,
+            assistantMode: true,
           }),
           signal: controller.signal,
         });
-        await readChatStream(res, (chunk) => {
-          acc += chunk;
-          tts?.feed(chunk);
-          setMessages((prev) => {
-            const next = [...prev];
-            const last = next[next.length - 1];
-            if (last && last.role === "assistant") {
-              next[next.length - 1] = { ...last, content: acc };
-            }
-            return next;
-          });
+
+        if (!res.ok) {
+          const errData = await res.json().catch(() => null);
+          throw new Error(errData?.error || `请求失败（${res.status}）`);
+        }
+
+        const data = (await res.json()) as AssistantModeResponse;
+        const aiContent: string = data.content || "(空回复)";
+        const toolCalled: ToolCalled | null = data.toolCalled || null;
+
+        setMessages((prev) => {
+          const next = [...prev];
+          const last = next[next.length - 1];
+          if (last && last.role === "assistant") {
+            next[next.length - 1] = {
+              ...last,
+              content: aiContent,
+              toolCalled,
+              hermesMode: data.hermesMode === true ? true : undefined,
+              hermesFallback: data.hermesFallback === true ? true : undefined,
+            };
+          }
+          messagesRef.current = next;
+          return next;
         });
-        tts?.finish();
+
+        // 持久化 AI 回复并刷新会话列表（非阻塞）
+        if (sessionId && aiContent) {
+          fetch(`/api/ai/chat/sessions/${sessionId}/messages`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              role: "assistant",
+              content: aiContent,
+              provider: data.provider,
+              model: data.model,
+              tokens: data.usage?.total_tokens,
+            }),
+          }).catch(() => {
+            /* noop */
+          });
+          void fetchSessions().then((list) => {
+            const cur = list.find((s) => s.id === sessionId);
+            if (cur) setCurrentSessionTitle(cur.title);
+          });
+        }
+
+        // 拿到完整回复后一次性喂给 TTS 播放
+        if (tts && aiContent) {
+          tts.feed(aiContent);
+          tts.finish();
+        }
       } catch (e) {
         if ((e as Error).name === "AbortError") return;
-        setError("发送失败，请重试");
+        setError((e as Error).message || "发送失败，请重试");
         setMessages((prev) => {
           const next = [...prev];
           const last = next[next.length - 1];
           if (last && last.role === "assistant" && last.content === "") {
             next.pop();
           }
+          messagesRef.current = next;
           return next;
         });
       } finally {
@@ -357,7 +643,7 @@ export function AssistantChat({ onClose }: AssistantChatProps = {}) {
         }
       }
     },
-    [messages, modelConfig, setPhase],
+    [setPhase, fetchSessions],
   );
 
   /** VAD 检测到说话结束：取 ASR 累积文字立即提交，重置 ASR */
@@ -401,7 +687,7 @@ export function AssistantChat({ onClose }: AssistantChatProps = {}) {
       setPhase("listening");
       setInput("");
 
-      // 初始化流式 TTS（边生成边播）
+      // 初始化流式 TTS（拿到完整回复后分句播放）
       const tts = new StreamTTS();
       streamTtsRef.current = tts;
       tts.onPlayStart = () => {
@@ -499,9 +785,9 @@ export function AssistantChat({ onClose }: AssistantChatProps = {}) {
   const handleQuickCommand = useCallback(
     (cmd: QuickCommand) => {
       if (sending) return;
-      void sendText(cmd.message);
+      void sendTextRef.current(cmd.message);
     },
-    [sending, sendText],
+    [sending],
   );
 
   const onKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -516,9 +802,9 @@ export function AssistantChat({ onClose }: AssistantChatProps = {}) {
 
   return (
     <div className="flex h-full flex-col bg-background">
-      {/* ===== Header：AI 头像 + 名称 + ModelSwitcher + 语音按钮 ===== */}
-      <header className="flex shrink-0 items-center justify-between gap-2 border-b border-border bg-background px-3 py-2.5">
-        <div className="flex min-w-0 items-center gap-2">
+      {/* ===== Header：AI 头像 + 会话标题（可切换）+ ModelSwitcher + 语音按钮 ===== */}
+      <header className="relative flex shrink-0 items-center justify-between gap-2 border-b border-border bg-background px-3 py-2.5">
+        <div className="flex min-w-0 flex-1 items-center gap-2">
           <div className="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-full bg-primary text-primary-foreground">
             {settings.avatarUrl ? (
               <img
@@ -532,13 +818,80 @@ export function AssistantChat({ onClose }: AssistantChatProps = {}) {
               </span>
             )}
           </div>
-          <div className="min-w-0">
-            <h2 className="truncate text-sm font-semibold text-foreground">
-              AI 助理 · {displayName}
-            </h2>
-            <p className="truncate text-[10px] text-muted-foreground">
-              {voiceCallActive ? "语音通话中" : "随时帮你处理事项"}
-            </p>
+          {/* 会话标题切换器：点击展开下拉切换/新建会话 */}
+          <div ref={sessionListRef} className="relative min-w-0 flex-1">
+            <button
+              type="button"
+              onClick={() => setShowSessionList((v) => !v)}
+              disabled={sessionLoading}
+              aria-label="切换会话"
+              title="切换会话"
+              className="flex min-w-0 max-w-full items-center gap-1 rounded-md px-1 py-0.5 text-left transition-colors hover:bg-muted focus:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-60"
+            >
+              <div className="min-w-0">
+                <h2 className="truncate text-sm font-semibold text-foreground">
+                  {currentSessionTitle || "新对话"}
+                </h2>
+                <p className="truncate text-[10px] text-muted-foreground">
+                  {sessionLoading
+                    ? "加载会话中..."
+                    : voiceCallActive
+                    ? "语音通话中"
+                    : `${displayName} · 共享会话`}
+                </p>
+              </div>
+              <ChevronDown
+                className={`h-3.5 w-3.5 shrink-0 text-muted-foreground transition-transform ${
+                  showSessionList ? "rotate-180" : ""
+                }`}
+              />
+            </button>
+
+            {/* 会话下拉列表 */}
+            {showSessionList && (
+              <div className="absolute left-0 right-0 top-full z-50 mt-1 max-h-72 overflow-hidden rounded-lg border border-border bg-card shadow-lg">
+                <div className="flex items-center justify-between border-b border-border px-2 py-1.5">
+                  <span className="text-[10px] font-medium text-muted-foreground">
+                    历史会话
+                  </span>
+                  <button
+                    type="button"
+                    onClick={handleNewSession}
+                    disabled={sending || voiceCallActive}
+                    className="rounded px-1.5 py-0.5 text-[10px] font-medium text-northstar transition-colors hover:bg-northstar/10 disabled:opacity-50"
+                  >
+                    + 新对话
+                  </button>
+                </div>
+                <div className="max-h-56 overflow-y-auto">
+                  {sessions.length === 0 ? (
+                    <p className="py-4 text-center text-[11px] text-muted-foreground">
+                      暂无历史会话
+                    </p>
+                  ) : (
+                    sessions.map((s) => (
+                      <button
+                        key={s.id}
+                        type="button"
+                        onClick={() => handleSwitchSession(s.id)}
+                        disabled={sending}
+                        className={`flex w-full items-center gap-1.5 px-2.5 py-1.5 text-left text-[11px] transition-colors hover:bg-muted/60 disabled:opacity-50 ${
+                          s.id === currentSessionId
+                            ? "bg-cognition/10 text-cognition"
+                            : "text-foreground"
+                        }`}
+                      >
+                        <MessageSquare className="h-3 w-3 shrink-0 text-muted-foreground" />
+                        <span className="flex-1 truncate">{s.title}</span>
+                        <span className="shrink-0 text-[9px] text-muted-foreground">
+                          {s.messageCount}条
+                        </span>
+                      </button>
+                    ))
+                  )}
+                </div>
+              </div>
+            )}
           </div>
         </div>
         <div className="flex shrink-0 items-center gap-1.5">
@@ -643,7 +996,9 @@ export function AssistantChat({ onClose }: AssistantChatProps = {}) {
                 )}
               </div>
               <p className="rounded-2xl rounded-tl-sm bg-muted px-3.5 py-2.5 text-sm text-foreground">
-                你好，我是 {displayName}，有什么可以帮你？
+                {sessionLoading
+                  ? "正在加载会话..."
+                  : `你好，我是 ${displayName}，有什么可以帮你？`}
               </p>
             </div>
           </div>
@@ -653,10 +1008,20 @@ export function AssistantChat({ onClose }: AssistantChatProps = {}) {
               const isUser = m.role === "user";
               const isStreaming =
                 !isUser && sending && i === messages.length - 1;
-              const larkCard =
-                !isUser && m.toolCall?.type === "larkTaskCard"
+              // 飞书任务卡片：优先从 toolCalled（新主路径）提取，回退到旧 toolCall 字段
+              const larkCard: LarkTaskCardData | undefined = !isUser
+                ? isLarkTaskCardTool(m.toolCalled)
+                  ? (m.toolCalled!.result.data as LarkTaskCardData)
+                  : m.toolCall?.type === "larkTaskCard"
                   ? (m.toolCall.data as LarkTaskCardData | undefined)
-                  : undefined;
+                  : undefined
+                : undefined;
+              // 通用工具调用卡片：非飞书任务卡片的 toolCalled
+              const showGenericTool =
+                !isUser &&
+                !isStreaming &&
+                !!m.toolCalled &&
+                !isLarkTaskCardTool(m.toolCalled);
               return (
                 <li key={i} className="flex flex-col gap-1.5">
                   <div
@@ -694,7 +1059,51 @@ export function AssistantChat({ onClose }: AssistantChatProps = {}) {
                       )}
                     </div>
                   </div>
+                  {/* 飞书任务卡片 */}
                   {larkCard && <LarkTaskCard {...larkCard} />}
+                  {/* 通用工具调用卡片（可展开查看参数与完整结果） */}
+                  {showGenericTool && m.toolCalled && (
+                    <div className="ml-8 max-w-[85%] overflow-hidden rounded-xl border border-cognition/30 bg-cognition/5">
+                      <button
+                        type="button"
+                        onClick={() => toggleToolExpand(i)}
+                        className="flex w-full items-center gap-2 px-3 py-2 text-left transition-colors hover:bg-cognition/10"
+                      >
+                        <Wrench className="h-3.5 w-3.5 shrink-0 text-cognition" />
+                        <span className="text-xs font-medium text-cognition">
+                          工具调用：{m.toolCalled.tool}
+                        </span>
+                        <span className="ml-auto truncate text-[10px] text-muted-foreground">
+                          {summarizeToolResult(m.toolCalled.result)}
+                        </span>
+                        {expandedTools.has(i) ? (
+                          <ChevronDown className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                        ) : (
+                          <ChevronRight className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                        )}
+                      </button>
+                      {expandedTools.has(i) && (
+                        <div className="border-t border-cognition/20 px-3 py-2">
+                          <div className="mb-1.5 text-[10px] text-muted-foreground">
+                            参数：
+                          </div>
+                          <pre className="mb-2 overflow-x-auto rounded-lg bg-muted/50 p-2 text-[11px] leading-relaxed">
+                            <code className="font-mono text-foreground">
+                              {JSON.stringify(m.toolCalled.args, null, 2)}
+                            </code>
+                          </pre>
+                          <div className="mb-1.5 text-[10px] text-muted-foreground">
+                            结果：
+                          </div>
+                          <pre className="max-h-60 overflow-auto rounded-lg bg-muted/50 p-2 text-[11px] leading-relaxed">
+                            <code className="font-mono text-foreground">
+                              {JSON.stringify(m.toolCalled.result, null, 2)}
+                            </code>
+                          </pre>
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </li>
               );
             })}
