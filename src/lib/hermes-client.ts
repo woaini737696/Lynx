@@ -203,6 +203,43 @@ export function getUserHermesDir(userId: string): string {
 }
 
 /**
+ * 检测系统中的 bash.exe 所在目录（Windows）
+ * Hermes 执行 shell 命令时需要 bash，PATH 中找不到会报"Git Bash 未安装"
+ * 检测顺序：D:\Git\bin → C:\Program Files\Git\bin → C:\Program Files (x86)\Git\bin
+ * 结果缓存 10 分钟避免频繁文件系统访问
+ */
+let _bashDirCache: { dir: string | null; ts: number } | null = null;
+const BASH_DIR_CACHE_MS = 10 * 60 * 1000;
+
+function findBashDir(): string | null {
+  if (process.platform !== "win32") return null;
+  // 命中缓存直接返回
+  if (_bashDirCache && Date.now() - _bashDirCache.ts < BASH_DIR_CACHE_MS) {
+    return _bashDirCache.dir;
+  }
+  const fs = require("fs") as typeof import("fs");
+  const path = require("path") as typeof import("path");
+  const candidates = [
+    "D:\\Git\\bin", // PortableGit（用户配置）
+    "C:\\Program Files\\Git\\bin",
+    "C:\\Program Files (x86)\\Git\\bin",
+  ];
+  let found: string | null = null;
+  for (const dir of candidates) {
+    try {
+      if (fs.existsSync(path.join(dir, "bash.exe"))) {
+        found = dir;
+        break;
+      }
+    } catch {
+      // 继续检查下一个
+    }
+  }
+  _bashDirCache = { dir: found, ts: Date.now() };
+  return found;
+}
+
+/**
  * 构建 hermes CLI 调用所需的安全环境
  *
  * 根因：TRAE 沙箱限制了对 C:\Users\...\AppData\Local\hermes\logs\ 的写入，
@@ -213,6 +250,7 @@ export function getUserHermesDir(userId: string): string {
  *   使记忆、skills、会话跨会话持久化保留
  * - 不传 userId 时（向后兼容），使用临时目录
  * - 首次使用时从原 hermes 目录复制配置（不覆盖已有的）
+ * - Windows: 把 Git Bash 所在目录 prepend 到 PATH，避免 Hermes 报"Git Bash 未安装"
  */
 function buildHermesEnv(userId?: string): NodeJS.ProcessEnv {
   const fs = require("fs") as typeof import("fs");
@@ -249,9 +287,17 @@ function buildHermesEnv(userId?: string): NodeJS.ProcessEnv {
     }
   }
 
+  // Windows: 把 Git Bash 所在目录 prepend 到 PATH，让 Hermes shell 模式能找到 bash.exe
+  let finalPath = process.env.PATH || "";
+  const bashDir = findBashDir();
+  if (bashDir && finalPath && !finalPath.split(path.delimiter).includes(bashDir)) {
+    finalPath = bashDir + path.delimiter + finalPath;
+  }
+
   return {
     ...process.env,
     LOCALAPPDATA: profileLocal,
+    ...(finalPath ? { PATH: finalPath } : {}),
   };
 }
 
@@ -884,8 +930,14 @@ export async function installHermesAgent(): Promise<{
 
 /**
  * 启动 Hermes Agent Dashboard 服务（后台进程）
- * 使用 `hermes dashboard --port 9119 --no-open --skip-build`
+ * 使用 `hermes dashboard --port 9119 --no-open`
  * 默认端口 9119（Hermes Dashboard 默认端口）
+ *
+ * 启动流程：
+ * 1. spawn hermes dashboard 子进程（detached，stdio 收集 stderr 用于排查）
+ * 2. 轮询 HTTP GET http://localhost:9119/ 等待 Dashboard 真正就绪（最多 30s）
+ * 3. 就绪后 unref 子进程，返回 success
+ * 4. 超时未就绪：返回 error（含收集的 stderr 日志）
  */
 export async function startHermesAgent(port: number = 9119): Promise<{
   success: boolean;
@@ -902,33 +954,82 @@ export async function startHermesAgent(port: number = 9119): Promise<{
 
     logger.info({ hermesExe, port }, "启动 Hermes Agent Dashboard...");
 
+    // 收集 stderr 日志用于失败排查（最多保留 8KB）
+    let stderrBuf = "";
     const child = spawn(hermesExe, [
       "dashboard",
       "--port", String(port),
       "--no-open",
-      "--skip-build", // 跳过 npm build（非交互环境）
     ], {
       detached: true,
-      stdio: "ignore",
+      stdio: ["ignore", "ignore", "pipe"],
       windowsHide: false,
       cwd: process.env.HOME || process.env.USERPROFILE || undefined,
+      // 传入构建好的环境（含 Git Bash 路径，避免 shell 模式报"Git Bash 未安装"）
+      env: buildHermesEnv(),
     });
 
-    // 等待短暂时间确认进程未立即退出
-    await new Promise((resolve) => setTimeout(resolve, 1500));
+    child.stderr?.on("data", (chunk: Buffer) => {
+      const text = chunk.toString("utf8");
+      stderrBuf += text;
+      if (stderrBuf.length > 8192) {
+        stderrBuf = stderrBuf.slice(-8192);
+      }
+    });
 
-    if (child.pid && !child.killed) {
-      logger.info({ pid: child.pid, port }, "Hermes Agent Dashboard 已启动");
-      child.unref();
-      return { success: true, pid: child.pid };
-    }
-
-    // 检查进程是否已退出
+    // 子进程立即退出（spawn 失败/路径错误）
     if (child.exitCode !== null) {
-      return { success: false, error: `Hermes 进程立即退出（exit code ${child.exitCode}），可能缺少配置或依赖` };
+      return {
+        success: false,
+        error: `Hermes 进程立即退出（exit code ${child.exitCode}）。stderr: ${stderrBuf.slice(-500)}`,
+      };
+    }
+    if (!child.pid) {
+      return { success: false, error: "无法获取进程 PID，Hermes 可能未正确启动" };
     }
 
-    return { success: false, error: "无法获取进程 PID，Hermes 可能未正确启动" };
+    // 轮询等待 Dashboard HTTP 服务就绪（最多 30s，每 1s 探测一次）
+    const endpoint = `http://localhost:${port}`;
+    const startedAt = Date.now();
+    const timeoutMs = 30_000;
+    let ready = false;
+    while (Date.now() - startedAt < timeoutMs) {
+      // 子进程已退出 → 直接失败
+      if (child.exitCode !== null) {
+        return {
+          success: false,
+          error: `Hermes 进程在启动过程中退出（exit code ${child.exitCode}）。stderr: ${stderrBuf.slice(-500)}`,
+        };
+      }
+      try {
+        const ctrl = new AbortController();
+        const timer = setTimeout(() => ctrl.abort(), 1500);
+        const res = await fetch(endpoint, { signal: ctrl.signal });
+        clearTimeout(timer);
+        if (res.ok || res.status === 404) {
+          ready = true;
+          break;
+        }
+      } catch {
+        // 还没就绪，继续等
+      }
+      await new Promise((r) => setTimeout(r, 1000));
+    }
+
+    if (!ready) {
+      // 超时：进程仍在但 HTTP 没响应。让进程继续跑（可能只是慢），但报告超时
+      logger.warn({ pid: child.pid, port, stderr: stderrBuf.slice(-500) }, "Hermes Dashboard 30s 内未就绪");
+      child.unref();
+      return {
+        success: false,
+        pid: child.pid,
+        error: `Hermes Dashboard 在 30 秒内未就绪（端口 ${port}）。进程仍在运行（PID ${child.pid}），可能需要更长启动时间。stderr: ${stderrBuf.slice(-300)}`,
+      };
+    }
+
+    logger.info({ pid: child.pid, port, readyMs: Date.now() - startedAt }, "Hermes Agent Dashboard 已就绪");
+    child.unref();
+    return { success: true, pid: child.pid };
   } catch (e) {
     return { success: false, error: (e as Error).message };
   }

@@ -5,6 +5,76 @@
 
 ---
 
+## 迭代 37 - 2026-06-27
+
+### 任务概要
+AI 助理体验全面优化：Token 统计显示 + 流式回复 + 词元统计页面 + 创建灵感路径修复 + 语音通话重做 + Hermes Dashboard 启动修复 + Git Bash 依赖修复。
+
+### 完成内容
+
+#### 1. 修复 AI 助理回复后 Token 数未显示
+- `ChatMessage` 接口新增 `usage`/`provider`/`model` 字段
+- `sendText`/`sendVoice` 保存后端返回的 usage 信息
+- 消息气泡下方渲染元信息：Provider（大写）· 模型 · Token 数（含 ↑prompt ↓completion）
+- Hermes 模式标记 `Hermes` 徽章，回退标记 `回退` 徽章
+
+#### 2. 修复设置页 Hermes Agent Dashboard 无法打开
+- 端口统一为 9119（3 处修复：`settings/page.tsx`、`api/hermes/test/route.ts`、`hermes-client.ts`）
+- `startHermesAgent` 重写：移除 `--skip-build` 参数；stdio 改为收集 stderr；30s HTTP 轮询替代 1.5s 固定等待；失败返回详细 stderr 日志
+
+#### 3. 优化 AI 助理回复速度 + 展示思考/工具调用过程
+- `assistantMode` + `stream=true`：第二轮 LLM 调用走 SSE 实时输出
+- `/api/ai/chat/route.ts` 新增 3 个流式出口（无 action / 工具未授权 / 有 action 执行工具）
+- 前端 SSE 解析：meta/delta/done/error 事件，delta 实时更新消息
+- 流式且内容为空时显示"正在思考..."，有内容时显示闪烁光标 ▋
+
+#### 4. 新增词元统计（Token）功能页面
+- 新建 `src/app/api/admin/token-stats/route.ts`：聚合查询今日/昨日/近7天/累计 + byProvider groupBy + 分页
+- 新建 `src/app/admin/token-stats/page.tsx`：4 个统计卡片（含环比涨跌）+ Provider 分布柱状图 + 消耗记录表格 + 分页
+- `Sidebar.tsx` 管理组新增"词元统计"入口（Coins 图标）
+- `AppShell.tsx` PAGE_TITLE_MAP 新增映射
+- `help-content.ts` 新增 `admin-token-stats` 使用说明
+
+#### 5. 修复 AI 助理创建灵感走错路径
+- **根因**：Hermes Takeover 模式开启后，所有用户消息直接传给 Hermes Agent，Hermes 不知 LynnHub 数据库，创建 md 文件而非调用 `prisma.idea.create`
+- **修复**：在 Hermes Takeover 调用前用 `detectIntent(userText)` 检测系统工具意图，命中（创建灵感/任务/看板等）则跳过 Hermes，直接走 LLM + Function Calling 路径
+
+#### 6. 修复 AI 助理语音通话：状态显示 + 即时反馈 + 接听体验
+- `VoicePhase` 类型新增 `connecting`（正在接通）和 `error`（异常）状态
+- `startVoiceCall` 重写：先进入 connecting 状态给 UI 即时反馈；修复不支持流式 ASR 时 voiceCallActive 保持 true 的假通话 bug
+- `sendVoice` 改为流式响应（`stream: true`）：边生成边 feed TTS，首字延迟最小化
+- 状态条增强：connecting 显示"正在接通语音..."；listening/speaking 阶段显示 ASR 实时识别文字；error 状态显示异常
+- 接听按钮：connecting 时显示加载动画并禁用点击
+
+#### 7. 修复 Hermes Agent 依赖 Git Bash 问题（看板整理功能）
+- **根因**：Hermes 执行 shell 命令时需要 bash，但 PATH 中没有 Git Bash 的 bin 目录
+- **修复**：新增 `findBashDir()` 函数检测 bash.exe（D:\Git\bin → C:\Program Files\Git\bin → C:\Program Files (x86)\Git\bin），结果缓存 10 分钟
+- `buildHermesEnv` 把 bash 目录 prepend 到 PATH
+- `startHermesAgent` 的 spawn 传入 `env: buildHermesEnv()`，Dashboard 子进程也能找到 bash
+
+### 自测结果
+- TypeScript 编译：`npx tsc --noEmit` 通过（src 目录零错误）
+- ESLint：`npx next lint` 通过（0 错误 0 警告）
+- Git Bash 检测：D:\Git\bin\bash.exe 确认存在
+
+### 修改文件清单
+- `src/components/ai/AssistantChat.tsx` - Token 显示 + 流式回复 + 语音通话重做
+- `src/app/api/ai/chat/route.ts` - assistantMode 流式 + Hermes Takeover 系统意图检测
+- `src/app/api/hermes/test/route.ts` - 默认端口 9119
+- `src/app/settings/page.tsx` - fallback 端口 9119
+- `src/lib/hermes-client.ts` - startHermesAgent 重写 + findBashDir + buildHermesEnv PATH 修复
+- `src/components/layout/Sidebar.tsx` - 词元统计导航
+- `src/components/layout/AppShell.tsx` - 词元统计标题映射
+- `src/lib/help-content.ts` - 词元统计使用说明
+- `src/app/api/admin/token-stats/route.ts` - 词元统计 API（新增）
+- `src/app/admin/token-stats/page.tsx` - 词元统计页面（新增）
+- `DEVELOPMENT_SPEC.md` - 自动 push 配置 + PowerShell 环境说明
+
+### Commit
+- 待提交（本次迭代）
+
+---
+
 ## 迭代 36 - 2026-06-26
 
 ### 任务概要

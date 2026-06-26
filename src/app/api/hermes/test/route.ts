@@ -29,7 +29,7 @@ export async function POST(req: NextRequest) {
       id: config?.id || "",
       userId: auth.user.id,
       enabled: true,
-      endpoint: endpoint || config?.endpoint || "http://localhost:7432",
+      endpoint: endpoint || config?.endpoint || "http://localhost:9119",
       apiKey: apiKey !== undefined ? apiKey : config?.apiKey || null,
       autoStart: config?.autoStart ?? false,
       capabilities: config?.capabilities || [],
