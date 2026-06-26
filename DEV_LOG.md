@@ -71,7 +71,7 @@ AI 助理体验全面优化：Token 统计显示 + 流式回复 + 词元统计�
 - `DEVELOPMENT_SPEC.md` - 自动 push 配置 + PowerShell 环境说明
 
 ### Commit
-- 待提交（本次迭代）
+- `2a32f5fc` - feat: 迭代37 - AI助理Token显示+流式回复+词元统计页面+创建灵感路径修复+语音通话重做+Hermes Dashboard启动修复+Git Bash依赖修复
 
 ---
 
