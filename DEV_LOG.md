@@ -5,6 +5,68 @@
 
 ---
 
+## 迭代 36 - 2026-06-26
+
+### 任务概要
+悬浮聊天窗技能菜单遮挡修复 + 端口 5176 规范强化 + 角色管理完整 CRUD + 用户管理打通 + 职业工作空间简化 + 头像上传 + 使用说明补全。
+
+### 完成内容
+
+#### 1. 悬浮聊天窗技能菜单遮挡修复
+- **问题**：`AssistantDrawer.tsx` 的 `overflow-hidden` 裁剪了技能下拉菜单（`absolute bottom-full` 向上弹出）
+- **修复**：`AssistantChat.tsx` 中技能菜单改用 `createPortal` 渲染到 `document.body`，`z-[9999]` + `fixed` 定位，通过 `getBoundingClientRect()` 计算按钮位置
+
+#### 2. 端口 5176 规范强化
+- **`DEVELOPMENT_SPEC.md`** §2 新增启动命令规范：`npx next dev -p 5176`，禁止使用 3000 端口
+
+#### 3. 角色管理完整 CRUD
+- **API**（`src/app/api/admin/roles/route.ts`）：
+  - 新增 POST：创建新角色（name 唯一校验 + profession 必选 + permissions 校验）
+  - 新增 DELETE：删除非系统角色（有用户使用时拒绝删除）
+  - 删除 `[id]/route.ts`（DELETE 合并到 route.ts）
+- **前端**（`src/app/admin/roles/page.tsx`）：
+  - 加"新建角色"按钮 + 新建弹窗（name 可编辑）
+  - 非系统角色卡片加"删除"按钮 + 确认弹窗
+  - profession 下拉必选校验
+
+#### 4. 用户管理打通
+- **API**（`src/app/api/users/route.ts` + `[id]/route.ts`）：
+  - POST/PATCH 的 role 校验从硬编码改为动态查 Role 表
+  - GET 返回 profession 字段（join Role 表）
+- **前端**（`src/app/admin/users/page.tsx`）：
+  - 角色选择从 `/api/admin/roles` 动态拉取
+  - 筛选器角色列表动态拉取
+  - RoleBadge 动态显示 displayName + 职业图标
+
+#### 5. 职业工作空间简化
+- **`src/app/admin/profession-workspaces/page.tsx`**：
+  - 删除"快捷技能可见集"配置维度（改为用户自配）
+  - 保留 3 维度：专属功能模块 + 可用 AI 模型 + System Prompt
+  - POST body 不再发送 quickCommands
+
+#### 6. 头像上传
+- **`src/app/settings/profile/page.tsx`**：
+  - 新增头像文件上传按钮（file input + `/api/upload` API）
+  - 支持图片类型校验 + 5MB 大小限制
+  - 上传中 loading 状态 + 清除按钮
+  - 复用已有 `/api/upload` 通用上传 API
+
+#### 7. 使用说明补全
+- **`DEVELOPMENT_SPEC.md`** 新增 §3.1 功能模块使用说明规范
+- **`src/lib/help-content.ts`** 新增 4 个 key：`profession-workspaces`、`admin-users`、`admin-roles`、`settings-profile`
+- **4 个页面加 HelpButton**：职业工作空间、用户管理、角色管理、个人资料
+
+### 自测结果
+- TypeScript 编译：`npx tsc --noEmit` 通过（src 目录零错误）
+- dev server：端口 5176 启动成功
+- Git 2.54.0 安装到 D:\Git，PATH 配置完成
+
+### Commit
+- `62793508` - feat: 迭代36 - 悬浮窗技能菜单Portal修复+端口5176规范+角色CRUD+用户管理打通+职业工作空间简化+头像上传+使用说明补全
+- push 待手动执行（Gitee 需要认证）
+
+---
+
 ## 迭代 35 - 2026-06-26
 
 ### 任务概要
