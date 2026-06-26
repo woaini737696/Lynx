@@ -60,6 +60,10 @@ export async function executeTool(
       case "getBoardStats":
         return await executeGetBoardStats(user);
 
+      // ============ 飞书任务 ============
+      case "createLarkTask":
+        return await executeCreateLarkTask(args);
+
       // ============ 记忆与认知 ============
       case "semanticSearch":
         return await executeSemanticSearch(args, user);
@@ -361,6 +365,39 @@ async function executeGetBoardStats(user: AuthUser) {
     totalActive,
     thisWeekCompleted,
     byColumn: { northstar, campaign, task },
+  };
+}
+
+// ============ 飞书任务 ============
+
+/**
+ * 解析自然语言生成飞书任务卡片数据。
+ * 不直接创建任务，仅返回卡片数据供前端渲染，用户确认后由前端调用 /api/lark-tasks/create 下发。
+ */
+async function executeCreateLarkTask(args: {
+  summary?: string;
+  assignees?: string[];
+  due?: string;
+  description?: string;
+}) {
+  const summary = String(args.summary || "").trim();
+  if (!summary) {
+    return { error: "任务标题 summary 不能为空" };
+  }
+  const assignees = Array.isArray(args.assignees)
+    ? args.assignees.map((a) => String(a).trim()).filter(Boolean)
+    : [];
+  const due = args.due ? String(args.due).trim() : undefined;
+  const description = args.description ? String(args.description).trim() : undefined;
+
+  return {
+    type: "larkTaskCard",
+    data: {
+      summary,
+      assignees,
+      due,
+      description,
+    },
   };
 }
 

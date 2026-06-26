@@ -25,6 +25,18 @@ import {
   Eye,
   AlertTriangle,
   Store,
+  Lightbulb,
+  Palette,
+  Code,
+  Server,
+  BarChart3,
+  Activity,
+  Megaphone,
+  Users,
+  DollarSign,
+  ClipboardList,
+  PenTool,
+  Rocket,
 } from "lucide-react";
 import {
   PageHeader,
@@ -119,39 +131,72 @@ type EditTab = "edit" | "versions";
 
 const CATEGORIES = [
   { key: "all", label: "全部", icon: Tag },
-  { key: "general", label: "通用", icon: Wrench },
-  { key: "finance", label: "财务", icon: FileText },
-  { key: "report", label: "报告", icon: FileText },
-  { key: "review", label: "审查", icon: FileText },
-  { key: "knowledge", label: "知识", icon: FileText },
-  { key: "meeting", label: "会议", icon: FileText },
-  { key: "product", label: "产品", icon: FileText },
+  { key: "pm", label: "产品经理", icon: Lightbulb },
+  { key: "designer", label: "设计师", icon: Palette },
+  { key: "frontend", label: "前端工程师", icon: Code },
+  { key: "backend", label: "后端工程师", icon: Server },
+  { key: "data", label: "数据分析师", icon: BarChart3 },
+  { key: "operations", label: "运营", icon: Activity },
+  { key: "marketing", label: "市场", icon: Megaphone },
+  { key: "hr", label: "HR", icon: Users },
+  { key: "finance", label: "财务", icon: DollarSign },
+  { key: "project", label: "项目经理", icon: ClipboardList },
+  { key: "creator", label: "内容创作者", icon: PenTool },
+  { key: "founder", label: "创业者", icon: Rocket },
   { key: "hermes", label: "Hermes", icon: Bot },
   { key: "custom", label: "自定义", icon: Wrench },
 ];
 
 const CATEGORY_BADGE: Record<string, "task" | "cognition" | "northstar" | "campaign" | "graveyard" | "default"> = {
-  general: "default",
+  // 12 岗位分类
+  pm: "northstar",
+  designer: "campaign",
+  frontend: "task",
+  backend: "cognition",
+  data: "northstar",
+  operations: "campaign",
+  marketing: "task",
+  hr: "cognition",
   finance: "northstar",
+  project: "campaign",
+  creator: "task",
+  founder: "cognition",
+  // 保留分类
+  hermes: "cognition",
+  custom: "default",
+  // 旧分类（向后兼容显示）
+  general: "default",
   report: "task",
   review: "cognition",
   knowledge: "campaign",
   meeting: "task",
   product: "campaign",
-  hermes: "cognition",
-  custom: "default",
 };
 
 const CATEGORY_LABEL: Record<string, string> = {
-  general: "通用",
+  // 12 岗位分类
+  pm: "产品经理",
+  designer: "设计师",
+  frontend: "前端工程师",
+  backend: "后端工程师",
+  data: "数据分析师",
+  operations: "运营",
+  marketing: "市场",
+  hr: "HR",
   finance: "财务",
+  project: "项目经理",
+  creator: "内容创作者",
+  founder: "创业者",
+  // 保留分类
+  hermes: "Hermes",
+  custom: "自定义",
+  // 旧分类（向后兼容显示，避免旧数据显示原始 key）
+  general: "通用",
   report: "报告",
   review: "审查",
   knowledge: "知识",
   meeting: "会议",
   product: "产品",
-  hermes: "Hermes",
-  custom: "自定义",
 };
 
 const SOURCE_LABEL: Record<string, string> = {
@@ -710,7 +755,7 @@ function SkillEditModal({
   const [activeTab, setActiveTab] = useState<EditTab>("edit");
   const [name, setName] = useState(skill?.name || "");
   const [description, setDescription] = useState(skill?.description || "");
-  const [category, setCategory] = useState(skill?.category || "general");
+  const [category, setCategory] = useState(skill?.category || "custom");
   const [content, setContent] = useState(skill?.content || "");
   const [promptTemplate, setPromptTemplate] = useState(
     skill?.promptTemplate || ""
@@ -1910,7 +1955,7 @@ function ImportModal({
           <textarea
             value={markdown}
             onChange={(e) => setMarkdown(e.target.value)}
-            placeholder={"---\nname: 技能名称\ndescription: ...\ncategory: general\ntags: [标签]\nparameters:\n  - key: param1\n    label: 参数1\n    type: text\n    required: true\n---\n\n# 技能正文"}
+            placeholder={"---\nname: 技能名称\ndescription: ...\ncategory: custom\ntags: [标签]\nparameters:\n  - key: param1\n    label: 参数1\n    type: text\n    required: true\n---\n\n# 技能正文"}
             rows={12}
             className="w-full resize-y rounded-xl border border-border bg-background px-3 py-2 text-[11px] leading-relaxed text-foreground placeholder:text-muted-foreground/60 focus:border-cognition/40 focus:outline-none focus:ring-2 focus:ring-cognition/20"
           />

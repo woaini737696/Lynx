@@ -18,6 +18,8 @@ model User {
   email        String?  @unique @db.VarChar(255)
   displayName  String   @default("") @db.VarChar(100)
   role         String   @default("viewer") // admin | editor | viewer
+  profession   String?  @db.VarChar(100) // 职业
+  avatarUrl    String?  @db.VarChar(500) // 头像 URL
   active       Boolean  @default(true)
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt

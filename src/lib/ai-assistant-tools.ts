@@ -53,6 +53,15 @@ export const AI_ASSISTANT_TOOLS: ToolDef[] = [
     params: "{}",
   },
 
+  // ---- 飞书任务 ----
+  {
+    name: "createLarkTask",
+    description:
+      "解析自然语言创建飞书任务。提取任务标题、负责人、截止时间，返回任务卡片数据供用户确认下发。不直接创建任务。当用户说「给XX下发任务」「创建飞书任务」「下发飞书任务」时使用。截止时间需解析为 ISO 字符串（如「本周五前」→对应日期的 ISO）。",
+    params:
+      '{"summary": "任务标题", "assignees": ["负责人姓名数组"], "due": "截止时间 ISO 字符串", "description": "任务描述（可选）"}',
+  },
+
   // ---- 记忆与认知 ----
   {
     name: "semanticSearch",

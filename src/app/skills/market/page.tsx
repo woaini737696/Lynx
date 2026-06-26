@@ -61,25 +61,53 @@ const CATEGORY_BADGE: Record<
   string,
   "task" | "cognition" | "northstar" | "campaign" | "graveyard" | "default"
 > = {
-  general: "default",
+  // 12 岗位分类
+  pm: "northstar",
+  designer: "campaign",
+  frontend: "task",
+  backend: "cognition",
+  data: "northstar",
+  operations: "campaign",
+  marketing: "task",
+  hr: "cognition",
   finance: "northstar",
+  project: "campaign",
+  creator: "task",
+  founder: "cognition",
+  // 保留分类
+  custom: "default",
+  // 旧分类（向后兼容显示）
+  general: "default",
   report: "task",
   review: "cognition",
   knowledge: "campaign",
   meeting: "task",
   product: "campaign",
-  custom: "default",
 };
 
 const CATEGORY_LABEL: Record<string, string> = {
-  general: "通用",
+  // 12 岗位分类
+  pm: "产品经理",
+  designer: "设计师",
+  frontend: "前端工程师",
+  backend: "后端工程师",
+  data: "数据分析师",
+  operations: "运营",
+  marketing: "市场",
+  hr: "HR",
   finance: "财务",
+  project: "项目经理",
+  creator: "内容创作者",
+  founder: "创业者",
+  // 保留分类
+  custom: "自定义",
+  // 旧分类（向后兼容显示，避免旧数据显示原始 key）
+  general: "通用",
   report: "报告",
   review: "审查",
   knowledge: "知识",
   meeting: "会议",
   product: "产品",
-  custom: "自定义",
 };
 
 const SORT_OPTIONS = [
@@ -88,9 +116,22 @@ const SORT_OPTIONS = [
   { value: "rating", label: "最高评分" },
 ];
 
+// 广场筛选项：仅展示 12 岗位 + 自定义（hermes 为本地分类，旧分类不再作为筛选项）
 const CATEGORY_OPTIONS = [
   { value: "all", label: "全部分类" },
-  ...Object.entries(CATEGORY_LABEL).map(([k, v]) => ({ value: k, label: v })),
+  { value: "pm", label: "产品经理" },
+  { value: "designer", label: "设计师" },
+  { value: "frontend", label: "前端工程师" },
+  { value: "backend", label: "后端工程师" },
+  { value: "data", label: "数据分析师" },
+  { value: "operations", label: "运营" },
+  { value: "marketing", label: "市场" },
+  { value: "hr", label: "HR" },
+  { value: "finance", label: "财务" },
+  { value: "project", label: "项目经理" },
+  { value: "creator", label: "内容创作者" },
+  { value: "founder", label: "创业者" },
+  { value: "custom", label: "自定义" },
 ];
 
 // ============ 主页面 ============

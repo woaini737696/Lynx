@@ -1103,6 +1103,114 @@ export function createTask(opts: {
   return { ok: true, task: res.data?.data };
 }
 
+// ==================== AI 助理：姓名解析 + 创建任务 ====================
+
+/** 模块级缓存：姓名 → open_id，避免重复调用 contact +get-user --query */
+const memberOpenIdCache = new Map<string, string>();
+
+/**
+ * 通过姓名解析 open_id。
+ * 调用 `lark-cli contact +get-user --query <name>`，解析返回的 `data.user.open_id`。
+ * 使用模块级缓存避免重复调用。失败时返回 null。
+ */
+export function resolveOpenIdByName(name: string): string | null {
+  const trimmed = name?.trim();
+  if (!trimmed) return null;
+  if (memberOpenIdCache.has(trimmed)) {
+    return memberOpenIdCache.get(trimmed) || null;
+  }
+  const res = runLarkCliService(
+    "contact",
+    `+get-user --query ${shellQuote(trimmed)}`
+  );
+  if (!res.ok) return null;
+  const openId = res.data?.data?.user?.open_id;
+  if (openId) {
+    memberOpenIdCache.set(trimmed, openId);
+    // 顺便填充反向缓存
+    memberNameCache.set(openId, trimmed);
+    return openId;
+  }
+  return null;
+}
+
+/** AI 助理创建飞书任务参数 */
+export interface CreateLarkTaskParams {
+  summary: string;           // 任务标题
+  assignees?: string[];      // 负责人姓名数组（需先解析为 open_id）
+  due?: string;              // 截止时间 ISO 字符串
+  description?: string;      // 任务描述
+  tasklistGuid?: string;     // 清单 guid（可选，默认第一个清单）
+}
+
+/** AI 助理创建飞书任务结果 */
+export interface CreateLarkTaskResult {
+  guid: string;
+  url: string;
+  summary: string;
+}
+
+/**
+ * AI 助理创建飞书任务：接收负责人姓名，解析为 open_id 后调用 lark-cli 创建。
+ * lark-cli 不可用或姓名解析失败时抛出清晰错误。
+ */
+export async function createLarkTask(params: CreateLarkTaskParams): Promise<CreateLarkTaskResult> {
+  const summary = params.summary?.trim();
+  if (!summary) {
+    throw new Error("任务标题 summary 不能为空");
+  }
+
+  // 解析负责人姓名 → open_id
+  const assigneeIds: string[] = [];
+  const unresolvedNames: string[] = [];
+  if (params.assignees && params.assignees.length > 0) {
+    for (const name of params.assignees) {
+      const openId = resolveOpenIdByName(name);
+      if (openId) {
+        assigneeIds.push(openId);
+      } else {
+        unresolvedNames.push(name);
+      }
+    }
+  }
+  if (unresolvedNames.length > 0) {
+    throw new Error(`无法解析负责人：${unresolvedNames.join("、")}（请确认姓名拼写或飞书通讯录权限）`);
+  }
+
+  // 未指定清单时取第一个清单
+  let tasklistId = params.tasklistGuid;
+  if (!tasklistId) {
+    const lists = getTasklists();
+    if (lists.ok && lists.tasklists.length > 0 && lists.tasklists[0].guid) {
+      tasklistId = lists.tasklists[0].guid;
+    }
+  }
+
+  // 调用现有 createTask（接收 open_id）
+  const res = createTask({
+    summary,
+    description: params.description?.trim() || undefined,
+    due: params.due || undefined,
+    assignees: assigneeIds.length > 0 ? assigneeIds : undefined,
+    tasklistId: tasklistId || undefined,
+  });
+  if (!res.ok) {
+    throw new Error(res.error || "lark-cli 创建任务失败");
+  }
+
+  const task = res.task;
+  const guid = task?.guid || "";
+  const url =
+    task?.url ||
+    (guid ? `${LARK_TASK_URL_PREFIX}?guid=${guid}` : "");
+
+  if (!guid) {
+    throw new Error("lark-cli 创建任务返回数据缺少 guid");
+  }
+
+  return { guid, url, summary };
+}
+
 export function updateTask(opts: {
   taskId: string;
   summary?: string;

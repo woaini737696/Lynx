@@ -52,6 +52,9 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           name: user.displayName || user.username,
           email: user.email || undefined,
           role: user.role,
+          displayName: user.displayName,
+          avatarUrl: user.avatarUrl,
+          profession: user.profession,
         };
       },
     }),
@@ -61,6 +64,9 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       if (user) {
         token.id = user.id;
         token.role = (user as { role?: string }).role || "viewer";
+        token.displayName = (user as { displayName?: string }).displayName || "";
+        token.avatarUrl = (user as { avatarUrl?: string | null }).avatarUrl || "";
+        token.profession = (user as { profession?: string | null }).profession || "";
       }
       return token;
     },
@@ -68,6 +74,9 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       if (session.user) {
         (session.user as { id?: string }).id = token.id as string;
         (session.user as { role?: string }).role = token.role as string;
+        (session.user as { displayName?: string }).displayName = token.displayName as string;
+        (session.user as { avatarUrl?: string }).avatarUrl = token.avatarUrl as string;
+        (session.user as { profession?: string }).profession = token.profession as string;
       }
       return session;
     },

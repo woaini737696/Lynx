@@ -40,6 +40,7 @@ import { HelpButton } from "@/components/layout/HelpButton";
 import { ModelSwitcher, type ModelSwitcherValue } from "@/components/ui/ModelSwitcher";
 import { toast } from "@/components/ui/toast";
 import { SearchInput, Pagination, useClientPagination } from "@/components/ui/ListControls";
+import { LarkTaskCard } from "@/components/ai/LarkTaskCard";
 import { cn } from "@/lib/utils";
 import type { LLMProvider } from "@/lib/ai-provider";
 import { QUICK_COMMANDS } from "@/lib/ai-assistant-tools";
@@ -2228,8 +2229,17 @@ export default function AIAssistantPage() {
                   )}
                 </div>
 
-                {/* 工具调用卡片（可展开查看完整结果） */}
-                {msg.role === "assistant" && !msg.error && !msg.streaming && msg.toolCalled && (
+                {/* 飞书任务卡片（createLarkTask 工具返回 larkTaskCard 类型时渲染） */}
+                {msg.role === "assistant" && !msg.error && !msg.streaming &&
+                  msg.toolCalled && msg.toolCalled.tool === "createLarkTask" &&
+                  msg.toolCalled.result?.type === "larkTaskCard" &&
+                  msg.toolCalled.result.data && (
+                  <LarkTaskCard {...msg.toolCalled.result.data} />
+                )}
+
+                {/* 工具调用卡片（可展开查看完整结果，飞书任务卡片除外） */}
+                {msg.role === "assistant" && !msg.error && !msg.streaming && msg.toolCalled &&
+                  !(msg.toolCalled.tool === "createLarkTask" && msg.toolCalled.result?.type === "larkTaskCard") && (
                   <div className="mt-2 max-w-[85%] rounded-xl border border-cognition/30 bg-cognition/5 overflow-hidden">
                     <button
                       type="button"

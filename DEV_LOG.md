@@ -5,6 +5,54 @@
 
 ---
 
+## 迭代 31 - 2026-06-26
+
+### 任务概要
+全局体验与飞书任务下发 5 大任务：(1) 悬浮抽屉改为极简聊天组件（废弃 iframe，快速弹出/收回）；(2) 未登录弹窗引导重新登录；(3) 新增顶部 header 栏+用户头像菜单+个人资料设置+User 表扩展；(4) 技能按 12 岗位分类+预置 60 个技能；(5) AI 一句话生成飞书任务（解析+卡片预览+确认下发）。
+
+### 完成内容
+
+#### 1. 悬浮抽屉极简聊天组件
+- **`src/components/ai/AssistantChat.tsx`**（新建）：极简聊天组件，仅消息列表+输入框+发送+流式响应（SSE 解析 meta/delta/done/error），多轮对话上下文，Enter 发送/Shift+Enter 换行，自动滚动，预留 `toolCall` 字段支持工具卡片渲染。
+- **`src/components/ai/AssistantDrawer.tsx`**：删除全部 iframe 逻辑，改用 `<AssistantChat />`；动画 duration 从 300ms 改为 200ms；桌面端新增透明点击层支持点击空白收回。
+- **`src/components/ai/AssistantGlobalEntry.tsx`**：新增未登录检测（fetch `/api/auth/session`），未登录点击悬浮按钮弹窗"登录已过期，请重新登录"+"去登录"按钮跳转 `/login`。
+
+#### 2. 顶部 header 栏 + 用户菜单 + 个人资料
+- **`prisma/schema.prisma`**：User 模型新增 `profession String? @db.VarChar(100)` 和 `avatarUrl String? @db.VarChar(500)`，`npx prisma db push` 同步成功。
+- **`src/auth.ts`**：jwt/session callback 注入 `displayName`/`avatarUrl`/`profession` 到 session.user。
+- **`src/components/layout/UserMenu.tsx`**（新建）：fetch session 获取用户，显示头像（avatarUrl 或首字母）+昵称，hover 下拉菜单（个人资料设置/退出登录），退出登录走 next-auth v5 signout 流程。
+- **`src/app/settings/profile/page.tsx`**（新建）：表单含头像URL（实时预览）/昵称/用户名（只读）/职业/角色（只读 admin/editor/viewer），PUT `/api/user/profile` 持久化。
+- **`src/app/api/user/profile/route.ts`**（新建）：GET 返回当前用户 profile，PUT 更新 displayName/profession/avatarUrl（禁止改 username/role/passwordHash）。
+- **`src/components/layout/AppShell.tsx`**：新增顶部 header 栏（h-14 border-b），左侧 L logo + 页面标题（usePathname 映射 22 个路由），右侧 `<UserMenu />`。
+
+#### 3. 技能岗位分类
+- **`src/app/skills/page.tsx`**：CATEGORIES 替换为 12 岗位分类（产品经理 pm/设计师 designer/前端工程师 frontend/后端工程师 backend/数据分析师 data/运营 operations/市场 marketing/HR hr/财务 finance/项目经理 project/内容创作者 creator/创业者 founder）+ hermes + custom，每岗位配独立图标，CATEGORY_BADGE/LABEL 含旧 key 兼容映射。
+- **`src/app/skills/market/page.tsx`**：同步岗位分类，CATEGORY_OPTIONS 显式列举 12 岗位 + custom。
+- **`src/app/api/skills/route.ts`**：默认分类从 general 改为 custom，注释说明新旧 key。
+- **`prisma/seed-skills.ts`**（新建）：12 岗位 × 5 = 60 个预置技能（PRD撰写/竞品分析/组件库/性能优化/A-B测试/内容排期/品牌定位/面试问题/财务报表/风险识别/SEO优化/商业计划等），幂等 upsert，运行成功写入 60 个。
+
+#### 4. AI 一句话生成飞书任务
+- **`src/lib/lark-sync.ts`**：新增 `resolveOpenIdByName(name)`（lark-cli contact 解析姓名→open_id，带缓存）和 `createLarkTask(params)`（接收姓名数组→解析 open_id→调用 lark-cli task +create→返回 guid+url）。
+- **`src/lib/ai-assistant-tools.ts`**：新增 `createLarkTask` 工具定义（参数 summary/assignees/due/description），注入 system prompt 让 AI 解析自然语言。
+- **`src/app/api/ai/chat/route.ts`**：detectIntent 兜底新增飞书任务下发意图识别（从"给XX下发任务"提取负责人/截止/标题）。
+- **`src/app/api/ai/assistant/tool-executor.ts`**：新增 `createLarkTask` case 调用 `executeCreateLarkTask`，仅返回卡片数据 `{ type: "larkTaskCard", data: {...} }` 不直接创建。
+- **`src/components/ai/LarkTaskCard.tsx`**（新建）：共用飞书任务卡片组件，四态（pending/submitting/done/error），橙黑灰配色，done 态显示可跳转飞书链接，lark-cli 不可用时优雅降级。
+- **`src/app/api/lark-tasks/create/route.ts`**（新建）：POST 接口，requireAuth 鉴权，调用 createLarkTask 创建飞书任务返回 guid+url。
+- **`src/app/ai/assistant/page.tsx`**：消息渲染中当 `toolCalled.tool === "createLarkTask"` 且 `result.type === "larkTaskCard"` 时渲染 `<LarkTaskCard />`。
+- **`src/components/ai/AssistantChat.tsx`**：当 `message.toolCall?.type === "larkTaskCard"` 时渲染 `<LarkTaskCard />`。
+
+### 自测结果
+- TypeScript 编译：`npx tsc --noEmit` 通过（exit 0，无错误）
+- Prisma db push 成功同步 User 新字段
+- 预置技能 seed 运行成功（60 个技能写入）
+- dev server 正常运行（5176 端口）
+- 所有新增代码遵循项目规范（端口 5176、橙黑灰配色、数据持久化规范）
+
+### Commit
+`（待提交后填写）`
+
+---
+
 ## 迭代 30 - 2026-06-26
 
 ### 任务概要

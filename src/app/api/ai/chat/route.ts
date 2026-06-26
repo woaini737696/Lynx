@@ -40,6 +40,47 @@ function detectIntent(text: string): { tool: string; args: Record<string, any> }
     const content = text.replace(/帮我|创建|新建|添加|一个|任务|task|：|:/g, "").trim();
     if (content) return { tool: "createTask", args: { content, column: "task" } };
   }
+
+  // 飞书任务下发：给XX下发任务：XXX / 创建飞书任务 / 下发飞书任务
+  if (/下发.*任务|飞书.*任务|任务.*下发|创建.*飞书.*任务/.test(text)) {
+    let assignees: string[] = [];
+    let summary = "";
+    let due: string | undefined;
+    // 提取负责人：给张三下发任务 / 给张三、李四下发任务
+    const assigneeMatch = text.match(/给\s*([\u4e00-\u9fa5A-Za-z0-9·、\s]+?)\s*(?:下发|派发|分配|安排)/);
+    if (assigneeMatch) {
+      assignees = assigneeMatch[1]
+        .split(/[、,，\s]+/)
+        .map((s) => s.trim())
+        .filter(Boolean);
+    }
+    // 提取任务标题：冒号后的内容，去掉"本周五前/本周X前"等时间词作为 due
+    const colonIdx = text.search(/[：:]/);
+    if (colonIdx >= 0) {
+      let rest = text.slice(colonIdx + 1).trim();
+      // 提取截止时间词
+      const dueMatch = rest.match(/(本周五|本周六|本周日|本周一|本周二|本周三|本周四|本月底|今天|明天|后天|下周五|下周一)前?/);
+      if (dueMatch) {
+        due = dueMatch[1];
+        rest = rest.replace(dueMatch[0], "").trim();
+      }
+      summary = rest.replace(/^完成|^去完成|^做/, "").trim();
+    } else if (assignees.length > 0) {
+      // 无冒号时取"下发任务"后的内容
+      const after = text.split(/下发任务|派发任务|安排任务/)[1];
+      if (after) summary = after.trim();
+    }
+    if (summary) {
+      return {
+        tool: "createLarkTask",
+        args: {
+          summary,
+          assignees: assignees.length > 0 ? assignees : undefined,
+          due,
+        },
+      };
+    }
+  }
   if (/完成.*任务|任务.*完成|标记.*done/.test(text)) {
     return { tool: "completeTask", args: {} };
   }

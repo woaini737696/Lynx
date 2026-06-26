@@ -5,6 +5,47 @@ import { useRouter, usePathname } from "next/navigation";
 import { Sidebar } from "./Sidebar";
 import { CaptureBar } from "./CaptureBar";
 import { Button } from "./PageHeader";
+import { UserMenu } from "./UserMenu";
+
+// 路径 → 标题映射（顶部 header 栏显示）
+const PAGE_TITLE_MAP: Record<string, string> = {
+  "/": "今日聚焦",
+  "/board": "决策看板",
+  "/inbox": "收件箱",
+  "/converge": "灵感收敛",
+  "/graveyard": "灵感墓地",
+  "/assets": "对话资产",
+  "/cognition": "认知库",
+  "/memory": "记忆图谱",
+  "/ai/workspace": "AI 工作空间",
+  "/ai/flows": "AI 工作流",
+  "/ai/assistant": "AI 专属助理",
+  "/skills": "技能管理",
+  "/skills/market": "Skill 市场",
+  "/ai/lark-tasks": "飞书任务",
+  "/settings": "设置",
+  "/settings/patrol": "AI 巡检",
+  "/settings/lark-bot": "飞书机器人",
+  "/settings/push": "通知设置",
+  "/settings/users": "用户管理",
+  "/settings/profile": "个人资料",
+  "/settings/diagnostics": "性能监控",
+  "/settings/backup": "数据备份",
+  "/dev-log": "开发日志",
+};
+
+function getPageTitle(pathname: string): string {
+  // 精确匹配优先
+  if (PAGE_TITLE_MAP[pathname]) return PAGE_TITLE_MAP[pathname];
+  // 前缀匹配（处理动态路由，如 /skills/market/xxx）
+  const sorted = Object.keys(PAGE_TITLE_MAP).sort((a, b) => b.length - a.length);
+  for (const key of sorted) {
+    if (pathname === key || pathname.startsWith(key + "/")) {
+      return PAGE_TITLE_MAP[key];
+    }
+  }
+  return "LynnHub";
+}
 
 function ConvergeReminder() {
   const router = useRouter();
@@ -69,9 +110,22 @@ function ConvergeReminder() {
 }
 
 export function AppShell({ children }: { children: React.ReactNode }) {
+  const pathname = usePathname();
+  const pageTitle = getPageTitle(pathname);
+
   return (
     <div className="flex h-screen flex-col overflow-hidden bg-background">
       <CaptureBar />
+      {/* 顶部 header 栏 */}
+      <header className="flex h-14 shrink-0 items-center justify-between border-b border-border bg-background px-4">
+        <div className="flex items-center gap-2">
+          <span className="flex h-6 w-6 items-center justify-center rounded-lg bg-primary text-xs font-bold text-primary-foreground">
+            L
+          </span>
+          <span className="text-sm font-medium text-foreground">{pageTitle}</span>
+        </div>
+        <UserMenu />
+      </header>
       <div className="flex flex-1 overflow-hidden">
         <Sidebar />
         <main className="relative flex-1 overflow-y-auto overflow-x-hidden bg-background">
