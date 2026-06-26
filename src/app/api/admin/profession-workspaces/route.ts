@@ -29,6 +29,7 @@ function serializeWorkspace(row: {
   defaultModel: string | null;
   defaultReasoningMode: string | null;
   allowedTools: unknown;
+  allowedProviders: unknown;
   enabled: boolean;
   updatedAt: Date;
 }) {
@@ -45,6 +46,7 @@ function serializeWorkspace(row: {
     defaultModel: row.defaultModel,
     defaultReasoningMode: row.defaultReasoningMode,
     allowedTools: (row.allowedTools as string[]) || [],
+    allowedProviders: (row.allowedProviders as string[]) || [],
     enabled: row.enabled,
     updatedAt: row.updatedAt.toISOString(),
   };
@@ -78,6 +80,7 @@ export async function GET() {
       defaultModel: def.defaultModel || null,
       defaultReasoningMode: def.defaultReasoningMode || null,
       allowedTools: def.defaultAllowedTools,
+      allowedProviders: ["deepseek", "mimo"], // 默认允许全部 Provider
       enabled: false, // 未在 DB 中持久化
       updatedAt: null,
       isDefault: true,
@@ -115,12 +118,15 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "无效的职业 key" }, { status: 400 });
   }
 
-  // 验证 allowedTools / quickCommands JSON 字段
+  // 验证 allowedTools / quickCommands / allowedProviders JSON 字段
   const quickCommands = Array.isArray(body.quickCommands)
     ? (body.quickCommands as unknown[])
     : [];
   const allowedTools = Array.isArray(body.allowedTools)
     ? (body.allowedTools as unknown[]).map(String)
+    : [];
+  const allowedProviders = Array.isArray(body.allowedProviders)
+    ? (body.allowedProviders as unknown[]).map(String)
     : [];
 
   const row = await prisma.professionWorkspace.upsert({
@@ -139,6 +145,7 @@ export async function POST(req: NextRequest) {
         ? String(body.defaultReasoningMode).slice(0, 32)
         : null,
       allowedTools: allowedTools as unknown as never,
+      allowedProviders: allowedProviders as unknown as never,
       enabled: body.enabled !== false,
     },
     update: {
@@ -154,6 +161,7 @@ export async function POST(req: NextRequest) {
         ? String(body.defaultReasoningMode).slice(0, 32)
         : null,
       allowedTools: allowedTools as unknown as never,
+      allowedProviders: allowedProviders as unknown as never,
       enabled: body.enabled !== false,
     },
   });

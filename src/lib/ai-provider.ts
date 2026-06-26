@@ -40,6 +40,10 @@ export interface ChatOptions {
   maxTokens?: number;
   /** 系统提示词（若 messages 中已包含 system 消息则忽略） */
   system?: string;
+  /** 用户级 API Key（优先于全局配置，由 getLLMConfigForUser 传入） */
+  apiKey?: string;
+  /** 强制覆盖 baseUrl（用户级配置时使用） */
+  baseUrl?: string;
 }
 
 /** 聊天接口返回 */
@@ -307,6 +311,114 @@ export function getLLMConfig(provider?: LLMProvider): ProviderConfig {
   return { apiKey, baseUrl, model };
 }
 
+/**
+ * 获取指定用户的 LLM 配置（异步，因为需要查数据库）
+ * 优先级：用户自配 Key > 全局 AISetting > 环境变量
+ * @param provider 显式指定 provider；不传则读用户偏好或全局默认
+ * @param userId 用户 ID（用于读取用户级 Key）
+ */
+export async function getLLMConfigForUser(
+  userId: string,
+  provider?: LLMProvider
+): Promise<ProviderConfig & { provider: LLMProvider; userKeyUsed: boolean }> {
+  // 确保全局设置已加载
+  if (!_dbSettingsLoaded) {
+    await refreshAISettings();
+  }
+
+  // 读取用户级配置
+  let userDeepseekKey: string | null = null;
+  let userMimoKey: string | null = null;
+  let userPreferredProvider: string | null = null;
+  let allowedProviders: string[] | null = null;
+  try {
+    const { prisma } = await import("@/lib/db");
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        userDeepseekApiKey: true,
+        userMimoApiKey: true,
+        userAiProvider: true,
+        profession: true,
+      },
+    });
+    if (user) {
+      userDeepseekKey = user.userDeepseekApiKey || null;
+      userMimoKey = user.userMimoApiKey || null;
+      userPreferredProvider = user.userAiProvider || null;
+
+      // 检查职业工作空间的 allowedProviders 限制
+      if (user.profession) {
+        const ws = await prisma.professionWorkspace.findUnique({
+          where: { profession: user.profession },
+          select: { allowedProviders: true, enabled: true },
+        });
+        if (ws?.enabled) {
+          const ap = ws.allowedProviders as string[] | null;
+          if (Array.isArray(ap) && ap.length > 0) {
+            allowedProviders = ap;
+          }
+        }
+      }
+    }
+  } catch {
+    // 读取失败不阻断，回退到全局配置
+  }
+
+  // 解析 provider：显式传入 > 用户偏好 > 全局默认
+  let resolved: LLMProvider;
+  if (provider === "deepseek" || provider === "mimo") {
+    resolved = provider;
+  } else if (userPreferredProvider === "mimo") {
+    resolved = "mimo";
+  } else if (userPreferredProvider === "deepseek") {
+    resolved = "deepseek";
+  } else {
+    resolved = getDefaultProvider();
+  }
+
+  // 校验 allowedProviders 限制
+  if (allowedProviders && !allowedProviders.includes(resolved)) {
+    // 用户当前 provider 不在允许列表内，回退到允许列表的第一个
+    resolved = (allowedProviders[0] as LLMProvider) || resolved;
+  }
+
+  const meta = PROVIDER_META[resolved];
+  let apiKey: string;
+  let userKeyUsed = false;
+
+  // 优先级：用户自配 Key > 全局 AISetting > 环境变量
+  if (resolved === "deepseek" && userDeepseekKey) {
+    apiKey = userDeepseekKey;
+    userKeyUsed = true;
+  } else if (resolved === "mimo" && userMimoKey) {
+    apiKey = userMimoKey;
+    userKeyUsed = true;
+  } else {
+    const dbKey = resolved === "deepseek" ? _dbSettingsCache?.deepseekApiKey : _dbSettingsCache?.mimoApiKey;
+    apiKey = dbKey || process.env[meta.envKey] || "";
+  }
+
+  const dbBaseUrl = resolved === "deepseek" ? _dbSettingsCache?.deepseekBaseUrl : _dbSettingsCache?.mimoBaseUrl;
+  const dbModel = resolved === "deepseek" ? _dbSettingsCache?.deepseekModel : _dbSettingsCache?.mimoModel;
+  const baseUrl = dbBaseUrl || process.env[meta.envBaseUrl] || "";
+  const model = dbModel || process.env[meta.envModel] || "";
+
+  if (!apiKey) {
+    throw new Error(
+      `Provider "${resolved}" 未配置 API Key（请在设置页配置你的 Key，或联系管理员配置全局 Key）`
+    );
+  }
+  if (!baseUrl) {
+    throw new Error(`Provider "${resolved}" 未配置 Base URL`);
+  }
+  if (!model) {
+    throw new Error(`Provider "${resolved}" 未配置模型名`);
+  }
+
+  return { apiKey, baseUrl, model, provider: resolved, userKeyUsed };
+}
+
 // ============ 可用 Provider 列表 ============
 
 /**
@@ -355,6 +467,49 @@ export function listAvailableModels(): AvailableModels {
 // ============ 聊天接口 ============
 
 /**
+ * 估算文本的 token 数（fallback：当 provider 不返回 usage 时使用）
+ * 粗略规则：中文约 1.5 字/token，英文约 0.75 词/token，数字/符号按 1 token 计
+ * 误差 ±20%，仅用于 UI 显示，不用于计费
+ */
+export function estimateTokens(text: string): number {
+  if (!text) return 0;
+  const chineseChars = (text.match(/[\u4e00-\u9fa5]/g) || []).length;
+  const englishWords = (text.match(/[a-zA-Z]+/g) || []).length;
+  const digits = (text.match(/\d/g) || []).length;
+  const symbols = (text.match(/[^\w\s\u4e00-\u9fa5]/g) || []).length;
+  return Math.ceil(chineseChars / 1.5 + englishWords / 0.75 + digits + symbols / 2);
+}
+
+/**
+ * 确保 usage 不为空：provider 返回了就用 provider 的，否则基于消息估算
+ * 用于 UI 显示，保证每条消息都有 token 数
+ */
+function ensureUsage(
+  usage: { prompt_tokens?: number; completion_tokens?: number; total_tokens?: number } | undefined,
+  messages: ChatMessage[],
+  output: string
+): { prompt_tokens: number; completion_tokens: number; total_tokens: number } {
+  if (usage && typeof usage.total_tokens === "number" && usage.total_tokens > 0) {
+    return {
+      prompt_tokens: usage.prompt_tokens ?? 0,
+      completion_tokens: usage.completion_tokens ?? 0,
+      total_tokens: usage.total_tokens,
+    };
+  }
+  // Fallback：基于消息内容估算
+  const inputText = messages
+    .map((m) => (typeof m.content === "string" ? m.content : ""))
+    .join("");
+  const promptTokens = estimateTokens(inputText);
+  const completionTokens = estimateTokens(output);
+  return {
+    prompt_tokens: promptTokens,
+    completion_tokens: completionTokens,
+    total_tokens: promptTokens + completionTokens,
+  };
+}
+
+/**
  * 调用 OpenAI 兼容的 /chat/completions 接口
  * @param messages 消息列表
  * @param options 选项（provider、model、temperature 等）
@@ -368,9 +523,13 @@ export async function chat(
       ? options.provider
       : getDefaultProvider();
 
-  const config = getLLMConfig(provider);
-
-  // 解析推理模式（未传则 standard）
+  const baseConfig = getLLMConfig(provider);
+  // 用户级 Key 覆盖（由 getLLMConfigForUser 传入，优先级最高）
+  const config: ProviderConfig = {
+    apiKey: options?.apiKey || baseConfig.apiKey,
+    baseUrl: options?.baseUrl || baseConfig.baseUrl,
+    model: baseConfig.model,
+  };
   const reasoningMode: ReasoningMode =
     options?.reasoningMode === "fast" ||
     options?.reasoningMode === "standard" ||
@@ -455,7 +614,7 @@ export async function chat(
     content,
     provider,
     model,
-    usage: (data as { usage?: ChatResponse["usage"] }).usage,
+    usage: ensureUsage((data as { usage?: ChatResponse["usage"] }).usage, finalMessages, content),
   };
 }
 
@@ -485,7 +644,13 @@ export async function* chatStream(
 
   let config: ProviderConfig;
   try {
-    config = getLLMConfig(provider);
+    const baseConfig = getLLMConfig(provider);
+    // 用户级 Key 覆盖（由 getLLMConfigForUser 传入，优先级最高）
+    config = {
+      apiKey: options?.apiKey || baseConfig.apiKey,
+      baseUrl: options?.baseUrl || baseConfig.baseUrl,
+      model: baseConfig.model,
+    };
   } catch (e) {
     yield { type: "error", message: (e as Error).message };
     return;
@@ -579,6 +744,7 @@ export async function* chatStream(
   const decoder = new TextDecoder("utf-8");
   let buffer = "";
   let usage: ChatResponse["usage"] | undefined;
+  let fullContent = "";
 
   try {
     while (true) {
@@ -596,7 +762,7 @@ export async function* chatStream(
         if (!trimmed || !trimmed.startsWith("data:")) continue;
         const data = trimmed.slice(5).trim();
         if (data === "[DONE]") {
-          yield { type: "done", usage };
+          yield { type: "done", usage: ensureUsage(usage, finalMessages, fullContent) };
           return;
         }
         try {
@@ -613,6 +779,7 @@ export async function* chatStream(
           }
           const delta = parsed.choices?.[0]?.delta?.content;
           if (typeof delta === "string" && delta.length > 0) {
+            fullContent += delta;
             yield { type: "delta", content: delta };
           }
         } catch {
@@ -621,7 +788,7 @@ export async function* chatStream(
       }
     }
     // 流自然结束（未收到 [DONE]）
-    yield { type: "done", usage };
+    yield { type: "done", usage: ensureUsage(usage, finalMessages, fullContent) };
   } finally {
     reader.releaseLock();
   }

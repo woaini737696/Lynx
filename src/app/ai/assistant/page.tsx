@@ -2288,7 +2288,7 @@ export default function AIAssistantPage() {
                     {msg.model && <span>· {msg.model}</span>}
                     {msg.usage?.total_tokens != null && (
                       <span className="rounded bg-muted px-1 py-0.5">
-                        {msg.usage.total_tokens} tokens
+                        {msg.usage.total_tokens} 词元
                         {msg.usage.prompt_tokens != null && msg.usage.completion_tokens != null && (
                           <span className="text-muted-foreground/50"> (↑{msg.usage.prompt_tokens} ↓{msg.usage.completion_tokens})</span>
                         )}

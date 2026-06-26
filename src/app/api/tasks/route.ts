@@ -19,6 +19,7 @@ export async function GET() {
     const tasks = await prisma.task.findMany({
       where: { status: { in: ["active", "done"] }, ...buildUserFilter(user) },
       orderBy: [{ column: "asc" }, { position: "asc" }],
+      take: 100, // 上限保护，避免数据增长后拉全表
     });
     return NextResponse.json({ tasks });
   } catch (e) {

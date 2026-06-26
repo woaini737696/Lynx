@@ -26,6 +26,7 @@ import {
 import { PageHeader, Card, Button, LoadingState } from "@/components/layout/PageHeader";
 import { HelpButton } from "@/components/layout/HelpButton";
 import { toast } from "@/components/ui/toast";
+import { UserAIKeyConfig } from "@/components/settings/UserAIKeyConfig";
 
 /** 单个字段的数据库配置状态 */
 type FieldStatus = { configured: boolean; value: string };
@@ -101,6 +102,9 @@ export default function SettingsPage() {
 
       {/* AI 模型配置（数据库存储，优先级高于环境变量） */}
       <AIConfigSection dbSettings={settings.dbSettings} envSettings={settings.envSettings} />
+
+      {/* 用户级 AI Key 配置（每用户自配 Key，优先于全局） */}
+      <UserAIKeyConfig />
 
       {/* Hermes Agent 配置 */}
       <HermesConfigSection />
