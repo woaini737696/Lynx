@@ -220,20 +220,22 @@ export default function BoardPage() {
     }
     setSavingCognitions(true);
     try {
-      let savedCount = 0;
-      for (const c of toSave) {
-        const res = await fetch("/api/cognitions", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            type: c.type,
-            content: c.content,
-            source: "task",
-            ideaId: cognitionModal.ideaId,
-          }),
-        });
-        if (res.ok) savedCount++;
-      }
+      // 并行入库，避免 N 次串行 HTTP 往返
+      const results = await Promise.all(
+        toSave.map((c) =>
+          fetch("/api/cognitions", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              type: c.type,
+              content: c.content,
+              source: "task",
+              ideaId: cognitionModal.ideaId,
+            }),
+          }).then((r) => r.ok)
+        )
+      );
+      const savedCount = results.filter(Boolean).length;
       toast(`已入库 ${savedCount} 条认知`, "success");
       setCognitionModal(null);
       setEditableCognitions([]);

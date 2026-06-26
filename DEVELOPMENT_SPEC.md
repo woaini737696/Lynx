@@ -50,13 +50,20 @@
 
 ### 1.7 服务启动验证规范（强制）
 - **每次完成任务（迭代/功能单元）后必须启动 dev server 验证服务正常运行**，禁止仅做代码修改不验证启动
+- **启动前置条件（必须按顺序执行）**：
+  1. **MySQL 启动检查**：dev server 启动前必须确认 MySQL 已运行（端口 3306 可达）
+     - 检查命令：`Test-NetConnection localhost -Port 3306` 或 `Get-Process mysqld`
+     - 未运行时先启动：`Start-Process "C:\Program Files\MySQL\MySQL Server 8.4\bin\mysqld.exe" -ArgumentList "--datadir=D:/LynnHub/mysql_data","--port=3306","--console" -WindowStyle Hidden`
+     - 数据目录必须为 `D:\LynnHub\mysql_data`（见 §2.1）
+  2. **清理 .next 缓存**（仅在出现 worker.js 错误/模块缺失/异常重启时）：`Remove-Item -Recurse -Force .next`
 - **启动命令**：`npx next dev -p 5176`（端口 5176 强制，见 §2）
 - **验证步骤**：
   1. 启动 dev server，等待控制台输出 "Ready in XXXms" 或类似就绪标志
   2. HTTP 探测 `http://localhost:5176` 返回 200（非 5xx 错误页）
-  3. 检查启动日志无致命错误（如模块解析失败、Prisma 连接失败等）
+  3. HTTP 探测 `http://localhost:5176/login` 返回 200（验证 NextAuth 路由可用）
+  4. 检查启动日志无致命错误（如 `Cannot find module`、`Can't reach database server`、`worker thread exited` 等）
 - **失败处理**：启动失败时必须修复后重新验证，禁止在服务未启动状态下提交代码
-- **验证记录**：在 DEV_LOG.md 的「自测结果」中记录 dev server 启动状态（端口 5176 + HTTP 状态码）
+- **验证记录**：在 DEV_LOG.md 的「自测结果」中记录 dev server 启动状态（端口 5176 + HTTP 状态码 + MySQL 状态）
 - **禁止**：跳过服务启动验证直接 commit/push，或仅靠 `tsc --noEmit` 通过就认为任务完成
 
 ## 2. 端口规范（强制）

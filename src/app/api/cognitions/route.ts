@@ -89,28 +89,34 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // 批量入库
-    const created = [];
-    for (const item of extracted.method) {
-      const c = await prisma.cognition.create({
-        data: { type: "method", content: item.content, source, tags: [], userId: user.id },
+    // 批量入库（使用 createMany 一次性写入，避免 N+1 串行 DB 往返）
+    const allItems: Array<{ type: string; content: string }> = [
+      ...extracted.method.map((i) => ({ type: "method", content: i.content })),
+      ...extracted.experience.map((i) => ({ type: "experience", content: i.content })),
+      ...extracted.prompt.map((i) => ({ type: "prompt", content: i.content })),
+    ];
+
+    let created: Array<{ id: string; type: string; content: string }> = [];
+    if (allItems.length > 0) {
+      await prisma.cognition.createMany({
+        data: allItems.map((item) => ({
+          type: item.type,
+          content: item.content,
+          source,
+          tags: [],
+          userId: user.id,
+        })),
       });
-      created.push(c);
-      writeMemoryForCognition(c.id, c.content).catch(() => {});
-    }
-    for (const item of extracted.experience) {
-      const c = await prisma.cognition.create({
-        data: { type: "experience", content: item.content, source, tags: [], userId: user.id },
+      // 查询刚创建的记录（按 userId + createdAt desc 取对应数量）
+      const fresh = await prisma.cognition.findMany({
+        where: { userId: user.id },
+        orderBy: { createdAt: "desc" },
+        take: allItems.length,
+        select: { id: true, type: true, content: true },
       });
-      created.push(c);
-      writeMemoryForCognition(c.id, c.content).catch(() => {});
-    }
-    for (const item of extracted.prompt) {
-      const c = await prisma.cognition.create({
-        data: { type: "prompt", content: item.content, source, tags: [], userId: user.id },
-      });
-      created.push(c);
-      writeMemoryForCognition(c.id, c.content).catch(() => {});
+      created = fresh;
+      // 异步批量写入 Memory（不阻塞响应）
+      Promise.all(fresh.map((c) => writeMemoryForCognition(c.id, c.content))).catch(() => {});
     }
 
     return NextResponse.json({ created, count: created.length, success: true });

@@ -1322,14 +1322,14 @@ export function AssistantChat({ onClose }: AssistantChatProps = {}) {
                       )}
                     </div>
                   </div>
-                  {/* Token / 模型元信息 */}
+                  {/* 词元 / 模型元信息 */}
                   {showMeta && (
                     <div className="ml-8 flex flex-wrap items-center gap-1.5 text-[10px] text-muted-foreground/70">
                       {m.provider && <span className="uppercase">{m.provider}</span>}
                       {m.model && <span>· {m.model}</span>}
                       {m.usage?.total_tokens != null && (
                         <span className="rounded bg-muted px-1 py-0.5">
-                          {m.usage.total_tokens} tokens
+                          {m.usage.total_tokens} 词元
                           {m.usage.prompt_tokens != null && m.usage.completion_tokens != null && (
                             <span className="text-muted-foreground/50">
                               {" "}(↑{m.usage.prompt_tokens} ↓{m.usage.completion_tokens})

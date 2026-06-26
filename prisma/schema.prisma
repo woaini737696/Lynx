@@ -24,6 +24,11 @@ model User {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
+  // ===== 用户级 AI 大模型 Key 配置（可选，留空则使用管理员配置的全局 Key）=====
+  userDeepseekApiKey String? @db.VarChar(255)
+  userMimoApiKey     String? @db.VarChar(255)
+  userAiProvider     String? @db.VarChar(32) // deepseek | mimo（用户默认 provider）
+
   ideas         Idea[]
   conversations Conversation[]
   tasks         Task[]
@@ -155,7 +160,9 @@ model Task {
   dailyFocusItems DailyFocusItem[]
 
   @@index([column, status])
+  @@index([column, status, position])
   @@index([userId])
+  @@index([createdAt])
 }
 
 // 记忆节点 - 图谱
@@ -179,6 +186,11 @@ model Memory {
 
   @@index([type])
   @@index([userId])
+  @@index([createdAt])
+  @@index([strength])
+  @@index([ideaId])
+  @@index([conversationId])
+  @@index([cognitionId])
 }
 
 // 灵感墓地
@@ -214,6 +226,9 @@ model Cognition {
 
   @@index([type])
   @@index([userId])
+  @@index([createdAt])
+  @@index([ideaId])
+  @@index([conversationId])
 }
 
 // 今日聚焦
@@ -475,6 +490,11 @@ model ProfessionWorkspace {
   defaultProvider     String?  @db.VarChar(32) // deepseek | mimo | openai
   defaultModel        String?  @db.VarChar(64)
   defaultReasoningMode String? @db.VarChar(32) // standard | thinking | fast
+
+  // 3.1) 允许使用的 AI 大模型列表（JSON 字符串数组：["deepseek","mimo"]）
+  // 留空/null = 不限制（用户可使用所有已配置的 provider）
+  // 非空 = 仅允许用户使用列表中的 provider（用户自配 Key 时也受此限制）
+  allowedProviders    Json     @default("[]")
 
   // 4) 可见 AI 工具白名单（JSON 字符串数组：["searchIdeas","createTask", ...]）
   // 留空/null = 全部工具可用；非空则只允许调用白名单内的工具
@@ -756,4 +776,95 @@ model SkillExecution {
   @@index([userId, createdAt])
   @@index([skillId])
   @@index([source])
+}
+
+// ============ 桌面端 / 多端协同 ============
+
+// PC 在线会话：桌面端/HermesAgent 启动后注册到云端
+// 用于安卓端/Web端远程操控 PC
+model PcSession {
+  id            String   @id @default(cuid())
+  userId        String
+  // 设备名（用户自定义，如"公司电脑"）
+  deviceName    String   @db.VarChar(100)
+  // HermesAgent 版本号
+  agentVersion  String   @db.VarChar(32)
+  // 能力清单 JSON：["browser","desktop","file","shell"]
+  capabilities  Json     @default("[]")
+  // WebSocket 通道 ID（用于云端路由指令到对应 PC）
+  wsChannelId   String   @unique @db.VarChar(100)
+  // 在线状态：online | offline | busy
+  status        String   @default("online") @db.VarChar(16)
+  // 授权模式：approve | once | free
+  authMode      String   @default("approve") @db.VarChar(16)
+  // 最后心跳时间
+  lastHeartbeat DateTime @default(now())
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([userId, status])
+  @@index([lastHeartbeat])
+}
+
+// 远程指令：安卓端/Web端发往 PC 端的指令记录
+model RemoteCommand {
+  id            String   @id @default(cuid())
+  commandId     String   @unique @db.VarChar(100)
+  userId        String
+  // 指令内容（自然语言）
+  command       String   @db.Text
+  // 目标设备 ID（多 PC 时指定，空则广播）
+  targetDeviceId String? @db.VarChar(100)
+  // 来源端：web | android | desktop
+  source        String   @default("web") @db.VarChar(16)
+  // 执行状态：pending | executing | completed | failed | timeout
+  status        String   @default("pending") @db.VarChar(16)
+  // 路由类型：cloud | local:browser | local:desktop | local:file | local:shell | hybrid
+  route         String?  @db.VarChar(32)
+  // 执行结果 JSON
+  result        Json?
+  // 错误信息
+  error         String?  @db.Text
+  // 执行耗时（毫秒）
+  durationMs    Int      @default(0)
+  createdAt     DateTime @default(now())
+  completedAt   DateTime?
+
+  @@index([userId, status])
+  @@index([createdAt])
+  @@index([commandId])
+}
+
+// Agent 操作审计日志：所有本地操作均记录（L2/L3 必记，L1 可选）
+// 用于事后追溯、安全审计、行为分析
+model AgentAuditLog {
+  id          String   @id @default(cuid())
+  userId      String
+  // 操作类型：browser_open | browser_extract | desktop_open_app | desktop_screenshot
+  //         | file_read | file_write | file_list | shell_exec | cloud_api
+  action      String   @db.VarChar(64)
+  // 权限等级：L1 | L2 | L3
+  level       String   @db.VarChar(8)
+  // 操作详情（命令、路径、参数等）
+  detail      String   @db.Text
+  // 授权模式：approve | once | free
+  authMode    String   @db.VarChar(16)
+  // 是否经过用户审批
+  approved    Boolean  @default(false)
+  // 执行结果：success | failed | denied | timeout
+  result      String   @db.VarChar(16)
+  // 来源端：web | android | desktop
+  source      String   @default("desktop") @db.VarChar(16)
+  // 来源设备名
+  deviceName  String?  @db.VarChar(100)
+  // 耗时（毫秒）
+  durationMs  Int      @default(0)
+  // 错误信息
+  error       String?  @db.Text
+  createdAt   DateTime @default(now())
+
+  @@index([userId, createdAt])
+  @@index([action])
+  @@index([level])
+  @@index([result])
 }

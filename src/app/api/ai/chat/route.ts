@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import {
   chat,
   chatStream,
+  getLLMConfigForUser,
   type ChatMessage,
   type MultimodalContent,
   type LLMProvider,
@@ -333,35 +334,53 @@ export async function POST(req: NextRequest) {
       let professionDefaultProvider: string | null = null;
       let professionDefaultModel: string | null = null;
       let professionDefaultReasoningMode: string | null = null;
-      try {
-        const dbUser = await prisma.user.findUnique({
-          where: { id: user.id },
-          select: { role: true, profession: true },
-        });
-        if (dbUser) {
+      let assistantName = "Lynn";
+      let personaStyle = "";
+      let distilledStyle = "";
+      let styleStrength = 0.7;
+      let hermesTakeover = false;
+
+      // 并行加载职业工作空间 + AI 助理设置（两者相互独立，避免串行 DB 往返）
+      const [professionResult, aiSettingsResult] = await Promise.allSettled([
+        (async () => {
+          const dbUser = await prisma.user.findUnique({
+            where: { id: user.id },
+            select: { role: true, profession: true },
+          });
+          if (!dbUser) return null;
           const roleRow = await prisma.role.findUnique({
             where: { name: dbUser.role },
             select: { profession: true },
           });
           const professionKey = roleRow?.profession || dbUser.profession || null;
-          if (professionKey) {
-            const ws = await prisma.professionWorkspace.findUnique({
-              where: { profession: professionKey },
-            });
-            if (ws && ws.enabled) {
-              professionSystemPrompt = ws.systemPrompt?.trim() || "";
-              const tools = ws.allowedTools as string[] | null;
-              if (Array.isArray(tools) && tools.length > 0) {
-                allowedTools = tools;
-              }
-              professionDefaultProvider = ws.defaultProvider || null;
-              professionDefaultModel = ws.defaultModel || null;
-              professionDefaultReasoningMode = ws.defaultReasoningMode || null;
-            }
-          }
+          if (!professionKey) return null;
+          const ws = await prisma.professionWorkspace.findUnique({
+            where: { profession: professionKey },
+          });
+          return ws && ws.enabled ? ws : null;
+        })(),
+        prisma.aISetting.findFirst(),
+      ]);
+
+      if (professionResult.status === "fulfilled" && professionResult.value) {
+        const ws = professionResult.value;
+        professionSystemPrompt = ws.systemPrompt?.trim() || "";
+        const tools = ws.allowedTools as string[] | null;
+        if (Array.isArray(tools) && tools.length > 0) {
+          allowedTools = tools;
         }
-      } catch {
-        // 加载失败不阻断对话
+        professionDefaultProvider = ws.defaultProvider || null;
+        professionDefaultModel = ws.defaultModel || null;
+        professionDefaultReasoningMode = ws.defaultReasoningMode || null;
+      }
+
+      if (aiSettingsResult.status === "fulfilled" && aiSettingsResult.value) {
+        const aiSettings = aiSettingsResult.value;
+        assistantName = aiSettings.assistantName || "Lynn";
+        personaStyle = aiSettings.personaStyle || "";
+        distilledStyle = aiSettings.distilledStyle || "";
+        styleStrength = aiSettings.styleStrength ?? 0.7;
+        hermesTakeover = aiSettings.hermesTakeover ?? false;
       }
 
       // 应用职业工作空间默认 model（仅在用户未显式传 provider/model/reasoningMode 时生效）
@@ -375,25 +394,6 @@ export async function POST(req: NextRequest) {
         if (m === "fast" || m === "standard" || m === "deep" || m === "thinking") {
           resolvedReasoningMode = m as ReasoningMode;
         }
-      }
-
-      // 读取 AI 助理设置（助理名称、风格描述、蒸馏风格、风格强度）
-      let assistantName = "Lynn";
-      let personaStyle = "";
-      let distilledStyle = "";
-      let styleStrength = 0.7;
-      let hermesTakeover = false;
-      try {
-        const aiSettings = await prisma.aISetting.findFirst();
-        if (aiSettings) {
-          assistantName = aiSettings.assistantName || "Lynn";
-          personaStyle = aiSettings.personaStyle || "";
-          distilledStyle = aiSettings.distilledStyle || "";
-          styleStrength = aiSettings.styleStrength ?? 0.7;
-          hermesTakeover = aiSettings.hermesTakeover ?? false;
-        }
-      } catch {
-        // 读取失败不阻断对话
       }
 
       // ============ Hermes Agent 接管模式（模式 C）============
@@ -488,6 +488,22 @@ export async function POST(req: NextRequest) {
         ...cleanMessages.filter((m) => m.role !== "system"),
       ];
 
+      // 获取用户级 AI Key 配置（优先级：用户自配 > 全局 AISetting > env）
+      // 如果用户配置了自己的 Key，则用用户的 Key；否则用全局配置
+      let userApiKey: string | undefined;
+      let userBaseUrl: string | undefined;
+      try {
+        const userConfig = await getLLMConfigForUser(user.id, resolvedProvider);
+        userApiKey = userConfig.userKeyUsed ? userConfig.apiKey : undefined;
+        userBaseUrl = userConfig.userKeyUsed ? userConfig.baseUrl : undefined;
+        // 如果用户有偏好 provider 且未显式传入，使用用户偏好
+        if (!resolvedProvider && userConfig.provider) {
+          resolvedProvider = userConfig.provider;
+        }
+      } catch {
+        // 获取失败回退到全局配置
+      }
+
       // 第一轮：调用 AI 决定是否需要调用工具
       const firstResult = await chat(assistantMessages, {
         provider: resolvedProvider,
@@ -495,6 +511,8 @@ export async function POST(req: NextRequest) {
         reasoningMode: resolvedReasoningMode,
         temperature,
         maxTokens,
+        apiKey: userApiKey,
+        baseUrl: userBaseUrl,
       });
 
       // 解析 action
@@ -644,6 +662,8 @@ ${toolResultStr}
                 reasoningMode: resolvedReasoningMode,
                 temperature,
                 maxTokens,
+                apiKey: userApiKey,
+                baseUrl: userBaseUrl,
               })) {
                 if (evt.type === "meta") {
                   secondProvider = evt.provider;
@@ -713,6 +733,8 @@ ${toolResultStr}
         reasoningMode: resolvedReasoningMode,
         temperature,
         maxTokens,
+        apiKey: userApiKey,
+        baseUrl: userBaseUrl,
       });
 
       // 异步学习任务模式（非阻塞，让每次交互都成为学习机会）

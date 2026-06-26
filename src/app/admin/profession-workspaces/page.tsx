@@ -28,6 +28,7 @@ type Workspace = {
   defaultProvider: string | null;
   defaultModel: string | null;
   defaultReasoningMode: string | null;
+  allowedProviders: string[];
   allowedTools: string[];
   enabled: boolean;
   updatedAt: string | null;
@@ -131,6 +132,7 @@ export default function ProfessionWorkspacesPage() {
           defaultProvider: editForm.defaultProvider,
           defaultModel: editForm.defaultModel,
           defaultReasoningMode: editForm.defaultReasoningMode,
+          allowedProviders: editForm.allowedProviders,
           allowedTools: editForm.allowedTools,
           enabled: editForm.enabled,
         }),
@@ -395,6 +397,45 @@ function WorkspaceCard({
                 ))}
               </select>
             </div>
+          </div>
+
+          {/* 2.1) 允许的 AI 大模型（限制该职业用户只能用列表内的 provider） */}
+          <div>
+            <label className="text-xs font-medium text-foreground">
+              允许的 AI 大模型（{editForm.allowedProviders.length} 个选中 · 不选=不限制）
+            </label>
+            <div className="mt-1.5 flex gap-2">
+              {[
+                { key: "deepseek", label: "DeepSeek" },
+                { key: "mimo", label: "MiMo" },
+              ].map((p) => {
+                const checked = editForm.allowedProviders.includes(p.key);
+                return (
+                  <button
+                    key={p.key}
+                    type="button"
+                    onClick={() => {
+                      const exists = editForm.allowedProviders.includes(p.key);
+                      const next = exists
+                        ? editForm.allowedProviders.filter((x) => x !== p.key)
+                        : [...editForm.allowedProviders, p.key];
+                      onChangeForm({ ...editForm, allowedProviders: next });
+                    }}
+                    className={`flex-1 rounded-lg border px-3 py-2 text-xs font-medium transition-all ${
+                      checked
+                        ? "border-cognition bg-cognition/10 text-cognition"
+                        : "border-border bg-background text-muted-foreground hover:border-cognition/30"
+                    }`}
+                  >
+                    {checked && "✓ "}
+                    {p.label}
+                  </button>
+                );
+              })}
+            </div>
+            <p className="mt-1 text-[10px] text-muted-foreground">
+              选中后，该职业用户只能使用选中的大模型（即使用户自配了其他模型的 Key）
+            </p>
           </div>
 
           {/* 3) 可见工具白名单 */}

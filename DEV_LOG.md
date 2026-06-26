@@ -5,6 +5,98 @@
 
 ---
 
+## 迭代 38 - 2026-06-27
+
+### 任务概要
+MySQL 启动规范补充 + start-mysql.ps1 编码修复 + 词元（Token）显示修复与重命名 + 词元统计增强（用户切换/排行榜/用户级 AI Key/职业权限）+ 系统性能深度优化。
+
+### 完成内容
+
+#### 1. 补充 §1.7 规范：dev server 启动前必须确认 MySQL 已运行
+- `DEVELOPMENT_SPEC.md` §1.7 新增 MySQL 启动前置检查（端口 3306 探测 + 失败时禁止启动 dev server）
+- 新增 `.next` 缓存清理步骤（避免 worker.js 模块缺失导致启动失败）
+- 新增 `/login` 探测验证步骤
+
+#### 2. 修复 start-mysql.ps1 中文编码问题
+- PowerShell 脚本中 `Write-Host` 输出中文乱码 → 全部改为英文输出
+- 脚本逻辑保持不变：检测 MySQL 服务 → 启动 `mysqld --datadir=D:/LynnHub/mysql_data --port=3306`
+
+#### 3. 修复 AI 助理词元（Token）显示为 0 的问题
+- **根因**：Provider（特别是 MiMo）流式响应不返回 `usage` 字段
+- **修复**：`src/lib/ai-provider.ts` 新增 `estimateTokens(text)` 函数（中文 1.5 字/token，英文 0.75 词/token）
+- **修复**：新增 `ensureUsage(usage, messages, output)` fallback 估算函数
+- `chatStream` 在 `[DONE]` 事件中调用 `ensureUsage` 确保始终返回非零 token 数
+- 全局将 "Token" 改名为 "词元"（`AssistantChat.tsx`、`ai/assistant/page.tsx`、`token-stats` 页面/API）
+
+#### 4. 词元统计功能增强
+- **管理员用户切换**：`/api/admin/token-stats` 新增 `userId` 查询参数，支持按用户过滤
+- **词元排行榜**：新增 `byUser` 聚合（groupBy sessionId → 映射用户 → 按 tokens 排序），前端新增排行榜弹窗（金/银/铜排名样式）
+- **用户级 AI Key 配置**：
+  - Prisma schema: `User` 新增 `userDeepseekApiKey`/`userMimoApiKey`/`userAiProvider` 字段
+  - 新建 `/api/user/ai-keys` API（GET 掩码显示 + PUT 更新）
+  - 新建 `UserAIKeyConfig` 组件（DeepSeek/MiMo Key 输入 + 显隐切换 + 清除）
+  - 设置页集成 `UserAIKeyConfig`
+  - `ai-provider.ts` 新增 `getLLMConfigForUser(userId, provider?)` 函数
+  - `chat()`/`chatStream()` 支持 `apiKey`/`baseUrl` 选项覆盖
+  - `/api/ai/chat/route.ts` 三处 chat/chatStream 调用传入用户级 Key
+- **职业管理 AI 大模型权限**：
+  - Prisma schema: `ProfessionWorkspace` 新增 `allowedProviders Json @default("[]")` 字段
+  - `/api/admin/profession-workspaces` GET/POST 支持 `allowedProviders` 字段
+  - 职业工作空间页面新增 allowedProviders 选择 UI（DeepSeek/MiMo 切换按钮）
+  - `getLLMConfigForUser` 读取用户职业的 `allowedProviders` 限制
+
+#### 5. 系统性能深度优化
+- **数据库索引优化**（`prisma/schema.prisma`）：
+  - `Task`: 新增 `@@index([column, status, position])` 复合索引 + `@@index([createdAt])`
+  - `Memory`: 新增 `@@index([createdAt])` + `@@index([strength])` + `@@index([ideaId])` + `@@index([conversationId])` + `@@index([cognitionId])`
+  - `Cognition`: 新增 `@@index([createdAt])` + `@@index([ideaId])` + `@@index([conversationId])`
+- **Prisma 连接池配置**（`src/lib/db.ts`）：
+  - 新增 `connection_limit=20&pool_timeout=10` 连接池参数
+  - 生产环境也缓存到 global，避免 HMR/模块边界创建多实例
+- **Next.js 构建优化**（`next.config.mjs`）：
+  - 新增 `swcMinify: true`
+  - 新增 `experimental.optimizePackageImports: ["lucide-react", "ai", "@prisma/client"]`（按需引入大库）
+  - 新增 `compiler.removeConsole`（生产环境移除 console.log，保留 error/warn）
+- **API 路由 N+1 修复**：
+  - `cognitions/route.ts` POST：3 个串行 for 循环 `create` → `createMany` 一次性批量插入
+  - `ai/chat/route.ts`：职业工作空间查询 + AI 设置查询 → `Promise.allSettled` 并行化（减少 2 次 DB 往返）
+  - `tasks/route.ts` GET：新增 `take: 100` 上限保护
+- **客户端 N+1 fetch 修复**：
+  - `board/page.tsx`：认知入库串行 for 循环 fetch → `Promise.all` 并行
+
+### 验证结果
+- ✅ MySQL 3306 端口可达
+- ✅ dev server 在 5176 端口启动成功（`npx next dev -p 5176`）
+- ✅ `/login` 返回 200
+- ✅ `/api/auth/session` 返回 200
+- ✅ `/api/admin/token-stats`、`/api/admin/profession-workspaces`、`/api/tasks`、`/api/cognitions` 返回 307（未认证重定向，符合预期）
+- ✅ `npx tsc --noEmit` src/ 目录无 TypeScript 错误
+- ✅ `npx prisma db push` 成功同步 schema
+- ⚠️ worker.js MODULE_NOT_FOUND 是已知的 thread-stream logger 非致命问题，不影响功能
+
+### 文件变更清单
+- `DEVELOPMENT_SPEC.md` - §1.7 新增 MySQL 启动前置检查
+- `scripts/start-mysql.ps1` - 中文输出改英文
+- `prisma/schema.prisma` - User/ProfessionWorkspace 新字段 + 索引优化
+- `src/lib/db.ts` - 连接池配置
+- `src/lib/ai-provider.ts` - estimateTokens + ensureUsage + getLLMConfigForUser
+- `src/app/api/ai/chat/route.ts` - 并行查询 + 用户级 Key 集成
+- `src/app/api/cognitions/route.ts` - createMany 批量化
+- `src/app/api/tasks/route.ts` - take 上限
+- `src/app/api/admin/profession-workspaces/route.ts` - allowedProviders 字段
+- `src/app/api/admin/token-stats/route.ts` - 用户过滤 + 排行榜
+- `src/app/api/user/ai-keys/route.ts` - 新建用户级 Key API
+- `src/app/admin/token-stats/page.tsx` - 用户切换 + 排行榜 UI
+- `src/app/admin/profession-workspaces/page.tsx` - allowedProviders UI
+- `src/app/settings/page.tsx` - 集成 UserAIKeyConfig
+- `src/components/settings/UserAIKeyConfig.tsx` - 新建组件
+- `src/components/ai/AssistantChat.tsx` - Token 改名词元
+- `src/app/ai/assistant/page.tsx` - Token 改名词元
+- `src/app/board/page.tsx` - 认知入库并行化
+- `next.config.mjs` - 构建优化
+
+---
+
 ## 迭代 37 - 2026-06-27
 
 ### 任务概要

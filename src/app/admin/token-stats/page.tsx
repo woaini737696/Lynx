@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { Loader2, Coins, TrendingUp, TrendingDown, Calendar, Infinity as InfinityIcon, ChevronLeft, ChevronRight } from "lucide-react";
+import { Loader2, Coins, TrendingUp, TrendingDown, Calendar, Infinity as InfinityIcon, ChevronLeft, ChevronRight, Trophy, Users, X } from "lucide-react";
 import { PageHeader, Card, Button, LoadingState, Badge } from "@/components/layout/PageHeader";
 import { HelpButton } from "@/components/layout/HelpButton";
 import { toast } from "@/components/ui/toast";
@@ -29,6 +29,21 @@ interface ProviderStat {
   count: number;
 }
 
+interface UserStat {
+  userId: string;
+  username: string;
+  displayName: string;
+  tokens: number;
+  count: number;
+}
+
+interface UserInfo {
+  id: string;
+  username: string;
+  displayName: string;
+  profession: string | null;
+}
+
 interface TokenStatsData {
   summary: {
     today: TokenSummary;
@@ -37,7 +52,9 @@ interface TokenStatsData {
     total: TokenSummary;
   };
   byProvider: ProviderStat[];
+  byUser: UserStat[];
   records: TokenRecord[];
+  users: UserInfo[];
   pagination: {
     offset: number;
     limit: number;
@@ -48,7 +65,7 @@ interface TokenStatsData {
 
 const PAGE_SIZE = 30;
 
-/** 格式化 Token 数（千分位 + k 简写） */
+/** 格式化词元数（千分位 + k/M 简写） */
 function formatTokens(n: number): string {
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(2)}M`;
   if (n >= 1_000) return `${(n / 1_000).toFixed(2)}k`;
@@ -75,15 +92,23 @@ const PROVIDER_BADGE: Record<string, { color: "cognition" | "campaign" | "norths
   hermes: { color: "northstar" },
 };
 
+const RANK_COLORS = [
+  "text-yellow-500",   // 第 1 名 金色
+  "text-gray-400",     // 第 2 名 银色
+  "text-orange-700",   // 第 3 名 铜色
+];
+
 export default function TokenStatsPage() {
   const [data, setData] = useState<TokenStatsData | null>(null);
   const [loading, setLoading] = useState(true);
   const [offset, setOffset] = useState(0);
+  const [selectedUserId, setSelectedUserId] = useState<string>("all");
+  const [showLeaderboard, setShowLeaderboard] = useState(false);
 
-  const load = useCallback(async (off: number) => {
+  const load = useCallback(async (off: number, userId: string) => {
     setLoading(true);
     try {
-      const res = await fetch(`/api/admin/token-stats?limit=${PAGE_SIZE}&offset=${off}`);
+      const res = await fetch(`/api/admin/token-stats?limit=${PAGE_SIZE}&offset=${off}&userId=${userId}`);
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
         throw new Error(err.error || "加载失败");
@@ -91,15 +116,20 @@ export default function TokenStatsPage() {
       const json = (await res.json()) as TokenStatsData;
       setData(json);
     } catch (e) {
-      toast("加载 Token 统计失败：" + (e as Error).message, "error");
+      toast("加载词元统计失败：" + (e as Error).message, "error");
     } finally {
       setLoading(false);
     }
   }, []);
 
   useEffect(() => {
-    void load(offset);
-  }, [offset, load]);
+    void load(offset, selectedUserId);
+  }, [offset, selectedUserId, load]);
+
+  const handleUserChange = (userId: string) => {
+    setSelectedUserId(userId);
+    setOffset(0);
+  };
 
   if (loading && !data) {
     return <LoadingState title="词元统计" />;
@@ -113,7 +143,7 @@ export default function TokenStatsPage() {
     );
   }
 
-  const { summary, byProvider, records, pagination } = data;
+  const { summary, byProvider, byUser, records, users, pagination } = data;
   const todayVsYesterday = summary.yesterday.tokens > 0
     ? ((summary.today.tokens - summary.yesterday.tokens) / summary.yesterday.tokens) * 100
     : null;
@@ -122,9 +152,55 @@ export default function TokenStatsPage() {
     <div className="p-4 sm:p-8">
       <PageHeader
         title="词元统计"
-        subtitle="AI 模型 Token 消耗记录与统计"
-        action={<HelpButton contentKey="admin-token-stats" />}
+        subtitle="AI 模型词元消耗记录与统计"
+        action={
+          <div className="flex items-center gap-2">
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => setShowLeaderboard(true)}
+              className="gap-1.5"
+            >
+              <Trophy className="h-3.5 w-3.5" />
+              词元排行榜
+            </Button>
+            <HelpButton contentKey="admin-token-stats" />
+          </div>
+        }
       />
+
+      {/* ===== 用户切换器 ===== */}
+      <Card className="mb-4 p-3">
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+            <Users className="h-3.5 w-3.5" />
+            <span>查看用户：</span>
+          </div>
+          <select
+            value={selectedUserId}
+            onChange={(e) => handleUserChange(e.target.value)}
+            className="rounded-lg border border-border bg-background px-3 py-1.5 text-xs text-foreground focus:border-primary/50 focus:outline-none focus:ring-2 focus:ring-primary/20"
+          >
+            <option value="all">全部用户（{users.length}）</option>
+            {users.map((u) => (
+              <option key={u.id} value={u.id}>
+                {u.username}{u.displayName ? ` (${u.displayName})` : ""}{u.profession ? ` · ${u.profession}` : ""}
+              </option>
+            ))}
+          </select>
+          {selectedUserId !== "all" && (
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={() => handleUserChange("all")}
+              className="h-7 px-2 text-[11px]"
+            >
+              <X className="h-3 w-3" />
+              清除筛选
+            </Button>
+          )}
+        </div>
+      </Card>
 
       {/* ===== 顶部 4 个统计卡片 ===== */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -159,7 +235,7 @@ export default function TokenStatsPage() {
         </Card>
 
         {/* 昨日消耗 */}
-        <Card className="border-campaign/20 bg-campaign/5">
+        <Card>
           <div className="flex items-center justify-between">
             <div>
               <p className="text-xs font-medium text-muted-foreground">昨日消耗</p>
@@ -170,17 +246,17 @@ export default function TokenStatsPage() {
                 {summary.yesterday.count} 次对话
               </p>
             </div>
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-campaign/10 text-campaign">
-              <Coins className="h-5 w-5" />
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-muted text-muted-foreground">
+              <Calendar className="h-5 w-5" />
             </div>
           </div>
         </Card>
 
-        {/* 近 7 天消耗 */}
-        <Card className="border-cognition/20 bg-cognition/5">
+        {/* 近 7 天 */}
+        <Card>
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-xs font-medium text-muted-foreground">近 7 天消耗</p>
+              <p className="text-xs font-medium text-muted-foreground">近 7 天</p>
               <p className="mt-1 text-2xl font-bold text-foreground">
                 {formatTokens(summary.last7Days.tokens)}
               </p>
@@ -194,7 +270,7 @@ export default function TokenStatsPage() {
           </div>
         </Card>
 
-        {/* 累计消耗 */}
+        {/* 累计 */}
         <Card>
           <div className="flex items-center justify-between">
             <div>
@@ -206,148 +282,242 @@ export default function TokenStatsPage() {
                 {summary.total.count} 次对话
               </p>
             </div>
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-muted text-foreground">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-campaign/10 text-campaign">
               <InfinityIcon className="h-5 w-5" />
             </div>
           </div>
         </Card>
       </div>
 
-      {/* ===== Provider 分布（近 7 天）===== */}
-      {byProvider.length > 0 && (
-        <Card className="mt-4">
-          <h3 className="mb-3 text-sm font-semibold text-foreground">
-            Provider 分布（近 7 天）
-          </h3>
-          <div className="space-y-2">
-            {byProvider.map((p) => {
-              const total = byProvider.reduce((s, x) => s + x.tokens, 0) || 1;
-              const percent = (p.tokens / total) * 100;
-              const badge = PROVIDER_BADGE[p.provider] || { color: "default" as const };
-              return (
-                <div key={p.provider} className="flex items-center gap-3">
-                  <div className="w-20 shrink-0">
-                    <Badge color={badge.color}>{p.provider}</Badge>
+      {/* ===== Provider 分布 + 用户排行简览 ===== */}
+      <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-2">
+        {/* Provider 分布（近 7 天） */}
+        <Card className="p-4">
+          <h3 className="mb-3 text-sm font-semibold text-foreground">Provider 分布（近 7 天）</h3>
+          {byProvider.length === 0 ? (
+            <p className="py-6 text-center text-xs text-muted-foreground">暂无数据</p>
+          ) : (
+            <div className="space-y-2">
+              {byProvider.map((p) => {
+                const maxTokens = byProvider[0]?.tokens || 1;
+                const pct = (p.tokens / maxTokens) * 100;
+                const badge = PROVIDER_BADGE[p.provider] || { color: "default" as const };
+                return (
+                  <div key={p.provider}>
+                    <div className="mb-1 flex items-center justify-between text-xs">
+                      <div className="flex items-center gap-1.5">
+                        <Badge color={badge.color}>{p.provider}</Badge>
+                        <span className="text-muted-foreground">{p.count} 次</span>
+                      </div>
+                      <span className="font-medium text-foreground">{formatTokens(p.tokens)} 词元</span>
+                    </div>
+                    <div className="h-1.5 overflow-hidden rounded-full bg-muted">
+                      <div
+                        className="h-full rounded-full bg-cognition transition-all"
+                        style={{ width: `${pct}%` }}
+                      />
+                    </div>
                   </div>
-                  <div className="h-2 flex-1 overflow-hidden rounded-full bg-muted">
-                    <div
-                      className="h-full rounded-full bg-cognition transition-all"
-                      style={{ width: `${percent}%` }}
-                    />
-                  </div>
-                  <div className="w-32 shrink-0 text-right text-xs text-muted-foreground">
-                    {formatTokens(p.tokens)} · {p.count} 次
-                  </div>
-                </div>
-              );
-            })}
-          </div>
+                );
+              })}
+            </div>
+          )}
         </Card>
-      )}
 
-      {/* ===== 消耗记录列表 ===== */}
-      <Card className="mt-4">
-        <div className="mb-3 flex items-center justify-between">
-          <h3 className="text-sm font-semibold text-foreground">
-            消耗记录
-            <span className="ml-2 text-xs font-normal text-muted-foreground">
-              共 {pagination.total} 条
-            </span>
-          </h3>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => load(offset)}
-            disabled={loading}
-            title="刷新"
-          >
-            {loading ? <Loader2 className="h-3 w-3 animate-spin" /> : "刷新"}
-          </Button>
+        {/* 用户排行简览（近 7 天 Top 5） */}
+        <Card className="p-4">
+          <div className="mb-3 flex items-center justify-between">
+            <h3 className="text-sm font-semibold text-foreground">用户排行（近 7 天 Top 5）</h3>
+            <button
+              onClick={() => setShowLeaderboard(true)}
+              className="text-[11px] text-primary hover:underline"
+            >
+              查看全部 →
+            </button>
+          </div>
+          {byUser.length === 0 ? (
+            <p className="py-6 text-center text-xs text-muted-foreground">暂无数据</p>
+          ) : (
+            <div className="space-y-1.5">
+              {byUser.slice(0, 5).map((u, i) => (
+                <div key={u.userId} className="flex items-center gap-2 text-xs">
+                  <span className={`w-5 text-center font-bold ${RANK_COLORS[i] || "text-muted-foreground"}`}>
+                    {i + 1}
+                  </span>
+                  <span className="flex-1 truncate font-medium text-foreground">
+                    {u.username}
+                    {u.displayName ? ` · ${u.displayName}` : ""}
+                  </span>
+                  <span className="text-muted-foreground">{u.count} 次</span>
+                  <span className="font-medium text-foreground">{formatTokens(u.tokens)} 词元</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </Card>
+      </div>
+
+      {/* ===== 消耗记录表格 ===== */}
+      <Card className="mt-4 overflow-hidden">
+        <div className="border-b border-border px-4 py-3">
+          <h3 className="text-sm font-semibold text-foreground">消耗记录</h3>
+          <p className="text-[11px] text-muted-foreground">
+            共 {pagination.total} 条
+            {selectedUserId !== "all" && "（已筛选用户）"}
+          </p>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full text-xs">
+            <thead className="border-b border-border bg-muted/30 text-muted-foreground">
+              <tr>
+                <th className="px-3 py-2 text-left font-medium">时间</th>
+                <th className="px-3 py-2 text-left font-medium">Provider</th>
+                <th className="px-3 py-2 text-left font-medium">模型</th>
+                <th className="px-3 py-2 text-right font-medium">词元</th>
+                <th className="px-3 py-2 text-right font-medium">耗时</th>
+                <th className="px-3 py-2 text-left font-medium">会话</th>
+                <th className="px-3 py-2 text-left font-medium">用户</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-border">
+              {records.length === 0 ? (
+                <tr>
+                  <td colSpan={7} className="px-3 py-8 text-center text-muted-foreground">
+                    暂无记录
+                  </td>
+                </tr>
+              ) : (
+                records.map((r) => {
+                  const badge = r.provider ? PROVIDER_BADGE[r.provider] : null;
+                  return (
+                    <tr key={r.id} className="hover:bg-muted/30">
+                      <td className="whitespace-nowrap px-3 py-2 text-muted-foreground">
+                        {formatTime(r.createdAt)}
+                      </td>
+                      <td className="px-3 py-2">
+                        {r.provider && badge ? (
+                          <Badge color={badge.color}>{r.provider}</Badge>
+                        ) : (
+                          <span className="text-muted-foreground">-</span>
+                        )}
+                      </td>
+                      <td className="max-w-[160px] truncate px-3 py-2 text-muted-foreground">
+                        {r.model || "-"}
+                      </td>
+                      <td className="whitespace-nowrap px-3 py-2 text-right font-medium text-foreground">
+                        {formatTokens(r.tokens)}
+                      </td>
+                      <td className="whitespace-nowrap px-3 py-2 text-right text-muted-foreground">
+                        {formatDuration(r.durationMs)}
+                      </td>
+                      <td className="max-w-[200px] truncate px-3 py-2 text-muted-foreground">
+                        {r.sessionTitle}
+                      </td>
+                      <td className="whitespace-nowrap px-3 py-2 text-muted-foreground">
+                        {r.username || "-"}
+                      </td>
+                    </tr>
+                  );
+                })
+              )}
+            </tbody>
+          </table>
         </div>
 
-        {records.length === 0 ? (
-          <div className="py-10 text-center text-sm text-muted-foreground">
-            暂无 Token 消耗记录
+        {/* 分页 */}
+        <div className="flex items-center justify-between border-t border-border px-4 py-2">
+          <span className="text-[11px] text-muted-foreground">
+            第 {offset + 1} - {Math.min(offset + records.length, pagination.total)} 条 / 共 {pagination.total} 条
+          </span>
+          <div className="flex items-center gap-1">
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={offset === 0 || loading}
+              onClick={() => setOffset(Math.max(0, offset - PAGE_SIZE))}
+              className="h-7 px-2"
+            >
+              <ChevronLeft className="h-3 w-3" />
+              上一页
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={!pagination.hasMore || loading}
+              onClick={() => setOffset(offset + PAGE_SIZE)}
+              className="h-7 px-2"
+            >
+              下一页
+              <ChevronRight className="h-3 w-3" />
+            </Button>
           </div>
-        ) : (
-          <>
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs">
-                <thead className="border-b border-border text-[10px] uppercase text-muted-foreground">
-                  <tr>
-                    <th className="px-2 py-2 font-medium">时间</th>
-                    <th className="px-2 py-2 font-medium">Provider</th>
-                    <th className="px-2 py-2 font-medium">模型</th>
-                    <th className="px-2 py-2 text-right font-medium">Tokens</th>
-                    <th className="px-2 py-2 text-right font-medium">耗时</th>
-                    <th className="px-2 py-2 font-medium">会话</th>
-                    <th className="px-2 py-2 font-medium">用户</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-border/60">
-                  {records.map((r) => {
-                    const badge = PROVIDER_BADGE[r.provider || ""];
-                    return (
-                      <tr key={r.id} className="hover:bg-muted/30">
-                        <td className="whitespace-nowrap px-2 py-2 text-muted-foreground">
-                          {formatTime(r.createdAt)}
-                        </td>
-                        <td className="px-2 py-2">
-                          {r.provider ? (
-                            <Badge color={badge?.color}>{r.provider}</Badge>
-                          ) : (
-                            <span className="text-muted-foreground">-</span>
-                          )}
-                        </td>
-                        <td className="px-2 py-2 text-muted-foreground">
-                          {r.model || "-"}
-                        </td>
-                        <td className="whitespace-nowrap px-2 py-2 text-right font-mono font-medium text-foreground">
-                          {r.tokens.toLocaleString()}
-                        </td>
-                        <td className="whitespace-nowrap px-2 py-2 text-right text-muted-foreground">
-                          {formatDuration(r.durationMs)}
-                        </td>
-                        <td className="max-w-[200px] truncate px-2 py-2 text-muted-foreground" title={r.sessionTitle}>
-                          {r.sessionTitle}
-                        </td>
-                        <td className="whitespace-nowrap px-2 py-2 text-muted-foreground">
-                          {r.username || "-"}
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-
-            {/* 分页 */}
-            <div className="mt-3 flex items-center justify-between border-t border-border pt-3">
-              <span className="text-[10px] text-muted-foreground">
-                第 {offset + 1} - {Math.min(offset + records.length, pagination.total)} 条 / 共 {pagination.total} 条
-              </span>
-              <div className="flex items-center gap-1">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setOffset(Math.max(0, offset - PAGE_SIZE))}
-                  disabled={offset === 0 || loading}
-                >
-                  <ChevronLeft className="h-3 w-3" /> 上一页
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setOffset(offset + PAGE_SIZE)}
-                  disabled={!pagination.hasMore || loading}
-                >
-                  下一页 <ChevronRight className="h-3 w-3" />
-                </Button>
-              </div>
-            </div>
-          </>
-        )}
+        </div>
       </Card>
+
+      {/* ===== 词元排行榜弹窗 ===== */}
+      {showLeaderboard && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm"
+          onClick={() => setShowLeaderboard(false)}
+        >
+          <div
+            className="max-h-[80vh] w-full max-w-2xl overflow-hidden rounded-2xl border border-border bg-card shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between border-b border-border px-5 py-3">
+              <div className="flex items-center gap-2">
+                <Trophy className="h-4 w-4 text-yellow-500" />
+                <h2 className="text-sm font-semibold text-foreground">词元消耗排行榜</h2>
+                <span className="text-[11px] text-muted-foreground">（近 7 天）</span>
+              </div>
+              <button
+                onClick={() => setShowLeaderboard(false)}
+                className="rounded-lg p-1 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            <div className="max-h-[60vh] overflow-y-auto p-4">
+              {byUser.length === 0 ? (
+                <p className="py-8 text-center text-sm text-muted-foreground">暂无排行数据</p>
+              ) : (
+                <div className="space-y-2">
+                  {byUser.map((u, i) => (
+                    <div
+                      key={u.userId}
+                      className={`flex items-center gap-3 rounded-lg border p-3 ${
+                        i < 3 ? "border-yellow-500/30 bg-yellow-500/5" : "border-border bg-background"
+                      }`}
+                    >
+                      <div className={`flex h-8 w-8 items-center justify-center rounded-full text-sm font-bold ${
+                        i === 0 ? "bg-yellow-500/20 text-yellow-600"
+                        : i === 1 ? "bg-gray-400/20 text-gray-500"
+                        : i === 2 ? "bg-orange-700/20 text-orange-700"
+                        : "bg-muted text-muted-foreground"
+                      }`}>
+                        {i + 1}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="truncate text-sm font-medium text-foreground">
+                          {u.username}
+                          {u.displayName ? ` · ${u.displayName}` : ""}
+                        </p>
+                        <p className="text-[11px] text-muted-foreground">
+                          {u.count} 次对话 · 日均 {formatTokens(Math.round(u.tokens / 7))} 词元
+                        </p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-sm font-bold text-foreground">{formatTokens(u.tokens)}</p>
+                        <p className="text-[10px] text-muted-foreground">词元</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
