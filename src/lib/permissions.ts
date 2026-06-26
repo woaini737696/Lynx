@@ -327,20 +327,66 @@ export interface PermissionDef {
   key: string;
   label: string;
   description: string;
+  group: string; // 权限分组（按模块）
 }
 
-// 常用权限目录（硬编码）
+// 权限目录（按模块分组，30+ 项）
 export const PERMISSION_CATALOG: PermissionDef[] = [
-  { key: "idea:create", label: "创建灵感", description: "在 Inbox 中新建灵感" },
-  { key: "idea:delete", label: "删除灵感", description: "删除已有灵感" },
-  { key: "task:manage", label: "管理看板任务", description: "增删改决策看板任务" },
-  { key: "memory:write", label: "写入记忆", description: "向记忆图谱写入节点" },
-  { key: "cognition:manage", label: "管理认知库", description: "增删改认知条目" },
-  { key: "skill:execute", label: "执行技能", description: "运行已安装的技能" },
-  { key: "flow:execute", label: "执行工作流", description: "运行 AI 工作流" },
-  { key: "user:manage", label: "管理用户", description: "增删改系统用户" },
-  { key: "role:manage", label: "管理角色", description: "修改角色权限配置" },
-  { key: "system:config", label: "系统配置", description: "修改系统级配置" },
+  // 灵感模块
+  { key: "idea:create", label: "创建灵感", description: "在 Inbox 中新建灵感", group: "灵感" },
+  { key: "idea:delete", label: "删除灵感", description: "删除已有灵感", group: "灵感" },
+  { key: "idea:edit", label: "编辑灵感", description: "修改灵感内容与标签", group: "灵感" },
+  { key: "idea:export", label: "导出灵感", description: "导出灵感数据", group: "灵感" },
+
+  // 任务模块
+  { key: "task:manage", label: "管理看板任务", description: "增删改决策看板任务", group: "任务" },
+  { key: "task:create", label: "创建任务", description: "在看板中新建任务", group: "任务" },
+  { key: "task:complete", label: "完成任务", description: "标记任务为完成", group: "任务" },
+  { key: "task:delete", label: "删除任务", description: "删除看板任务", group: "任务" },
+
+  // 记忆模块
+  { key: "memory:write", label: "写入记忆", description: "向记忆图谱写入节点", group: "记忆" },
+  { key: "memory:read", label: "读取记忆", description: "查询记忆图谱节点", group: "记忆" },
+  { key: "memory:delete", label: "删除记忆", description: "删除记忆节点", group: "记忆" },
+  { key: "memory:rebuild", label: "重建记忆", description: "重建记忆图谱 embedding", group: "记忆" },
+
+  // 认知模块
+  { key: "cognition:manage", label: "管理认知库", description: "增删改认知条目", group: "认知" },
+  { key: "cognition:extract", label: "提取认知", description: "AI 提取认知条目", group: "认知" },
+  { key: "cognition:delete", label: "删除认知", description: "删除认知条目", group: "认知" },
+
+  // 技能模块
+  { key: "skill:execute", label: "执行技能", description: "运行已安装的技能", group: "技能" },
+  { key: "skill:generate", label: "生成技能", description: "AI 生成新技能", group: "技能" },
+  { key: "skill:import", label: "导入技能", description: "导入外部技能", group: "技能" },
+  { key: "skill:export", label: "导出技能", description: "导出技能分享", group: "技能" },
+
+  // 工作流模块
+  { key: "flow:execute", label: "执行工作流", description: "运行 AI 工作流", group: "工作流" },
+  { key: "flow:manage", label: "管理工作流", description: "增删改 AI 工作流", group: "工作流" },
+
+  // AI 模块
+  { key: "ai:chat", label: "AI 对话", description: "使用 AI 助理对话", group: "AI" },
+  { key: "ai:voice", label: "AI 语音", description: "使用语音识别与合成", group: "AI" },
+  { key: "ai:settings", label: "AI 配置", description: "修改 AI 模型与 Provider 配置", group: "AI" },
+
+  // 对话资产模块
+  { key: "conversation:capture", label: "捕获对话", description: "上传对话资产进行提取", group: "对话" },
+  { key: "conversation:delete", label: "删除对话", description: "删除对话资产", group: "对话" },
+
+  // 巡检模块
+  { key: "patrol:execute", label: "执行巡检", description: "运行巡检规则", group: "巡检" },
+  { key: "patrol:manage", label: "管理巡检", description: "增删改巡检规则", group: "巡检" },
+
+  // 备份模块
+  { key: "backup:export", label: "导出备份", description: "导出系统数据备份", group: "备份" },
+  { key: "backup:import", label: "导入备份", description: "导入系统数据备份", group: "备份" },
+
+  // 系统管理模块
+  { key: "user:manage", label: "管理用户", description: "增删改系统用户", group: "系统" },
+  { key: "role:manage", label: "管理角色", description: "修改角色权限配置", group: "系统" },
+  { key: "system:config", label: "系统配置", description: "修改系统级配置", group: "系统" },
+  { key: "token:stats", label: "词元统计", description: "查看词元消耗统计", group: "系统" },
 ];
 
 // 全部权限 key 列表
@@ -357,10 +403,18 @@ export interface DefaultRoleDef {
 }
 
 // admin：全部权限
-// editor：除 user:manage / role:manage / system:config 外全部
+// editor：除系统管理模块外全部（user/role/system/token/backup:import 等仅 admin）
 // viewer：idea:create + skill:execute（只读 + 有限操作）
+const ADMIN_ONLY_PERMISSIONS = new Set([
+  "user:manage",
+  "role:manage",
+  "system:config",
+  "token:stats",
+  "backup:import",
+  "ai:settings",
+]);
 const EDITOR_PERMISSIONS = ALL_PERMISSION_KEYS.filter(
-  (k) => k !== "user:manage" && k !== "role:manage" && k !== "system:config"
+  (k) => !ADMIN_ONLY_PERMISSIONS.has(k)
 );
 
 export const DEFAULT_ROLES: DefaultRoleDef[] = [

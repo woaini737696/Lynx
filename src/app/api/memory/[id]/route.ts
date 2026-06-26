@@ -1,13 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { requireAuth } from "@/lib/auth-utils";
+import { requirePermission } from "@/lib/auth-utils";
 
 // 删除记忆节点：同时清理其他节点 connections 中对该节点的引用
 export async function DELETE(
   _req: NextRequest,
   { params }: { params: { id: string } }
 ) {
-  const auth = await requireAuth();
+  const auth = await requirePermission("memory:delete");
   if (auth.error) return auth.error;
   try {
     const { id } = params;

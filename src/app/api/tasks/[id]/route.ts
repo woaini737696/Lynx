@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { requireAuth } from "@/lib/auth-utils";
+import { requireAuth, requirePermission } from "@/lib/auth-utils";
 import { chat } from "@/lib/ai-provider";
 import { COGNITION_EXTRACT_PROMPT } from "@/lib/ai";
 import { getLogger } from "@/lib/logger";
@@ -13,7 +13,7 @@ export async function PATCH(
   { params }: { params: { id: string } }
 ) {
   try {
-    const { user, error } = await requireAuth();
+    const { user, error } = await requirePermission("task:manage");
     if (error) return error;
 
     const { id } = params;
@@ -136,7 +136,7 @@ export async function DELETE(
   { params }: { params: { id: string } }
 ) {
   try {
-    const { user, error } = await requireAuth();
+    const { user, error } = await requirePermission("task:delete");
     if (error) return error;
 
     const { id } = params;

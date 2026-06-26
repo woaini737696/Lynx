@@ -5,6 +5,85 @@
 
 ---
 
+## 迭代 40 - 2026-06-27
+
+### 任务概要
+浏览器/API 端到端验证 + 权限系统深化（细粒度权限 + 缓存失效 + 业务 API 升级）+ AI 响应速度进一步优化（前端节流 + systemPrompt 精简 + rebuildMemory O(n²) 优化）。
+
+### 完成内容
+
+#### 1. 浏览器/API 端到端验证（高优先级）
+- 验证 AI 流式输出（thinking/tool_start/tool_done/delta/done 事件链路正常）
+- 验证权限路由守卫（`/admin/*` 非 admin 重定向到首页并带 `forbidden=1`）
+- 验证 Sidebar 角色过滤（非 admin 看不到"管理"菜单组）
+- 验证敏感字段过滤（AI settings 的 `larkWebhookToken` 非 admin 不返回）
+- 验证 12 个 P0 API 路由鉴权（带 token 200，无 token 307/401）
+
+#### 2. 权限系统深化
+- **PERMISSION_CATALOG 扩充**（`src/lib/permissions.ts`）
+  - 从 10 项扩充到 34 项，按模块分组（灵感/任务/记忆/认知/技能/工作流/AI/对话/巡检/备份/系统）
+  - `PermissionDef` 接口新增 `group: string` 字段
+  - `EDITOR_PERMISSIONS` 改用 `ADMIN_ONLY_PERMISSIONS` Set 过滤（admin:manage/role:manage/system:config/token:stats/backup:import/ai:settings）
+- **统一 DEFAULT_ROLES 定义**（`prisma/seed-roles.ts`）
+  - 删除本地重复的 `ALL_PERMISSIONS`/`EDITOR_PERMISSIONS`/`DEFAULT_ROLES` 定义
+  - 统一从 `src/lib/permissions.ts` 导入，避免双源不一致
+  - upsert 新增 `profession` 字段回填
+- **权限缓存失效机制**（`src/app/api/admin/roles/route.ts` + `src/app/api/users/[id]/route.ts`）
+  - 角色更新/删除后调用 `clearPermissionCache()` 清除全部缓存
+  - 用户角色/激活状态变更后调用 `clearPermissionCache(userId)` 清除该用户缓存
+  - 避免 5 分钟 TTL 内权限变更不生效
+- **业务 API 升级为 requirePermission**（细粒度权限校验）
+  - `ideas/route.ts` POST → `requirePermission("idea:create")`，DELETE → `requirePermission("idea:delete")`
+  - `tasks/route.ts` POST → `requirePermission("task:create")`
+  - `tasks/[id]/route.ts` PATCH → `requirePermission("task:manage")`，DELETE → `requirePermission("task:delete")`
+  - `cognitions/route.ts` POST → `requirePermission("cognition:extract")`
+  - `memory/[id]/route.ts` DELETE → `requirePermission("memory:delete")`
+  - `skills/generate/route.ts` POST → `requirePermission("skill:generate")`
+  - `patrol/run/route.ts` POST → `requirePermission("patrol:execute")`
+  - `conversations/route.ts` POST → `requirePermission("conversation:capture")`
+  - `backup/export/route.ts` GET → `requirePermission("backup:export")`
+
+#### 3. AI 响应速度进一步优化
+- **前端 delta 渲染节流**（`src/app/ai/assistant/page.tsx`）
+  - 文本模式 + 语音模式两处 SSE 解析均改用 `requestAnimationFrame` 节流
+  - 多个 delta token 合并到下一帧渲染，避免每个 token 触发 `setState` 重渲染
+  - 流结束/错误时调用 `cancelAnimationFrame` + `streamEnded` 守卫，避免覆盖最终化状态
+- **systemPrompt 精简**（`src/lib/ai-assistant-tools.ts`）
+  - `AI_ASSISTANT_SYSTEM_PROMPT` 删除 4 个冗余示例（保留 1 个），节省约 200 input token
+  - 精简描述文字，保留核心规则
+- **rebuildMemory O(n²) 优化**（`src/app/api/ai/assistant/tool-executor.ts`）
+  - 利用相似度对称性（`sim(i,j) == sim(j,i)`），只算上三角并镜像填充，计算量减半
+  - 每节点最多保留 Top-K=20 条最相似连接，避免 hub 节点爆炸 + 控制 DB 写入量
+  - `embedText` 调用从串行改为并行批量（并发 8），大幅减少 embedding 生成耗时
+
+### 验证结果
+- MySQL 端口 3306 可访问
+- 开发服务器在 5176 端口启动成功（Ready in 3.4s）
+- HTTP 200 响应（`/api/health`、`/api/ideas`、`/api/patrol/rules`、`/api/settings/diagnostics`）
+- 修复 thread-stream worker.js MODULE_NOT_FOUND 致命错误（`src/lib/logger.ts` 改用 pino-pretty 同步 stream，不走 transport/worker thread）
+- 无 TypeScript 编译错误
+- 无致命运行时错误
+
+### 涉及文件
+- `src/lib/permissions.ts` - PERMISSION_CATALOG 扩充到 34 项 + ADMIN_ONLY_PERMISSIONS Set
+- `prisma/seed-roles.ts` - 统一从 permissions.ts 导入
+- `src/app/api/admin/roles/route.ts` - clearPermissionCache 调用
+- `src/app/api/users/[id]/route.ts` - 用户角色变更清缓存
+- `src/app/api/ideas/route.ts` - requirePermission
+- `src/app/api/tasks/route.ts` + `tasks/[id]/route.ts` - requirePermission
+- `src/app/api/cognitions/route.ts` - requirePermission
+- `src/app/api/memory/[id]/route.ts` - requirePermission
+- `src/app/api/skills/generate/route.ts` - requirePermission
+- `src/app/api/patrol/run/route.ts` - requirePermission
+- `src/app/api/conversations/route.ts` - requirePermission
+- `src/app/api/backup/export/route.ts` - requirePermission
+- `src/app/ai/assistant/page.tsx` - delta 渲染 rAF 节流
+- `src/lib/ai-assistant-tools.ts` - systemPrompt 精简
+- `src/app/api/ai/assistant/tool-executor.ts` - rebuildMemory 优化
+- `src/lib/logger.ts` - 修复 thread-stream worker 崩溃（pino-pretty 同步 stream）
+
+---
+
 ## 迭代 39 - 2026-06-27
 
 ### 任务概要

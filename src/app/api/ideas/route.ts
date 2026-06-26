@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { writeMemoryForIdea } from "@/lib/memory-sync";
-import { requireAuth, buildUserFilter } from "@/lib/auth-utils";
+import { requireAuth, requirePermission, buildUserFilter } from "@/lib/auth-utils";
 import { getLogger } from "@/lib/logger";
 import { validateString, validateEnum } from "@/lib/validate";
 
@@ -56,7 +56,7 @@ function validateAttachments(value: unknown): AttachmentItem[] | null {
 // 闪电输入 - 创建灵感
 export async function POST(req: NextRequest) {
   try {
-    const { user, error } = await requireAuth();
+    const { user, error } = await requirePermission("idea:create");
     if (error) return error;
 
     const body = await req.json().catch(() => ({}));
@@ -124,7 +124,7 @@ export async function GET() {
 // body: { ids: string[] }
 export async function DELETE(req: NextRequest) {
   try {
-    const { user, error } = await requireAuth();
+    const { user, error } = await requirePermission("idea:delete");
     if (error) return error;
 
     const body = await req.json().catch(() => ({}));
