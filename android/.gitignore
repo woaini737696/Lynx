@@ -1,0 +1,31 @@
+## Android 项目 .gitignore
+
+# Build output
+build/
+app/build/
+.cxx/
+
+# Local configuration (user-specific)
+local.properties
+
+# Gradle
+.gradle/
+gradle/wrapper/gradle-wrapper.jar
+
+# IDE
+.idea/
+*.iml
+*.iws
+*.ipr
+.vscode/
+
+# Keystore (签名文件，不可泄露)
+*.jks
+*.keystore
+
+# Logs
+*.log
+
+# OS
+.DS_Store
+Thumbs.db

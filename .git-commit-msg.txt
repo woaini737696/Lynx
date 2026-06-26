@@ -1,12 +1,24 @@
-迭代22: Hermes修复+Inbox批量删除+AI风格自定义+脏数据清理+404修复
+feat(skills): 公共技能广场 + 鉴权漏洞修复
 
-1. Hermes Agent: 修复启动失败(findHermesExe+dashboard命令+端口9119)、
-   连接测试(HTTP+CLI双模式)、开关样式、使用说明
-2. Inbox: 批量删除API+多选UI
-3. AI助理: 聊天风格自定义(头像/名称/风格描述/真人聊天记录蒸馏)
-4. 脏数据清理: seed.ts重写(仅admin)、数据库清理脚本、DEFAULT_FLOWS假时间修复、
-   删除.ai-flows.json
-5. 404修复: pino logger sync:true避免worker thread崩溃
-6. Prisma: AISetting新增avatarUrl/personaStyle/distilledStyle字段
+公共技能广场（Issue 2）：
+- Schema: Skill 表新增 isPublic/publicId/publishedAt/downloadCount/ratingAvg 字段
+- Schema: SkillReview 新增 publicId 字段，支持跨用户评论聚合
+- 新增 POST/DELETE /api/skills/[id]/publish（发布/下架，需登录+归属校验）
+- 新增 GET /api/skills/marketplace（浏览广场，公开访问，服务端分页+搜索+排序）
+- 新增 GET /api/skills/marketplace/[publicId]（广场详情，公开）
+- 新增 POST /api/skills/marketplace/[publicId]/load（一键加载到自己账号，需登录）
+- 重写 /api/skills/[id]/reviews：GET 公开访问且支持 publicId 查询，POST 支持 publicId
+- 重写 src/app/skills/market/page.tsx：服务端分页、详情弹窗、评论、一键加载
+- src/app/skills/page.tsx：新增发布/下架按钮和"已发布"Badge
+- middleware: 放行 /api/skills/marketplace 和 /api/skills/[id]/reviews 公开访问
 
-自测: tsc通过, Playwright 19/19 passed, API全部200
+鉴权漏洞修复（6 个 API）：
+- /api/skills/[id]/reviews: GET/POST 加 requireAuth，POST 写入 userId
+- /api/skills/[id]/versions: GET/POST 加 requireAuth + 归属校验
+- /api/skills/[id]/versions/[version]: GET 加 requireAuth + 归属校验
+- /api/skills/[id]/rollback: POST 加 requireAuth + 归属校验
+- /api/skills/export: 限制导出自己的或公共技能
+- /api/skills/import: 强制 userId，去重按 userId 限定
+- /api/skills/share-code: POST 加 requireAuth + 归属校验
+
+自测通过：发布/浏览/详情/加载/评论（publicId）全链路 OK；tsc --noEmit 无错误
