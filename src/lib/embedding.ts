@@ -122,25 +122,23 @@ export async function embedText(text: string): Promise<Float32Array> {
     vec = tfidfVector(truncated);
   }
 
-  // 3. 写入缓存（异步，不阻塞返回）
-  try {
-    await prisma.embeddingCache.upsert({
-      where: { textHash: hash },
-      create: {
-        textHash: hash,
-        embedding: float32ToBuffer(vec),
-        provider: currentProvider(),
-        dim: vec.length,
-      },
-      update: {
-        embedding: float32ToBuffer(vec),
-        provider: currentProvider(),
-        dim: vec.length,
-      },
-    });
-  } catch {
+  // 3. 写入缓存（fire-and-forget，不阻塞返回——性能优化）
+  prisma.embeddingCache.upsert({
+    where: { textHash: hash },
+    create: {
+      textHash: hash,
+      embedding: float32ToBuffer(vec),
+      provider: currentProvider(),
+      dim: vec.length,
+    },
+    update: {
+      embedding: float32ToBuffer(vec),
+      provider: currentProvider(),
+      dim: vec.length,
+    },
+  }).catch(() => {
     // 缓存写入失败不影响主流程
-  }
+  });
 
   return vec;
 }

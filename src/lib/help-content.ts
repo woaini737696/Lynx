@@ -275,6 +275,23 @@ export const HELP_CONTENT: Record<string, VersionedHelpContent> = {
       "点击「刷新」按钮重新加载最新数据",
     ],
   },
+  "remote-control": {
+    version: "1.0",
+    updatedAt: "2026-06-27",
+    painPoint: "出门在外无法操控办公室的电脑，需要手机远程让 PC 执行任务（打开浏览器查数据、运行脚本、截图等）",
+    need: "通过手机/Web 远程向 PC 下发指令，PC 端 HermesAgent 自动执行并回传结果",
+    solution: "通过 WebSocket 网关维护 PC 在线状态，安卓端/Web端调用 /api/hermes/remote-command 下发指令，PC 端执行后通过 WS 回传进度和结果",
+    usage: [
+      "设置 → 远程操控",
+      "顶部「PC 设备列表」展示所有已登录同账号的 PC，绿色圆点表示在线",
+      "点击选择目标 PC（或默认选第一个在线设备）",
+      "在「下发远程指令」输入框中输入指令（如：打开浏览器访问 github.com）",
+      "点击「下发指令」或按 Enter，指令通过云端转发到目标 PC",
+      "PC 端 HermesAgent 收到后自动执行（根据授权模式可能弹窗审批）",
+      "「指令历史」展示最近 20 条指令的状态（待执行/执行中/已完成/失败）和结果",
+      "支持多 PC：可在设备列表中切换目标 PC",
+    ],
+  },
 };
 
 /** 获取指定 key 的使用说明（带版本信息） */

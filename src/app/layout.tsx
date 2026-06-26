@@ -9,6 +9,7 @@ import { ThemeProvider } from "@/components/theme/ThemeProvider";
 import { ReminderManager } from "@/components/layout/ReminderManager";
 import { PWARegister } from "@/components/layout/PWARegister";
 import { AssistantGlobalEntry } from "@/components/ai/AssistantGlobalEntry";
+import { DesktopBridge } from "@/components/layout/DesktopBridge";
 
 export const metadata: Metadata = {
   title: "LynnHub · 个人认知操作系统",
@@ -49,6 +50,7 @@ export default function RootLayout({
       <body className="min-h-screen bg-background text-foreground antialiased">
         <ThemeProvider>
           <SuppressDevErrors />
+          <DesktopBridge />
           <AppShell>{children}</AppShell>
           <LightningInput />
           <CommandPalette />

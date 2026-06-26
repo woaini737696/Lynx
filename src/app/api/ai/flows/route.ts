@@ -7,6 +7,7 @@ import {
   type FlowEdge,
 } from "@/lib/flow-store";
 import { getLogger } from "@/lib/logger";
+import { requireAuth, requireAdmin } from "@/lib/auth-utils";
 
 const logger = getLogger("flows-api");
 
@@ -14,6 +15,8 @@ const logger = getLogger("flows-api");
 
 // GET /api/ai/flows - 返回工作流列表
 export async function GET() {
+  const auth = await requireAuth();
+  if (auth.error) return auth.error;
   try {
     // 确保数据库已初始化（幂等，数据库非空时直接返回）
     await initializeDefaultFlows();
@@ -31,6 +34,8 @@ export async function GET() {
 // POST /api/ai/flows - 创建新工作流
 // body: { name, description, nodes?, edges?, enabled? }
 export async function POST(req: NextRequest) {
+  const auth = await requireAdmin();
+  if (auth.error) return auth.error;
   try {
     const body = await req.json();
     const { name, description, nodes, edges, enabled } = body as {

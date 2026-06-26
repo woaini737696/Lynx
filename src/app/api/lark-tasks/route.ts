@@ -15,12 +15,12 @@ import {
   getTasksFromDb,
   getAssigneesFromDb,
   getTasklistsFromDb,
-  getCurrentUser,
   applyClientFilters,
   type NormalizedTask,
   type LarkMember,
   type LarkTasklistRef,
 } from "@/lib/lark-sync";
+import { getCurrentUser } from "@/lib/auth-utils";
 
 /** 构建子任务映射：parentGuid → 子任务数组（从全量任务中提取） */
 function buildSubtaskMap(allTasks: NormalizedTask[]): Record<string, NormalizedTask[]> {
@@ -67,7 +67,7 @@ export async function GET(req: NextRequest) {
 
   // ===== 纯数据库模式（移动端）：完全不依赖 lark-cli，只读数据库 =====
   if (dbOnly) {
-    const me = getCurrentUser();
+    const me = await getCurrentUser();
     const myOpenId = me?.openId || "";
     const dbAllTasks = await getTasksFromDb({ complete: null });
     const filtered = applyClientFilters(dbAllTasks, {
@@ -146,7 +146,7 @@ export async function GET(req: NextRequest) {
   try {
     // ===== 快速模式：优先返回 DB 缓存，后台触发 lark-cli 刷新 =====
     if (fast && !refresh) {
-      const me = getCurrentUser();
+      const me = await getCurrentUser();
       const myOpenId = me?.openId || "";
       // 从 DB 读取全量任务（不含视图过滤，用于构建 subtaskMap）
       const dbAllTasks = await getTasksFromDb({ complete: null });

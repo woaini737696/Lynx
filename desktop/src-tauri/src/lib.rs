@@ -1,0 +1,414 @@
+// LynnHub 桌面端核心库
+// 集成 HermesAgent 本地超级助理 + 四类RPA能力 + 三档授权模式
+
+pub mod hermes;
+pub mod rpa;
+pub mod auth;
+pub mod installer;
+pub mod ws_client;
+
+use serde::{Deserialize, Serialize};
+use std::sync::Arc;
+use tauri::{Manager, SystemTray, SystemTrayMenu, SystemTrayMenuItem, CustomMenuItem};
+use tauri_plugin_shell::ShellExt;
+use std::thread;
+
+// ============ 全局状态 ============
+
+use std::sync::Mutex;
+use std::sync::atomic::{AtomicBool, Ordering};
+
+/// 紧急停止标志：true 时立即终止所有正在执行的本地操作
+pub static EMERGENCY_STOP: AtomicBool = AtomicBool::new(false);
+
+/// 当前授权模式（运行时可切换）
+/// "approve" = 弹窗审批（默认）
+/// "once" = 一次性授权
+/// "free" = 免审批仅记录
+pub struct AppState {
+    pub auth_mode: Mutex<String>,
+    pub authorized_dirs: Mutex<Vec<String>>,
+    pub ws_connected: AtomicBool,
+    pub user_token: Mutex<Option<String>>,
+    pub cloud_endpoint: Mutex<String>,
+}
+
+impl Default for AppState {
+    fn default() -> Self {
+        // 默认授权目录：D:\LynnHub\user-data\（符合 D 盘规范）
+        let default_dir = if cfg!(target_os = "windows") {
+            "D:\\LynnHub\\user-data".to_string()
+        } else {
+            dirs::home_dir()
+                .map(|h| h.join("LynnHub").join("user-data").to_string_lossy().to_string())
+                .unwrap_or_else(|| "./user-data".to_string())
+        };
+
+        // 确保默认授权目录存在
+        let _ = std::fs::create_dir_all(&default_dir);
+
+        Self {
+            auth_mode: Mutex::new("approve".to_string()),
+            authorized_dirs: Mutex::new(vec![default_dir]),
+            ws_connected: AtomicBool::new(false),
+            user_token: Mutex::new(None),
+            cloud_endpoint: Mutex::new("http://localhost:5176".to_string()),
+        }
+    }
+}
+
+// ============ Tauri Command 定义 ============
+
+/// 设置授权模式
+#[derive(Serialize, Deserialize)]
+pub struct AuthModePayload {
+    pub mode: String, // approve | once | free
+}
+
+#[tauri::command]
+fn set_auth_mode(state: tauri::State<Arc<AppState>>, payload: AuthModePayload) -> Result<String, String> {
+    let mode = match payload.mode.as_str() {
+        "approve" | "once" | "free" => payload.mode.clone(),
+        _ => return Err("无效的授权模式，必须为 approve/once/free".to_string()),
+    };
+    *state.auth_mode.lock().map_err(|e| e.to_string())? = mode.clone();
+    log::info!("授权模式已切换为: {}", mode);
+    Ok(mode)
+}
+
+/// 获取当前授权模式
+#[tauri::command]
+fn get_auth_mode(state: tauri::State<Arc<AppState>>) -> String {
+    state.auth_mode.lock().map(|m| m.clone()).unwrap_or_else(|_| "approve".to_string())
+}
+
+/// 添加授权目录
+#[tauri::command]
+fn add_authorized_dir(state: tauri::State<Arc<AppState>>, dir: String) -> Result<Vec<String>, String> {
+    let path = std::path::Path::new(&dir);
+    if !path.exists() {
+        return Err(format!("目录不存在: {}", dir));
+    }
+    let mut dirs = state.authorized_dirs.lock().map_err(|e| e.to_string())?;
+    if !dirs.contains(&dir) {
+        dirs.push(dir.clone());
+        log::info!("新增授权目录: {}", dir);
+    }
+    Ok(dirs.clone())
+}
+
+/// 获取授权目录列表
+#[tauri::command]
+fn get_authorized_dirs(state: tauri::State<Arc<AppState>>) -> Vec<String> {
+    state.authorized_dirs.lock().map(|d| d.clone()).unwrap_or_default()
+}
+
+/// 移除授权目录
+#[tauri::command]
+fn remove_authorized_dir(state: tauri::State<Arc<AppState>>, dir: String) -> Result<Vec<String>, String> {
+    let mut dirs = state.authorized_dirs.lock().map_err(|e| e.to_string())?;
+    dirs.retain(|d| d != &dir);
+    log::info!("移除授权目录: {}", dir);
+    Ok(dirs.clone())
+}
+
+/// 紧急停止：立即终止所有本地操作
+#[tauri::command]
+fn emergency_stop() -> String {
+    EMERGENCY_STOP.store(true, Ordering::SeqCst);
+    log::warn!("已触发紧急停止，所有本地操作将被终止");
+    // 5秒后自动重置（让正在执行的命令检测到停止信号）
+    thread::spawn(|| {
+        thread::sleep(std::time::Duration::from_secs(5));
+        EMERGENCY_STOP.store(false, Ordering::SeqCst);
+        log::info!("紧急停止已重置");
+    });
+    "已触发紧急停止".to_string()
+}
+
+/// 检查紧急停止状态
+#[tauri::command]
+fn is_emergency_stop() -> bool {
+    EMERGENCY_STOP.load(Ordering::SeqCst)
+}
+
+/// 设置用户 Token（登录后调用）
+#[tauri::command]
+fn set_user_token(state: tauri::State<Arc<AppState>>, token: String) -> Result<(), String> {
+    *state.user_token.lock().map_err(|e| e.to_string())? = Some(token);
+    Ok(())
+}
+
+/// 设置云端 endpoint
+#[tauri::command]
+fn set_cloud_endpoint(state: tauri::State<Arc<AppState>>, endpoint: String) -> Result<(), String> {
+    *state.cloud_endpoint.lock().map_err(|e| e.to_string())? = endpoint;
+    Ok(())
+}
+
+/// 获取 HermesAgent 状态（在线/离线/版本/能力清单）
+#[tauri::command]
+async fn get_agent_status(state: tauri::State<'_, Arc<AppState>>) -> Result<serde_json::Value, String> {
+    let cloud = state.cloud_endpoint.lock().map_err(|e| e.to_string())?.clone();
+    let token = state.user_token.lock().map_err(|e| e.to_string())?.clone();
+
+    let ws_connected = state.ws_connected.load(Ordering::SeqCst);
+    let auth_mode = state.auth_mode.lock().map_err(|e| e.to_string())?.clone();
+    let authorized_dirs = state.authorized_dirs.lock().map_err(|e| e.to_string())?.clone();
+
+    Ok(serde_json::json!({
+        "version": env!("CARGO_PKG_VERSION"),
+        "wsConnected": ws_connected,
+        "cloudEndpoint": cloud,
+        "authMode": auth_mode,
+        "authorizedDirs": authorized_dirs,
+        "capabilities": ["browser", "desktop", "file", "shell"],
+        "hasToken": token.is_some(),
+    }))
+}
+
+/// 执行 AI 助理指令（核心入口：路由到云端/本地/混合）
+#[tauri::command]
+async fn execute_assistant_command(
+    state: tauri::State<'_, Arc<AppState>>,
+    app: tauri::AppHandle,
+    command: String,
+    target_device: Option<String>,
+) -> Result<serde_json::Value, String> {
+    let token = state.user_token.lock().map_err(|e| e.to_string())?.clone();
+    let cloud = state.cloud_endpoint.lock().map_err(|e| e.to_string())?.clone();
+    let auth_mode = state.auth_mode.lock().map_err(|e| e.to_string())?.clone();
+
+    let result = hermes::router::route_and_execute(
+        &command,
+        &cloud,
+        token.as_deref(),
+        &auth_mode,
+        state.inner().clone(),
+        app.clone(),
+    ).await;
+
+    Ok(serde_json::to_value(&result).map_err(|e| e.to_string())?)
+}
+
+/// 浏览器自动化：打开URL
+#[tauri::command]
+async fn rpa_browser_open(url: String) -> Result<(), String> {
+    rpa::browser::open_url(&url).await
+}
+
+/// 浏览器自动化：导航 + 提取数据
+#[tauri::command]
+async fn rpa_browser_extract(url: String, selector: Option<String>) -> Result<serde_json::Value, String> {
+    rpa::browser::navigate_and_extract(&url, selector.as_deref()).await
+}
+
+/// 桌面 RPA：启动应用
+#[tauri::command]
+async fn rpa_desktop_open_app(app_name: String) -> Result<(), String> {
+    rpa::desktop::open_app(&app_name).await
+}
+
+/// 桌面 RPA：截图
+#[tauri::command]
+async fn rpa_desktop_screenshot() -> Result<String, String> {
+    rpa::desktop::take_screenshot().await
+}
+
+/// 文件操作：读取授权目录内文件
+#[tauri::command]
+async fn rpa_file_read(state: tauri::State<'_, Arc<AppState>>, path: String) -> Result<String, String> {
+    let authorized = state.authorized_dirs.lock().map_err(|e| e.to_string())?.clone();
+    rpa::file::read_file(&path, &authorized).await
+}
+
+/// 文件操作：写入授权目录
+#[tauri::command]
+async fn rpa_file_write(state: tauri::State<'_, Arc<AppState>>, path: String, content: String) -> Result<(), String> {
+    let authorized = state.authorized_dirs.lock().map_err(|e| e.to_string())?.clone();
+    rpa::file::write_file(&path, &content, &authorized).await
+}
+
+/// 文件操作：列目录
+#[tauri::command]
+async fn rpa_file_list(state: tauri::State<'_, Arc<AppState>>, dir: String) -> Result<serde_json::Value, String> {
+    let authorized = state.authorized_dirs.lock().map_err(|e| e.to_string())?.clone();
+    rpa::file::list_dir(&dir, &authorized).await
+}
+
+/// Shell 命令执行
+#[tauri::command]
+async fn rpa_shell_exec(
+    state: tauri::State<'_, Arc<AppState>>,
+    app: tauri::AppHandle,
+    command: String,
+    cwd: Option<String>,
+) -> Result<serde_json::Value, String> {
+    let auth_mode = state.auth_mode.lock().map_err(|e| e.to_string())?.clone();
+    rpa::shell::execute(&command, cwd.as_deref(), &auth_mode, state.inner().clone(), app.clone()).await
+}
+
+/// 一键安装 AI 环境
+#[tauri::command]
+async fn install_ai_env(app: tauri::AppHandle) -> Result<serde_json::Value, String> {
+    installer::install_ai_environment(app).await
+}
+
+/// 检测 AI 环境是否已安装
+#[tauri::command]
+async fn detect_ai_env() -> Result<serde_json::Value, String> {
+    installer::detect_installation().await
+}
+
+/// 启动 HermesAgent 本地进程（连接云端WS）
+#[tauri::command]
+async fn start_hermes_agent(
+    state: tauri::State<'_, Arc<AppState>>,
+    app: tauri::AppHandle,
+) -> Result<(), String> {
+    let cloud = state.cloud_endpoint.lock().map_err(|e| e.to_string())?.clone();
+    let token = state.user_token.lock().map_err(|e| e.to_string())?.clone();
+
+    if token.is_none() {
+        return Err("未登录，请先登录后再启动 HermesAgent".to_string());
+    }
+
+    let app_handle = app.clone();
+    let cloud_url = cloud.clone();
+    let user_token = token.unwrap();
+
+    // 后台线程维护 WS 连接
+    thread::spawn(move || {
+        let rt = tokio::runtime::Runtime::new().expect("创建 tokio runtime 失败");
+        rt.block_on(async {
+            ws_client::start_ws_client(&cloud_url, &user_token, app_handle).await;
+        });
+    });
+
+    Ok(())
+}
+
+/// 打开外部链接（默认浏览器）
+#[tauri::command]
+async fn open_external(app: tauri::AppHandle, url: String) -> Result<(), String> {
+    app.shell().open(url, None).map_err(|e| e.to_string())
+}
+
+// ============ 应用主入口 ============
+
+#[cfg_attr(mobile, tauri::mobile_entry_point)]
+pub fn run() {
+    env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info"))
+        .format_timestamp_secs()
+        .init();
+
+    log::info!("LynnHub 桌面端启动中...");
+
+    // 系统托盘菜单
+    let quit_item = CustomMenuItem::new("quit", "退出 LynnHub");
+    let emergency_item = CustomMenuItem::new("emergency", "🛑 紧急停止");
+    let show_item = CustomMenuItem::new("show", "显示主窗口");
+    let tray_menu = SystemTrayMenu::new()
+        .add_item(show_item)
+        .add_item(emergency_item)
+        .add_native_item(tauri::SystemTrayMenuItem::Separator)
+        .add_item(quit_item);
+
+    let system_tray = SystemTray::new().with_menu(tray_menu).with_tooltip("LynnHub HermesAgent");
+
+    let app_state = Arc::new(AppState::default());
+
+    tauri::Builder::default()
+        .manage(app_state)
+        .plugin(tauri_plugin_shell::init())
+        .plugin(tauri_plugin_fs::init())
+        .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_updater::init())
+        .plugin(tauri_plugin_process::init())
+        .plugin(tauri_plugin_http::init())
+        .system_tray(system_tray)
+        .on_system_tray_event(|app, event| {
+            match event {
+                tauri::SystemTrayEvent::MenuItemClick { id, .. } => {
+                    match id.as_str() {
+                        "quit" => {
+                            log::info!("用户通过托盘退出");
+                            app.exit(0);
+                        }
+                        "emergency" => {
+                            EMERGENCY_STOP.store(true, Ordering::SeqCst);
+                            log::warn!("托盘触发紧急停止");
+                            // 5秒后重置
+                            let app_clone = app.clone();
+                            thread::spawn(move || {
+                                thread::sleep(std::time::Duration::from_secs(5));
+                                EMERGENCY_STOP.store(false, Ordering::SeqCst);
+                                let _ = app_clone.emit_all("emergency-reset", ());
+                            });
+                            let _ = app.emit_all("emergency-stop", ());
+                        }
+                        "show" => {
+                            if let Some(window) = app.get_window("main") {
+                                let _ = window.show();
+                                let _ = window.set_focus();
+                            }
+                        }
+                        _ => {}
+                    }
+                }
+                tauri::SystemTrayEvent::DoubleClick { .. } => {
+                    if let Some(window) = app.get_window("main") {
+                        let _ = window.show();
+                        let _ = window.set_focus();
+                    }
+                }
+                _ => {}
+            }
+        })
+        .on_window_event(|window, event| {
+            if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+                // 关闭按钮最小化到托盘而非退出
+                let _ = window.hide();
+                api.prevent_close();
+            }
+        })
+        .invoke_handler(tauri::generate_handler![
+            set_auth_mode,
+            get_auth_mode,
+            add_authorized_dir,
+            get_authorized_dirs,
+            remove_authorized_dir,
+            emergency_stop,
+            is_emergency_stop,
+            set_user_token,
+            set_cloud_endpoint,
+            get_agent_status,
+            execute_assistant_command,
+            rpa_browser_open,
+            rpa_browser_extract,
+            rpa_desktop_open_app,
+            rpa_desktop_screenshot,
+            rpa_file_read,
+            rpa_file_write,
+            rpa_file_list,
+            rpa_shell_exec,
+            install_ai_env,
+            detect_ai_env,
+            start_hermes_agent,
+            open_external,
+        ])
+        .setup(|app| {
+            log::info!("LynnHub 桌面端启动完成");
+            // 启动时自动检查更新（异步）
+            let app_handle = app.handle().clone();
+            thread::spawn(move || {
+                thread::sleep(std::time::Duration::from_secs(5));
+                log::info!("开始检查更新...");
+                // 更新检查在 frontend 通过 tauri-plugin-updater 触发
+                let _ = app_handle.emit_all("app-started", ());
+            });
+            Ok(())
+        })
+        .run(tauri::generate_context!())
+        .expect("error while running tauri application");
+}

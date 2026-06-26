@@ -5,6 +5,88 @@
 
 ---
 
+## 迭代 39 - 2026-06-27
+
+### 任务概要
+桌面端完整实现：Tauri 2.x 桌面端骨架 + HermesAgent 本地化 + 三档授权模式 + 多端协同远程操控 + 安全加固 + 自测验证。
+
+### 完成内容
+
+#### 1. WebSocket 网关（多端协同基础）
+- `src/lib/ws-gateway.ts`：WS 网关服务，维护 PC 在线状态（userId → Set<channelId>），支持心跳保活、指令下发、审批请求转发
+- `scripts/start-ws-gateway.js`：WS 网关启动脚本（tsx 运行，端口 3001，支持 PM2 托管）
+- 新增依赖：`ws@^8.18.0`、`@types/ws@^8.5.10`
+
+#### 2. 云端 API 路由（4 个新路由）
+- `src/app/api/pc-sessions/route.ts`：PC 在线状态管理（GET 查询会话列表 / DELETE 删除会话）
+- `src/app/api/hermes/remote-command/route.ts`：远程指令下发（POST 创建+转发 WS / GET 查询历史）
+- `src/app/api/desktop/update/route.ts`：Tauri Updater 端点（版本检查 + semver 比较 + 签名验证）
+- `src/app/api/agent-audit/route.ts`：Agent 审计日志（GET 查询/统计 / POST 写入）
+
+#### 3. 桌面端前端集成
+- `src/components/layout/DesktopBridge.tsx`：全局桥接组件，Tauri 环境自动同步 NextAuth session → Rust 端
+- `src/app/layout.tsx`：挂载 DesktopBridge 组件
+- `src/lib/desktop-client.ts`：桌面端桥接客户端（Tauri invoke/listen/emit 封装）
+
+#### 4. 设置页 HermesAgent 桌面端专属区域
+- `src/components/settings/DesktopHermesSection.tsx`（约 400 行）：五大区块
+  - AI 环境检测与一键安装（调用 `installAiEnv()`，显示安装进度条）
+  - HermesAgent 进程控制（启动 + 紧急停止）
+  - 三档授权模式切换器（approve/once/free，仿 Codex）
+  - 授权目录白名单管理（添加/移除）
+  - 安全操作说明弹窗（`SafetyGuideModal`：三级操作分级 + 三档授权 + 紧急停止 + 审计日志 + 数据安全承诺）
+- `src/app/settings/page.tsx`：插入 DesktopHermesSection
+- `src/components/ui/Modal.tsx`：通用 Modal 组件（sm/md/lg/xl 四种尺寸 + Esc 关闭 + 遮罩关闭）
+
+#### 5. AI 助理三档授权模式切换器
+- `src/app/ai/assistant/page.tsx`：
+  - 输入框上方新增三档授权模式切换器 UI（仅桌面端显示，仿 Codex 风格）
+  - 新增审批请求弹窗 Modal（L2/L3 级操作显示操作描述、执行命令、批准/拒绝按钮）
+  - 新增 WS 连接状态监听、授权模式切换、审批响应处理
+
+#### 6. Web 端远程操控页面
+- `src/app/settings/remote-control/page.tsx`（约 370 行）：三大区块
+  - PC 设备列表：展示所有已登录同账号的 PC，在线/离线状态，点击选择目标 PC
+  - 下发远程指令：输入框 + 快捷指令示例，调用 `/api/hermes/remote-command` POST
+  - 指令历史：最近 20 条指令的状态（pending/dispatched/executing/completed/failed）和结果
+- `src/components/layout/Sidebar.tsx`：新增「远程操控」导航项
+- `src/lib/help-content.ts`：新增 `remote-control` 使用说明
+
+#### 7. Tauri Rust 端核心模块（前序已完成）
+- `desktop/src-tauri/src/hermes/`：HermesAgent 本地化（mod/router/executor）
+- `desktop/src-tauri/src/rpa/`：RPA 能力（browser/desktop/file/shell）
+- `desktop/src-tauri/src/auth.rs`：鉴权（session 同步）
+- `desktop/src-tauri/src/installer.rs`：AI 环境一键安装
+- `desktop/src-tauri/src/ws_client.rs`：WS 客户端（连接云端网关）
+- `desktop/src-tauri/tauri.conf.json`：Updater 配置
+
+#### 8. 数据库 Schema（前序已完成）
+- `prisma/schema.prisma`：新增 PcSession / RemoteCommand / AgentAuditLog 三张表
+
+#### 9. TypeScript 类型错误修复
+- `src/app/api/ai/chat/route.ts`：修复 9 个类型错误
+  - 导入 `ChatResponse` 类型，修正 `firstResult` 类型声明
+  - 使用 `firstResultSync`（const）替代可空的 `firstResult`（避免 await 后类型 widening）
+  - `LLMProvider` 类型断言处理 `"unknown"` fallback
+
+#### 10. 规范文档更新
+- `DEVELOPMENT_SPEC.md`：新增 §9 桌面端规范（9.1-9.7：架构/HermesAgent本地化/三档授权/多端协同/安全操作/自动更新/开发流程）
+
+### 自测结果
+- **TypeScript 编译**：`npx tsc --noEmit` 对 `src/` 目录零错误 ✓
+- **MySQL 检查**：端口 3306 可达 ✓
+- **Dev server 启动**：`npx next dev -p 5176` → Ready in 2.4s ✓
+- **HTTP 探测**：
+  - `http://localhost:5176/api/health` → 200 ✓
+  - `http://localhost:5176/login` → 200 ✓
+  - `http://localhost:5176/settings/remote-control` → 200（39KB 内容）✓
+- **已知非致命问题**：pino/thread-stream worker.js 偶发模块缺失（日志线程，不影响主服务）
+
+### Commit hash
+（待提交后填写）
+
+---
+
 ## 迭代 38 - 2026-06-27
 
 ### 任务概要

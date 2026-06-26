@@ -8,8 +8,12 @@ import {
   type SkillParameter,
 } from "@/lib/skill-parser";
 
+// 性能优化：内存 flag 缓存，避免每请求都查 DB
+let skillsSeededFlag = false;
+
 // 从 distill-templates.ts 同步默认 Skill（检查每个模板是否存在，不存在则创建）
 async function ensureSkillsSeeded() {
+  if (skillsSeededFlag) return; // 已 seed 过则跳过
   for (const tpl of DISTILL_TEMPLATES) {
     // 按名称检查是否已存在
     const existing = await prisma.skill.findFirst({
@@ -34,6 +38,7 @@ async function ensureSkillsSeeded() {
       },
     });
   }
+  skillsSeededFlag = true; // 标记已 seed 完成
 }
 
 // AI 蒸馏执行 API

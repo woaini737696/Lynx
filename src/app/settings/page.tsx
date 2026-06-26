@@ -27,6 +27,7 @@ import { PageHeader, Card, Button, LoadingState } from "@/components/layout/Page
 import { HelpButton } from "@/components/layout/HelpButton";
 import { toast } from "@/components/ui/toast";
 import { UserAIKeyConfig } from "@/components/settings/UserAIKeyConfig";
+import { DesktopHermesSection } from "@/components/settings/DesktopHermesSection";
 
 /** 单个字段的数据库配置状态 */
 type FieldStatus = { configured: boolean; value: string };
@@ -105,6 +106,9 @@ export default function SettingsPage() {
 
       {/* 用户级 AI Key 配置（每用户自配 Key，优先于全局） */}
       <UserAIKeyConfig />
+
+      {/* 桌面端 HermesAgent 专属配置（仅桌面端显示） */}
+      <DesktopHermesSection />
 
       {/* Hermes Agent 配置 */}
       <HermesConfigSection />

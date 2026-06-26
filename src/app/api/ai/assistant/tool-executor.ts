@@ -263,55 +263,66 @@ async function executeCompleteTask(
       ? `${existing.content}\n\n[关联灵感]\n${ideaContent}`
       : existing.content;
 
-    const aiResp = await chat(
-      [{ role: "user", content: combinedContent }],
-      {
-        system: COGNITION_EXTRACT_PROMPT,
-        reasoningMode: "fast",
-        temperature: 0.3,
+    // 性能优化：认知提取改为 fire-and-forget，不阻塞"完成任务"的响应
+    // 用户点完成 → 立即返回成功，AI 提取在后台异步进行
+    (async () => {
+      try {
+        const aiResp = await chat(
+          [{ role: "user", content: combinedContent }],
+          {
+            system: COGNITION_EXTRACT_PROMPT,
+            reasoningMode: "fast",
+            temperature: 0.3,
+          }
+        );
+
+        // 解析 AI 返回的 JSON
+        const jsonMatch = aiResp.content.match(/\{[\s\S]*\}/);
+        const parsed = jsonMatch
+          ? JSON.parse(jsonMatch[0])
+          : { method: [], experience: [], prompt: [] };
+
+        const sourceType = existing.sourceId ? "idea" : "task";
+        const ideaId = existing.sourceId || null;
+
+        const items: Array<{
+          type: "method" | "experience" | "prompt";
+          content: string;
+        }> = [];
+        for (const item of parsed.method || []) {
+          if (item?.content) items.push({ type: "method", content: item.content });
+        }
+        for (const item of parsed.experience || []) {
+          if (item?.content) items.push({ type: "experience", content: item.content });
+        }
+        for (const item of parsed.prompt || []) {
+          if (item?.content) items.push({ type: "prompt", content: item.content });
+        }
+
+        // 批量 createMany（避免 N+1 串行 create）
+        if (items.length > 0) {
+          await prisma.cognition.createMany({
+            data: items.map((item) => ({
+              type: item.type,
+              content: item.content,
+              source: sourceType,
+              ideaId,
+              tags: [],
+              userId: user.id,
+            })),
+          });
+          // 异步写入 Memory（不阻塞）
+          Promise.all(
+            items.map((item) => writeMemoryForCognition(`${Date.now()}-${item.type}`, item.content))
+          ).catch(() => {});
+        }
+      } catch (e) {
+        console.error("AI 认知提取失败（后台异步）:", e);
       }
-    );
+    })().catch(() => {});
 
-    // 解析 AI 返回的 JSON
-    const jsonMatch = aiResp.content.match(/\{[\s\S]*\}/);
-    const parsed = jsonMatch
-      ? JSON.parse(jsonMatch[0])
-      : { method: [], experience: [], prompt: [] };
-
-    const sourceType = existing.sourceId ? "idea" : "task";
-    const ideaId = existing.sourceId || null;
-
-    const items: Array<{
-      type: "method" | "experience" | "prompt";
-      content: string;
-    }> = [];
-    for (const item of parsed.method || []) {
-      if (item?.content) items.push({ type: "method", content: item.content });
-    }
-    for (const item of parsed.experience || []) {
-      if (item?.content) items.push({ type: "experience", content: item.content });
-    }
-    for (const item of parsed.prompt || []) {
-      if (item?.content) items.push({ type: "prompt", content: item.content });
-    }
-
-    for (const item of items) {
-      const c = await prisma.cognition.create({
-        data: {
-          type: item.type,
-          content: item.content,
-          source: sourceType,
-          ideaId,
-          tags: [],
-          userId: user.id,
-        },
-      });
-      // 异步写入 Memory（不阻塞）
-      writeMemoryForCognition(c.id, c.content).catch(() => {});
-    }
-
-    cognitionExtracted = items.length > 0;
-    cognitionCount = items.length;
+    cognitionExtracted = true; // 标记已触发提取（异步进行中）
+    cognitionCount = 0; // 实际数量在后台更新
   } catch (e) {
     // AI 调用失败不阻断完成操作
     console.error("AI 认知提取失败:", e);

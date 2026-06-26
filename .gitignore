@@ -73,3 +73,12 @@ coverage/
 /e2e/.auth/
 /e2e/**/.auth/
 **/storage-state.json
+
+# workbuddy test dirs
+_test_workbuddy_/
+.workbuddy_test/
+
+# temp / cache
+Temp/
+npm-cache/
+_to_delete_/

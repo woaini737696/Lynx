@@ -49,6 +49,22 @@ import { VoiceVAD } from "@/lib/voice-vad";
 import { StreamASR, isStreamASRSupported } from "@/lib/voice-asr-stream";
 import { StreamTTS } from "@/lib/voice-tts-stream";
 import { BackchannelPlayer } from "@/lib/voice-backchannel";
+import { Modal } from "@/components/ui/Modal";
+import {
+  ShieldCheck,
+  ShieldAlert,
+  ShieldOff,
+  StopCircle,
+} from "lucide-react";
+import {
+  isDesktop,
+  getAuthMode,
+  setAuthMode as desktopSetAuthMode,
+  getAgentStatus,
+  onApprovalRequest,
+  respondApproval,
+  type ApprovalRequest,
+} from "@/lib/desktop-client";
 
 interface TokenUsage {
   prompt_tokens?: number;
@@ -377,6 +393,13 @@ export default function AIAssistantPage() {
     model: "deepseek-chat",
     reasoningMode: "standard",
   });
+
+  // 桌面端 HermesAgent 授权模式相关状态
+  const [desktopMode, setDesktopMode] = useState(false);
+  const [authMode, setAuthModeState] = useState<"approve" | "once" | "free">("approve");
+  const [showApproval, setShowApproval] = useState(false);
+  const [currentApproval, setCurrentApproval] = useState<ApprovalRequest | null>(null);
+  const [wsConnected, setWsConnected] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const abortRef = useRef<AbortController | null>(null);
 
@@ -517,6 +540,62 @@ export default function AIAssistantPage() {
       .catch(() => {});
     fetchSettings();
   }, []);
+
+  // 桌面端：初始化授权模式 + 注册审批请求监听
+  useEffect(() => {
+    if (!isDesktop()) return;
+    setDesktopMode(true);
+
+    // 获取当前授权模式
+    getAuthMode().then((mode) => {
+      if (mode === "approve" || mode === "once" || mode === "free") {
+        setAuthModeState(mode);
+      }
+    }).catch(() => {});
+
+    // 获取 WS 连接状态
+    getAgentStatus().then((s) => {
+      if (s) setWsConnected(s.wsConnected);
+    }).catch(() => {});
+
+    // 注册审批请求监听
+    let unlistenApproval: (() => void) | null = null;
+    onApprovalRequest((req) => {
+      setCurrentApproval(req);
+      setShowApproval(true);
+    }).then((fn) => {
+      unlistenApproval = fn;
+    });
+
+    return () => {
+      unlistenApproval?.();
+    };
+  }, []);
+
+  // 切换授权模式
+  const handleAuthModeChange = useCallback(async (mode: "approve" | "once" | "free") => {
+    try {
+      await desktopSetAuthMode(mode);
+      setAuthModeState(mode);
+      toast(`授权模式：${mode === "approve" ? "弹窗审批" : mode === "once" ? "一次授权" : "免审批"}`, "success");
+    } catch (e: any) {
+      toast("切换授权模式失败：" + e.message, "error");
+    }
+  }, []);
+
+  // 响应审批请求
+  const handleApprovalResponse = useCallback(async (approved: boolean) => {
+    if (!currentApproval) return;
+    try {
+      await respondApproval(currentApproval.requestId, approved);
+      toast(approved ? "已批准执行" : "已拒绝执行", "success");
+    } catch (e: any) {
+      toast("响应审批失败：" + e.message, "error");
+    } finally {
+      setShowApproval(false);
+      setCurrentApproval(null);
+    }
+  }, [currentApproval]);
 
   // 加载对话会话列表
   const fetchSessions = useCallback(async () => {
@@ -1121,7 +1200,7 @@ export default function AIAssistantPage() {
           return { role: m.role, content: m.content };
         });
 
-      // 调用 AI 助理模式（非流式，支持 Function Calling）
+      // 调用 AI 助理模式（流式输出，支持 Function Calling + 工具执行进度推送）
       const res = await fetch("/api/ai/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -1130,13 +1209,13 @@ export default function AIAssistantPage() {
           provider: modelConfig.provider,
           model: modelConfig.model,
           reasoningMode: modelConfig.reasoningMode,
-          stream: false,
+          stream: true,
           assistantMode: true,
         }),
         signal: controller.signal,
       });
 
-      if (!res.ok) {
+      if (!res.ok || !res.body) {
         const data = await res.json().catch(() => null);
         const errMsg = data?.error || `请求失败（${res.status}）`;
         setMessages((prev) => prev.map((m) => m.id === aiMsgId ? { ...m, content: errMsg, error: true, streaming: false } : m));
@@ -1144,28 +1223,110 @@ export default function AIAssistantPage() {
         return;
       }
 
-      const data = await res.json().catch(() => null);
-      if (!data || typeof data !== "object") {
-        const errMsg = "服务器返回数据格式异常";
-        setMessages((prev) => prev.map((m) => m.id === aiMsgId ? { ...m, content: errMsg, error: true, streaming: false } : m));
-        toast(errMsg, "error");
-        return;
+      // SSE 流式解析：实时渲染 delta，支持 thinking/tool_start/tool_done 事件
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let aiContent = "";
+      let sseBuffer = "";
+      let aiProvider: LLMProvider | undefined;
+      let aiModel: string | undefined;
+      let aiUsage: TokenUsage | undefined;
+      let toolCalled: ToolCalled | null = null;
+      let hermesMode: boolean | undefined;
+      let hermesFallback: boolean | undefined;
+      // 用于在 thinking 期间显示"正在思考..."，收到首个 delta 后清除
+      let firstDeltaReceived = false;
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        sseBuffer += decoder.decode(value, { stream: true });
+        const lines = sseBuffer.split("\n");
+        sseBuffer = lines.pop() || "";
+        for (const line of lines) {
+          const t = line.trim();
+          if (!t.startsWith("data:")) continue;
+          const payload = t.slice(5).trim();
+          if (!payload || payload === "[DONE]") continue;
+          try {
+            const obj = JSON.parse(payload);
+            if (obj.type === "meta") {
+              aiProvider = obj.provider;
+              aiModel = obj.model;
+              if (obj.hermesMode) hermesMode = true;
+              if (obj.hermesFallback) hermesFallback = true;
+            } else if (obj.type === "thinking") {
+              // 第一轮 LLM 流式 thinking 事件：显示"正在思考..."
+              if (!firstDeltaReceived) {
+                setMessages((prev) =>
+                  prev.map((m) =>
+                    m.id === aiMsgId
+                      ? { ...m, content: obj.content || "正在思考...", streaming: true }
+                      : m
+                  )
+                );
+              }
+            } else if (obj.type === "tool_start") {
+              // 工具开始执行
+              const toolName = obj.tool || "工具";
+              setMessages((prev) =>
+                prev.map((m) =>
+                  m.id === aiMsgId
+                    ? { ...m, content: `🔧 正在执行工具：${toolName}...`, streaming: true }
+                    : m
+                )
+              );
+            } else if (obj.type === "tool_done") {
+              // 工具执行完成，准备接收第二轮 LLM 输出
+              toolCalled = obj.toolCalled || null;
+              setMessages((prev) =>
+                prev.map((m) =>
+                  m.id === aiMsgId
+                    ? { ...m, content: "✓ 工具执行完成，正在生成回复...", streaming: true }
+                    : m
+                )
+              );
+            } else if (obj.type === "delta" && typeof obj.content === "string") {
+              if (!firstDeltaReceived) {
+                firstDeltaReceived = true;
+                aiContent = obj.content;
+              } else {
+                aiContent += obj.content;
+              }
+              setMessages((prev) =>
+                prev.map((m) => (m.id === aiMsgId ? { ...m, content: aiContent } : m))
+              );
+            } else if (obj.type === "done") {
+              if (obj.usage) aiUsage = obj.usage;
+              if (obj.provider) aiProvider = obj.provider;
+              if (obj.model) aiModel = obj.model;
+              if (obj.toolCalled) toolCalled = obj.toolCalled;
+              if (obj.hermesMode) hermesMode = true;
+              if (obj.hermesFallback) hermesFallback = true;
+            } else if (obj.type === "error") {
+              const errMsg = obj.message || "流式响应异常";
+              setMessages((prev) =>
+                prev.map((m) =>
+                  m.id === aiMsgId ? { ...m, content: errMsg, error: true, streaming: false } : m
+                )
+              );
+              toast(errMsg, "error");
+              return;
+            }
+          } catch {
+            /* ignore SSE parse error */
+          }
+        }
       }
 
-      const aiContent: string = data.content || "(空回复)";
-      const aiProvider: LLMProvider | undefined = data.provider;
-      const aiModel: string | undefined = data.model;
-      const aiUsage: TokenUsage | undefined = data.usage;
-      const toolCalled: ToolCalled | null = data.toolCalled || null;
-      const hermesMode: boolean | undefined = data.hermesMode === true ? true : undefined;
-      const hermesFallback: boolean | undefined = data.hermesFallback === true ? true : undefined;
-
+      // 流结束：最终化消息
+      const finalContent = aiContent || "(空回复)";
       setMessages((prev) =>
         prev.map((m) =>
           m.id === aiMsgId
             ? {
                 ...m,
-                content: aiContent,
+                content: finalContent,
                 streaming: false,
                 provider: aiProvider,
                 model: aiModel,
@@ -1179,13 +1340,13 @@ export default function AIAssistantPage() {
       );
 
       // 持久化 AI 回复到数据库
-      if (currentSessionId && aiContent) {
+      if (currentSessionId && finalContent) {
         fetch(`/api/ai/chat/sessions/${currentSessionId}/messages`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             role: "assistant",
-            content: aiContent,
+            content: finalContent,
             provider: aiProvider,
             model: aiModel,
             tokens: aiUsage?.total_tokens,
@@ -1198,8 +1359,8 @@ export default function AIAssistantPage() {
       // 自动语音播放条件：
       // - autoSpeak 开启时总是播放（全双工通话中走 sendVoice 的 StreamTTS，不重复播报）
       const shouldAutoSpeak = settings.autoSpeak && !voiceCallActive;
-      if (shouldAutoSpeak && aiContent) {
-        setTimeout(() => speak(aiContent, aiMsgId), 300);
+      if (shouldAutoSpeak && finalContent) {
+        setTimeout(() => speak(finalContent, aiMsgId), 300);
       }
     } catch (e) {
       const err = e as Error;
@@ -2391,6 +2552,48 @@ export default function AIAssistantPage() {
 
           <input ref={fileInputRef} type="file" accept="image/*" multiple onChange={handleImageUpload} className="hidden" />
 
+          {/* 桌面端：三档授权模式切换器（仿 Codex） */}
+          {desktopMode && !voiceCallActive && (
+            <div className="mb-2 flex items-center gap-2">
+              <span className="text-[10px] text-muted-foreground">授权模式：</span>
+              <div className="flex items-center gap-1 rounded-lg border border-border bg-muted/30 p-0.5">
+                {([
+                  { value: "approve", label: "审批", icon: <ShieldCheck className="h-2.5 w-2.5" />, title: "每次操作弹窗确认（最安全）" },
+                  { value: "once", label: "一次", icon: <ShieldAlert className="h-2.5 w-2.5" />, title: "同类操作首次授权后会话内不再询问" },
+                  { value: "free", label: "免审批", icon: <ShieldOff className="h-2.5 w-2.5" />, title: "仅记录日志不弹窗（效率最高）" },
+                ] as const).map((m) => (
+                  <button
+                    key={m.value}
+                    type="button"
+                    onClick={() => handleAuthModeChange(m.value)}
+                    title={m.title}
+                    className={`inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-[10px] font-medium transition-colors ${
+                      authMode === m.value
+                        ? m.value === "approve"
+                          ? "bg-task/15 text-task"
+                          : m.value === "once"
+                          ? "bg-campaign/15 text-campaign"
+                          : "bg-graveyard/15 text-graveyard"
+                        : "text-muted-foreground hover:text-foreground"
+                    }`}
+                  >
+                    {m.icon}
+                    {m.label}
+                  </button>
+                ))}
+              </div>
+              {wsConnected ? (
+                <span className="inline-flex items-center gap-1 text-[10px] text-task">
+                  <span className="h-1.5 w-1.5 rounded-full bg-task" /> 云端已连接
+                </span>
+              ) : (
+                <span className="inline-flex items-center gap-1 text-[10px] text-muted-foreground">
+                  <span className="h-1.5 w-1.5 rounded-full bg-muted-foreground" /> 云端未连接
+                </span>
+              )}
+            </div>
+          )}
+
           {!voiceCallActive ? (
             <div className="flex items-center gap-2">
               <Button
@@ -3458,6 +3661,60 @@ export default function AIAssistantPage() {
             )}
           </div>
         </div>
+      )}
+
+      {/* 桌面端：HermesAgent 操作审批弹窗 */}
+      {desktopMode && (
+        <Modal
+          open={showApproval}
+          onClose={() => handleApprovalResponse(false)}
+          title="HermesAgent 操作审批"
+          size="md"
+        >
+          {currentApproval && (
+            <div className="space-y-3">
+              <div className="flex items-center gap-2">
+                <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium ${
+                  currentApproval.level === "L3"
+                    ? "bg-graveyard/15 text-graveyard"
+                    : "bg-campaign/15 text-campaign"
+                }`}>
+                  {currentApproval.level === "L3" ? <ShieldOff className="h-2.5 w-2.5" /> : <ShieldAlert className="h-2.5 w-2.5" />}
+                  {currentApproval.level} 级操作
+                </span>
+                <span className="text-[11px] text-muted-foreground">
+                  {currentApproval.level === "L3" ? "高风险（每次需审批）" : "中风险（首次授权）"}
+                </span>
+              </div>
+
+              <div className="rounded-md border border-border/60 bg-muted/30 p-3">
+                <div className="mb-1 text-[11px] font-medium text-foreground">操作描述</div>
+                <div className="text-xs text-foreground">{currentApproval.action}</div>
+              </div>
+
+              <div className="rounded-md border border-border/60 bg-muted/30 p-3">
+                <div className="mb-1 text-[11px] font-medium text-foreground">执行命令</div>
+                <pre className="max-h-40 overflow-y-auto whitespace-pre-wrap break-words rounded bg-background p-2 text-[11px] text-foreground">
+                  {currentApproval.command}
+                </pre>
+              </div>
+
+              <div className="flex items-center gap-2 rounded-md border border-yellow-300/30 bg-yellow-50/40 p-2 text-[11px] text-yellow-700">
+                <ShieldCheck className="h-3 w-3 shrink-0" />
+                请确认是否允许执行此操作。拒绝将中止该操作但可继续对话。
+              </div>
+
+              <div className="flex justify-end gap-2 pt-1">
+                <Button size="sm" variant="outline" onClick={() => handleApprovalResponse(false)} className="gap-1.5">
+                  拒绝
+                </Button>
+                <Button size="sm" variant="primary" onClick={() => handleApprovalResponse(true)} className="gap-1.5">
+                  <ShieldCheck className="h-3 w-3" /> 批准执行
+                </Button>
+              </div>
+            </div>
+          )}
+        </Modal>
       )}
     </div>
   );
