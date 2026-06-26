@@ -34,6 +34,7 @@ const PAGE_TITLE_MAP: Record<string, string> = {
   "/dev-log": "开发日志",
   "/admin/users": "用户管理",
   "/admin/roles": "角色管理",
+  "/admin/profession-workspaces": "职业工作空间",
 };
 
 function getPageTitle(pathname: string): string {

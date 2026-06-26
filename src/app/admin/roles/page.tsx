@@ -9,6 +9,8 @@ import {
   Loader2,
   Lock,
   Check,
+  Briefcase,
+  ExternalLink,
 } from "lucide-react";
 import {
   PageHeader,
@@ -17,6 +19,7 @@ import {
   LoadingState,
 } from "@/components/layout/PageHeader";
 import { toast } from "@/components/ui/toast";
+import { PROFESSIONS } from "@/lib/permissions";
 
 type PermissionDef = {
   key: string;
@@ -32,6 +35,7 @@ type Role = {
   permissions: string[];
   isSystem: boolean;
   userCount: number;
+  profession?: string | null;
 };
 
 type CurrentUser = {
@@ -47,6 +51,7 @@ export default function RolesPage() {
 
   const [editTarget, setEditTarget] = useState<Role | null>(null);
   const [editDescription, setEditDescription] = useState("");
+  const [editProfession, setEditProfession] = useState<string>("");
   const [editPermissions, setEditPermissions] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
 
@@ -89,12 +94,14 @@ export default function RolesPage() {
   const openEdit = (role: Role) => {
     setEditTarget(role);
     setEditDescription(role.description);
+    setEditProfession(role.profession || "");
     setEditPermissions([...role.permissions]);
   };
 
   const closeEdit = () => {
     setEditTarget(null);
     setEditDescription("");
+    setEditProfession("");
     setEditPermissions([]);
   };
 
@@ -114,6 +121,7 @@ export default function RolesPage() {
         body: JSON.stringify({
           name: editTarget.name,
           description: editDescription,
+          profession: editProfession || null,
           permissions: editPermissions,
         }),
       });
@@ -264,6 +272,34 @@ export default function RolesPage() {
                   className="w-full resize-none rounded-xl border border-border bg-background/50 px-3 py-2 text-sm text-foreground transition-colors focus:border-northstar/50 focus:outline-none focus:ring-2 focus:ring-northstar/20"
                   placeholder="描述该角色的职责与权限范围"
                 />
+              </div>
+
+              {/* 关联职业（按职位分配角色和功能权限） */}
+              <div className="mb-5 space-y-1.5">
+                <label className="flex items-center gap-1.5 text-xs font-medium text-foreground">
+                  <Briefcase className="h-3.5 w-3.5 text-cognition" />
+                  关联职业
+                  <span className="text-[10px] font-normal text-muted-foreground">
+                    (绑定后用户被分配此角色时自动应用该职业的 AI 工作空间)
+                  </span>
+                </label>
+                <select
+                  value={editProfession}
+                  onChange={(e) => setEditProfession(e.target.value)}
+                  className="w-full rounded-xl border border-border bg-background/50 px-3 py-2 text-sm text-foreground transition-colors focus:border-northstar/50 focus:outline-none focus:ring-2 focus:ring-northstar/20"
+                >
+                  <option value="">不绑定（保持现有职业）</option>
+                  {PROFESSIONS.map((p) => (
+                    <option key={p.key} value={p.key}>
+                      {p.icon} {p.label}（{p.key}）
+                    </option>
+                  ))}
+                </select>
+                {editProfession && (
+                  <p className="mt-1 text-[11px] text-muted-foreground">
+                    {PROFESSIONS.find((p) => p.key === editProfession)?.description}
+                  </p>
+                )}
               </div>
 
               {/* 权限选择 */}
@@ -447,6 +483,32 @@ function RoleCard({
             编辑
           </Button>
         </div>
+      </div>
+
+      {/* 底部行：职业绑定 + 跳转工作空间配置 */}
+      <div className="mt-3 flex items-center justify-between border-t border-border pt-2.5">
+        <div className="flex items-center gap-1.5 text-[11px]">
+          <Briefcase className="h-3 w-3 text-muted-foreground" />
+          {role.profession ? (
+            <span className="inline-flex items-center gap-1 rounded-full border border-cognition/30 bg-cognition/5 px-2 py-0.5 text-cognition">
+              <span>{role.profession}</span>
+              <span className="text-[10px] text-cognition/70">已绑定职业</span>
+            </span>
+          ) : (
+            <span className="text-muted-foreground">未绑定职业</span>
+          )}
+        </div>
+        {role.profession && (
+          <a
+            href={`/admin/profession-workspaces#${role.profession}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1 rounded text-[10px] text-cognition hover:underline"
+          >
+            <ExternalLink className="h-2.5 w-2.5" />
+            配置工作空间
+          </a>
+        )}
       </div>
     </Card>
   );

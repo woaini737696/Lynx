@@ -5,6 +5,70 @@
 
 ---
 
+## 迭代 35 - 2026-06-26
+
+### 任务概要
+悬浮聊天窗技能按钮修复 + 快捷消息填入输入框（不自动发送） + 角色管理按职位分配 + 按职业定制 AI 工作空间（4 维度完整实现）。
+
+### 完成内容
+
+#### 1. 悬浮聊天窗 bug 修复
+- **技能按钮可点击**：`AssistantChat.tsx` 中"技能"标签改造为可点击 button，点击展开下拉菜单（6 个快捷技能列表），选择后调用 `handleQuickCommand`
+- **快捷消息填入输入框**：`handleQuickCommand` 改为把内容填入输入框 + 聚焦 textarea（不自动发送），与 AI 助理页行为同步
+- **快捷消息超出屏幕修复**：`visibleQuickCommands` 过滤后只展示当前职业可见的快捷技能，避免超出屏幕
+- **修复 NextAuth 登录 500**：`[...nextauth]/route.ts` 中 `response.headers.set` 在 undici 不可变 headers 下抛 TypeError，改为重新构造 `new Headers()` + `new Response()`
+
+#### 2. 角色管理-按职位分配
+- **`src/app/admin/roles/page.tsx`**：编辑弹窗新增"关联职业"下拉（12 岗位 + "不绑定"），保存时 PUT `profession` 字段
+- **角色卡片显示职业绑定**：底部显示职业图标 + 名称 + "配置工作空间"跳转链接
+- **`src/app/api/admin/roles/route.ts`**：
+  - GET 返回 `profession` 字段
+  - PUT 新增 `profession` 更新逻辑（含 `isValidProfessionKey` 校验）
+  - `getOrCreateRoles` 新增升级兼容逻辑：已有系统角色缺 profession 字段时回填默认值（admin→founder, editor→pm）
+- **`DEFAULT_ROLES`**：admin 绑定 founder, editor 绑定 pm, viewer 不绑定
+
+#### 3. 按职业定制 AI 工作空间（4 维度）
+- **Prisma schema**：`Role` 模型新增 `profession String?` 字段；新增 `ProfessionWorkspace` 模型（profession unique, displayName, description, icon, accentColor, quickCommands JSON, systemPrompt, defaultProvider, defaultModel, defaultReasoningMode, allowedTools JSON, enabled）
+- **12 岗位静态定义**（`src/lib/permissions.ts`）：pm/designer/frontend/backend/data/operations/marketing/hr/finance/project/creator/founder，每个岗位有默认快捷技能、默认可见工具、默认 system prompt、默认模型
+- **Admin 管理 API**：
+  - `GET /api/admin/profession-workspaces` - 返回 12 岗位工作空间列表（合并 DB 自定义 + 静态默认）
+  - `POST /api/admin/profession-workspaces` - upsert 自定义配置
+  - `DELETE /api/admin/profession-workspaces/[profession]` - 重置为默认
+  - `GET /api/admin/profession-workspaces/quick-commands` - 返回快捷技能清单
+  - `GET /api/ai/tools` - 返回 23 个 AI 工具清单
+- **用户工作空间 API**（`GET /api/ai/workspace`）：按 `Role.profession` 加载工作空间配置
+- **Chat route 注入**（`src/app/api/ai/chat/route.ts`）：
+  - auth 后加载 profession workspace
+  - system prompt 追加"职业工作空间设定" + "可用工具白名单"
+  - 拦截不在白名单的工具调用（返回"工具未授权"）
+  - 应用职业默认 model/reasoningMode
+- **Admin 配置页**（`src/app/admin/profession-workspaces/page.tsx`）：12 岗位 4 维度配置（图标/颜色/描述/快捷技能可见集/system prompt/默认模型/工具白名单/启用开关）+ 只读模式 + 编辑模式 + 重置默认
+- **前端注入**（`AssistantChat.tsx`）：
+  - `useWorkspace` hook 拉取职业工作空间
+  - `visibleQuickCommands` 根据 workspace.quickCommands 过滤
+  - useEffect 应用职业默认 model（仅初始化一次）
+  - 头部副标题显示职业：`${workspace.icon} ${workspace.displayName} · 共享会话`
+- **导航**：Sidebar 管理组新增"职业工作空间"入口，AppShell `PAGE_TITLE_MAP` 加对应标题
+
+### 自测结果
+- TypeScript 编译：`npx tsc --noEmit` 通过（exit 0）
+- HTTP API 端到端自测（9 项全通过）：
+  1. /api/auth/token 登录拿 JWT ✓
+  2. /api/ai/workspace 返回 founder 默认工作空间（profession/displayName/quickCommands/systemPrompt/allowedTools 全对）✓
+  3. /api/ai/tools 返回 23 个 AI 工具 ✓
+  4. /api/admin/profession-workspaces/quick-commands 返回 6 个快捷技能 ✓
+  5. /api/admin/profession-workspaces 返回 12 个职业工作空间 ✓
+  6. /api/admin/roles 角色职业绑定正确（admin→founder, editor→pm, viewer→null）✓
+  7. POST 保存 founder 自定义配置 ✓
+  8. 再查 workspace 确认自定义配置已生效 ✓
+  9. DELETE 重置 founder 工作空间 ✓
+- 数据库：prisma db push 同步 schema，profession 字段回填到 3 个系统角色
+
+### Commit
+- 待提交
+
+---
+
 ## 迭代 34 - 2026-06-26
 
 ### 任务概要

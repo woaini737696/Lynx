@@ -292,7 +292,6 @@ export async function POST(req: NextRequest) {
       }
       resolvedReasoningMode = reasoningMode;
     }
-
     // 校验数值参数
     if (
       temperature !== undefined &&
@@ -324,6 +323,57 @@ export async function POST(req: NextRequest) {
       const auth = await requireAuth();
       if (auth.error) return auth.error;
       const user = auth.user;
+
+      // ============ 加载职业工作空间（system prompt + 工具白名单）============
+      // 用户登录后按 Role.profession 自动加载 admin 在 /admin/profession-workspaces 配置的内容
+      let professionSystemPrompt = "";
+      let allowedTools: string[] | null = null; // null = 全部工具可用
+      let professionDefaultProvider: string | null = null;
+      let professionDefaultModel: string | null = null;
+      let professionDefaultReasoningMode: string | null = null;
+      try {
+        const dbUser = await prisma.user.findUnique({
+          where: { id: user.id },
+          select: { role: true, profession: true },
+        });
+        if (dbUser) {
+          const roleRow = await prisma.role.findUnique({
+            where: { name: dbUser.role },
+            select: { profession: true },
+          });
+          const professionKey = roleRow?.profession || dbUser.profession || null;
+          if (professionKey) {
+            const ws = await prisma.professionWorkspace.findUnique({
+              where: { profession: professionKey },
+            });
+            if (ws && ws.enabled) {
+              professionSystemPrompt = ws.systemPrompt?.trim() || "";
+              const tools = ws.allowedTools as string[] | null;
+              if (Array.isArray(tools) && tools.length > 0) {
+                allowedTools = tools;
+              }
+              professionDefaultProvider = ws.defaultProvider || null;
+              professionDefaultModel = ws.defaultModel || null;
+              professionDefaultReasoningMode = ws.defaultReasoningMode || null;
+            }
+          }
+        }
+      } catch {
+        // 加载失败不阻断对话
+      }
+
+      // 应用职业工作空间默认 model（仅在用户未显式传 provider/model/reasoningMode 时生效）
+      if (!resolvedProvider && professionDefaultProvider === "deepseek") {
+        resolvedProvider = "deepseek";
+      } else if (!resolvedProvider && professionDefaultProvider === "mimo") {
+        resolvedProvider = "mimo";
+      }
+      if (!resolvedReasoningMode && professionDefaultReasoningMode) {
+        const m = professionDefaultReasoningMode;
+        if (m === "fast" || m === "standard" || m === "deep" || m === "thinking") {
+          resolvedReasoningMode = m as ReasoningMode;
+        }
+      }
 
       // 读取 AI 助理设置（助理名称、风格描述、蒸馏风格、风格强度）
       let assistantName = "Lynn";
@@ -405,6 +455,22 @@ export async function POST(req: NextRequest) {
       // 替换助理名称
       finalSystemPrompt = finalSystemPrompt.replace(/LynnHub 的 AI 助理/g, `${assistantName}（LynnHub AI 助理）`);
 
+      // 注入职业 system prompt 追加（按 Role.profession 加载 admin 配置的工作空间）
+      if (professionSystemPrompt) {
+        finalSystemPrompt = finalSystemPrompt.replace(
+          "## 重要约束",
+          `## 职业工作空间设定\n${professionSystemPrompt}\n\n## 重要约束`
+        );
+      }
+
+      // 注入工具白名单到 system prompt（告诉 AI 只允许调用列表内的工具）
+      if (Array.isArray(allowedTools) && allowedTools.length > 0) {
+        finalSystemPrompt = finalSystemPrompt.replace(
+          "## 工具调用规则（最重要！必须严格遵守！）",
+          `## 可用工具白名单（本岗位仅允许使用以下工具）\n${allowedTools.map((t) => `- ${t}`).join("\n")}\n\n## 工具调用规则（最重要！必须严格遵守！）`
+        );
+      }
+
       // 注入 AI 助理系统提示词（替换或前置到 messages）
       const assistantMessages: ChatMessage[] = [
         { role: "system", content: finalSystemPrompt },
@@ -447,6 +513,22 @@ export async function POST(req: NextRequest) {
           model: firstResult.model,
           usage: firstResult.usage,
           toolCalled: null,
+          ...(hermesFallback ? { hermesFallback: true } : {}),
+        });
+      }
+
+      // 有 action：先校验工具白名单（职业工作空间限制）
+      if (Array.isArray(allowedTools) && allowedTools.length > 0 && !allowedTools.includes(action.tool)) {
+        return NextResponse.json({
+          content: `你的岗位工作空间未授权使用工具「${action.tool}」。当前岗位可用工具：${allowedTools.join("、")}`,
+          provider: firstResult.provider,
+          model: firstResult.model,
+          usage: firstResult.usage,
+          toolCalled: {
+            tool: action.tool,
+            args: action.args,
+            result: { error: `工具未授权`, allowedTools },
+          },
           ...(hermesFallback ? { hermesFallback: true } : {}),
         });
       }
