@@ -51,7 +51,8 @@ C 盘旧数据目录沙箱 allowlist 限制无法自动删除，需用户手动�
 - `C:\Users\lynnd\AppData\Roaming\npm`（约 1.1GB，可删除老数据）
 
 ### Commit
-（待提交）
+- `173105e` - feat: 迭代34 - C盘数据迁移到D盘+磁盘使用规范写入强制规范+npm全局包路径迁移
+- `1e4c496` - feat: Android焦点页功能增强(addTask/deleteTask)+README磁盘空间规范
 
 ---
 
