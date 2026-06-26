@@ -259,6 +259,22 @@ export const HELP_CONTENT: Record<string, VersionedHelpContent> = {
       "保存修改",
     ],
   },
+  "admin-token-stats": {
+    version: "1.0",
+    updatedAt: "2026-06-26",
+    painPoint: "AI 对话消耗的 Token 数无法直观查看，不知道每天用了多少、哪个模型消耗最多",
+    need: "需要一个统计页面展示今日/昨日/近 7 天/累计 Token 消耗，以及每条消耗记录的明细",
+    solution: "词元统计页面从 ChatMessage 表聚合 Token 数据，按时间维度展示汇总卡片、Provider 分布柱状图、消耗记录列表（支持分页）",
+    usage: [
+      "管理 → 词元统计",
+      "顶部 4 个卡片：今日/昨日/近 7 天/累计消耗 Token 数与对话次数",
+      "今日卡片右下角显示与昨日的环比涨跌百分比",
+      "Provider 分布图展示近 7 天各 Provider（deepseek/mimo/hermes）的 Token 占比",
+      "消耗记录列表展示每条 AI 回复的时间、Provider、模型、Token 数、耗时、所属会话、用户",
+      "点击「上一页/下一页」翻页查看历史记录（每页 30 条）",
+      "点击「刷新」按钮重新加载最新数据",
+    ],
+  },
 };
 
 /** 获取指定 key 的使用说明（带版本信息） */

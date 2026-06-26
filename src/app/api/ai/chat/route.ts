@@ -318,6 +318,8 @@ export async function POST(req: NextRequest) {
     // 启用后：用 AI_ASSISTANT_SYSTEM_PROMPT 作为系统提示词，
     // 解析 AI 回复中的 action JSON 块，执行对应工具，
     // 再基于工具结果生成最终回复。返回 { content, toolCalled }
+    //
+    // 支持 stream=true：将第二轮 LLM 回复流式输出，并推送阶段事件（thinking/tool/replying）
     if (assistantMode === true) {
       // 工具执行需要登录用户
       const auth = await requireAuth();
@@ -403,30 +405,39 @@ export async function POST(req: NextRequest) {
         const lastUserMsg = cleanMessages.filter((m) => m.role === "user").pop();
         const userText = typeof lastUserMsg?.content === "string" ? lastUserMsg.content : "";
         if (userText.trim()) {
-          const hermesResult = await executeAssistantViaHermes(user.id, userText, 120);
-          if (hermesResult.success) {
-            // 异步学习任务模式（非阻塞，不影响响应延迟）
-            learnTaskPattern(user.id, userText, hermesResult.output).catch(() => {
-              // 学习失败不影响主流程
-            });
+          // ============ 系统工具意图检测 ============
+          // Hermes 不知 LynnHub 数据库，对于创建灵感/任务/看板等系统工具意图，
+          // 跳过 Hermes Takeover，直接走 LLM + Function Calling 路径，避免走错路径（如建 md 文件）
+          const systemIntent = detectIntent(userText);
+          if (systemIntent) {
+            // 命中系统工具意图，回退到 LLM + Function Calling
+            hermesFallback = true;
+          } else {
+            const hermesResult = await executeAssistantViaHermes(user.id, userText, 120);
+            if (hermesResult.success) {
+              // 异步学习任务模式（非阻塞，不影响响应延迟）
+              learnTaskPattern(user.id, userText, hermesResult.output).catch(() => {
+                // 学习失败不影响主流程
+              });
 
-            return NextResponse.json({
-              content: hermesResult.output,
-              provider: "hermes",
-              model: "hermes-agent",
-              usage: {
-                prompt_tokens: 0,
-                completion_tokens: 0,
-                total_tokens: 0,
-              },
-              toolCalled: null,
-              hermesMode: true,
-              learned: hermesResult.learned,
-              durationMs: hermesResult.durationMs,
-            });
+              return NextResponse.json({
+                content: hermesResult.output,
+                provider: "hermes",
+                model: "hermes-agent",
+                usage: {
+                  prompt_tokens: 0,
+                  completion_tokens: 0,
+                  total_tokens: 0,
+                },
+                toolCalled: null,
+                hermesMode: true,
+                learned: hermesResult.learned,
+                durationMs: hermesResult.durationMs,
+              });
+            }
+            // Hermes 执行失败 → 回退到 LLM + Function Calling 模式（继续往下执行）
+            hermesFallback = true;
           }
-          // Hermes 执行失败 → 回退到 LLM + Function Calling 模式（继续往下执行）
-          hermesFallback = true;
         }
       }
 
@@ -507,6 +518,37 @@ export async function POST(req: NextRequest) {
           });
         }
 
+        // 流式分支：把已生成的完整内容作为 delta 推送
+        if (stream === true) {
+          const encoder = new TextEncoder();
+          const finalContent = stripAction(firstResult.content);
+          const streamBody = new ReadableStream<Uint8Array>({
+            start(controller) {
+              const send = (obj: unknown) => controller.enqueue(encoder.encode(`data: ${JSON.stringify(obj)}\n\n`));
+              try {
+                send({ type: "meta", provider: firstResult.provider, model: firstResult.model });
+                if (finalContent) send({ type: "delta", content: finalContent });
+                send({
+                  type: "done",
+                  usage: firstResult.usage,
+                  toolCalled: null,
+                  ...(hermesFallback ? { hermesFallback: true } : {}),
+                });
+              } finally {
+                controller.close();
+              }
+            },
+          });
+          return new Response(streamBody, {
+            headers: {
+              "Content-Type": "text/event-stream; charset=utf-8",
+              "Cache-Control": "no-cache, no-transform",
+              Connection: "keep-alive",
+              "X-Accel-Buffering": "no",
+            },
+          });
+        }
+
         return NextResponse.json({
           content: stripAction(firstResult.content),
           provider: firstResult.provider,
@@ -519,16 +561,48 @@ export async function POST(req: NextRequest) {
 
       // 有 action：先校验工具白名单（职业工作空间限制）
       if (Array.isArray(allowedTools) && allowedTools.length > 0 && !allowedTools.includes(action.tool)) {
+        const blockedContent = `你的岗位工作空间未授权使用工具「${action.tool}」。当前岗位可用工具：${allowedTools.join("、")}`;
+        const blockedToolCalled = {
+          tool: action.tool,
+          args: action.args,
+          result: { error: `工具未授权`, allowedTools },
+        };
+
+        if (stream === true) {
+          const encoder = new TextEncoder();
+          const streamBody = new ReadableStream<Uint8Array>({
+            start(controller) {
+              const send = (obj: unknown) => controller.enqueue(encoder.encode(`data: ${JSON.stringify(obj)}\n\n`));
+              try {
+                send({ type: "meta", provider: firstResult.provider, model: firstResult.model });
+                send({ type: "delta", content: blockedContent });
+                send({
+                  type: "done",
+                  usage: firstResult.usage,
+                  toolCalled: blockedToolCalled,
+                  ...(hermesFallback ? { hermesFallback: true } : {}),
+                });
+              } finally {
+                controller.close();
+              }
+            },
+          });
+          return new Response(streamBody, {
+            headers: {
+              "Content-Type": "text/event-stream; charset=utf-8",
+              "Cache-Control": "no-cache, no-transform",
+              Connection: "keep-alive",
+              "X-Accel-Buffering": "no",
+            },
+          });
+        }
+
         return NextResponse.json({
-          content: `你的岗位工作空间未授权使用工具「${action.tool}」。当前岗位可用工具：${allowedTools.join("、")}`,
+          content: blockedContent,
           provider: firstResult.provider,
           model: firstResult.model,
           usage: firstResult.usage,
-          toolCalled: {
-            tool: action.tool,
-            args: action.args,
-            result: { error: `工具未授权`, allowedTools },
-          },
+          toolCalled: blockedToolCalled,
           ...(hermesFallback ? { hermesFallback: true } : {}),
         });
       }
@@ -553,6 +627,86 @@ ${toolResultStr}
         },
       ];
 
+      // ============ 流式分支：第二轮 LLM 调用走 SSE ============
+      if (stream === true) {
+        const encoder = new TextEncoder();
+        const streamBody = new ReadableStream<Uint8Array>({
+          async start(controller) {
+            const send = (obj: unknown) => controller.enqueue(encoder.encode(`data: ${JSON.stringify(obj)}\n\n`));
+            let secondUsage: { prompt_tokens?: number; completion_tokens?: number; total_tokens?: number } | undefined;
+            let secondProvider: string | undefined;
+            let secondModel: string | undefined;
+            let secondContent = "";
+            try {
+              for await (const evt of chatStream(secondMessages, {
+                provider: resolvedProvider,
+                model,
+                reasoningMode: resolvedReasoningMode,
+                temperature,
+                maxTokens,
+              })) {
+                if (evt.type === "meta") {
+                  secondProvider = evt.provider;
+                  secondModel = evt.model;
+                  send(evt);
+                } else if (evt.type === "delta") {
+                  secondContent += evt.content;
+                  send(evt);
+                } else if (evt.type === "done") {
+                  secondUsage = evt.usage;
+                  // 异步学习（非阻塞）
+                  const lastUserMsgForLearn = cleanMessages.filter((m) => m.role === "user").pop();
+                  const userTextForLearn = typeof lastUserMsgForLearn?.content === "string" ? lastUserMsgForLearn.content : "";
+                  if (userTextForLearn.trim()) {
+                    learnTaskPattern(user.id, userTextForLearn, secondContent).catch(() => {});
+                  }
+                  send({
+                    type: "done",
+                    usage: {
+                      prompt_tokens:
+                        (firstResult.usage?.prompt_tokens || 0) +
+                        (secondUsage?.prompt_tokens || 0),
+                      completion_tokens:
+                        (firstResult.usage?.completion_tokens || 0) +
+                        (secondUsage?.completion_tokens || 0),
+                      total_tokens:
+                        (firstResult.usage?.total_tokens || 0) +
+                        (secondUsage?.total_tokens || 0),
+                    },
+                    provider: secondProvider,
+                    model: secondModel,
+                    toolCalled: {
+                      tool: action.tool,
+                      args: action.args,
+                      result: toolResult,
+                    },
+                    ...(hermesFallback ? { hermesFallback: true } : {}),
+                  });
+                  break;
+                } else if (evt.type === "error") {
+                  send(evt);
+                  break;
+                }
+              }
+            } catch (e) {
+              send({ type: "error", message: (e as Error).message || "流式响应异常" });
+            } finally {
+              controller.close();
+            }
+          },
+        });
+
+        return new Response(streamBody, {
+          headers: {
+            "Content-Type": "text/event-stream; charset=utf-8",
+            "Cache-Control": "no-cache, no-transform",
+            Connection: "keep-alive",
+            "X-Accel-Buffering": "no",
+          },
+        });
+      }
+
+      // ============ 非流式分支：第二轮 LLM 调用同步等结果 ============
       const secondResult = await chat(secondMessages, {
         provider: resolvedProvider,
         model,

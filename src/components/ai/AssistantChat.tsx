@@ -53,6 +53,11 @@ export interface ChatMessage {
   hermesMode?: boolean;
   /** 标记 Hermes 失败后回退到 LLM 模式 */
   hermesFallback?: boolean;
+  /** Token 使用量（assistantMode 响应） */
+  usage?: { prompt_tokens?: number; completion_tokens?: number; total_tokens?: number };
+  /** 模型/Provider 信息（与 usage 一起渲染） */
+  provider?: string;
+  model?: string;
 }
 
 /** 历史会话条目（GET /api/ai/chat/sessions 返回） */
@@ -81,7 +86,7 @@ const DEFAULT_SETTINGS: AssistantSettings = {
   avatarUrl: null,
 };
 
-type VoicePhase = "listening" | "speaking" | "thinking" | "replying";
+type VoicePhase = "connecting" | "listening" | "speaking" | "thinking" | "replying" | "error";
 
 /** AI 助理模式返回结果（与后端 /api/ai/chat assistantMode 响应一致） */
 interface AssistantModeResponse {
@@ -447,7 +452,7 @@ export function AssistantChat({ onClose }: AssistantChatProps = {}) {
       const cfg = modelConfigRef.current;
 
       try {
-        // 调用 AI 助理模式（非流式，支持 Function Calling，与主页面一致）
+        // 调用 AI 助理模式（流式，支持 Function Calling，第二轮回复走 SSE 实时输出）
         const res = await fetch("/api/ai/chat", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -456,7 +461,7 @@ export function AssistantChat({ onClose }: AssistantChatProps = {}) {
             provider: cfg.provider,
             model: cfg.model || undefined,
             reasoningMode: cfg.reasoningMode,
-            stream: false,
+            stream: true,
             assistantMode: true,
           }),
           signal: controller.signal,
@@ -467,37 +472,109 @@ export function AssistantChat({ onClose }: AssistantChatProps = {}) {
           throw new Error(errData?.error || `请求失败（${res.status}）`);
         }
 
-        const data = (await res.json()) as AssistantModeResponse;
-        const aiContent: string = data.content || "(空回复)";
-        const toolCalled: ToolCalled | null = data.toolCalled || null;
+        // 解析 SSE 流：meta / delta / done / error
+        // 第一轮 LLM 已在后端完成（用于决定工具），用户感受到的是 meta/delta 的延迟
+        const reader = res.body?.getReader();
+        if (!reader) throw new Error("无法读取流式响应");
+        const decoder = new TextDecoder("utf-8");
+        let buffer = "";
+        let aiContent = "";
+        let toolCalled: ToolCalled | null = null;
+        let usage: AssistantModeResponse["usage"];
+        let provider: string | undefined;
+        let model: string | undefined;
+        let hermesMode: boolean | undefined;
+        let hermesFallback: boolean | undefined;
+        let streamError: string | undefined;
 
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split("\n");
+          buffer = lines.pop() || "";
+          for (const line of lines) {
+            const trimmed = line.trim();
+            if (!trimmed || !trimmed.startsWith("data:")) continue;
+            const data = trimmed.slice(5).trim();
+            if (data === "[DONE]") continue;
+            try {
+              const evt = JSON.parse(data) as {
+                type: string;
+                content?: string;
+                provider?: string;
+                model?: string;
+                usage?: AssistantModeResponse["usage"];
+                toolCalled?: ToolCalled | null;
+                hermesMode?: boolean;
+                hermesFallback?: boolean;
+                message?: string;
+              };
+              if (evt.type === "meta") {
+                provider = evt.provider;
+                model = evt.model;
+              } else if (evt.type === "delta" && typeof evt.content === "string") {
+                aiContent += evt.content;
+                // 实时更新最后一条 assistant 消息
+                setMessages((prev) => {
+                  const next = [...prev];
+                  const last = next[next.length - 1];
+                  if (last && last.role === "assistant") {
+                    next[next.length - 1] = { ...last, content: aiContent };
+                  }
+                  messagesRef.current = next;
+                  return next;
+                });
+              } else if (evt.type === "done") {
+                usage = evt.usage;
+                provider = evt.provider || provider;
+                model = evt.model || model;
+                toolCalled = evt.toolCalled || null;
+                hermesMode = evt.hermesMode;
+                hermesFallback = evt.hermesFallback;
+              } else if (evt.type === "error") {
+                streamError = evt.message || "流式响应异常";
+              }
+            } catch {
+              // 忽略解析错误
+            }
+          }
+        }
+
+        if (streamError) throw new Error(streamError);
+
+        // 流结束：写入最终消息（含 usage/toolCalled/模型信息）
+        const finalContent = aiContent || "(空回复)";
         setMessages((prev) => {
           const next = [...prev];
           const last = next[next.length - 1];
           if (last && last.role === "assistant") {
             next[next.length - 1] = {
               ...last,
-              content: aiContent,
+              content: finalContent,
               toolCalled,
-              hermesMode: data.hermesMode === true ? true : undefined,
-              hermesFallback: data.hermesFallback === true ? true : undefined,
+              hermesMode: hermesMode === true ? true : undefined,
+              hermesFallback: hermesFallback === true ? true : undefined,
+              usage,
+              provider,
+              model,
             };
           }
           messagesRef.current = next;
           return next;
         });
 
-        // 持久化 AI 回复到当前会话（非阻塞），并刷新会话列表（标题可能已自动更新）
-        if (sessionId && aiContent) {
+        // 持久化 AI 回复到当前会话（非阻塞），并刷新会话列表
+        if (sessionId && finalContent) {
           fetch(`/api/ai/chat/sessions/${sessionId}/messages`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
               role: "assistant",
-              content: aiContent,
-              provider: data.provider,
-              model: data.model,
-              tokens: data.usage?.total_tokens,
+              content: finalContent,
+              provider,
+              model,
+              tokens: usage?.total_tokens,
             }),
           }).catch(() => {
             /* noop */
@@ -536,7 +613,7 @@ export function AssistantChat({ onClose }: AssistantChatProps = {}) {
     void sendTextRef.current(input);
   }, [input]);
 
-  // ===== 全双工语音：调用 assistantMode 非流式，拿到完整回复后 TTS 播放 =====
+  // ===== 全双工语音：调用 assistantMode 流式，边生成边 TTS 播放（首字延迟最小化）=====
   const sendVoice = useCallback(
     async (text: string) => {
       const content = text.trim();
@@ -597,6 +674,7 @@ export function AssistantChat({ onClose }: AssistantChatProps = {}) {
 
       const cfg = modelConfigRef.current;
       try {
+        // 流式响应：边生成边 TTS 播放，首字延迟 < 1s
         const res = await fetch("/api/ai/chat", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -605,7 +683,7 @@ export function AssistantChat({ onClose }: AssistantChatProps = {}) {
             provider: cfg.provider,
             model: cfg.model || undefined,
             reasoningMode: cfg.reasoningMode,
-            stream: false,
+            stream: true,
             assistantMode: true,
           }),
           signal: controller.signal,
@@ -616,37 +694,114 @@ export function AssistantChat({ onClose }: AssistantChatProps = {}) {
           throw new Error(errData?.error || `请求失败（${res.status}）`);
         }
 
-        const data = (await res.json()) as AssistantModeResponse;
-        const aiContent: string = data.content || "(空回复)";
-        const toolCalled: ToolCalled | null = data.toolCalled || null;
+        // 解析 SSE 流：meta / delta / done / error
+        // delta 事件实时更新消息内容 + feed TTS（按句分割播放）
+        const reader = res.body?.getReader();
+        if (!reader) throw new Error("无法读取流式响应");
+        const decoder = new TextDecoder("utf-8");
+        let buffer = "";
+        let aiContent = "";
+        let toolCalled: ToolCalled | null = null;
+        let usage: AssistantModeResponse["usage"];
+        let provider: string | undefined;
+        let model: string | undefined;
+        let hermesMode: boolean | undefined;
+        let hermesFallback: boolean | undefined;
+        let streamError: string | undefined;
 
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split("\n");
+          buffer = lines.pop() || "";
+          for (const line of lines) {
+            const trimmed = line.trim();
+            if (!trimmed || !trimmed.startsWith("data:")) continue;
+            const data = trimmed.slice(5).trim();
+            if (data === "[DONE]") continue;
+            try {
+              const evt = JSON.parse(data) as {
+                type: string;
+                content?: string;
+                provider?: string;
+                model?: string;
+                usage?: AssistantModeResponse["usage"];
+                toolCalled?: ToolCalled | null;
+                hermesMode?: boolean;
+                hermesFallback?: boolean;
+                message?: string;
+              };
+              if (evt.type === "meta") {
+                provider = evt.provider;
+                model = evt.model;
+              } else if (evt.type === "delta" && typeof evt.content === "string") {
+                aiContent += evt.content;
+                // 实时更新最后一条 assistant 消息
+                setMessages((prev) => {
+                  const next = [...prev];
+                  const last = next[next.length - 1];
+                  if (last && last.role === "assistant") {
+                    next[next.length - 1] = { ...last, content: aiContent };
+                  }
+                  messagesRef.current = next;
+                  return next;
+                });
+                // 边生成边喂给 TTS（按句分割播放，首字延迟最小化）
+                if (tts) tts.feed(evt.content);
+              } else if (evt.type === "done") {
+                usage = evt.usage;
+                provider = evt.provider || provider;
+                model = evt.model || model;
+                toolCalled = evt.toolCalled || null;
+                hermesMode = evt.hermesMode;
+                hermesFallback = evt.hermesFallback;
+              } else if (evt.type === "error") {
+                streamError = evt.message || "流式响应异常";
+              }
+            } catch {
+              // 忽略解析错误
+            }
+          }
+        }
+
+        if (streamError) throw new Error(streamError);
+
+        // 流结束：写入最终消息 + 通知 TTS 流结束
+        const finalContent = aiContent || "(空回复)";
         setMessages((prev) => {
           const next = [...prev];
           const last = next[next.length - 1];
           if (last && last.role === "assistant") {
             next[next.length - 1] = {
               ...last,
-              content: aiContent,
+              content: finalContent,
               toolCalled,
-              hermesMode: data.hermesMode === true ? true : undefined,
-              hermesFallback: data.hermesFallback === true ? true : undefined,
+              hermesMode: hermesMode === true ? true : undefined,
+              hermesFallback: hermesFallback === true ? true : undefined,
+              usage,
+              provider,
+              model,
             };
           }
           messagesRef.current = next;
           return next;
         });
 
+        // 通知 TTS 流结束（剩余 buffer 中的内容会被播放）
+        if (tts && finalContent) tts.finish();
+
         // 持久化 AI 回复并刷新会话列表（非阻塞）
-        if (sessionId && aiContent) {
+        if (sessionId && finalContent) {
           fetch(`/api/ai/chat/sessions/${sessionId}/messages`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
               role: "assistant",
-              content: aiContent,
-              provider: data.provider,
-              model: data.model,
-              tokens: data.usage?.total_tokens,
+              content: finalContent,
+              provider,
+              model,
+              tokens: usage?.total_tokens,
             }),
           }).catch(() => {
             /* noop */
@@ -655,12 +810,6 @@ export function AssistantChat({ onClose }: AssistantChatProps = {}) {
             const cur = list.find((s) => s.id === sessionId);
             if (cur) setCurrentSessionTitle(cur.title);
           });
-        }
-
-        // 拿到完整回复后一次性喂给 TTS 播放
-        if (tts && aiContent) {
-          tts.feed(aiContent);
-          tts.finish();
         }
       } catch (e) {
         if ((e as Error).name === "AbortError") return;
@@ -713,21 +862,29 @@ export function AssistantChat({ onClose }: AssistantChatProps = {}) {
 
   // ===== 接通语音通话 =====
   const startVoiceCall = useCallback(async () => {
+    // 不支持流式 ASR：直接提示并返回，不进入通话状态（避免假通话）
+    if (!voiceStreamSupported) {
+      toast("当前浏览器不支持流式语音识别，请使用文本输入或切换 Chrome/Edge", "error");
+      return;
+    }
+    if (!navigator.mediaDevices?.getUserMedia) {
+      toast("当前环境不支持语音对话", "error");
+      return;
+    }
+
+    // 先进入 connecting 状态，UI 立即反馈"正在接通..."
+    setVoiceCallActive(true);
+    setVoiceVolume(0);
+    setInput("");
+    setPhase("connecting");
+    voiceModeActiveRef.current = true;
+    voiceSendLockRef.current = false;
+
     try {
-      if (!navigator.mediaDevices?.getUserMedia) {
-        toast("当前环境不支持语音对话", "error");
-        return;
-      }
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       voiceCallStreamRef.current = stream;
-      voiceModeActiveRef.current = true;
-      voiceSendLockRef.current = false;
-      setVoiceCallActive(true);
-      setVoiceVolume(0);
-      setPhase("listening");
-      setInput("");
 
-      // 初始化流式 TTS（拿到完整回复后分句播放）
+      // 初始化流式 TTS（拿到流式回复后分句播放）
       const tts = new StreamTTS();
       streamTtsRef.current = tts;
       tts.onPlayStart = () => {
@@ -743,12 +900,6 @@ export function AssistantChat({ onClose }: AssistantChatProps = {}) {
       };
 
       backchannelRef.current = new BackchannelPlayer();
-
-      if (!voiceStreamSupported) {
-        // 浏览器不支持流式 ASR：回退到普通文本输入
-        toast("浏览器不支持流式 ASR，请使用文本输入", "info");
-        return;
-      }
 
       // 流式 ASR：边说边出文字显示在输入框
       const asr = new StreamASR({
@@ -792,6 +943,8 @@ export function AssistantChat({ onClose }: AssistantChatProps = {}) {
       voiceVadRef.current = vad;
       vad.start();
 
+      // 所有引擎就绪，进入聆听状态
+      setPhase("listening");
       toast("语音通话已接通，开始说话即可", "success");
     } catch (e) {
       toast("无法访问麦克风：" + (e as Error).message, "error");
@@ -971,16 +1124,21 @@ export function AssistantChat({ onClose }: AssistantChatProps = {}) {
           <button
             type="button"
             onClick={voiceCallActive ? stopVoiceCall : startVoiceCall}
+            disabled={voiceCallPhase === "connecting"}
             aria-label={voiceCallActive ? "挂断" : "接通语音通话"}
-            title={voiceCallActive ? "挂断" : "接通语音通话"}
-            className={`flex h-8 w-8 items-center justify-center rounded-lg transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
+            title={voiceCallActive ? (voiceCallPhase === "connecting" ? "正在接通..." : "挂断") : "接通语音通话"}
+            className={`flex h-8 w-8 items-center justify-center rounded-lg transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-60 ${
               voiceCallActive
                 ? "bg-graveyard/10 text-graveyard hover:bg-graveyard/20"
                 : "bg-primary text-primary-foreground hover:opacity-90"
             }`}
           >
             {voiceCallActive ? (
-              <PhoneOff className="h-4 w-4" />
+              voiceCallPhase === "connecting" ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <PhoneOff className="h-4 w-4" />
+              )
             ) : (
               <Phone className="h-4 w-4" />
             )}
@@ -1004,48 +1162,68 @@ export function AssistantChat({ onClose }: AssistantChatProps = {}) {
         <div className="flex shrink-0 items-center gap-2 border-b border-cognition/20 bg-cognition/5 px-3 py-1.5">
           <div
             className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full ${
-              voiceCallPhase === "listening"
+              voiceCallPhase === "connecting"
+                ? "bg-muted animate-pulse"
+                : voiceCallPhase === "listening"
                 ? "bg-northstar animate-pulse"
                 : voiceCallPhase === "speaking"
                 ? "bg-cognition animate-pulse"
                 : voiceCallPhase === "thinking"
                 ? "bg-muted"
+                : voiceCallPhase === "error"
+                ? "bg-graveyard"
                 : "bg-cognition/70"
             }`}
           >
-            {voiceCallPhase === "listening" ? (
+            {voiceCallPhase === "connecting" ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />
+            ) : voiceCallPhase === "listening" ? (
               <Headphones className="h-3.5 w-3.5 text-white" />
             ) : voiceCallPhase === "speaking" ? (
               <Mic className="h-3.5 w-3.5 text-white" />
             ) : voiceCallPhase === "thinking" ? (
               <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />
+            ) : voiceCallPhase === "error" ? (
+              <X className="h-3.5 w-3.5 text-white" />
             ) : (
               <Bot className="h-3.5 w-3.5 text-white" />
             )}
           </div>
           <div className="min-w-0 flex-1">
             <p className="truncate text-xs font-medium text-foreground">
-              {voiceCallPhase === "listening"
-                ? "正在聆听..."
+              {voiceCallPhase === "connecting"
+                ? "正在接通语音..."
+                : voiceCallPhase === "listening"
+                ? "正在聆听，请说话..."
                 : voiceCallPhase === "speaking"
-                ? "正在说话..."
+                ? "检测到说话中..."
                 : voiceCallPhase === "thinking"
                 ? "AI 思考中..."
+                : voiceCallPhase === "error"
+                ? "语音通话异常"
                 : "AI 回复中..."}
             </p>
+            {/* listening 阶段显示 ASR 实时识别文字，提供即时反馈 */}
+            {(voiceCallPhase === "listening" || voiceCallPhase === "speaking") && input.trim() && (
+              <p className="truncate text-[10px] text-muted-foreground/80">
+                {input.trim()}
+              </p>
+            )}
           </div>
-          {/* 实时音量波形 */}
-          <div className="flex h-4 items-center gap-0.5">
-            {[0, 1, 2, 3, 4].map((i) => (
-              <span
-                key={i}
-                className="w-0.5 rounded-full bg-cognition/60 transition-all"
-                style={{
-                  height: `${3 + Math.min(12, voiceVolume * 60 * (1 - Math.abs(i - 2) / 3))}px`,
-                }}
-              />
-            ))}
-          </div>
+          {/* 实时音量波形（仅非 connecting/error 阶段显示）*/}
+          {voiceCallPhase !== "connecting" && voiceCallPhase !== "error" && (
+            <div className="flex h-4 items-center gap-0.5">
+              {[0, 1, 2, 3, 4].map((i) => (
+                <span
+                  key={i}
+                  className="w-0.5 rounded-full bg-cognition/60 transition-all"
+                  style={{
+                    height: `${3 + Math.min(12, voiceVolume * 60 * (1 - Math.abs(i - 2) / 3))}px`,
+                  }}
+                />
+              ))}
+            </div>
+          )}
         </div>
       )}
 
@@ -1094,6 +1272,12 @@ export function AssistantChat({ onClose }: AssistantChatProps = {}) {
                 !isStreaming &&
                 !!m.toolCalled &&
                 !isLarkTaskCardTool(m.toolCalled);
+              // Token/模型元信息（非流式且非空回复时显示）
+              const showMeta =
+                !isUser &&
+                !isStreaming &&
+                !isLarkTaskCardTool(m.toolCalled) &&
+                (m.provider || m.model || m.usage?.total_tokens != null);
               return (
                 <li key={i} className="flex flex-col gap-1.5">
                   <div
@@ -1123,14 +1307,48 @@ export function AssistantChat({ onClose }: AssistantChatProps = {}) {
                           : "rounded-2xl rounded-tl-sm bg-muted text-foreground"
                       }`}
                     >
-                      {m.content}
-                      {isStreaming && (
+                      {isStreaming && !m.content ? (
+                        <span className="inline-flex items-center gap-1.5 text-muted-foreground">
+                          <Loader2 className="h-3 w-3 animate-spin" />
+                          <span className="text-xs">正在思考...</span>
+                        </span>
+                      ) : (
+                        m.content
+                      )}
+                      {isStreaming && m.content && (
                         <span className="ml-0.5 inline-block animate-pulse text-foreground">
                           ▋
                         </span>
                       )}
                     </div>
                   </div>
+                  {/* Token / 模型元信息 */}
+                  {showMeta && (
+                    <div className="ml-8 flex flex-wrap items-center gap-1.5 text-[10px] text-muted-foreground/70">
+                      {m.provider && <span className="uppercase">{m.provider}</span>}
+                      {m.model && <span>· {m.model}</span>}
+                      {m.usage?.total_tokens != null && (
+                        <span className="rounded bg-muted px-1 py-0.5">
+                          {m.usage.total_tokens} tokens
+                          {m.usage.prompt_tokens != null && m.usage.completion_tokens != null && (
+                            <span className="text-muted-foreground/50">
+                              {" "}(↑{m.usage.prompt_tokens} ↓{m.usage.completion_tokens})
+                            </span>
+                          )}
+                        </span>
+                      )}
+                      {m.hermesMode && (
+                        <span className="rounded bg-cognition/10 px-1 py-0.5 text-cognition">
+                          Hermes
+                        </span>
+                      )}
+                      {m.hermesFallback && (
+                        <span className="rounded bg-graveyard/10 px-1 py-0.5 text-graveyard">
+                          回退
+                        </span>
+                      )}
+                    </div>
+                  )}
                   {/* 飞书任务卡片 */}
                   {larkCard && <LarkTaskCard {...larkCard} />}
                   {/* 通用工具调用卡片（可展开查看参数与完整结果） */}

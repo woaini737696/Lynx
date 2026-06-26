@@ -35,6 +35,7 @@ const PAGE_TITLE_MAP: Record<string, string> = {
   "/admin/users": "用户管理",
   "/admin/roles": "角色管理",
   "/admin/profession-workspaces": "职业工作空间",
+  "/admin/token-stats": "词元统计",
 };
 
 function getPageTitle(pathname: string): string {

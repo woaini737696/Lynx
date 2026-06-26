@@ -797,7 +797,7 @@ function HermesConfigSection() {
   const handleStart = async () => {
     setStarting(true);
     try {
-      const port = endpoint.match(/:(\d+)$/)?.[1] || "7432";
+      const port = endpoint.match(/:(\d+)$/)?.[1] || "9119";
       const res = await fetch("/api/hermes/install", {
         method: "POST",
         headers: { "Content-Type": "application/json" },

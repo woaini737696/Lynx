@@ -10,6 +10,8 @@
 - **禁止长时间保留本地未推送的提交**，最长不超过 1 个工作日
 - **提交信息规范**：使用 `feat/fix/docs/refactor(模块): 描述` 格式，中文描述
 - **禁止提交**：临时调试文件（`test-*.cjs`、`*.txt` 临时文件）、`.env`、`node_modules/`、`.next/`、`dist/`
+- **自动 push 配置**：remote URL 已嵌入 Gitee 私人令牌，`git push origin master` 无需手动输入密码
+- **PowerShell 环境**：每次 git 命令前需设置 `$env:Path = "D:\Git\bin;D:\Git\cmd;" + $env:Path`（Git 安装在 D:\Git）
 
 ### 1.2 同步检查清单（每次开发前/后）
 - [ ] 开发前：`git pull origin master` 拉取最新
