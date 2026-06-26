@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   Target,
   KanbanSquare,
@@ -52,6 +52,7 @@ type NavGroup = {
   icon: React.ElementType;
   color: string;
   items: NavItem[];
+  requiredRole?: "admin"; // 仅 admin 可见整个分组
 };
 
 const NAV_GROUPS: NavGroup[] = [
@@ -122,6 +123,7 @@ const NAV_GROUPS: NavGroup[] = [
     label: "管理",
     icon: Users,
     color: "text-muted-foreground",
+    requiredRole: "admin",
     items: [
       { href: "/admin/users", label: "用户管理", icon: Users, color: "text-muted-foreground" },
       { href: "/admin/roles", label: "角色管理", icon: Shield, color: "text-muted-foreground" },
@@ -140,6 +142,22 @@ export function Sidebar() {
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [openPopover, setOpenPopover] = useState<string | null>(null);
+  const [userRole, setUserRole] = useState<string | null>(null);
+
+  // 获取当前用户角色用于过滤管理菜单
+  useEffect(() => {
+    fetch("/api/auth/session")
+      .then((r) => r.ok ? r.json() : null)
+      .then((s) => setUserRole((s?.user as { role?: string } | undefined)?.role || null))
+      .catch(() => setUserRole(null));
+  }, []);
+
+  const visibleGroups = useMemo(() => {
+    return NAV_GROUPS.filter((g) => {
+      if (!g.requiredRole) return true;
+      return userRole === g.requiredRole;
+    });
+  }, [userRole]);
 
   const activeGroupId = useMemo(() => findActiveGroup(pathname), [pathname]);
   const [expanded, setExpanded] = useState<Record<string, boolean>>(() => {
@@ -221,7 +239,7 @@ export function Sidebar() {
 
         {/* 分组导航 */}
         <nav className="flex-1 space-y-4 overflow-y-auto py-4">
-          {NAV_GROUPS.map((group) => {
+          {visibleGroups.map((group) => {
             const GroupIcon = group.icon;
             const isGroupActive = group.id === activeGroupId;
             const isExpanded = !!expanded[group.id];

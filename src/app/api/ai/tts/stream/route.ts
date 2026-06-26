@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
+import { requireAuth } from "@/lib/auth-utils";
 
 // POST /api/ai/tts/stream
 // 流式 TTS：通过 Server-Sent Events (SSE) 逐句返回音频 URL，降低首包延迟。
@@ -95,6 +96,8 @@ async function synthesizeSentence(
 }
 
 export async function POST(req: NextRequest) {
+  const auth = await requireAuth();
+  if (auth.error) return auth.error;
   try {
     const body = await req.json().catch(() => null);
     if (!body || typeof body !== "object") {
