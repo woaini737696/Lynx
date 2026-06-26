@@ -32,10 +32,15 @@ async function POST(req: NextRequest) {
       );
     }
     const response = await originalPOST(req);
-    // 透传限流信息到响应头
-    response.headers.set("X-RateLimit-Remaining", String(remaining));
-    response.headers.set("X-RateLimit-Reset", String(Math.floor(resetAt / 1000)));
-    return response;
+    // 透传限流信息到响应头（Headers 不可变，重新构造以避免 undici TypeError）
+    const newHeaders = new Headers(response.headers);
+    newHeaders.set("X-RateLimit-Remaining", String(remaining));
+    newHeaders.set("X-RateLimit-Reset", String(Math.floor(resetAt / 1000)));
+    return new Response(response.body, {
+      status: response.status,
+      statusText: response.statusText,
+      headers: newHeaders,
+    });
   }
   return originalPOST(req);
 }

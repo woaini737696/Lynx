@@ -6,6 +6,7 @@ import {
   DEFAULT_ROLES,
   PERMISSION_CATALOG,
   isValidPermissionKey,
+  isValidProfessionKey,
 } from "@/lib/permissions";
 
 const logger = getLogger("roles-api");
@@ -38,11 +39,24 @@ async function getOrCreateRoles() {
         description: r.description,
         permissions: r.permissions,
         isSystem: r.isSystem,
+        profession: r.profession || null,
       })),
     });
     roles = await prisma.role.findMany({
       orderBy: [{ createdAt: "asc" }],
     });
+  } else {
+    // 升级兼容：已有系统角色但缺 profession 字段时回填默认值
+    for (const def of DEFAULT_ROLES) {
+      const existing = roles.find((r) => r.name === def.name);
+      if (existing && (existing as { profession?: string | null }).profession == null && def.profession) {
+        await prisma.role.update({
+          where: { name: def.name },
+          data: { profession: def.profession },
+        });
+        (existing as { profession?: string | null }).profession = def.profession;
+      }
+    }
   }
 
   return roles;
@@ -65,6 +79,7 @@ export async function GET() {
       permissions: r.permissions as string[],
       isSystem: r.isSystem,
       userCount: userCounts[r.name] || 0,
+      profession: (r as { profession?: string | null }).profession || null,
     }));
 
     return NextResponse.json({
@@ -85,7 +100,7 @@ export async function PUT(req: NextRequest) {
     if (auth.user === null) return auth.error;
 
     const body = await req.json().catch(() => ({}));
-    const { name, description, permissions } = body;
+    const { name, description, permissions, profession } = body;
 
     if (!name || typeof name !== "string") {
       return NextResponse.json({ error: "角色 name 不能为空" }, { status: 400 });
@@ -126,6 +141,21 @@ export async function PUT(req: NextRequest) {
       data.permissions = Array.from(new Set(permissions as string[]));
     }
 
+    // 更新 profession（null = 解绑，空字符串也视为 null）
+    if (profession !== undefined) {
+      if (profession !== null && typeof profession !== "string") {
+        return NextResponse.json({ error: "profession 必须为字符串或 null" }, { status: 400 });
+      }
+      const profValue = (profession as string | null) || null;
+      if (profValue && !isValidProfessionKey(profValue)) {
+        return NextResponse.json(
+          { error: `无效的职业 key: ${profValue}` },
+          { status: 400 }
+        );
+      }
+      data.profession = profValue;
+    }
+
     if (Object.keys(data).length === 0) {
       return NextResponse.json({ error: "没有需要更新的字段" }, { status: 400 });
     }
@@ -139,6 +169,7 @@ export async function PUT(req: NextRequest) {
         displayName: true,
         description: true,
         permissions: true,
+        profession: true,
         isSystem: true,
         updatedAt: true,
       },

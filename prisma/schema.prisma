@@ -51,6 +51,7 @@ model Role {
   displayName String   @db.VarChar(50)
   description String   @db.Text
   permissions Json     @default("[]") // 权限key数组
+  profession  String?  @db.VarChar(100) // 职业（绑定后用户被分配此角色时自动同步 profession）
   isSystem    Boolean  @default(false) // 系统内置角色不可删除
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
@@ -442,6 +443,47 @@ model AISetting {
   larkWebhookToken String? @db.VarChar(255)
 
   @@unique([id])
+}
+
+// 职业 AI 工作空间（按 12 岗位差异化配置）
+// 由 admin 角色统一管理；用户登录后按其 Role.profession 自动加载对应工作空间
+model ProfessionWorkspace {
+  id            String   @id @default(cuid())
+  // 职业 key（唯一），如 pm / designer / frontend / backend / data / operations / marketing / hr / finance / project / creator / founder
+  profession    String   @unique @db.VarChar(64)
+  // 职业显示名
+  displayName   String   @db.VarChar(100)
+  // 职业描述（用于 system prompt 注入）
+  description   String?  @db.Text
+  // 职业图标（emoji，如 📊）
+  icon          String   @default("💼") @db.VarChar(16)
+  // 颜色主题 key（orange/cognition/campaign/graveyard/northstar）
+  accentColor   String   @default("orange") @db.VarChar(32)
+
+  // ============ 4 个定制维度 ============
+
+  // 1) 快捷技能可见集（JSON 数组：[{key,label,description,icon,message}]）
+  // 留空/null = 显示全部 QUICK_COMMANDS
+  quickCommands Json     @default("[]")
+
+  // 2) System Prompt 模板（追加到 AI_ASSISTANT_SYSTEM_PROMPT 之后）
+  // 留空/null = 不追加，使用默认系统提示词
+  systemPrompt  String?  @db.LongText
+
+  // 3) 默认 LLM Provider + Model + 推理模式
+  // 留空/null = 使用全局默认（.env DEFAULT_LLM_PROVIDER）
+  defaultProvider     String?  @db.VarChar(32) // deepseek | mimo | openai
+  defaultModel        String?  @db.VarChar(64)
+  defaultReasoningMode String? @db.VarChar(32) // standard | thinking | fast
+
+  // 4) 可见 AI 工具白名单（JSON 字符串数组：["searchIdeas","createTask", ...]）
+  // 留空/null = 全部工具可用；非空则只允许调用白名单内的工具
+  allowedTools  Json     @default("[]")
+
+  // 是否启用（false 时该职业不应用工作空间，行为同未配置）
+  enabled       Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 }
 
 // AI 巡检规则（可配置）

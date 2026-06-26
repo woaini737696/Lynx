@@ -31,6 +31,7 @@ import {
   Bell,
   Radar,
   Shield,
+  Briefcase,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "@/components/ui/toast";
@@ -121,6 +122,7 @@ const NAV_GROUPS: NavGroup[] = [
     items: [
       { href: "/admin/users", label: "用户管理", icon: Users, color: "text-muted-foreground" },
       { href: "/admin/roles", label: "角色管理", icon: Shield, color: "text-muted-foreground" },
+      { href: "/admin/profession-workspaces", label: "职业工作空间", icon: Briefcase, color: "text-muted-foreground" },
     ],
   },
 ];

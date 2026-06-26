@@ -23,6 +23,7 @@ import { VoiceVAD } from "@/lib/voice-vad";
 import { StreamASR, isStreamASRSupported } from "@/lib/voice-asr-stream";
 import { StreamTTS } from "@/lib/voice-tts-stream";
 import { BackchannelPlayer } from "@/lib/voice-backchannel";
+import { useWorkspace } from "@/hooks/use-workspace";
 
 /**
  * 工具调用字段：当 type === "larkTaskCard" 时渲染飞书任务卡片。
@@ -134,17 +135,55 @@ function isLarkTaskCardTool(tc: ToolCalled | null | undefined): boolean {
  * - 与主页面 /ai/assistant 共享同一会话（/api/ai/chat/sessions）
  */
 export function AssistantChat({ onClose }: AssistantChatProps = {}) {
+  // ===== 职业工作空间（4 维度：快捷技能可见集 / system prompt / 默认模型 / 工具白名单）=====
+  const { workspace, profession } = useWorkspace();
+  // 过滤后的快捷技能：职业工作空间内 quickCommands 非空时只显示 label 命中项，否则显示全部
+  const visibleQuickCommands: QuickCommand[] =
+    workspace?.quickCommands && workspace.quickCommands.length > 0
+      ? QUICK_COMMANDS.filter((cmd) =>
+          workspace.quickCommands.some(
+            (qc) => (qc.label || "").trim() === cmd.label
+          )
+        )
+      : QUICK_COMMANDS;
+
   // ===== 消息 / 输入 / 设置 =====
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [settings, setSettings] = useState<AssistantSettings>(DEFAULT_SETTINGS);
+  // 初始 model 配置：用户没选过（首次加载）时使用职业工作空间默认值
+  const [modelInitialized, setModelInitialized] = useState(false);
   const [modelConfig, setModelConfig] = useState<ModelSwitcherValue>({
     provider: "deepseek",
     model: "deepseek-chat",
     reasoningMode: "standard",
   });
+
+  // 应用职业工作空间默认 model（仅初始化一次，用户手动切换后不再覆盖）
+  useEffect(() => {
+    if (modelInitialized || !workspace) return;
+    const provider = workspace.defaultProvider as
+      | "deepseek"
+      | "mimo"
+      | undefined;
+    if (provider === "deepseek" || provider === "mimo") {
+      const allowedModes = ["fast", "standard", "deep", "thinking"] as const;
+      type AllowedMode = (typeof allowedModes)[number];
+      const reqMode = workspace.defaultReasoningMode as
+        | AllowedMode
+        | undefined;
+      const newMode =
+        reqMode && allowedModes.includes(reqMode) ? reqMode : null;
+      setModelConfig((prev) => ({
+        provider,
+        model: workspace.defaultModel || prev.model,
+        reasoningMode: (newMode || prev.reasoningMode) as ModelSwitcherValue["reasoningMode"],
+      }));
+    }
+    setModelInitialized(true);
+  }, [workspace, modelInitialized]);
 
   // ===== 会话管理 state（与主页面共享同一会话）=====
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
@@ -781,14 +820,31 @@ export function AssistantChat({ onClose }: AssistantChatProps = {}) {
     setInput("");
   }, [setPhase]);
 
-  // ===== 快捷技能：点击直接发送 =====
-  const handleQuickCommand = useCallback(
-    (cmd: QuickCommand) => {
-      if (sending) return;
-      void sendTextRef.current(cmd.message);
-    },
-    [sending],
-  );
+  // ===== 快捷技能：点击把内容填入输入框（不发送），与主页面 /ai/assistant 一致 =====
+  const handleQuickCommand = useCallback((cmd: QuickCommand) => {
+    if (sending) return;
+    setInput((prev) => (prev ? `${prev}\n${cmd.message}` : cmd.message));
+    // 聚焦输入框（setTimeout 确保 setInput 渲染完成后再 focus）
+    setTimeout(() => textareaRef.current?.focus(), 0);
+  }, [sending]);
+
+  // 受控 ref 持有 textarea DOM 节点（用于快捷技能点击后聚焦）
+  const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+  // 技能下拉菜单状态
+  const [showSkillMenu, setShowSkillMenu] = useState(false);
+  const skillMenuRef = useRef<HTMLDivElement | null>(null);
+
+  // 点击外部关闭技能下拉
+  useEffect(() => {
+    if (!showSkillMenu) return;
+    const handler = (e: MouseEvent) => {
+      if (skillMenuRef.current && !skillMenuRef.current.contains(e.target as Node)) {
+        setShowSkillMenu(false);
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [showSkillMenu]);
 
   const onKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === "Enter" && !e.shiftKey) {
@@ -837,6 +893,8 @@ export function AssistantChat({ onClose }: AssistantChatProps = {}) {
                     ? "加载会话中..."
                     : voiceCallActive
                     ? "语音通话中"
+                    : workspace
+                    ? `${workspace.icon} ${workspace.displayName} · 共享会话`
                     : `${displayName} · 共享会话`}
                 </p>
               </div>
@@ -1120,14 +1178,56 @@ export function AssistantChat({ onClose }: AssistantChatProps = {}) {
       {!voiceCallActive && (
         <div className="shrink-0 border-t border-border bg-background px-2 py-2">
           <div className="flex items-center gap-1.5 overflow-x-auto pb-1 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
-            <span
-              className="inline-flex shrink-0 items-center gap-1 rounded-full border border-cognition/40 bg-cognition/5 px-2 py-1 text-[11px] font-medium text-cognition"
-              title="快捷技能"
-            >
-              <Wrench className="h-3 w-3" />
-              <span>技能</span>
-            </span>
-            {QUICK_COMMANDS.map((cmd, i) => (
+            {/* 「技能」下拉：点击展开所有 6 个快捷技能，选中后填入输入框 */}
+            <div ref={skillMenuRef} className="relative shrink-0">
+              <button
+                type="button"
+                onClick={() => setShowSkillMenu((v) => !v)}
+                disabled={sending}
+                title="选择技能填入输入框"
+                aria-label="选择技能"
+                className="inline-flex items-center gap-1 rounded-full border border-cognition/40 bg-cognition/5 px-2 py-1 text-[11px] font-medium text-cognition transition-all hover:bg-cognition/10 disabled:opacity-50"
+              >
+                <Wrench className="h-3 w-3" />
+                <span>技能</span>
+                <ChevronDown
+                  className={`h-3 w-3 transition-transform ${showSkillMenu ? "rotate-180" : ""}`}
+                />
+              </button>
+              {showSkillMenu && (
+                <div className="absolute bottom-full left-0 z-50 mb-1 w-56 max-h-72 overflow-hidden rounded-lg border border-border bg-card shadow-lg">
+                  <div className="border-b border-border px-2 py-1.5">
+                    <span className="text-[10px] font-medium text-muted-foreground">
+                      选择技能（点击填入输入框）
+                    </span>
+                  </div>
+                  <div className="max-h-56 overflow-y-auto">
+                    {QUICK_COMMANDS.map((cmd, i) => (
+                      <button
+                        key={i}
+                        type="button"
+                        onClick={() => {
+                          setShowSkillMenu(false);
+                          handleQuickCommand(cmd);
+                        }}
+                        disabled={sending}
+                        title={cmd.description}
+                        className="flex w-full items-start gap-2 px-2.5 py-1.5 text-left text-[11px] text-foreground transition-colors hover:bg-muted/60 disabled:opacity-50"
+                      >
+                        <span className="text-sm leading-none">{cmd.icon}</span>
+                        <div className="min-w-0 flex-1">
+                          <div className="font-medium">{cmd.label}</div>
+                          <div className="mt-0.5 truncate text-[10px] text-muted-foreground">
+                            {cmd.description}
+                          </div>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+            {visibleQuickCommands.map((cmd, i) => (
               <button
                 key={i}
                 type="button"
@@ -1148,6 +1248,7 @@ export function AssistantChat({ onClose }: AssistantChatProps = {}) {
       <div className="shrink-0 border-t border-border bg-background px-3 py-2.5">
         <div className="flex items-end gap-2">
           <textarea
+            ref={textareaRef}
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={onKeyDown}
