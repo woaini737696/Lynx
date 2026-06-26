@@ -46,6 +46,7 @@ export default auth((req) => {
 
     const loginUrl = new URL("/login", req.nextUrl.origin);
     loginUrl.searchParams.set("callbackUrl", pathname);
+    loginUrl.searchParams.set("expired", "1");
     return NextResponse.redirect(loginUrl);
   }
 

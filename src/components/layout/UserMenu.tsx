@@ -139,33 +139,33 @@ export function UserMenu() {
       </button>
 
       {open && (
-        <div
-          className="absolute right-0 mt-2 w-48 rounded-md border border-border bg-popover shadow-lg"
-        >
-          <button
-            type="button"
-            onClick={handleProfile}
-            className="flex w-full items-center gap-2.5 px-3 py-2 text-xs text-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
-          >
-            <Settings className="h-3.5 w-3.5 text-muted-foreground" />
-            个人资料设置
-          </button>
-          <div className="border-t border-border" />
-          <button
-            type="button"
-            onClick={handleSignOut}
-            disabled={signingOut}
-            className={cn(
-              "flex w-full items-center gap-2.5 px-3 py-2 text-xs text-graveyard transition-colors hover:bg-accent disabled:opacity-50"
-            )}
-          >
-            {signingOut ? (
-              <Loader2 className="h-3.5 w-3.5 animate-spin" />
-            ) : (
-              <LogOut className="h-3.5 w-3.5" />
-            )}
-            退出登录
-          </button>
+        <div className="absolute right-0 top-full z-50 w-48 pt-2">
+          <div className="rounded-md border border-border bg-popover shadow-lg">
+            <button
+              type="button"
+              onClick={handleProfile}
+              className="flex w-full items-center gap-2.5 px-3 py-2 text-xs text-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
+            >
+              <Settings className="h-3.5 w-3.5 text-muted-foreground" />
+              个人资料设置
+            </button>
+            <div className="border-t border-border" />
+            <button
+              type="button"
+              onClick={handleSignOut}
+              disabled={signingOut}
+              className={cn(
+                "flex w-full items-center gap-2.5 px-3 py-2 text-xs text-graveyard transition-colors hover:bg-accent disabled:opacity-50"
+              )}
+            >
+              {signingOut ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <LogOut className="h-3.5 w-3.5" />
+              )}
+              退出登录
+            </button>
+          </div>
         </div>
       )}
     </div>

@@ -8,6 +8,7 @@ function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const callbackUrl = searchParams.get("callbackUrl") || "/";
+  const expired = searchParams.get("expired") === "1";
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
@@ -72,6 +73,12 @@ function LoginForm() {
 
       {/* 登录卡片 */}
       <div className="rounded-2xl border border-border bg-card p-6 shadow-soft sm:p-8">
+        {expired && (
+          <div className="mb-4 flex items-center gap-2 rounded-xl border border-primary/30 bg-primary/5 px-3 py-2 text-xs text-primary">
+            <AlertCircle className="h-3.5 w-3.5 shrink-0" />
+            <span>登录已过期，请重新登录</span>
+          </div>
+        )}
         <h2 className="mb-6 text-center text-sm font-medium text-muted-foreground">
           登录到你的账户
         </h2>
