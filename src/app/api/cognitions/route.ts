@@ -3,7 +3,7 @@ import { prisma } from "@/lib/db";
 import { ai, defaultModel, COGNITION_EXTRACT_PROMPT } from "@/lib/ai";
 import { generateText } from "ai";
 import { writeMemoryForCognition } from "@/lib/memory-sync";
-import { requireAuth, buildUserFilter } from "@/lib/auth-utils";
+import { requireAuth, requirePermission, buildUserFilter } from "@/lib/auth-utils";
 
 // 获取认知库
 export async function GET() {
@@ -28,7 +28,7 @@ export async function GET() {
 // 当仅传入 content 时为 AI 提取模式
 export async function POST(req: NextRequest) {
   try {
-    const { user, error } = await requireAuth();
+    const { user, error } = await requirePermission("cognition:extract");
     if (error) return error;
 
     const body = await req.json();

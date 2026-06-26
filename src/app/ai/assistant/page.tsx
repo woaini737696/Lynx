@@ -1236,6 +1236,29 @@ export default function AIAssistantPage() {
       let hermesFallback: boolean | undefined;
       // 用于在 thinking 期间显示"正在思考..."，收到首个 delta 后清除
       let firstDeltaReceived = false;
+      // delta 渲染节流：用 rAF 合并多个 delta 到下一帧，避免每个 token 触发 setState 重渲染
+      let rafScheduled = false;
+      let rafId: number | null = null;
+      let streamEnded = false;
+      const flushDelta = () => {
+        rafScheduled = false;
+        rafId = null;
+        if (streamEnded) return; // 流已结束，最终化消息已设置，跳过这次 flush 避免覆盖
+        setMessages((prev) =>
+          prev.map((m) => (m.id === aiMsgId ? { ...m, content: aiContent } : m))
+        );
+      };
+      const scheduleDeltaFlush = () => {
+        if (rafScheduled || streamEnded) return;
+        rafScheduled = true;
+        if (typeof requestAnimationFrame === "function") {
+          rafId = requestAnimationFrame(flushDelta);
+        } else {
+          // SSR 或非浏览器环境降级为 setTimeout(0)
+          rafId = null;
+          setTimeout(flushDelta, 0);
+        }
+      };
 
       while (true) {
         const { done, value } = await reader.read();
@@ -1293,9 +1316,8 @@ export default function AIAssistantPage() {
               } else {
                 aiContent += obj.content;
               }
-              setMessages((prev) =>
-                prev.map((m) => (m.id === aiMsgId ? { ...m, content: aiContent } : m))
-              );
+              // 节流：合并多个 delta 到下一帧渲染（避免每个 token 触发 setState）
+              scheduleDeltaFlush();
             } else if (obj.type === "done") {
               if (obj.usage) aiUsage = obj.usage;
               if (obj.provider) aiProvider = obj.provider;
@@ -1305,6 +1327,11 @@ export default function AIAssistantPage() {
               if (obj.hermesFallback) hermesFallback = true;
             } else if (obj.type === "error") {
               const errMsg = obj.message || "流式响应异常";
+              // 取消未触发的 delta flush，避免覆盖错误状态
+              streamEnded = true;
+              if (rafId !== null && typeof cancelAnimationFrame === "function") {
+                cancelAnimationFrame(rafId);
+              }
               setMessages((prev) =>
                 prev.map((m) =>
                   m.id === aiMsgId ? { ...m, content: errMsg, error: true, streaming: false } : m
@@ -1318,6 +1345,14 @@ export default function AIAssistantPage() {
           }
         }
       }
+
+      // 流结束：标记流结束 + 取消未触发的 delta flush，避免覆盖最终化状态
+      streamEnded = true;
+      if (rafId !== null && typeof cancelAnimationFrame === "function") {
+        cancelAnimationFrame(rafId);
+      }
+      rafScheduled = false;
+      rafId = null;
 
       // 流结束：最终化消息
       const finalContent = aiContent || "(空回复)";
@@ -1584,6 +1619,18 @@ export default function AIAssistantPage() {
       const decoder = new TextDecoder();
       let aiContent = "";
       let sseBuffer = "";
+      // delta 渲染节流：rAF 合并多次 delta 到下一帧
+      let voiceRafScheduled = false;
+      let voiceRafId: number | null = null;
+      let voiceStreamEnded = false;
+      const flushVoiceDelta = () => {
+        voiceRafScheduled = false;
+        voiceRafId = null;
+        if (voiceStreamEnded) return;
+        setMessages((prev) =>
+          prev.map((m) => (m.id === aiMsgId ? { ...m, content: aiContent } : m))
+        );
+      };
 
       while (true) {
         const { done, value } = await reader.read();
@@ -1601,9 +1648,14 @@ export default function AIAssistantPage() {
             if (obj.type === "delta" && typeof obj.content === "string") {
               aiContent += obj.content;
               tts?.feed(obj.content);
-              setMessages((prev) =>
-                prev.map((m) => (m.id === aiMsgId ? { ...m, content: aiContent } : m))
-              );
+              if (!voiceRafScheduled && !voiceStreamEnded) {
+                voiceRafScheduled = true;
+                if (typeof requestAnimationFrame === "function") {
+                  voiceRafId = requestAnimationFrame(flushVoiceDelta);
+                } else {
+                  setTimeout(flushVoiceDelta, 0);
+                }
+              }
             } else if (obj.type === "error") {
               console.warn("[Voice LLM stream]", obj.message);
             }
@@ -1612,8 +1664,13 @@ export default function AIAssistantPage() {
           }
         }
       }
+      // 取消未触发的 flush
+      voiceStreamEnded = true;
+      if (voiceRafId !== null && typeof cancelAnimationFrame === "function") {
+        cancelAnimationFrame(voiceRafId);
+      }
       tts?.finish();
-      setMessages((prev) => prev.map((m) => (m.id === aiMsgId ? { ...m, streaming: false } : m)));
+      setMessages((prev) => prev.map((m) => (m.id === aiMsgId ? { ...m, content: aiContent, streaming: false } : m)));
 
       if (currentSessionId && aiContent) {
         fetch(`/api/ai/chat/sessions/${currentSessionId}/messages`, {

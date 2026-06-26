@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/db";
-import { requireAdmin } from "@/lib/auth-utils";
+import { requireAdmin, clearPermissionCache } from "@/lib/auth-utils";
 
 // GET /api/users/[id] - 获取单个用户详情（仅 admin）
 export async function GET(
@@ -128,6 +128,11 @@ export async function PATCH(
         createdAt: true,
       },
     });
+
+    // 角色/激活状态变更时清除该用户的权限缓存
+    if (role !== undefined || active !== undefined) {
+      clearPermissionCache(id);
+    }
 
     return NextResponse.json({ user, success: true });
   } catch (e) {

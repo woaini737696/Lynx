@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { requireAuth, buildUserFilter } from "@/lib/auth-utils";
+import { requireAuth, requirePermission, buildUserFilter } from "@/lib/auth-utils";
 import { getLogger } from "@/lib/logger";
 import { rateLimit, getClientKey } from "@/lib/rate-limit";
 
@@ -43,8 +43,8 @@ export async function GET(req: NextRequest) {
       );
     }
 
-    // 鉴权：admin 可导出全部，普通用户只能导出自己的
-    const auth = await requireAuth();
+    // 鉴权：admin 可导出全部，普通用户只能导出自己的（需具备 backup:export 权限）
+    const auth = await requirePermission("backup:export");
     if (auth.user === null) return auth.error;
 
     const { searchParams } = new URL(req.url);

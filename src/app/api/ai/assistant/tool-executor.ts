@@ -546,6 +546,8 @@ async function executeRebuildMemory(user: AuthUser) {
   const pendingUpdates: { id: string; embedding: Buffer; content: string }[] = [];
   const pendingCreates: Prisma.MemoryUncheckedCreateInput[] = [];
 
+  // 收集需要重新生成 embedding 的 source（已有 embedding 的复用，无需调用 AI）
+  const pendingEmbedSources: SourceItem[] = [];
   for (const src of sources) {
     const lookupKey = `${src.type}:${src.ideaId || src.conversationId || src.cognitionId || ""}`;
     const existing = existingMap.get(lookupKey);
@@ -556,28 +558,39 @@ async function executeRebuildMemory(user: AuthUser) {
       continue;
     }
 
-    // 生成 embedding
-    const vec = await embedText(src.content);
-    embeddings.set(src.id, vec);
-
-    const embeddingBuffer = float32ToBuffer(vec);
-    // 使用 UncheckedCreateInput 以支持直接写入外键字段（ideaId/conversationId/cognitionId）
-    const data: Prisma.MemoryUncheckedCreateInput = {
-      type: src.type,
-      content: src.content,
-      embedding: embeddingBuffer,
-      ideaId: src.ideaId || null,
-      conversationId: src.conversationId || null,
-      cognitionId: src.cognitionId || null,
-      userId: src.userId || user.id,
-    };
-
-    if (existing) {
-      pendingUpdates.push({ id: existing.id, embedding: embeddingBuffer, content: src.content });
-    } else {
-      pendingCreates.push(data);
-    }
+    pendingEmbedSources.push(src);
     processed++;
+  }
+
+  // 并行批量生成 embedding（限制并发 8，避免一次性发起过多 HTTP 请求）
+  const EMBED_CONCURRENCY = 8;
+  for (let i = 0; i < pendingEmbedSources.length; i += EMBED_CONCURRENCY) {
+    const batch = pendingEmbedSources.slice(i, i + EMBED_CONCURRENCY);
+    const vecs = await Promise.all(batch.map((s) => embedText(s.content)));
+    for (let k = 0; k < batch.length; k++) {
+      const src = batch[k];
+      const vec = vecs[k];
+      embeddings.set(src.id, vec);
+
+      const embeddingBuffer = float32ToBuffer(vec);
+      const lookupKey = `${src.type}:${src.ideaId || src.conversationId || src.cognitionId || ""}`;
+      const existing = existingMap.get(lookupKey);
+      const data: Prisma.MemoryUncheckedCreateInput = {
+        type: src.type,
+        content: src.content,
+        embedding: embeddingBuffer,
+        ideaId: src.ideaId || null,
+        conversationId: src.conversationId || null,
+        cognitionId: src.cognitionId || null,
+        userId: src.userId || user.id,
+      };
+
+      if (existing) {
+        pendingUpdates.push({ id: existing.id, embedding: embeddingBuffer, content: src.content });
+      } else {
+        pendingCreates.push(data);
+      }
+    }
   }
 
   // 批量提交
@@ -593,8 +606,10 @@ async function executeRebuildMemory(user: AuthUser) {
     ]);
   }
 
-  // 3. 计算相似度连边
+  // 3. 计算相似度连边（利用对称性：sim(i,j) == sim(j,i)，只算上三角并镜像填充，减半计算量）
   const threshold = hasAIEmbedding ? 0.8 : 0.3;
+  // 每个节点最多保留 K 条最相似的连接，避免 hub 节点爆炸 + 控制 DB 写入量
+  const MAX_CONNECTIONS_PER_NODE = 20;
   const allMemories = await prisma.memory.findMany({
     where: userFilter,
     select: { id: true, embedding: true },
@@ -605,27 +620,34 @@ async function executeRebuildMemory(user: AuthUser) {
     vec: m.embedding ? bufferToFloat32(m.embedding) : null,
   }));
 
-  const updates: { id: string; connections: string[]; strength: number }[] = [];
-  let edgeCount = 0;
+  // 预分配每个节点的候选连接列表（带相似度分数，便于后续取 Top-K）
+  const connectionScores: Map<string, Array<{ id: string; score: number }>> = new Map();
+  for (const d of decoded) connectionScores.set(d.id, []);
+
   for (let i = 0; i < decoded.length; i++) {
-    const connections: string[] = [];
     const vecI = decoded[i].vec;
-    if (!vecI) {
-      updates.push({ id: decoded[i].id, connections: [], strength: 0 });
-      continue;
-    }
-    for (let j = 0; j < decoded.length; j++) {
-      if (i === j) continue;
+    if (!vecI) continue;
+    for (let j = i + 1; j < decoded.length; j++) {
       const vecJ = decoded[j].vec;
       if (!vecJ) continue;
       const sim = cosineSimilarity(vecI, vecJ);
       if (sim >= threshold) {
-        connections.push(decoded[j].id);
+        connectionScores.get(decoded[i].id)!.push({ id: decoded[j].id, score: sim });
+        connectionScores.get(decoded[j].id)!.push({ id: decoded[i].id, score: sim });
       }
     }
+  }
+
+  const updates: { id: string; connections: string[]; strength: number }[] = [];
+  let edgeCount = 0;
+  for (const d of decoded) {
+    const cands = connectionScores.get(d.id) || [];
+    // 取 Top-K（按相似度降序），避免某些热点节点连边过多
+    cands.sort((a, b) => b.score - a.score);
+    const connections = cands.slice(0, MAX_CONNECTIONS_PER_NODE).map((c) => c.id);
     edgeCount += connections.length;
     updates.push({
-      id: decoded[i].id,
+      id: d.id,
       connections,
       strength: connections.length,
     });

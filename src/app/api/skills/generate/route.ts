@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { chat, type LLMProvider } from "@/lib/ai-provider";
 import type { SkillParameter } from "@/lib/skill-parser";
-import { requireAuth } from "@/lib/auth-utils";
+import { requirePermission } from "@/lib/auth-utils";
 
 // AI 生成 Skill 的系统提示词
 const SKILL_GENERATE_PROMPT = `你是一个技能提取专家。用户会提供一段工作记录（可能附带与 AI 的对话历史），你的任务是：
@@ -127,7 +127,7 @@ function fallbackGenerateSkill(
 // POST /api/skills/generate - AI 对话生成 Skill
 // body: { conversation: [{role, content}], workLog: string, provider?: "deepseek" | "mimo" }
 export async function POST(req: NextRequest) {
-  const auth = await requireAuth();
+  const auth = await requirePermission("skill:generate");
   if (auth.error) return auth.error;
   try {
     const body = (await req.json()) as GenerateRequestBody;

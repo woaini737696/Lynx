@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { requireAdmin } from "@/lib/auth-utils";
+import { requireAdmin, clearPermissionCache } from "@/lib/auth-utils";
 import { getLogger } from "@/lib/logger";
 import {
   DEFAULT_ROLES,
@@ -175,6 +175,9 @@ export async function PUT(req: NextRequest) {
       },
     });
 
+    // 角色权限/属性变更，清除全部权限缓存（影响该角色下所有用户）
+    clearPermissionCache();
+
     return NextResponse.json({ role: updated, success: true });
   } catch (e) {
     logger.error({ err: e }, "更新角色失败");
@@ -329,6 +332,9 @@ export async function DELETE(req: NextRequest) {
     }
 
     await prisma.role.delete({ where: { name } });
+
+    // 角色删除后清除全部权限缓存（保险起见，避免遗留缓存）
+    clearPermissionCache();
 
     return NextResponse.json({ success: true });
   } catch (e) {

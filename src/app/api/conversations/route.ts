@@ -4,7 +4,7 @@ import { ai, defaultModel, EXTRACT_PROMPT } from "@/lib/ai";
 import { generateText } from "ai";
 import { writeMemoryForConversation } from "@/lib/memory-sync";
 import { parsePdf } from "@/lib/file-parser";
-import { requireAuth, buildUserFilter } from "@/lib/auth-utils";
+import { requireAuth, requirePermission, buildUserFilter } from "@/lib/auth-utils";
 import { getLogger } from "@/lib/logger";
 
 const logger = getLogger("conversations-api");
@@ -58,7 +58,7 @@ async function aiFallbackExtractPdf(filename: string, snippet: string): Promise<
 // 捕获对话资产 + AI 提取
 export async function POST(req: NextRequest) {
   try {
-    const { user, error } = await requireAuth();
+    const { user, error } = await requirePermission("conversation:capture");
     if (error) return error;
 
     const body = await req.json();

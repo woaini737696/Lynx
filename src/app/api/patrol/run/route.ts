@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { requireAuth, buildUserFilter } from "@/lib/auth-utils";
+import { requireAuth, requirePermission, buildUserFilter } from "@/lib/auth-utils";
 import { chat } from "@/lib/ai-provider";
 import { sendPushNotification, type PushSubscriptionObject } from "@/lib/push";
 import { runLarkCliService, getCurrentUser } from "@/lib/lark-sync";
@@ -120,7 +120,7 @@ async function sendNotifications(
 // 执行巡检
 export async function POST(req: NextRequest) {
   try {
-    const { user, error } = await requireAuth();
+    const { user, error } = await requirePermission("patrol:execute");
     if (error) return error;
 
     const body = await req.json().catch(() => ({}));

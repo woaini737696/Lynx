@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { requireAuth, buildUserFilter } from "@/lib/auth-utils";
+import { requireAuth, requirePermission, buildUserFilter } from "@/lib/auth-utils";
 import { getLogger } from "@/lib/logger";
 import { validateString, validateEnum } from "@/lib/validate";
 
@@ -31,7 +31,7 @@ export async function GET() {
 // 新增看板任务（带满额阻断）
 export async function POST(req: NextRequest) {
   try {
-    const { user, error } = await requireAuth();
+    const { user, error } = await requirePermission("task:create");
     if (error) return error;
 
     const body = await req.json().catch(() => ({}));
