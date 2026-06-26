@@ -109,6 +109,80 @@ export async function requireAdmin(): Promise<{
   return result;
 }
 
+// ============ 权限缓存（5 分钟，避免每次查 DB）============
+interface PermissionCacheEntry {
+  permissions: string[];
+  expiresAt: number;
+}
+const permissionCache = new Map<string, PermissionCacheEntry>();
+const PERMISSION_CACHE_TTL = 5 * 60 * 1000; // 5 分钟
+
+/**
+ * 获取用户权限列表（带缓存）
+ * admin 直通返回 ["*"] 表示全部权限
+ */
+async function getUserPermissions(userId: string, role: string): Promise<string[]> {
+  if (role === "admin") return ["*"]; // admin 拥有全部权限
+
+  // 查缓存
+  const cached = permissionCache.get(userId);
+  if (cached && cached.expiresAt > Date.now()) {
+    return cached.permissions;
+  }
+
+  // 查 DB
+  try {
+    const roleRow = await prisma.role.findUnique({
+      where: { name: role },
+      select: { permissions: true },
+    });
+    const perms = Array.isArray(roleRow?.permissions) ? (roleRow!.permissions as string[]) : [];
+    permissionCache.set(userId, { permissions: perms, expiresAt: Date.now() + PERMISSION_CACHE_TTL });
+    return perms;
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * 清除用户权限缓存（角色变更时调用）
+ */
+export function clearPermissionCache(userId?: string): void {
+  if (userId) {
+    permissionCache.delete(userId);
+  } else {
+    permissionCache.clear();
+  }
+}
+
+/**
+ * 要求具有指定权限，否则返回 403
+ * admin 直通；其他角色检查 Role.permissions 是否包含 permKey
+ */
+export async function requirePermission(permKey: string): Promise<{
+  user: AuthUser;
+  error?: never;
+} | {
+  user: null;
+  error: Response;
+}> {
+  const result = await requireAuth();
+  if (result.user === null) return result;
+
+  const perms = await getUserPermissions(result.user.id, result.user.role);
+  const hasPerm = perms.includes("*") || perms.includes(permKey);
+  if (!hasPerm) {
+    return {
+      user: null,
+      error: new Response(
+        JSON.stringify({ error: `权限不足，需要权限：${permKey}` }),
+        { status: 403, headers: { "Content-Type": "application/json" } }
+      ),
+    };
+  }
+  return result;
+}
+
 /**
  * 构建数据查询的 where 条件（admin 全局视图，普通用户只能看自己的数据）
  * 返回 Prisma where 条件对象

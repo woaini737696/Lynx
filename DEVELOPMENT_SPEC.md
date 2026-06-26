@@ -168,3 +168,54 @@
 - Heredoc 不支持，用 `git commit -F <file>` 代替
 - 路径含空格用双引号
 - 查找文件用 `Glob`，搜索内容用 `Grep`，禁止 `find`/`grep`/`rg` 命令
+
+## 9. 桌面端规范（强制）
+
+### 9.1 架构规范
+- **桌面端基于 Tauri 2.x**：Rust 壳 + 复用 Next.js 前端代码，禁止使用 Electron
+- **桌面端源码目录**：`desktop/src-tauri/`（Rust 代码）、前端复用 `src/` 目录
+- **环境检测**：前端通过 `isDesktop()`（`src/lib/desktop-client.ts`）检测是否运行在 Tauri 环境
+- **Web 端 vs 桌面端**：Web 端走云端 API，桌面端通过 Tauri invoke 调用本地 Rust 能力
+
+### 9.2 HermesAgent 本地化规范
+- **本地 AI 代理**：桌面端内置 HermesAgent 进程（Rust 端 `hermes/` 模块），负责本地电脑操控
+- **一键安装**：设置页提供「一键安装 AI 环境」按钮（`DesktopHermesSection` 组件），调用 `installAiEnv()` Tauri 命令
+- **进程管理**：启动/停止 HermesAgent 通过 Tauri invoke（`start_hermes` / `stop_hermes`），使用 AtomicBool 全局标志实现紧急停止
+- **能力分级**：
+  - L1（云端 CRUD）：直执不审批
+  - L2（本地文件/浏览器）：首次授权
+  - L3（Shell/桌面 RPA）：每次审批
+
+### 9.3 三档授权模式（强制）
+- **模式切换器**：AI 助理输入框上方必须显示三档授权模式切换器（仅桌面端显示，仿 Codex 风格）
+- **三档模式**：
+  - `approve`（弹窗审批）：每次操作弹窗确认（默认，最安全）
+  - `once`（一次授权）：同类操作首次授权后会话内不再询问
+  - `free`（免审批）：仅记录日志不弹窗（效率最高）
+- **审批弹窗**：L2/L3 级操作在 `approve` / `once` 模式下必须弹出审批 Modal（`approval-request` 事件）
+- **紧急停止**：所有操作支持紧急停止（AtomicBool 标志 + 执行前后双检查 + 5s 自动重置）
+
+### 9.4 多端协同规范
+- **WebSocket 网关**：`src/lib/ws-gateway.ts` 维护 PC 在线状态（端口 3001），独立于 Next.js 进程
+- **WS 启动脚本**：`scripts/start-ws-gateway.js`（通过 tsx 运行，支持 PM2 托管）
+- **PC 会话管理**：`PcSession` 表记录每台 PC 的 `wsChannelId`、在线状态、授权模式
+- **远程指令**：安卓端/Web 端 → 云端 API `/api/hermes/remote-command` → WS 网关转发 → 目标 PC 执行
+- **指令状态流转**：pending → dispatched → executing → completed/failed
+
+### 9.5 安全操作规范（强制）
+- **安全操作说明**：设置页 HermesAgent 区域必须包含「安全操作说明」按钮（`SafetyGuideModal`）
+- **授权目录白名单**：用户可配置允许 AI 访问的目录白名单（`authDirectories`），白名单外目录拒绝访问
+- **审计日志**：所有 AI 操作必须记录到 `AgentAuditLog` 表（含 level/action/result/source/durationMs）
+- **数据安全承诺**：本地文件操作不自动上传，仅返回操作结果摘要
+
+### 9.6 桌面端自动更新
+- **Tauri Updater**：通过 `/api/desktop/update` 端点提供版本检查
+- **更新配置**：环境变量 `DESKTOP_LATEST_VERSION` / `DESKTOP_DOWNLOAD_URL` / `DESKTOP_SIGNATURE`
+- **语义化版本比较**：`isNewer()` 函数实现 semver 比较
+
+### 9.7 桌面端开发流程
+- **前端开发**：在 `src/` 目录开发，通过 `isDesktop()` 区分环境
+- **Rust 开发**：在 `desktop/src-tauri/src/` 目录开发，通过 `tauri invoke` 暴露给前端
+- **本地调试**：`cd desktop && npm run tauri dev`（需要 Rust 工具链）
+- **构建发布**：`cd desktop && npm run tauri build`（生成各平台安装包）
+- **桥接组件**：`DesktopBridge` 组件在 `layout.tsx` 全局挂载，负责 session 同步

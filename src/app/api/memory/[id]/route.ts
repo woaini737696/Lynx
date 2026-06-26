@@ -1,16 +1,23 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
+import { requireAuth } from "@/lib/auth-utils";
 
 // 删除记忆节点：同时清理其他节点 connections 中对该节点的引用
 export async function DELETE(
   _req: NextRequest,
   { params }: { params: { id: string } }
 ) {
+  const auth = await requireAuth();
+  if (auth.error) return auth.error;
   try {
     const { id } = params;
     const memory = await prisma.memory.findUnique({ where: { id } });
     if (!memory) {
       return NextResponse.json({ error: "记忆不存在" }, { status: 404 });
+    }
+    // 用户只能删除自己的 memory（admin 直通）
+    if (auth.user.role !== "admin" && memory.userId && memory.userId !== auth.user.id) {
+      return NextResponse.json({ error: "无权删除他人的记忆" }, { status: 403 });
     }
 
     // 拉取所有记忆，在代码层过滤出 connections 中引用了该 id 的节点（Json 字段不便做数据库层过滤）

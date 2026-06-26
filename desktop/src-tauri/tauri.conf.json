@@ -1,0 +1,78 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "LynnHub",
+  "version": "1.0.0",
+  "identifier": "com.lynnhub.desktop",
+  "build": {
+    "beforeDevCommand": "npm run frontend:dev",
+    "devUrl": "http://localhost:5176",
+    "beforeBuildCommand": "npm run frontend:build",
+    "frontendDist": "../out"
+  },
+  "app": {
+    "windows": [
+      {
+        "title": "LynnHub 桌面端",
+        "width": 1440,
+        "height": 900,
+        "minWidth": 1024,
+        "minHeight": 700,
+        "resizable": true,
+        "fullscreen": false,
+        "decorations": true,
+        "transparent": false,
+        "icon": [
+          "icons/icon.ico"
+        ]
+      }
+    ],
+    "security": {
+      "csp": null,
+      "devCsp": null
+    },
+    "trayIcon": {
+      "iconPath": "icons/icon.ico",
+      "iconAsTemplate": false,
+      "menuOnLeftClick": false,
+      "title": "LynnHub HermesAgent"
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": ["msi", "nsis"],
+    "icon": [
+      "icons/icon.ico"
+    ],
+    "resources": [
+      "resources/*",
+      "sidecar/*"
+    ],
+    "externalBin": [
+      "binaries/hermes-agent"
+    ],
+    "copyright": "© 2026 LynnHub",
+    "category": "Productivity",
+    "shortDescription": "LynnHub 全平台智能助理桌面端",
+    "longDescription": "LynnHub 桌面端集成 HermesAgent 本地超级助理，可操控云端系统功能与本地电脑，支持多端协同。"
+  },
+  "plugins": {
+    "updater": {
+      "active": true,
+      "endpoints": [
+        "https://app.lynnhub.com/api/desktop/update",
+        "http://localhost:5176/api/desktop/update"
+      ],
+      "pubkey": "",
+      "dialog": true
+    },
+    "shell": {
+      "scope": [
+        {
+          "name": "open-browser",
+          "cmd": "open",
+          "args": true
+        }
+      ]
+    }
+  }
+}

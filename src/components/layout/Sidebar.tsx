@@ -33,6 +33,7 @@ import {
   Shield,
   Briefcase,
   Coins,
+  Monitor,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "@/components/ui/toast";
@@ -111,6 +112,7 @@ const NAV_GROUPS: NavGroup[] = [
       { href: "/settings/lark-bot", label: "飞书机器人", icon: MessageCircle, color: "text-campaign" },
       { href: "/settings/push", label: "通知设置", icon: Bell, color: "text-muted-foreground" },
       { href: "/settings/diagnostics", label: "性能监控", icon: Activity, color: "text-task" },
+      { href: "/settings/remote-control", label: "远程操控", icon: Monitor, color: "text-northstar" },
       { href: "/settings/backup", label: "数据备份", icon: Database, color: "text-muted-foreground" },
       { href: "/dev-log", label: "开发日志", icon: ScrollText, color: "text-muted-foreground" },
     ],

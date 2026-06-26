@@ -50,6 +50,16 @@ export default auth((req) => {
     return NextResponse.redirect(loginUrl);
   }
 
+  // 路由守卫：/admin/* 仅 admin 可访问（服务端校验，避免普通用户看到 admin 页面骨架）
+  if (pathname.startsWith("/admin/")) {
+    const role = (req.auth.user as { role?: string } | undefined)?.role;
+    if (role !== "admin") {
+      const homeUrl = new URL("/", req.nextUrl.origin);
+      homeUrl.searchParams.set("forbidden", "1");
+      return NextResponse.redirect(homeUrl);
+    }
+  }
+
   return NextResponse.next();
 });
 

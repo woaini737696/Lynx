@@ -4,6 +4,7 @@ import {
   chatStream,
   getLLMConfigForUser,
   type ChatMessage,
+  type ChatResponse,
   type MultimodalContent,
   type LLMProvider,
   type ReasoningMode,
@@ -413,12 +414,52 @@ export async function POST(req: NextRequest) {
             // 命中系统工具意图，回退到 LLM + Function Calling
             hermesFallback = true;
           } else {
-            const hermesResult = await executeAssistantViaHermes(user.id, userText, 120);
+            // Hermes 快速失败：8 秒超时（原 120 秒会让用户等太久）
+            // Hermes 需要 spawn 子进程，冷启动 5-30 秒，不适合实时聊天
+            // 超时后立即回退到 LLM + Function Calling 模式
+            const hermesResult = await executeAssistantViaHermes(user.id, userText, 8);
             if (hermesResult.success) {
               // 异步学习任务模式（非阻塞，不影响响应延迟）
               learnTaskPattern(user.id, userText, hermesResult.output).catch(() => {
                 // 学习失败不影响主流程
               });
+
+              // 流式分支：把 Hermes 输出作为 delta 推送
+              if (stream === true) {
+                const encoder = new TextEncoder();
+                const streamBody = new ReadableStream<Uint8Array>({
+                  start(controller) {
+                    const send = (obj: unknown) => controller.enqueue(encoder.encode(`data: ${JSON.stringify(obj)}\n\n`));
+                    try {
+                      send({ type: "meta", provider: "hermes", model: "hermes-agent", hermesMode: true });
+                      if (hermesResult.output) {
+                        // 分块推送（模拟流式效果）
+                        const chunks = hermesResult.output.match(/[\s\S]{1,40}/g) || [hermesResult.output];
+                        for (const chunk of chunks) {
+                          send({ type: "delta", content: chunk });
+                        }
+                      }
+                      send({
+                        type: "done",
+                        usage: { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 },
+                        toolCalled: null,
+                        hermesMode: true,
+                        ...(hermesFallback ? { hermesFallback: true } : {}),
+                      });
+                    } finally {
+                      controller.close();
+                    }
+                  },
+                });
+                return new Response(streamBody, {
+                  headers: {
+                    "Content-Type": "text/event-stream; charset=utf-8",
+                    "Cache-Control": "no-cache, no-transform",
+                    Connection: "keep-alive",
+                    "X-Accel-Buffering": "no",
+                  },
+                });
+              }
 
               return NextResponse.json({
                 content: hermesResult.output,
@@ -435,7 +476,7 @@ export async function POST(req: NextRequest) {
                 durationMs: hermesResult.durationMs,
               });
             }
-            // Hermes 执行失败 → 回退到 LLM + Function Calling 模式（继续往下执行）
+            // Hermes 执行失败/超时 → 回退到 LLM + Function Calling 模式（继续往下执行）
             hermesFallback = true;
           }
         }
@@ -504,158 +545,130 @@ export async function POST(req: NextRequest) {
         // 获取失败回退到全局配置
       }
 
-      // 第一轮：调用 AI 决定是否需要调用工具
-      const firstResult = await chat(assistantMessages, {
-        provider: resolvedProvider,
-        model,
-        reasoningMode: resolvedReasoningMode,
-        temperature,
-        maxTokens,
-        apiKey: userApiKey,
-        baseUrl: userBaseUrl,
-      });
+      // 第一轮：调用 AI 决定是否需要调用工具（流式优化：边收 token 边推送 thinking 事件）
+      // 当 stream=true 时，第一轮也走流式，让用户实时看到"正在思考"的内容
+      let firstResult: ChatResponse | null = null;
 
-      // 解析 action
-      let action = parseAction(firstResult.content);
+      if (stream === true) {
+        // 流式第一轮：收集完整内容用于解析 action，同时推送 thinking 事件给前端
+        const encoder = new TextEncoder();
+        const streamBody = new ReadableStream<Uint8Array>({
+          async start(controller) {
+            const send = (obj: unknown) => controller.enqueue(encoder.encode(`data: ${JSON.stringify(obj)}\n\n`));
+            let firstContent = "";
+            let firstProvider: string | undefined;
+            let firstModel: string | undefined;
+            let firstUsage: any;
+            let action: { tool: string; args: any } | null = null;
+            let toolExecuted = false;
+            try {
+              // 先推 meta 事件
+              send({ type: "meta", provider: resolvedProvider, model });
 
-      // Fallback：如果 AI 没输出 action 块，用关键词意图检测
-      if (!action) {
-        const lastUserMsg = cleanMessages.filter((m) => m.role === "user").pop();
-        const userText = typeof lastUserMsg?.content === "string" ? lastUserMsg.content : "";
-        action = detectIntent(userText);
-      }
+              // 第一轮流式调用
+              for await (const evt of chatStream(assistantMessages, {
+                provider: resolvedProvider,
+                model,
+                reasoningMode: resolvedReasoningMode,
+                temperature,
+                maxTokens,
+                apiKey: userApiKey,
+                baseUrl: userBaseUrl,
+              })) {
+                if (evt.type === "meta") {
+                  firstProvider = evt.provider;
+                  firstModel = evt.model;
+                } else if (evt.type === "delta") {
+                  firstContent += evt.content;
+                  // 推送 thinking 事件让前端显示"正在思考..."
+                  send({ type: "thinking", content: "正在思考..." });
+                } else if (evt.type === "done") {
+                  firstUsage = evt.usage;
+                  break;
+                } else if (evt.type === "error") {
+                  send(evt);
+                  return;
+                }
+              }
 
-      // 无 action：直接返回回复（去除可能的 action 块）
-      if (!action) {
-        // 异步学习任务模式（非阻塞，让每次交互都成为学习机会）
-        const lastUserMsgForLearn = cleanMessages.filter((m) => m.role === "user").pop();
-        const userTextForLearn = typeof lastUserMsgForLearn?.content === "string" ? lastUserMsgForLearn.content : "";
-        if (userTextForLearn.trim()) {
-          learnTaskPattern(user.id, userTextForLearn, firstResult.content).catch(() => {
-            // 学习失败不影响主流程
-          });
-        }
+              firstResult = {
+                content: firstContent,
+                provider: (firstProvider || resolvedProvider || "unknown") as LLMProvider,
+                model: firstModel || model || "unknown",
+                usage: firstUsage,
+              };
 
-        // 流式分支：把已生成的完整内容作为 delta 推送
-        if (stream === true) {
-          const encoder = new TextEncoder();
-          const finalContent = stripAction(firstResult.content);
-          const streamBody = new ReadableStream<Uint8Array>({
-            start(controller) {
-              const send = (obj: unknown) => controller.enqueue(encoder.encode(`data: ${JSON.stringify(obj)}\n\n`));
-              try {
-                send({ type: "meta", provider: firstResult.provider, model: firstResult.model });
+              // 解析 action
+              action = parseAction(firstContent);
+
+              // Fallback：关键词意图检测
+              if (!action) {
+                const lastUserMsg = cleanMessages.filter((m) => m.role === "user").pop();
+                const userText = typeof lastUserMsg?.content === "string" ? lastUserMsg.content : "";
+                action = detectIntent(userText);
+              }
+
+              // 无 action：直接把完整内容作为 delta 推送
+              if (!action) {
+                const finalContent = stripAction(firstContent);
                 if (finalContent) send({ type: "delta", content: finalContent });
+                // 异步学习
+                const lastUserMsgForLearn = cleanMessages.filter((m) => m.role === "user").pop();
+                const userTextForLearn = typeof lastUserMsgForLearn?.content === "string" ? lastUserMsgForLearn.content : "";
+                if (userTextForLearn.trim()) {
+                  learnTaskPattern(user.id, userTextForLearn, firstContent).catch(() => {});
+                }
                 send({
                   type: "done",
-                  usage: firstResult.usage,
+                  usage: firstUsage,
                   toolCalled: null,
                   ...(hermesFallback ? { hermesFallback: true } : {}),
                 });
-              } finally {
-                controller.close();
+                return;
               }
-            },
-          });
-          return new Response(streamBody, {
-            headers: {
-              "Content-Type": "text/event-stream; charset=utf-8",
-              "Cache-Control": "no-cache, no-transform",
-              Connection: "keep-alive",
-              "X-Accel-Buffering": "no",
-            },
-          });
-        }
 
-        return NextResponse.json({
-          content: stripAction(firstResult.content),
-          provider: firstResult.provider,
-          model: firstResult.model,
-          usage: firstResult.usage,
-          toolCalled: null,
-          ...(hermesFallback ? { hermesFallback: true } : {}),
-        });
-      }
-
-      // 有 action：先校验工具白名单（职业工作空间限制）
-      if (Array.isArray(allowedTools) && allowedTools.length > 0 && !allowedTools.includes(action.tool)) {
-        const blockedContent = `你的岗位工作空间未授权使用工具「${action.tool}」。当前岗位可用工具：${allowedTools.join("、")}`;
-        const blockedToolCalled = {
-          tool: action.tool,
-          args: action.args,
-          result: { error: `工具未授权`, allowedTools },
-        };
-
-        if (stream === true) {
-          const encoder = new TextEncoder();
-          const streamBody = new ReadableStream<Uint8Array>({
-            start(controller) {
-              const send = (obj: unknown) => controller.enqueue(encoder.encode(`data: ${JSON.stringify(obj)}\n\n`));
-              try {
-                send({ type: "meta", provider: firstResult.provider, model: firstResult.model });
+              // 有 action：校验工具白名单
+              if (Array.isArray(allowedTools) && allowedTools.length > 0 && !allowedTools.includes(action.tool)) {
+                const blockedContent = `你的岗位工作空间未授权使用工具「${action.tool}」。当前岗位可用工具：${allowedTools.join("、")}`;
                 send({ type: "delta", content: blockedContent });
                 send({
                   type: "done",
-                  usage: firstResult.usage,
-                  toolCalled: blockedToolCalled,
+                  usage: firstUsage,
+                  toolCalled: {
+                    tool: action.tool,
+                    args: action.args,
+                    result: { error: `工具未授权`, allowedTools },
+                  },
                   ...(hermesFallback ? { hermesFallback: true } : {}),
                 });
-              } finally {
-                controller.close();
+                return;
               }
-            },
-          });
-          return new Response(streamBody, {
-            headers: {
-              "Content-Type": "text/event-stream; charset=utf-8",
-              "Cache-Control": "no-cache, no-transform",
-              Connection: "keep-alive",
-              "X-Accel-Buffering": "no",
-            },
-          });
-        }
 
-        return NextResponse.json({
-          content: blockedContent,
-          provider: firstResult.provider,
-          model: firstResult.model,
-          usage: firstResult.usage,
-          toolCalled: blockedToolCalled,
-          ...(hermesFallback ? { hermesFallback: true } : {}),
-        });
-      }
+              // 有 action：推送工具执行进度事件
+              send({ type: "tool_start", tool: action.tool, args: action.args });
+              const toolResult = await executeTool(action.tool, action.args, user);
+              send({ type: "tool_done", tool: action.tool, toolCalled: { tool: action.tool, args: action.args, result: toolResult } });
+              toolExecuted = true;
 
-      // 有 action：执行工具
-      const toolResult = await executeTool(action.tool, action.args, user);
-
-      // 第二轮：把工具结果拼成新消息，让 AI 生成最终回复
-      const toolResultStr = JSON.stringify(toolResult).slice(0, 8000);
-      const secondMessages: ChatMessage[] = [
-        ...assistantMessages,
-        { role: "assistant", content: firstResult.content },
-        {
-          role: "user",
-          content: `工具 ${action.tool} 执行完成，结果如下：
+              // 第二轮：把工具结果拼成新消息，流式输出最终回复
+              const toolResultStr = JSON.stringify(toolResult).slice(0, 8000);
+              const secondMessages: ChatMessage[] = [
+                ...assistantMessages,
+                { role: "assistant", content: firstContent },
+                {
+                  role: "user",
+                  content: `工具 ${action.tool} 执行完成，结果如下：
 
 \`\`\`json
 ${toolResultStr}
 \`\`\`
 
 请基于以上工具结果，给出有价值的总结和建议。如果工具执行失败，告知用户原因并给出建议。`,
-        },
-      ];
+                },
+              ];
 
-      // ============ 流式分支：第二轮 LLM 调用走 SSE ============
-      if (stream === true) {
-        const encoder = new TextEncoder();
-        const streamBody = new ReadableStream<Uint8Array>({
-          async start(controller) {
-            const send = (obj: unknown) => controller.enqueue(encoder.encode(`data: ${JSON.stringify(obj)}\n\n`));
-            let secondUsage: { prompt_tokens?: number; completion_tokens?: number; total_tokens?: number } | undefined;
-            let secondProvider: string | undefined;
-            let secondModel: string | undefined;
-            let secondContent = "";
-            try {
+              let secondUsage: any;
+              let secondContent = "";
               for await (const evt of chatStream(secondMessages, {
                 provider: resolvedProvider,
                 model,
@@ -666,15 +679,13 @@ ${toolResultStr}
                 baseUrl: userBaseUrl,
               })) {
                 if (evt.type === "meta") {
-                  secondProvider = evt.provider;
-                  secondModel = evt.model;
-                  send(evt);
+                  // 不重复推 meta
                 } else if (evt.type === "delta") {
                   secondContent += evt.content;
                   send(evt);
                 } else if (evt.type === "done") {
                   secondUsage = evt.usage;
-                  // 异步学习（非阻塞）
+                  // 异步学习
                   const lastUserMsgForLearn = cleanMessages.filter((m) => m.role === "user").pop();
                   const userTextForLearn = typeof lastUserMsgForLearn?.content === "string" ? lastUserMsgForLearn.content : "";
                   if (userTextForLearn.trim()) {
@@ -683,29 +694,19 @@ ${toolResultStr}
                   send({
                     type: "done",
                     usage: {
-                      prompt_tokens:
-                        (firstResult.usage?.prompt_tokens || 0) +
-                        (secondUsage?.prompt_tokens || 0),
-                      completion_tokens:
-                        (firstResult.usage?.completion_tokens || 0) +
-                        (secondUsage?.completion_tokens || 0),
-                      total_tokens:
-                        (firstResult.usage?.total_tokens || 0) +
-                        (secondUsage?.total_tokens || 0),
+                      prompt_tokens: (firstUsage?.prompt_tokens || 0) + (secondUsage?.prompt_tokens || 0),
+                      completion_tokens: (firstUsage?.completion_tokens || 0) + (secondUsage?.completion_tokens || 0),
+                      total_tokens: (firstUsage?.total_tokens || 0) + (secondUsage?.total_tokens || 0),
                     },
-                    provider: secondProvider,
-                    model: secondModel,
-                    toolCalled: {
-                      tool: action.tool,
-                      args: action.args,
-                      result: toolResult,
-                    },
+                    provider: firstProvider,
+                    model: firstModel,
+                    toolCalled: { tool: action.tool, args: action.args, result: toolResult },
                     ...(hermesFallback ? { hermesFallback: true } : {}),
                   });
-                  break;
+                  return;
                 } else if (evt.type === "error") {
                   send(evt);
-                  break;
+                  return;
                 }
               }
             } catch (e) {
@@ -725,6 +726,91 @@ ${toolResultStr}
           },
         });
       }
+
+      // 非流式分支：保持原有的同步 chat 调用
+      const firstResultSync = await chat(assistantMessages, {
+        provider: resolvedProvider,
+        model,
+        reasoningMode: resolvedReasoningMode,
+        temperature,
+        maxTokens,
+        apiKey: userApiKey,
+        baseUrl: userBaseUrl,
+      });
+
+      firstResult = firstResultSync;
+
+      // 解析 action
+      let action = parseAction(firstResultSync.content);
+
+      // Fallback：如果 AI 没输出 action 块，用关键词意图检测
+      if (!action) {
+        const lastUserMsg = cleanMessages.filter((m) => m.role === "user").pop();
+        const userText = typeof lastUserMsg?.content === "string" ? lastUserMsg.content : "";
+        action = detectIntent(userText);
+      }
+
+      // 无 action：直接返回回复（去除可能的 action 块）
+      if (!action) {
+        // 异步学习任务模式（非阻塞，让每次交互都成为学习机会）
+        const lastUserMsgForLearn = cleanMessages.filter((m) => m.role === "user").pop();
+        const userTextForLearn = typeof lastUserMsgForLearn?.content === "string" ? lastUserMsgForLearn.content : "";
+        if (userTextForLearn.trim()) {
+          learnTaskPattern(user.id, userTextForLearn, firstResultSync.content).catch(() => {
+            // 学习失败不影响主流程
+          });
+        }
+
+        // 非流式分支：直接返回 JSON（流式分支已在上方提前 return）
+        return NextResponse.json({
+          content: stripAction(firstResultSync.content),
+          provider: firstResultSync.provider,
+          model: firstResultSync.model,
+          usage: firstResultSync.usage,
+          toolCalled: null,
+          ...(hermesFallback ? { hermesFallback: true } : {}),
+        });
+      }
+
+      // 有 action：先校验工具白名单（职业工作空间限制）
+      if (Array.isArray(allowedTools) && allowedTools.length > 0 && !allowedTools.includes(action.tool)) {
+        const blockedContent = `你的岗位工作空间未授权使用工具「${action.tool}」。当前岗位可用工具：${allowedTools.join("、")}`;
+        const blockedToolCalled = {
+          tool: action.tool,
+          args: action.args,
+          result: { error: `工具未授权`, allowedTools },
+        };
+
+        // 非流式分支：直接返回 JSON（流式分支已在上方提前 return）
+        return NextResponse.json({
+          content: blockedContent,
+          provider: firstResultSync.provider,
+          model: firstResultSync.model,
+          usage: firstResultSync.usage,
+          toolCalled: blockedToolCalled,
+          ...(hermesFallback ? { hermesFallback: true } : {}),
+        });
+      }
+
+      // 有 action：执行工具
+      const toolResult = await executeTool(action.tool, action.args, user);
+
+      // 第二轮：把工具结果拼成新消息，让 AI 生成最终回复
+      const toolResultStr = JSON.stringify(toolResult).slice(0, 8000);
+      const secondMessages: ChatMessage[] = [
+        ...assistantMessages,
+        { role: "assistant", content: firstResultSync.content },
+        {
+          role: "user",
+          content: `工具 ${action.tool} 执行完成，结果如下：
+
+\`\`\`json
+${toolResultStr}
+\`\`\`
+
+请基于以上工具结果，给出有价值的总结和建议。如果工具执行失败，告知用户原因并给出建议。`,
+        },
+      ];
 
       // ============ 非流式分支：第二轮 LLM 调用同步等结果 ============
       const secondResult = await chat(secondMessages, {
@@ -752,13 +838,13 @@ ${toolResultStr}
         model: secondResult.model,
         usage: {
           prompt_tokens:
-            (firstResult.usage?.prompt_tokens || 0) +
+            (firstResultSync.usage?.prompt_tokens || 0) +
             (secondResult.usage?.prompt_tokens || 0),
           completion_tokens:
-            (firstResult.usage?.completion_tokens || 0) +
+            (firstResultSync.usage?.completion_tokens || 0) +
             (secondResult.usage?.completion_tokens || 0),
           total_tokens:
-            (firstResult.usage?.total_tokens || 0) +
+            (firstResultSync.usage?.total_tokens || 0) +
             (secondResult.usage?.total_tokens || 0),
         },
         toolCalled: {

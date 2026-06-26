@@ -576,6 +576,9 @@ export async function chat(
   };
 
   const url = `${config.baseUrl.replace(/\/$/, "")}/chat/completions`;
+  // 性能优化：60 秒总超时（非流式调用需等完整响应）
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 60000);
   let res: Response;
   try {
     res = await fetch(url, {
@@ -585,12 +588,17 @@ export async function chat(
         Authorization: `Bearer ${config.apiKey}`,
       },
       body: JSON.stringify(body),
+      signal: controller.signal,
+      // @ts-ignore - Node 18+ undici 支持 keepalive
+      keepalive: true,
     });
   } catch (e) {
+    clearTimeout(timeoutId);
     throw new Error(
       `调用 ${provider} 聊天接口网络错误：${(e as Error).message}`
     );
   }
+  clearTimeout(timeoutId);
 
   if (!res.ok) {
     const errText = await safeReadText(res);
@@ -707,6 +715,10 @@ export async function* chatStream(
   yield { type: "meta", provider, model };
 
   const url = `${config.baseUrl.replace(/\/$/, "")}/chat/completions`;
+  // 首字延迟优化：连接+首字节超时 30 秒（避免 Provider 挂死时无限等待）
+  // 流式传输开始后不再受此超时限制（fetch 的 signal 仅控制建立连接+首字节）
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 30000);
   let res: Response;
   try {
     res = await fetch(url, {
@@ -716,14 +728,19 @@ export async function* chatStream(
         Authorization: `Bearer ${config.apiKey}`,
       },
       body: JSON.stringify(body),
+      signal: controller.signal,
+      // @ts-ignore - Node 18+ undici 支持 keepalive
+      keepalive: true,
     });
   } catch (e) {
+    clearTimeout(timeoutId);
     yield {
       type: "error",
       message: `调用 ${provider} 聊天接口网络错误：${(e as Error).message}`,
     };
     return;
   }
+  clearTimeout(timeoutId);
 
   if (!res.ok) {
     const errText = await safeReadText(res);

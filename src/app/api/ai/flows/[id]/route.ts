@@ -6,12 +6,15 @@ import {
   type FlowNode,
   type FlowEdge,
 } from "@/lib/flow-store";
+import { requireAuth, requireAdmin } from "@/lib/auth-utils";
 
 // GET /api/ai/flows/[id] - 获取单个工作流
 export async function GET(
   _req: NextRequest,
   { params }: { params: { id: string } }
 ) {
+  const auth = await requireAuth();
+  if (auth.error) return auth.error;
   try {
     const flow = await getFlowById(params.id);
     if (!flow) {
@@ -35,6 +38,8 @@ export async function PUT(
   req: NextRequest,
   { params }: { params: { id: string } }
 ) {
+  const auth = await requireAdmin();
+  if (auth.error) return auth.error;
   try {
     const body = await req.json();
     const { name, description, nodes, edges, enabled, lastRun } = body as {
@@ -80,6 +85,8 @@ export async function DELETE(
   _req: NextRequest,
   { params }: { params: { id: string } }
 ) {
+  const auth = await requireAdmin();
+  if (auth.error) return auth.error;
   try {
     const existing = await getFlowById(params.id);
     if (!existing) {

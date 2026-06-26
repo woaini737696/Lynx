@@ -3,6 +3,7 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { getFlowById, updateFlow } from "@/lib/flow-store";
 import { executeFlowInternal } from "@/lib/flow-engine";
+import { requireAuth } from "@/lib/auth-utils";
 
 // ============ API 路由 ============
 
@@ -12,6 +13,8 @@ export async function POST(
   req: NextRequest,
   { params }: { params: { id: string } }
 ) {
+  const auth = await requireAuth();
+  if (auth.error) return auth.error;
   try {
     const flow = await getFlowById(params.id);
     if (!flow) {

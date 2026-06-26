@@ -1,12 +1,22 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
+import { requireAuth, requireAdmin } from "@/lib/auth-utils";
 
-// GET /api/ai/settings - 获取AI助理设置
+// GET /api/ai/settings - 获取AI助理设置（需登录；敏感字段仅 admin 可见）
 export async function GET() {
+  const auth = await requireAuth();
+  if (auth.error) return auth.error;
+
   try {
     let settings = await prisma.aISetting.findFirst();
     if (!settings) {
       settings = await prisma.aISetting.create({ data: {} });
+    }
+
+    // 非 admin 用户过滤敏感字段（larkWebhookToken 等）
+    if (auth.user.role !== "admin") {
+      const { larkWebhookToken, ...safeSettings } = settings;
+      return NextResponse.json({ settings: safeSettings });
     }
     return NextResponse.json({ settings });
   } catch (e) {
@@ -17,8 +27,11 @@ export async function GET() {
   }
 }
 
-// PUT /api/ai/settings - 更新AI助理设置
+// PUT /api/ai/settings - 更新AI助理设置（仅 admin）
 export async function PUT(req: NextRequest) {
+  const auth = await requireAdmin();
+  if (auth.error) return auth.error;
+
   try {
     const body = await req.json().catch(() => null);
     if (!body || typeof body !== "object") {
