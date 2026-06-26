@@ -9,12 +9,12 @@ import {
   Loader2,
   Sparkles,
   Wrench,
-  MessageSquare,
   Bot,
   X,
   Check,
 } from "lucide-react";
 import { PageHeader, Card, Button, LoadingState } from "@/components/layout/PageHeader";
+import { HelpButton } from "@/components/layout/HelpButton";
 import { toast } from "@/components/ui/toast";
 
 type Workspace = {
@@ -24,7 +24,6 @@ type Workspace = {
   description: string | null;
   icon: string;
   accentColor: string;
-  quickCommands: Array<{ label?: string }>;
   systemPrompt: string | null;
   defaultProvider: string | null;
   defaultModel: string | null;
@@ -36,7 +35,6 @@ type Workspace = {
 };
 
 type ToolDef = { name: string; description: string };
-type QuickCommandDef = { label: string; icon: string; description: string; message: string };
 
 const ACCENT_COLORS: Array<{ key: string; label: string; cls: string }> = [
   { key: "orange", label: "橙", cls: "bg-orange-500" },
@@ -56,7 +54,6 @@ const REASONING_MODES = [
 export default function ProfessionWorkspacesPage() {
   const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
   const [tools, setTools] = useState<ToolDef[]>([]);
-  const [quickCommands, setQuickCommands] = useState<QuickCommandDef[]>([]);
   const [loading, setLoading] = useState(true);
   const [editingKey, setEditingKey] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -67,12 +64,10 @@ export default function ProfessionWorkspacesPage() {
 
   const load = useCallback(async () => {
     try {
-      const [wsRes, toolsRes, sessionRes, qcRes] = await Promise.all([
+      const [wsRes, toolsRes, sessionRes] = await Promise.all([
         fetch("/api/admin/profession-workspaces"),
         fetch("/api/ai/tools"),
         fetch("/api/auth/session"),
-        // 快捷技能清单在静态常量里，需要从 server-side 拉
-        fetch("/api/admin/profession-workspaces/quick-commands").catch(() => null),
       ]);
       if (sessionRes.ok) {
         const s = await sessionRes.json();
@@ -85,20 +80,6 @@ export default function ProfessionWorkspacesPage() {
       if (toolsRes.ok) {
         const data = await toolsRes.json();
         setTools(data.tools || []);
-      }
-      if (qcRes && qcRes.ok) {
-        const data = await qcRes.json();
-        setQuickCommands(data.quickCommands || []);
-      } else {
-        // fallback：内置基础快捷技能（保持与 ai-assistant-tools 同步）
-        setQuickCommands([
-          { label: "今日概览", icon: "📊", description: "看今天的待办和重点", message: "今天我有哪些待办任务？挑重点给我列出来" },
-          { label: "看板状态", icon: "📋", description: "查看决策看板整体情况", message: "决策看板现在什么状态？有多少进行中任务" },
-          { label: "创建灵感", icon: "💡", description: "快速记录一条灵感", message: "把这条想法记到灵感库：[你的想法]" },
-          { label: "搜索记忆", icon: "🔍", description: "语义搜索记忆图谱", message: "在记忆图谱里搜索：[关键词]" },
-          { label: "执行巡检", icon: "🛡️", description: "触发 AI 巡检", message: "跑一下 AI 巡检，看看有什么需要关注的" },
-          { label: "导出备份", icon: "📦", description: "导出全部数据备份", message: "导出我的全部数据备份" },
-        ]);
       }
     } catch (e) {
       console.error("加载失败:", e);
@@ -120,17 +101,6 @@ export default function ProfessionWorkspacesPage() {
   const cancelEdit = () => {
     setEditingKey(null);
     setEditForm(null);
-  };
-
-  const toggleQuickCommand = (label: string) => {
-    if (!editForm) return;
-    const exists = editForm.quickCommands.some((qc) => qc.label === label);
-    setEditForm({
-      ...editForm,
-      quickCommands: exists
-        ? editForm.quickCommands.filter((qc) => qc.label !== label)
-        : [...editForm.quickCommands, { label }],
-    });
   };
 
   const toggleTool = (name: string) => {
@@ -157,7 +127,6 @@ export default function ProfessionWorkspacesPage() {
           description: editForm.description,
           icon: editForm.icon,
           accentColor: editForm.accentColor,
-          quickCommands: editForm.quickCommands,
           systemPrompt: editForm.systemPrompt,
           defaultProvider: editForm.defaultProvider,
           defaultModel: editForm.defaultModel,
@@ -223,18 +192,18 @@ export default function ProfessionWorkspacesPage() {
     <div className="p-4 sm:p-8">
       <PageHeader
         title="职业工作空间"
-        subtitle="为 12 个岗位差异化配置 AI 助理：快捷技能 · System Prompt · 默认模型 · 可见工具"
+        subtitle="为 12 个岗位差异化配置 AI 助理：System Prompt · 默认模型 · 可见工具"
+        action={<HelpButton contentKey="profession-workspaces" />}
       />
 
       {/* 说明卡片 */}
       <Card className="mb-6 bg-muted/20">
         <div className="mb-3 flex items-center gap-2">
           <Sparkles className="h-4 w-4 text-cognition" />
-          <h3 className="text-sm font-semibold text-foreground">工作空间 4 维度</h3>
+          <h3 className="text-sm font-semibold text-foreground">工作空间 3 维度</h3>
         </div>
-        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
           {[
-            { icon: "⚡", label: "快捷技能可见集", desc: "输入框上方显示哪些快捷技能" },
             { icon: "📝", label: "System Prompt 模板", desc: "AI 助理的职业化角色设定" },
             { icon: "🧠", label: "默认模型/推理模式", desc: "进入 AI 助理页默认使用" },
             { icon: "🔧", label: "可见 AI 工具白名单", desc: "该岗位可调用哪些工具" },
@@ -256,7 +225,6 @@ export default function ProfessionWorkspacesPage() {
           <WorkspaceCard
             key={ws.profession}
             ws={ws}
-            quickCommands={quickCommands}
             tools={tools}
             isEditing={editingKey === ws.profession}
             editForm={editingKey === ws.profession ? editForm : null}
@@ -266,7 +234,6 @@ export default function ProfessionWorkspacesPage() {
             onSave={handleSave}
             saving={saving}
             onReset={() => handleReset(ws)}
-            onToggleQuick={toggleQuickCommand}
             onToggleTool={toggleTool}
           />
         ))}
@@ -277,7 +244,6 @@ export default function ProfessionWorkspacesPage() {
 
 function WorkspaceCard({
   ws,
-  quickCommands,
   tools,
   isEditing,
   editForm,
@@ -287,11 +253,9 @@ function WorkspaceCard({
   onSave,
   saving,
   onReset,
-  onToggleQuick,
   onToggleTool,
 }: {
   ws: Workspace;
-  quickCommands: QuickCommandDef[];
   tools: ToolDef[];
   isEditing: boolean;
   editForm: Workspace | null;
@@ -301,7 +265,6 @@ function WorkspaceCard({
   onSave: () => void;
   saving: boolean;
   onReset: () => void;
-  onToggleQuick: (label: string) => void;
   onToggleTool: (name: string) => void;
 }) {
   const form = editForm || ws;
@@ -380,35 +343,7 @@ function WorkspaceCard({
             />
           </div>
 
-          {/* 1) 快捷技能可见集 */}
-          <div>
-            <label className="text-xs font-medium text-foreground">
-              快捷技能可见集（{editForm.quickCommands.length} / {quickCommands.length}）
-            </label>
-            <div className="mt-1.5 flex flex-wrap gap-1.5">
-              {quickCommands.map((qc) => {
-                const checked = editForm.quickCommands.some((c) => c.label === qc.label);
-                return (
-                  <button
-                    key={qc.label}
-                    type="button"
-                    onClick={() => onToggleQuick(qc.label)}
-                    className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] transition-all ${
-                      checked
-                        ? "border-cognition/40 bg-cognition/10 text-cognition"
-                        : "border-border bg-card text-muted-foreground hover:bg-muted"
-                    }`}
-                  >
-                    {checked && <Check className="h-2.5 w-2.5" />}
-                    <span>{qc.icon}</span>
-                    <span>{qc.label}</span>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* 2) System Prompt */}
+          {/* 1) System Prompt */}
           <div>
             <label className="text-xs font-medium text-foreground">
               System Prompt（职业化角色设定）
@@ -422,7 +357,7 @@ function WorkspaceCard({
             />
           </div>
 
-          {/* 3) 默认模型 */}
+          {/* 2) 默认模型 */}
           <div className="grid grid-cols-3 gap-2">
             <div>
               <label className="text-xs font-medium text-foreground">默认 Provider</label>
@@ -462,7 +397,7 @@ function WorkspaceCard({
             </div>
           </div>
 
-          {/* 4) 可见工具白名单 */}
+          {/* 3) 可见工具白名单 */}
           <div>
             <label className="text-xs font-medium text-foreground">
               可见 AI 工具白名单（{editForm.allowedTools.length} / {tools.length}）
@@ -571,19 +506,8 @@ function WorkspaceCard({
           )}
         </div>
 
-        {/* 4 维度速览 */}
+        {/* 3 维度速览 */}
         <div className="space-y-1.5 text-[11px]">
-          <div className="flex items-start gap-1.5">
-            <MessageSquare className="mt-0.5 h-3 w-3 shrink-0 text-cognition" />
-            <div className="min-w-0">
-              <span className="text-muted-foreground">快捷技能：</span>
-              <span className="text-foreground">
-                {ws.quickCommands.length > 0
-                  ? ws.quickCommands.map((qc) => qc.label).join("、")
-                  : "全部"}
-              </span>
-            </div>
-          </div>
           <div className="flex items-start gap-1.5">
             <Bot className="mt-0.5 h-3 w-3 shrink-0 text-cognition" />
             <div className="min-w-0">

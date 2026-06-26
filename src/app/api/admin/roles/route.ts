@@ -184,3 +184,158 @@ export async function PUT(req: NextRequest) {
     );
   }
 }
+
+// POST /api/admin/roles - 创建新角色（仅 admin）
+// body: { name, displayName, description, permissions, profession }
+// 约束：name 唯一且不可与系统内置角色（admin/editor/viewer）冲突；profession 必选；isSystem 固定为 false
+export async function POST(req: NextRequest) {
+  try {
+    const auth = await requireAdmin();
+    if (auth.user === null) return auth.error;
+
+    const body = await req.json().catch(() => ({}));
+    const { name, displayName, description, permissions, profession } = body;
+
+    // 校验 name
+    if (typeof name !== "string" || !name.trim()) {
+      return NextResponse.json({ error: "角色 name 不能为空" }, { status: 400 });
+    }
+    const trimmedName = name.trim();
+    // name 不可与系统内置角色冲突
+    const systemRoleNames = DEFAULT_ROLES.map((r) => r.name);
+    if (systemRoleNames.includes(trimmedName)) {
+      return NextResponse.json(
+        { error: `角色 name 不可与系统内置角色（${systemRoleNames.join("/")}）冲突` },
+        { status: 400 }
+      );
+    }
+
+    // 校验 displayName
+    if (typeof displayName !== "string" || !displayName.trim()) {
+      return NextResponse.json({ error: "displayName 不能为空" }, { status: 400 });
+    }
+    const trimmedDisplayName = displayName.trim();
+
+    // 校验 description（可选，兜底为空字符串）
+    const trimmedDescription =
+      typeof description === "string" ? description.trim() : "";
+
+    // 校验 permissions
+    if (!Array.isArray(permissions)) {
+      return NextResponse.json({ error: "permissions 必须为数组" }, { status: 400 });
+    }
+    const invalidPerms = permissions.filter(
+      (k: unknown) => typeof k !== "string" || !isValidPermissionKey(k as string)
+    );
+    if (invalidPerms.length > 0) {
+      return NextResponse.json(
+        { error: `存在非法权限 key: ${invalidPerms.join(", ")}` },
+        { status: 400 }
+      );
+    }
+    const uniquePermissions = Array.from(new Set(permissions as string[]));
+
+    // 校验 profession（必选，必须是 12 岗位之一）
+    if (typeof profession !== "string" || !profession.trim()) {
+      return NextResponse.json(
+        { error: "profession 必选，请选择职业" },
+        { status: 400 }
+      );
+    }
+    const trimmedProfession = profession.trim();
+    if (!isValidProfessionKey(trimmedProfession)) {
+      return NextResponse.json(
+        { error: `无效的职业 key: ${trimmedProfession}` },
+        { status: 400 }
+      );
+    }
+
+    // 检查 name 是否已存在
+    const existing = await prisma.role.findUnique({
+      where: { name: trimmedName },
+    });
+    if (existing) {
+      return NextResponse.json({ error: "角色 name 已存在" }, { status: 400 });
+    }
+
+    // 创建角色（isSystem 固定为 false）
+    const created = await prisma.role.create({
+      data: {
+        name: trimmedName,
+        displayName: trimmedDisplayName,
+        description: trimmedDescription,
+        permissions: uniquePermissions,
+        profession: trimmedProfession,
+        isSystem: false,
+      },
+      select: {
+        id: true,
+        name: true,
+        displayName: true,
+        description: true,
+        permissions: true,
+        profession: true,
+        isSystem: true,
+        createdAt: true,
+      },
+    });
+
+    return NextResponse.json({ role: created, success: true });
+  } catch (e) {
+    logger.error({ err: e }, "创建角色失败");
+    return NextResponse.json(
+      { error: "服务器错误：" + (e as Error).message },
+      { status: 500 }
+    );
+  }
+}
+
+// DELETE /api/admin/roles?name=xxx - 删除角色（仅 admin）
+// 约束：系统内置角色（isSystem=true）不可删除；通过 name 查询参数删除
+export async function DELETE(req: NextRequest) {
+  try {
+    const auth = await requireAdmin();
+    if (auth.user === null) return auth.error;
+
+    const { searchParams } = new URL(req.url);
+    const name = searchParams.get("name");
+
+    if (!name) {
+      return NextResponse.json({ error: "缺少 name 参数" }, { status: 400 });
+    }
+
+    const existing = await prisma.role.findUnique({ where: { name } });
+    if (!existing) {
+      return NextResponse.json({ error: "角色不存在" }, { status: 404 });
+    }
+
+    // 系统内置角色不可删除
+    if (existing.isSystem) {
+      return NextResponse.json(
+        { error: "系统内置角色不可删除" },
+        { status: 403 }
+      );
+    }
+
+    // 检查是否有用户仍在使用该角色
+    const userCount = await prisma.user.count({
+      where: { role: existing.name },
+    });
+    if (userCount > 0) {
+      return NextResponse.json(
+        { error: `仍有 ${userCount} 个用户使用该角色，请先调整用户角色后再删除` },
+        { status: 400 }
+      );
+    }
+
+    await prisma.role.delete({ where: { name } });
+
+    return NextResponse.json({ success: true });
+  } catch (e) {
+    logger.error({ err: e }, "删除角色失败");
+    return NextResponse.json(
+      { error: "服务器错误：" + (e as Error).message },
+      { status: 500 }
+    );
+  }
+}
