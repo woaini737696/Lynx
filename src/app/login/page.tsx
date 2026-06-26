@@ -155,18 +155,6 @@ function LoginForm() {
           </button>
         </form>
       </div>
-
-      {/* 底部提示 */}
-      <div className="mt-6 rounded-xl border border-border/60 bg-muted/20 px-4 py-3 text-center text-xs text-muted-foreground">
-        <span className="text-muted-foreground/80">默认账号：</span>
-        <code className="mx-1 rounded bg-muted px-1.5 py-0.5 text-foreground/80">
-          admin
-        </code>
-        /
-        <code className="mx-1 rounded bg-muted px-1.5 py-0.5 text-foreground/80">
-          admin123
-        </code>
-      </div>
     </div>
   );
 }

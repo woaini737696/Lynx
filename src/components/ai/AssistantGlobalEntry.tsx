@@ -99,16 +99,12 @@ export function AssistantGlobalEntry() {
       {/* 未登录引导弹窗 */}
       {showLoginModal && (
         <div
-          className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 px-4"
+          className="fixed inset-0 z-[80] flex items-center justify-center bg-black/50 px-4"
           role="dialog"
           aria-modal="true"
           aria-label="登录提示"
-          onClick={() => setShowLoginModal(false)}
         >
-          <div
-            className="w-full max-w-sm rounded-xl bg-background p-6 shadow-2xl"
-            onClick={(e) => e.stopPropagation()}
-          >
+          <div className="w-full max-w-sm rounded-xl bg-background p-6 shadow-2xl">
             <h3 className="text-base font-semibold text-foreground">
               登录已过期
             </h3>
@@ -118,20 +114,13 @@ export function AssistantGlobalEntry() {
             <div className="mt-5 flex justify-end gap-2">
               <button
                 type="button"
-                onClick={() => setShowLoginModal(false)}
-                className="rounded-lg border border-border px-4 py-2 text-sm font-medium text-foreground transition-colors hover:bg-muted focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-              >
-                取消
-              </button>
-              <button
-                type="button"
                 onClick={() => {
                   setShowLoginModal(false);
                   window.location.href = "/login";
                 }}
-                className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:opacity-90 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                className="w-full rounded-lg bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground transition-colors hover:opacity-90 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               >
-                去登录
+                重新登录
               </button>
             </div>
           </div>
