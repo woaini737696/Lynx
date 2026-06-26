@@ -83,7 +83,7 @@
 - **已知非致命问题**：pino/thread-stream worker.js 偶发模块缺失（日志线程，不影响主服务）
 
 ### Commit hash
-（待提交后填写）
+6b6fdd0d（已推送至 Gitee origin/master）
 
 ---
 
