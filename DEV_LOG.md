@@ -56,6 +56,7 @@ AI 助理体验全面优化：Token 统计显示 + 流式回复 + 词元统计�
 - TypeScript 编译：`npx tsc --noEmit` 通过（src 目录零错误）
 - ESLint：`npx next lint` 通过（0 错误 0 警告）
 - Git Bash 检测：D:\Git\bin\bash.exe 确认存在
+- dev server 启动：`npx next dev -p 5176` Ready in 5.3s，HTTP `http://localhost:5176` 返回 200
 
 ### 修改文件清单
 - `src/components/ai/AssistantChat.tsx` - Token 显示 + 流式回复 + 语音通话重做
