@@ -18,6 +18,7 @@ import {
   Trash2,
 } from "lucide-react";
 import { PageHeader, Card, Button, LoadingState } from "@/components/layout/PageHeader";
+import { HelpButton } from "@/components/layout/HelpButton";
 import { toast } from "@/components/ui/toast";
 import { cn } from "@/lib/utils";
 
@@ -204,9 +205,12 @@ export default function DiagnosticsPage() {
         title="性能监控"
         subtitle="系统运行状态 · 数据库统计 · 资源使用"
         action={
-          <Button variant="outline" onClick={fetchDiagnostics} disabled={loading}>
-            <RefreshCw className={cn("h-3 w-3", loading && "animate-spin")} /> 刷新
-          </Button>
+          <div className="flex items-center gap-2">
+            <HelpButton contentKey="settings-diagnostics" />
+            <Button variant="outline" onClick={fetchDiagnostics} disabled={loading}>
+              <RefreshCw className={cn("h-3 w-3", loading && "animate-spin")} /> 刷新
+            </Button>
+          </div>
         }
       />
 

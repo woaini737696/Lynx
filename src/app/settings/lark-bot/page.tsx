@@ -11,6 +11,7 @@ import {
   Loader2,
 } from "lucide-react";
 import { PageHeader, Card, Button } from "@/components/layout/PageHeader";
+import { HelpButton } from "@/components/layout/HelpButton";
 import { toast } from "@/components/ui/toast";
 
 // 旧版 localStorage 键（仅用于一次性迁移到数据库）
@@ -182,6 +183,7 @@ export default function LarkBotSettingsPage() {
       <PageHeader
         title="飞书机器人"
         subtitle="配置飞书自定义机器人 Webhook，向指定群组发送消息通知"
+        action={<HelpButton contentKey="settings-lark-bot" />}
       />
 
       {/* 连接状态 */}
