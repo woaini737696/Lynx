@@ -1,0 +1,568 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>LynnHub 桌面端</title>
+  <style>
+    /* ============ 主题变量（支持浅色/深色/自适应） ============ */
+    :root {
+      /* 浅色主题（默认） */
+      --bg-primary: #ffffff;
+      --bg-secondary: #f7f7f8;
+      --bg-tertiary: #efeff0;
+      --text-primary: #1a1a1a;
+      --text-secondary: #6b6b6b;
+      --text-tertiary: #9b9b9b;
+      --accent: #f97316;
+      --accent-hover: #ea580c;
+      --accent-light: rgba(249, 115, 22, 0.1);
+      --border: #e5e5e5;
+      --success: #10b981;
+      --warning: #f59e0b;
+      --danger: #ef4444;
+      --shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+      --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.1);
+    }
+
+    @media (prefers-color-scheme: dark) {
+      :root:not([data-theme="light"]) {
+        --bg-primary: #1a1a1a;
+        --bg-secondary: #242424;
+        --bg-tertiary: #2e2e2e;
+        --text-primary: #f5f5f5;
+        --text-secondary: #a3a3a3;
+        --text-tertiary: #6b6b6b;
+        --accent: #f97316;
+        --accent-hover: #fb923c;
+        --accent-light: rgba(249, 115, 22, 0.15);
+        --border: #3a3a3a;
+        --shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+        --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.4);
+      }
+    }
+
+    /* 手动深色主题 */
+    [data-theme="dark"] {
+      --bg-primary: #1a1a1a;
+      --bg-secondary: #242424;
+      --bg-tertiary: #2e2e2e;
+      --text-primary: #f5f5f5;
+      --text-secondary: #a3a3a3;
+      --text-tertiary: #6b6b6b;
+      --accent: #f97316;
+      --accent-hover: #fb923c;
+      --accent-light: rgba(249, 115, 22, 0.15);
+      --border: #3a3a3a;
+      --shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+      --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.4);
+    }
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+      transition: background-color 0.2s ease, color 0.2s ease, border-color 0.2s ease;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+      background: var(--bg-primary);
+      color: var(--text-primary);
+      height: 100vh;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+    }
+
+    /* ============ 顶部主题切换 ============ */
+    .theme-toggle {
+      position: fixed;
+      top: 16px;
+      right: 16px;
+      display: flex;
+      gap: 4px;
+      background: var(--bg-secondary);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 4px;
+      box-shadow: var(--shadow);
+    }
+
+    .theme-btn {
+      background: transparent;
+      border: none;
+      color: var(--text-secondary);
+      padding: 6px 10px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 13px;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .theme-btn:hover {
+      background: var(--bg-tertiary);
+      color: var(--text-primary);
+    }
+
+    .theme-btn.active {
+      background: var(--accent);
+      color: white;
+    }
+
+    /* ============ 主容器 ============ */
+    .container {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 24px;
+      max-width: 480px;
+      padding: 40px;
+      text-align: center;
+    }
+
+    .logo {
+      width: 72px;
+      height: 72px;
+      border-radius: 16px;
+      background: linear-gradient(135deg, #f97316, #ea580c);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 32px;
+      font-weight: 700;
+      color: white;
+      box-shadow: 0 8px 24px rgba(249, 115, 22, 0.3);
+    }
+
+    .title {
+      font-size: 24px;
+      font-weight: 600;
+      color: var(--text-primary);
+    }
+
+    .subtitle {
+      font-size: 14px;
+      color: var(--text-secondary);
+      line-height: 1.6;
+    }
+
+    /* ============ 状态指示 ============ */
+    .status-card {
+      width: 100%;
+      background: var(--bg-secondary);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 20px;
+      box-shadow: var(--shadow);
+    }
+
+    .status-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 8px 0;
+      font-size: 14px;
+    }
+
+    .status-row + .status-row {
+      border-top: 1px solid var(--border);
+    }
+
+    .status-label {
+      color: var(--text-secondary);
+    }
+
+    .status-value {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      color: var(--text-primary);
+      font-weight: 500;
+    }
+
+    .status-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--text-tertiary);
+    }
+
+    .status-dot.connected {
+      background: var(--success);
+      animation: pulse 2s ease-in-out infinite;
+    }
+
+    .status-dot.connecting {
+      background: var(--warning);
+      animation: pulse 1s ease-in-out infinite;
+    }
+
+    .status-dot.error {
+      background: var(--danger);
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.5; }
+    }
+
+    /* ============ 按钮 ============ */
+    .btn {
+      background: var(--accent);
+      color: white;
+      border: none;
+      padding: 10px 24px;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 500;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .btn:hover {
+      background: var(--accent-hover);
+    }
+
+    .btn:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    .btn.secondary {
+      background: var(--bg-tertiary);
+      color: var(--text-primary);
+    }
+
+    .btn.secondary:hover {
+      background: var(--border);
+    }
+
+    /* ============ 加载动画 ============ */
+    .spinner {
+      width: 16px;
+      height: 16px;
+      border: 2px solid var(--accent-light);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    /* ============ 日志 ============ */
+    .log-area {
+      width: 100%;
+      background: var(--bg-secondary);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 12px;
+      max-height: 120px;
+      overflow-y: auto;
+      font-family: "Cascadia Code", "Consolas", monospace;
+      font-size: 12px;
+      color: var(--text-secondary);
+      text-align: left;
+    }
+
+    .log-line {
+      padding: 2px 0;
+    }
+
+    .log-line.info { color: var(--text-secondary); }
+    .log-line.success { color: var(--success); }
+    .log-line.warn { color: var(--warning); }
+    .log-line.error { color: var(--danger); }
+
+    /* ============ 帮助链接 ============ */
+    .help-text {
+      font-size: 12px;
+      color: var(--text-tertiary);
+      margin-top: 8px;
+    }
+
+    .help-text a {
+      color: var(--accent);
+      text-decoration: none;
+    }
+
+    .help-text a:hover {
+      text-decoration: underline;
+    }
+
+    /* 滚动条 */
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+  </style>
+</head>
+<body>
+  <!-- 主题切换 -->
+  <div class="theme-toggle">
+    <button class="theme-btn" data-theme-btn="light" title="浅色">☀️</button>
+    <button class="theme-btn" data-theme-btn="dark" title="深色">🌙</button>
+    <button class="theme-btn active" data-theme-btn="system" title="自适应">🖥️</button>
+  </div>
+
+  <!-- 主容器 -->
+  <div class="container">
+    <div class="logo">L</div>
+    <div>
+      <div class="title">LynnHub 桌面端</div>
+      <div class="subtitle">HermesAgent 本地超级助理 · Web 端协同</div>
+    </div>
+
+    <!-- 状态卡片 -->
+    <div class="status-card">
+      <div class="status-row">
+        <span class="status-label">本地服务器</span>
+        <span class="status-value">
+          <span class="status-dot connecting" id="server-dot"></span>
+          <span id="server-status">检测中...</span>
+        </span>
+      </div>
+      <div class="status-row">
+        <span class="status-label">Web 端地址</span>
+        <span class="status-value" id="web-url">http://localhost:5176</span>
+      </div>
+      <div class="status-row">
+        <span class="status-label">HermesAgent</span>
+        <span class="status-value">
+          <span class="status-dot" id="agent-dot"></span>
+          <span id="agent-status">未连接</span>
+        </span>
+      </div>
+    </div>
+
+    <!-- 操作按钮 -->
+    <div style="display: flex; gap: 12px;">
+      <button class="btn" id="retry-btn">
+        <span id="retry-icon">🔄</span>
+        <span id="retry-text">重新连接</span>
+      </button>
+      <button class="btn secondary" id="help-btn">使用说明</button>
+    </div>
+
+    <!-- 日志区域 -->
+    <div class="log-area" id="log-area">
+      <div class="log-line info">[初始化] 桌面端启动中...</div>
+    </div>
+
+    <div class="help-text">
+      需要先启动 Web 端开发服务器（端口 5176）。
+      <a href="#" id="start-guide">查看启动指南</a>
+    </div>
+  </div>
+
+  <script>
+    // ============ 主题管理 ============
+    const THEME_KEY = 'lynnhub-theme';
+    const savedTheme = localStorage.getItem(THEME_KEY) || 'system';
+
+    function applyTheme(theme) {
+      if (theme === 'system') {
+        document.documentElement.removeAttribute('data-theme');
+      } else {
+        document.documentElement.setAttribute('data-theme', theme);
+      }
+      // 更新按钮状态
+      document.querySelectorAll('[data-theme-btn]').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.themeBtn === theme);
+      });
+      localStorage.setItem(THEME_KEY, theme);
+    }
+
+    applyTheme(savedTheme);
+
+    document.querySelectorAll('[data-theme-btn]').forEach(btn => {
+      btn.addEventListener('click', () => applyTheme(btn.dataset.themeBtn));
+    });
+
+    // ============ 日志 ============
+    function log(message, level = 'info') {
+      const logArea = document.getElementById('log-area');
+      const time = new Date().toLocaleTimeString('zh-CN', { hour12: false });
+      const line = document.createElement('div');
+      line.className = `log-line ${level}`;
+      line.textContent = `[${time}] ${message}`;
+      logArea.appendChild(line);
+      logArea.scrollTop = logArea.scrollHeight;
+
+      // 限制日志条数
+      while (logArea.children.length > 50) {
+        logArea.removeChild(logArea.firstChild);
+      }
+    }
+
+    // ============ 服务器连接检测 ============
+    const SERVER_URL = 'http://localhost:5176';
+    let retryCount = 0;
+    let isConnected = false;
+
+    async function checkServer() {
+      const serverDot = document.getElementById('server-dot');
+      const serverStatus = document.getElementById('server-status');
+      const retryBtn = document.getElementById('retry-btn');
+      const retryIcon = document.getElementById('retry-icon');
+      const retryText = document.getElementById('retry-text');
+
+      serverDot.className = 'status-dot connecting';
+      serverStatus.textContent = '检测中...';
+      retryBtn.disabled = true;
+      retryIcon.innerHTML = '<span class="spinner"></span>';
+      retryText.textContent = '连接中...';
+
+      log(`正在连接 ${SERVER_URL} ...`);
+
+      try {
+        // 使用 fetch 检测服务器是否在线（带超时）
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 5000);
+
+        const response = await fetch(`${SERVER_URL}/api/health`, {
+          signal: controller.signal,
+          mode: 'cors',
+        });
+
+        clearTimeout(timeoutId);
+
+        if (response.ok || response.status === 404) {
+          // 服务器在线（404 也算在线，因为 /api/health 可能不存在）
+          serverDot.className = 'status-dot connected';
+          serverStatus.textContent = '已连接';
+          retryCount = 0;
+          isConnected = true;
+          log('服务器连接成功！', 'success');
+          log('正在加载 Web 端...', 'info');
+
+          // 短暂延迟后跳转到 Web 端
+          setTimeout(() => {
+            log('正在导航到 Web 端...', 'success');
+            // 优先使用 Tauri 的 navigate_to_url 命令（更可靠）
+            if (window.__TAURI__ && window.__TAURI__.invoke) {
+              window.__TAURI__.invoke('navigate_to_url', { url: SERVER_URL })
+                .then(() => log('导航成功', 'success'))
+                .catch(err => {
+                  log(`navigate_to_url 失败: ${err}，回退到 location.href`, 'warn');
+                  window.location.href = SERVER_URL;
+                });
+            } else {
+              window.location.href = SERVER_URL;
+            }
+          }, 800);
+
+          return true;
+        } else {
+          throw new Error(`HTTP ${response.status}`);
+        }
+      } catch (err) {
+        serverDot.className = 'status-dot error';
+        serverStatus.textContent = '未连接';
+        retryBtn.disabled = false;
+        retryIcon.textContent = '🔄';
+        retryText.textContent = '重新连接';
+        retryCount++;
+
+        if (err.name === 'AbortError') {
+          log('连接超时（5秒）', 'error');
+        } else if (err.message.includes('Failed to fetch')) {
+          log('无法连接到服务器，请确认 Web 端已启动', 'error');
+        } else {
+          log(`连接失败: ${err.message}`, 'error');
+        }
+
+        log(`重试次数: ${retryCount}`, 'warn');
+        return false;
+      }
+    }
+
+    // ============ HermesAgent 状态 ============
+    async function checkAgent() {
+      const agentDot = document.getElementById('agent-dot');
+      const agentStatus = document.getElementById('agent-status');
+
+      if (window.__TAURI__ && window.__TAURI__.invoke) {
+        try {
+          const status = await window.__TAURI__.invoke('get_agent_status');
+          if (status && status.wsConnected) {
+            agentDot.className = 'status-dot connected';
+            agentStatus.textContent = '已连接';
+            log(`HermesAgent v${status.version} 已连接`, 'success');
+          } else if (status) {
+            agentDot.className = 'status-dot connecting';
+            agentStatus.textContent = '连接中';
+            log(`HermesAgent v${status.version} 等待 WS 连接`, 'warn');
+          }
+        } catch (err) {
+          agentDot.className = 'status-dot error';
+          agentStatus.textContent = '不可用';
+          log(`HermesAgent 状态获取失败: ${err}`, 'error');
+        }
+      } else {
+        agentDot.className = 'status-dot error';
+        agentStatus.textContent = '不可用（非桌面端）';
+      }
+    }
+
+    // ============ 事件绑定 ============
+    document.getElementById('retry-btn').addEventListener('click', () => {
+      log('手动重试...', 'info');
+      checkServer();
+    });
+
+    document.getElementById('help-btn').addEventListener('click', () => {
+      alert(`使用说明：
+
+1. 启动 Web 端开发服务器
+   打开项目根目录，运行：
+   npx next dev -p 5176
+
+2. 服务器启动后，桌面端会自动检测并连接
+
+3. 连接成功后，桌面端将加载 Web 端完整界面
+   - 主题：浅色/深色/自适应（右上角切换）
+   - 功能：与 Web 端完全同步
+   - 本地能力：RPA、文件操作、Shell 命令
+
+4. HermesAgent 本地能力通过 Tauri 注入
+   - 浏览器中无法使用的本地操作在桌面端可用
+   - 自动同步登录态到本地 Rust 端
+
+端口固定为 5176`);
+    });
+
+    document.getElementById('start-guide').addEventListener('click', (e) => {
+      e.preventDefault();
+      document.getElementById('help-btn').click();
+    });
+
+    // ============ 自动检测循环 ============
+    async function autoRetry() {
+      const connected = await checkServer();
+      if (!connected && retryCount < 10) {
+        // 自动重试，间隔递增（2s, 4s, 6s...）
+        const delay = Math.min(2000 * retryCount, 10000);
+        log(`${delay / 1000}秒后自动重试...`, 'info');
+        setTimeout(autoRetry, delay);
+      }
+    }
+
+    // ============ 启动 ============
+    log('桌面端启动完成', 'success');
+    log(`Tauri 环境: ${!!window.__TAURI__}`, 'info');
+    log(`默认主题: ${savedTheme}`, 'info');
+
+    // 先检查 HermesAgent，再检查服务器
+    checkAgent();
+    autoRetry();
+  </script>
+</body>
+</html>

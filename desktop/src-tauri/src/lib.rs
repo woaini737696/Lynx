@@ -296,6 +296,43 @@ async fn open_external(app: tauri::AppHandle, url: String) -> Result<(), String>
     app.shell().open(url, None).map_err(|e| e.to_string())
 }
 
+/// 导航当前窗口到指定 URL（用于加载本地 Web 端）
+#[tauri::command]
+async fn navigate_to_url(app: tauri::AppHandle, url: String) -> Result<(), String> {
+    log::info!("导航到: {}", url);
+    if let Some(window) = app.get_webview_window("main") {
+        // Tauri 2.x WebviewWindow 没有 set_url，使用 eval 执行 JS 导航
+        let js = format!("window.location.href = '{}';", url.replace('\'', "\\'"));
+        window.eval(&js).map_err(|e| e.to_string())?;
+        Ok(())
+    } else {
+        Err("找不到主窗口".to_string())
+    }
+}
+
+/// 检查本地服务器是否在线（TCP 连接检测）
+#[tauri::command]
+async fn check_local_server(host: String, port: u16) -> Result<bool, String> {
+    let addr = format!("{}:{}", host, port);
+    log::info!("检测本地服务器: {}", addr);
+
+    // 使用 std::net::TcpStream 检测端口是否可连接
+    let result = tokio::task::spawn_blocking(move || {
+        use std::net::TcpStream;
+        use std::time::Duration;
+        match addr.parse() {
+            Ok(socket_addr) => {
+                TcpStream::connect_timeout(&socket_addr, Duration::from_secs(2)).is_ok()
+            }
+            Err(_) => false,
+        }
+    })
+    .await
+    .map_err(|e| e.to_string())?;
+
+    Ok(result)
+}
+
 // ============ 应用主入口 ============
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -347,6 +384,8 @@ pub fn run() {
             detect_ai_env,
             start_hermes_agent,
             open_external,
+            navigate_to_url,
+            check_local_server,
         ])
         .setup(|app| {
             log::info!("LynnHub 桌面端启动完成");
