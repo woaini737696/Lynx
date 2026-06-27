@@ -1,11 +1,11 @@
 "use client";
 
-import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useLightningStore } from "@/store/lightning";
 import { ThemeToggle } from "@/components/theme/ThemeToggle";
 import { Zap, Inbox, Sparkles, Search, Command } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { FastLink } from "./FastLink";
 
 export function CaptureBar() {
   const { open } = useLightningStore();
@@ -37,20 +37,21 @@ export function CaptureBar() {
     <header className="glass-bar sticky top-0 z-20 flex h-14 shrink-0 items-center justify-between px-4 lg:px-6">
       {/* 左侧：Lynx Logo + 产品名（放大展示） */}
       <div className="flex items-center gap-3">
-        <Link
+        <FastLink
           href="/"
-          prefetch={false}
           className="flex items-center gap-3 transition-opacity hover:opacity-80"
         >
-          {/* 大 Logo X */}
-          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary text-base font-bold text-primary-foreground shadow-md">
-            X
-          </div>
+          {/* Lynx 猞猁 Logo（黑底白图） */}
+          <img
+            src="/lynx-logo-black.png"
+            alt="Lynx"
+            className="h-9 w-9 rounded-xl shadow-md"
+          />
           {/* 产品名（放大） */}
           <span className="hidden text-lg font-bold tracking-tight text-foreground lg:block">
             Lynx
           </span>
-        </Link>
+        </FastLink>
       </div>
 
       {/* 右侧：搜索 + Inbox + 捕获灵感 + 闪电输入 + 主题切换 */}
@@ -117,9 +118,8 @@ function LinkBadge({
   label: string;
 }) {
   return (
-    <Link
+    <FastLink
       href={href}
-      prefetch={false}
       className={cn(
         "glass-btn flex items-center gap-1.5 rounded-xl px-2.5 py-2 text-xs text-muted-foreground transition-all hover:text-foreground",
         count > 0 && "pr-2"
@@ -132,6 +132,6 @@ function LinkBadge({
           {count > 99 ? "99+" : count}
         </span>
       )}
-    </Link>
+    </FastLink>
   );
 }

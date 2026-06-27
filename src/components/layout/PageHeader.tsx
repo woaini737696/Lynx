@@ -50,7 +50,7 @@ export function Card({
       onClick={onClick}
       onContextMenu={onContextMenu}
       className={cn(
-        "rounded-xl border border-border bg-card p-5 sm:p-6",
+        "glass-card relative rounded-xl border border-border/40 bg-card/60 p-5 sm:p-6",
         "shadow-[0_1px_2px_hsl(0_0%_0%/0.04),0_2px_8px_-2px_hsl(0_0%_0%/0.06)]",
         hover && "transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[0_2px_6px_hsl(0_0%_0_/0.06),0_6px_20px_-4px_hsl(0_0%_0_/0.08)]",
         onClick && "cursor-pointer",
@@ -84,15 +84,15 @@ export function Button({
 }) {
   const variants = {
     primary:
-      "bg-primary text-primary-foreground shadow-sm hover:brightness-105 hover:shadow-md focus:ring-primary/30",
+      "btn-primary-glass focus:ring-primary/30",
     secondary:
-      "bg-secondary text-secondary-foreground hover:bg-secondary/80 focus:ring-secondary/30",
+      "glass-btn text-secondary-foreground hover:bg-secondary/80 focus:ring-secondary/30",
     ghost:
-      "bg-transparent text-muted-foreground hover:bg-muted hover:text-foreground focus:ring-muted",
+      "glass-btn bg-transparent text-muted-foreground hover:bg-muted/60 hover:text-foreground focus:ring-muted border-transparent",
     danger:
-      "bg-destructive text-destructive-foreground shadow-sm hover:opacity-90 focus:ring-destructive/30",
+      "btn-danger-glass focus:ring-destructive/30",
     outline:
-      "border border-border bg-card text-foreground hover:bg-muted hover:border-foreground/30 focus:ring-muted",
+      "glass-btn border border-border/60 bg-card/50 text-foreground hover:bg-muted/70 hover:border-foreground/30 focus:ring-muted",
   };
   const sizes = {
     sm: "px-3 py-1.5 text-[11px] gap-1",
@@ -130,7 +130,7 @@ export function Skeleton({
         <div
           key={i}
           className={cn(
-            "animate-pulse rounded-xl bg-muted/70",
+            "skeleton-shimmer rounded-xl",
             className
           )}
         />

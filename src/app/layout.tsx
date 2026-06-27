@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from "next";
+import { Suspense } from "react";
 import "./globals.css";
 import { AppShell } from "@/components/layout/AppShell";
 import { LightningInput } from "@/components/lightning/LightningInput";
@@ -12,6 +13,8 @@ import { PWARegister } from "@/components/layout/PWARegister";
 import { AssistantGlobalEntry } from "@/components/ai/AssistantGlobalEntry";
 import { DesktopBridge } from "@/components/layout/DesktopBridge";
 import { DesktopBehavior } from "@/components/layout/DesktopBehavior";
+import { RouteProgress } from "@/components/layout/RouteProgress";
+import { RoutePreloader } from "@/components/layout/RoutePreloader";
 import { SWRProvider } from "@/components/providers/SWRProvider";
 
 export const metadata: Metadata = {
@@ -43,12 +46,8 @@ export default function RootLayout({
   return (
     <html lang="zh-CN" suppressHydrationWarning>
       <head>
-        <link
-          rel="icon"
-          href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%230F62FE'/%3E%3Ctext x='16' y='22' text-anchor='middle' font-size='18' font-weight='bold' fill='%23fff'%3EX%3C/text%3E%3C/svg%3E"
-          type="image/svg+xml"
-        />
-        <link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 180 180'%3E%3Crect width='180' height='180' rx='32' fill='%230F62FE'/%3E%3Ctext x='90' y='125' text-anchor='middle' font-size='100' font-weight='bold' fill='%23fff'%3EX%3C/text%3E%3C/svg%3E" />
+        <link rel="icon" href="/lynx-icon-256.png" type="image/png" />
+        <link rel="apple-touch-icon" href="/lynx-icon-256.png" />
       </head>
       <body className="min-h-screen bg-background text-foreground antialiased">
         <ThemeProvider>
@@ -57,6 +56,10 @@ export default function RootLayout({
               <SuppressDevErrors />
               <DesktopBridge />
               <DesktopBehavior />
+              <Suspense fallback={null}>
+                <RouteProgress />
+              </Suspense>
+              <RoutePreloader />
               <AppShell>{children}</AppShell>
               <LightningInput />
               <CommandPalette />
