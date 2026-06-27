@@ -5,64 +5,52 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Lynx</title>
   <style>
-    /* ============ 主题变量（支持浅色/深色/自适应） ============ */
+    /* ============ 主题变量 ============ */
     :root {
-      /* 浅色主题（默认） */
       --bg-primary: #ffffff;
       --bg-secondary: #f7f7f8;
-      --bg-tertiary: #efeff0;
-      --text-primary: #1a1a1a;
-      --text-secondary: #6b6b6b;
-      --text-tertiary: #9b9b9b;
-      --accent: #f97316;
-      --accent-hover: #ea580c;
-      --accent-light: rgba(249, 115, 22, 0.1);
-      --border: #e5e5e5;
+      --text-primary: #0a0f1a;
+      --text-secondary: #6b7280;
+      --text-tertiary: #9ca3af;
+      --primary: #0F62FE;
+      --primary-light: rgba(15, 98, 254, 0.12);
+      --primary-glow: rgba(15, 98, 254, 0.35);
+      --border: #e5e7eb;
       --success: #10b981;
-      --warning: #f59e0b;
-      --danger: #ef4444;
-      --shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
-      --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.1);
     }
 
     @media (prefers-color-scheme: dark) {
       :root:not([data-theme="light"]) {
-        --bg-primary: #1a1a1a;
-        --bg-secondary: #242424;
-        --bg-tertiary: #2e2e2e;
-        --text-primary: #f5f5f5;
-        --text-secondary: #a3a3a3;
-        --text-tertiary: #6b6b6b;
-        --accent: #f97316;
-        --accent-hover: #fb923c;
-        --accent-light: rgba(249, 115, 22, 0.15);
-        --border: #3a3a3a;
-        --shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
-        --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.4);
+        --bg-primary: #03060a;
+        --bg-secondary: #0a0f18;
+        --bg-tertiary: #111827;
+        --text-primary: #f5f7ff;
+        --text-secondary: #94a3b8;
+        --text-tertiary: #64748b;
+        --primary: #3b82f6;
+        --primary-light: rgba(59, 130, 246, 0.15);
+        --primary-glow: rgba(59, 130, 246, 0.5);
+        --border: #1f2937;
       }
     }
 
-    /* 手动深色主题 */
     [data-theme="dark"] {
-      --bg-primary: #1a1a1a;
-      --bg-secondary: #242424;
-      --bg-tertiary: #2e2e2e;
-      --text-primary: #f5f5f5;
-      --text-secondary: #a3a3a3;
-      --text-tertiary: #6b6b6b;
-      --accent: #f97316;
-      --accent-hover: #fb923c;
-      --accent-light: rgba(249, 115, 22, 0.15);
-      --border: #3a3a3a;
-      --shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
-      --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.4);
+      --bg-primary: #03060a;
+      --bg-secondary: #0a0f18;
+      --bg-tertiary: #111827;
+      --text-primary: #f5f7ff;
+      --text-secondary: #94a3b8;
+      --text-tertiary: #64748b;
+      --primary: #3b82f6;
+      --primary-light: rgba(59, 130, 246, 0.15);
+      --primary-glow: rgba(59, 130, 246, 0.5);
+      --border: #1f2937;
     }
 
     * {
       margin: 0;
       padding: 0;
       box-sizing: border-box;
-      transition: background-color 0.2s ease, color 0.2s ease, border-color 0.2s ease;
     }
 
     body {
@@ -77,18 +65,20 @@
       justify-content: center;
     }
 
-    /* ============ 顶部主题切换 ============ */
+    /* 主题切换 */
     .theme-toggle {
       position: fixed;
       top: 16px;
       right: 16px;
       display: flex;
       gap: 4px;
-      background: var(--bg-secondary);
+      background: hsl(var(--bg-secondary) / 0.8);
       border: 1px solid var(--border);
-      border-radius: 8px;
+      border-radius: 10px;
       padding: 4px;
-      box-shadow: var(--shadow);
+      box-shadow: 0 2px 12px rgba(0, 0, 0, 0.06);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
     }
 
     .theme-btn {
@@ -96,12 +86,13 @@
       border: none;
       color: var(--text-secondary);
       padding: 6px 10px;
-      border-radius: 6px;
+      border-radius: 8px;
       cursor: pointer;
       font-size: 13px;
       display: flex;
       align-items: center;
       gap: 4px;
+      transition: all 0.2s ease;
     }
 
     .theme-btn:hover {
@@ -110,146 +101,123 @@
     }
 
     .theme-btn.active {
-      background: var(--accent);
+      background: var(--primary);
       color: white;
     }
 
-    /* ============ 主容器 ============ */
-    .container {
+    /* 启动容器 */
+    .launch-container {
       display: flex;
       flex-direction: column;
       align-items: center;
-      gap: 24px;
-      max-width: 480px;
-      padding: 40px;
-      text-align: center;
+      gap: 28px;
+      width: 100%;
+      max-width: 320px;
+      padding: 24px;
     }
 
-    .logo {
-      width: 72px;
-      height: 72px;
-      border-radius: 16px;
-      background: linear-gradient(135deg, #f97316, #ea580c);
+    /* Logo */
+    .logo-wrap {
+      position: relative;
+      width: 80px;
+      height: 80px;
+      border-radius: 22px;
+      background: linear-gradient(135deg, var(--primary), #2563eb);
       display: flex;
       align-items: center;
       justify-content: center;
       font-size: 32px;
       font-weight: 700;
       color: white;
-      box-shadow: 0 8px 24px rgba(249, 115, 22, 0.3);
+      box-shadow:
+        0 0 0 1px rgba(255, 255, 255, 0.12) inset,
+        0 8px 32px -8px var(--primary-glow),
+        0 0 48px -12px var(--primary-glow);
+      animation: logo-in 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
     }
 
-    .title {
-      font-size: 24px;
+    .logo-wrap::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      border-radius: inherit;
+      background: linear-gradient(135deg, rgba(255,255,255,0.22), transparent 50%);
+      pointer-events: none;
+    }
+
+    @keyframes logo-in {
+      0% { opacity: 0; transform: scale(0.8); }
+      100% { opacity: 1; transform: scale(1); }
+    }
+
+    .brand-text {
+      text-align: center;
+    }
+
+    .brand-title {
+      font-size: 22px;
       font-weight: 600;
       color: var(--text-primary);
+      letter-spacing: -0.02em;
     }
 
-    .subtitle {
-      font-size: 14px;
+    .brand-subtitle {
+      font-size: 13px;
       color: var(--text-secondary);
-      line-height: 1.6;
+      margin-top: 4px;
     }
 
-    /* ============ 状态指示 ============ */
-    .status-card {
+    /* 骨架屏 */
+    .skeleton-card {
       width: 100%;
       background: var(--bg-secondary);
       border: 1px solid var(--border);
-      border-radius: 12px;
+      border-radius: 16px;
       padding: 20px;
-      box-shadow: var(--shadow);
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
     }
 
-    .status-row {
+    .skeleton-line {
+      height: 12px;
+      border-radius: 6px;
+      background: linear-gradient(
+        90deg,
+        var(--bg-tertiary, #e5e7eb) 25%,
+        rgba(148, 163, 184, 0.25) 50%,
+        var(--bg-tertiary, #e5e7eb) 75%
+      );
+      background-size: 200% 100%;
+      animation: shimmer 1.6s ease-in-out infinite;
+    }
+
+    .skeleton-line.short { width: 60%; }
+    .skeleton-line.medium { width: 80%; }
+    .skeleton-line.long { width: 100%; }
+
+    @keyframes shimmer {
+      0% { background-position: -200% 0; }
+      100% { background-position: 200% 0; }
+    }
+
+    /* 加载指示 */
+    .loading-row {
       display: flex;
       align-items: center;
-      justify-content: space-between;
-      padding: 8px 0;
-      font-size: 14px;
-    }
-
-    .status-row + .status-row {
-      border-top: 1px solid var(--border);
-    }
-
-    .status-label {
+      justify-content: center;
+      gap: 10px;
       color: var(--text-secondary);
+      font-size: 13px;
     }
 
-    .status-value {
-      display: flex;
-      align-items: center;
-      gap: 6px;
-      color: var(--text-primary);
-      font-weight: 500;
-    }
-
-    .status-dot {
-      width: 8px;
-      height: 8px;
-      border-radius: 50%;
-      background: var(--text-tertiary);
-    }
-
-    .status-dot.connected {
-      background: var(--success);
-      animation: pulse 2s ease-in-out infinite;
-    }
-
-    .status-dot.connecting {
-      background: var(--warning);
-      animation: pulse 1s ease-in-out infinite;
-    }
-
-    .status-dot.error {
-      background: var(--danger);
-    }
-
-    @keyframes pulse {
-      0%, 100% { opacity: 1; }
-      50% { opacity: 0.5; }
-    }
-
-    /* ============ 按钮 ============ */
-    .btn {
-      background: var(--accent);
-      color: white;
-      border: none;
-      padding: 10px 24px;
-      border-radius: 8px;
-      font-size: 14px;
-      font-weight: 500;
-      cursor: pointer;
-      display: inline-flex;
-      align-items: center;
-      gap: 8px;
-    }
-
-    .btn:hover {
-      background: var(--accent-hover);
-    }
-
-    .btn:disabled {
-      opacity: 0.5;
-      cursor: not-allowed;
-    }
-
-    .btn.secondary {
-      background: var(--bg-tertiary);
-      color: var(--text-primary);
-    }
-
-    .btn.secondary:hover {
-      background: var(--border);
-    }
-
-    /* ============ 加载动画 ============ */
     .spinner {
       width: 16px;
       height: 16px;
-      border: 2px solid var(--accent-light);
-      border-top-color: var(--accent);
+      border: 2px solid var(--primary-light);
+      border-top-color: var(--primary);
       border-radius: 50%;
       animation: spin 0.8s linear infinite;
     }
@@ -258,43 +226,18 @@
       to { transform: rotate(360deg); }
     }
 
-    /* ============ 日志 ============ */
-    .log-area {
-      width: 100%;
-      background: var(--bg-secondary);
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      padding: 12px;
-      max-height: 120px;
-      overflow-y: auto;
-      font-family: "Cascadia Code", "Consolas", monospace;
-      font-size: 12px;
-      color: var(--text-secondary);
-      text-align: left;
-    }
-
-    .log-line {
-      padding: 2px 0;
-    }
-
-    .log-line.info { color: var(--text-secondary); }
-    .log-line.success { color: var(--success); }
-    .log-line.warn { color: var(--warning); }
-    .log-line.error { color: var(--danger); }
-
-    /* ============ 帮助链接 ============ */
-    .help-text {
+    /* 隐藏的帮助入口 */
+    .help-link {
       font-size: 12px;
       color: var(--text-tertiary);
+      background: none;
+      border: none;
+      cursor: pointer;
       margin-top: 8px;
     }
 
-    .help-text a {
-      color: var(--accent);
-      text-decoration: none;
-    }
-
-    .help-text a:hover {
+    .help-link:hover {
+      color: var(--primary);
       text-decoration: underline;
     }
 
@@ -312,74 +255,37 @@
     <button class="theme-btn active" data-theme-btn="system" title="自适应">🖥️</button>
   </div>
 
-  <!-- 主容器 -->
-  <div class="container">
-    <div class="logo">X</div>
-    <div>
-      <div class="title">Lynx</div>
-      <div class="subtitle">Lynx AI工作台，不用学，直接干</div>
+  <!-- 启动画面 -->
+  <div class="launch-container">
+    <div class="logo-wrap">X</div>
+    <div class="brand-text">
+      <div class="brand-title">Lynx</div>
+      <div class="brand-subtitle">Lynx AI 工作台，不用学，直接干</div>
     </div>
 
-    <!-- 状态卡片 -->
-    <div class="status-card">
-      <div class="status-row">
-        <span class="status-label">本地服务器</span>
-        <span class="status-value">
-          <span class="status-dot connecting" id="server-dot"></span>
-          <span id="server-status">检测中...</span>
-        </span>
-      </div>
-      <div class="status-row">
-        <span class="status-label">Web 端地址</span>
-        <span class="status-value" id="web-url">http://localhost:5176</span>
-      </div>
-      <div class="status-row">
-        <span class="status-label">HermesAgent</span>
-        <span class="status-value">
-          <span class="status-dot" id="agent-dot"></span>
-          <span id="agent-status">未连接</span>
-        </span>
-      </div>
+    <!-- 骨架屏 -->
+    <div class="skeleton-card">
+      <div class="skeleton-line long"></div>
+      <div class="skeleton-line medium"></div>
+      <div class="skeleton-line short"></div>
+      <div class="skeleton-line long"></div>
     </div>
 
-    <!-- 操作按钮 -->
-    <div style="display: flex; gap: 12px;">
-      <button class="btn" id="retry-btn">
-        <span id="retry-icon">🔄</span>
-        <span id="retry-text">重新连接</span>
-      </button>
-      <button class="btn secondary" id="help-btn">使用说明</button>
-    </div>
-
-    <!-- 日志区域 -->
-    <div class="log-area" id="log-area">
-      <div class="log-line info">[初始化] 桌面端启动中...</div>
-    </div>
-
-    <div class="help-text">
-      需要先启动 Web 端开发服务器（端口 5176）。
-      <a href="#" id="start-guide">查看启动指南</a>
+    <!-- 加载状态 -->
+    <div class="loading-row">
+      <span class="spinner"></span>
+      <span id="loading-text">正在启动 Lynx...</span>
     </div>
   </div>
 
   <script>
     // ============ Tauri 2.x API 兼容封装 ============
-    // Tauri 2.x 的全局 API 结构：window.__TAURI__.core.invoke
-    // Tauri 1.x 兼容路径：window.__TAURI__.invoke
     function getTauriInvoke() {
       const t = window.__TAURI__;
       if (!t) return null;
-      // Tauri 2.x 标准路径
       if (t.core && typeof t.core.invoke === 'function') return t.core.invoke;
-      // Tauri 1.x 兼容路径
       if (typeof t.invoke === 'function') return t.invoke;
       return null;
-    }
-
-    function getTauriEvent() {
-      const t = window.__TAURI__;
-      if (!t) return null;
-      return t.event || null;
     }
 
     async function tauriInvoke(cmd, args) {
@@ -410,193 +316,64 @@
       btn.addEventListener('click', () => applyTheme(btn.dataset.themeBtn));
     });
 
-    // ============ 日志 ============
-    function log(message, level = 'info') {
-      const logArea = document.getElementById('log-area');
-      const time = new Date().toLocaleTimeString('zh-CN', { hour12: false });
-      const line = document.createElement('div');
-      line.className = `log-line ${level}`;
-      line.textContent = `[${time}] ${message}`;
-      logArea.appendChild(line);
-      logArea.scrollTop = logArea.scrollHeight;
-      while (logArea.children.length > 50) {
-        logArea.removeChild(logArea.firstChild);
-      }
-    }
+    // ============ 加载文案 ============
+    const loadingTexts = [
+      '正在启动 Lynx...',
+      '正在准备 AI 工作空间...',
+      '正在加载界面...',
+    ];
+    let textIndex = 0;
+    const loadingTextEl = document.getElementById('loading-text');
+    const textInterval = setInterval(() => {
+      textIndex = (textIndex + 1) % loadingTexts.length;
+      loadingTextEl.textContent = loadingTexts[textIndex];
+    }, 2500);
 
     // ============ 服务器连接检测 ============
-    // 注意：不能使用 fetch 检测，因为 Tauri WebView 从 https://tauri.localhost
-    // 加载页面，向 http://localhost:5176 发起 fetch 会被 WebView2 的
-    // 混合内容/CORS 策略阻止（"Failed to fetch"）。
-    // 改用 Tauri 的 check_local_server 命令（Rust 端 TCP 检测，不受 WebView 限制）。
     const SERVER_URL = 'http://localhost:5176';
     const SERVER_HOST = 'localhost';
     const SERVER_PORT = 5176;
     let retryCount = 0;
-    let isConnected = false;
+    const MAX_RETRY_INTERVAL = 8000;
 
     async function checkServer() {
-      const serverDot = document.getElementById('server-dot');
-      const serverStatus = document.getElementById('server-status');
-      const retryBtn = document.getElementById('retry-btn');
-      const retryIcon = document.getElementById('retry-icon');
-      const retryText = document.getElementById('retry-text');
-
-      serverDot.className = 'status-dot connecting';
-      serverStatus.textContent = '检测中...';
-      retryBtn.disabled = true;
-      retryIcon.innerHTML = '<span class="spinner"></span>';
-      retryText.textContent = '检测中...';
-
-      log(`正在检测 ${SERVER_HOST}:${SERVER_PORT} ...`);
-
       const invoke = getTauriInvoke();
       if (!invoke) {
-        serverDot.className = 'status-dot error';
-        serverStatus.textContent = '不可用';
-        log('Tauri invoke 不可用，无法检测服务器', 'error');
+        loadingTextEl.textContent = '本地运行环境未就绪';
         return false;
       }
 
       try {
-        // 使用 Rust 端 TCP 检测，绕过 WebView2 的 CORS 限制
         const online = await invoke('check_local_server', {
           host: SERVER_HOST,
           port: SERVER_PORT,
         });
 
         if (online) {
-          serverDot.className = 'status-dot connected';
-          serverStatus.textContent = '已连接';
-          retryCount = 0;
-          isConnected = true;
-          log('服务器连接成功！', 'success');
-          log('正在加载 Web 端...', 'info');
-
-          // 短暂延迟后导航到 Web 端
+          loadingTextEl.textContent = '即将进入 Lynx...';
+          clearInterval(textInterval);
           setTimeout(() => {
-            log('正在导航到 Web 端...', 'success');
             invoke('navigate_to_url', { url: SERVER_URL })
-              .then(() => log('导航成功', 'success'))
-              .catch(err => {
-                log(`navigate_to_url 失败: ${err}，回退到 location.href`, 'warn');
-                window.location.href = SERVER_URL;
-              });
-          }, 800);
-
+              .catch(() => { window.location.href = SERVER_URL; });
+          }, 400);
           return true;
-        } else {
-          throw new Error('TCP 连接失败');
         }
-      } catch (err) {
-        serverDot.className = 'status-dot error';
-        serverStatus.textContent = '未连接';
-        retryBtn.disabled = false;
-        retryIcon.textContent = '🔄';
-        retryText.textContent = '重新连接';
-        retryCount++;
-
-        log(`无法连接到服务器（${err.message}）`, 'error');
-        log(`请确认 Web 端已启动：npx next dev -p 5176`, 'warn');
-        log(`重试次数: ${retryCount}`, 'warn');
-        return false;
+      } catch {
+        // 静默重试
       }
+      return false;
     }
 
-    // ============ HermesAgent 状态 ============
-    async function checkAgent() {
-      const agentDot = document.getElementById('agent-dot');
-      const agentStatus = document.getElementById('agent-status');
-
-      const invoke = getTauriInvoke();
-      if (invoke) {
-        try {
-          const status = await invoke('get_agent_status');
-          if (status && status.wsConnected) {
-            agentDot.className = 'status-dot connected';
-            agentStatus.textContent = '已连接';
-            log(`HermesAgent v${status.version} 已连接`, 'success');
-          } else if (status) {
-            agentDot.className = 'status-dot connecting';
-            agentStatus.textContent = '连接中';
-            log(`HermesAgent v${status.version} 等待 WS 连接`, 'warn');
-          }
-        } catch (err) {
-          agentDot.className = 'status-dot error';
-          agentStatus.textContent = '不可用';
-          log(`HermesAgent 状态获取失败: ${err}`, 'error');
-        }
-      } else {
-        agentDot.className = 'status-dot error';
-        agentStatus.textContent = '不可用';
-        log('window.__TAURI__ 不存在或 invoke 不可用', 'error');
-      }
-    }
-
-    // ============ 事件绑定 ============
-    document.getElementById('retry-btn').addEventListener('click', () => {
-      log('手动重试...', 'info');
-      checkServer();
-    });
-
-    document.getElementById('help-btn').addEventListener('click', () => {
-      alert(`使用说明：
-
-1. 启动 Web 端开发服务器
-   打开项目根目录，运行：
-   npx next dev -p 5176
-
-2. 服务器启动后，桌面端会自动检测并连接
-
-3. 连接成功后，桌面端将加载 Web 端完整界面
-   - 主题：浅色/深色/自适应（右上角切换）
-   - 功能：与 Web 端完全同步
-   - 本地能力：RPA、文件操作、Shell 命令
-
-4. HermesAgent 本地能力通过 Tauri 注入
-   - 浏览器中无法使用的本地操作在桌面端可用
-   - 自动同步登录态到本地 Rust 端
-
-端口固定为 5176`);
-    });
-
-    document.getElementById('start-guide').addEventListener('click', (e) => {
-      e.preventDefault();
-      document.getElementById('help-btn').click();
-    });
-
-    // ============ 自动检测循环 ============
     async function autoRetry() {
       const connected = await checkServer();
       if (!connected) {
-        // 持续自动重试，间隔递增（2s, 4s, 6s...最多 10s）
-        const delay = Math.min(2000 * retryCount, 10000);
-        log(`${delay / 1000}秒后自动重试...`, 'info');
+        retryCount++;
+        const delay = Math.min(800 + retryCount * 400, MAX_RETRY_INTERVAL);
         setTimeout(autoRetry, delay);
       }
     }
 
     // ============ 启动 ============
-    log('桌面端启动完成', 'success');
-    // 诊断 Tauri API 结构
-    const tauriObj = window.__TAURI__;
-    if (tauriObj) {
-      log('window.__TAURI__ 存在', 'success');
-      log(`  - .invoke: ${typeof tauriObj.invoke}`, 'info');
-      log(`  - .core: ${typeof tauriObj.core}`, 'info');
-      if (tauriObj.core) {
-        log(`  - .core.invoke: ${typeof tauriObj.core.invoke}`, 'info');
-      }
-      log(`  - .event: ${typeof tauriObj.event}`, 'info');
-      const invokeFn = getTauriInvoke();
-      log(`  -> invoke 可用: ${!!invokeFn}`, invokeFn ? 'success' : 'error');
-    } else {
-      log('window.__TAURI__ 不存在！withGlobalTauri 可能未生效', 'error');
-    }
-    log(`默认主题: ${savedTheme}`, 'info');
-
-    // 先检查 HermesAgent，再检查服务器
-    checkAgent();
     autoRetry();
   </script>
 </body>
