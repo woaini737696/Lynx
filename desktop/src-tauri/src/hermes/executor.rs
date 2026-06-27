@@ -83,7 +83,7 @@ pub async fn execute_local(
             }
         }
         LocalAction::DesktopScreenshot => {
-            match rpa::desktop::take_screenshot().await {
+            match rpa::desktop::take_screenshot(&app).await {
                 Ok(path) => (true, format!("截图已保存: {}", path), None),
                 Err(e) => (false, String::new(), Some(e)),
             }

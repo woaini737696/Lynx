@@ -116,7 +116,7 @@ class StreamChatClient @Inject constructor(
 
         response.close()
         emit(SseEvent.Done)
-    }
+    }.flowOn(Dispatchers.IO)
 
     private fun parseToolCall(data: String): SseEvent.ToolCall {
         return try {

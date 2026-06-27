@@ -73,7 +73,7 @@ export function ReminderManager() {
 
           // 双通道通知
           toast(result.message, "info");
-          sendNotification("LynnHub 灵感助理", result.message);
+          sendNotification("Lynx 灵感助理", result.message);
 
           // 如果是复活建议，更新状态
           if (result.ruleId === "revive-check" && result.details) {

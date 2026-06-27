@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>LynnHub 桌面端</title>
+  <title>Lynx</title>
   <style>
     /* ============ 主题变量（支持浅色/深色/自适应） ============ */
     :root {
@@ -314,10 +314,10 @@
 
   <!-- 主容器 -->
   <div class="container">
-    <div class="logo">L</div>
+    <div class="logo">X</div>
     <div>
-      <div class="title">LynnHub 桌面端</div>
-      <div class="subtitle">HermesAgent 本地超级助理 · Web 端协同</div>
+      <div class="title">Lynx</div>
+      <div class="subtitle">Lynx AI工作台，不用学，直接干</div>
     </div>
 
     <!-- 状态卡片 -->
@@ -425,7 +425,13 @@
     }
 
     // ============ 服务器连接检测 ============
+    // 注意：不能使用 fetch 检测，因为 Tauri WebView 从 https://tauri.localhost
+    // 加载页面，向 http://localhost:5176 发起 fetch 会被 WebView2 的
+    // 混合内容/CORS 策略阻止（"Failed to fetch"）。
+    // 改用 Tauri 的 check_local_server 命令（Rust 端 TCP 检测，不受 WebView 限制）。
     const SERVER_URL = 'http://localhost:5176';
+    const SERVER_HOST = 'localhost';
+    const SERVER_PORT = 5176;
     let retryCount = 0;
     let isConnected = false;
 
@@ -440,22 +446,26 @@
       serverStatus.textContent = '检测中...';
       retryBtn.disabled = true;
       retryIcon.innerHTML = '<span class="spinner"></span>';
-      retryText.textContent = '连接中...';
+      retryText.textContent = '检测中...';
 
-      log(`正在连接 ${SERVER_URL} ...`);
+      log(`正在检测 ${SERVER_HOST}:${SERVER_PORT} ...`);
+
+      const invoke = getTauriInvoke();
+      if (!invoke) {
+        serverDot.className = 'status-dot error';
+        serverStatus.textContent = '不可用';
+        log('Tauri invoke 不可用，无法检测服务器', 'error');
+        return false;
+      }
 
       try {
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 5000);
-
-        const response = await fetch(`${SERVER_URL}/api/health`, {
-          signal: controller.signal,
-          mode: 'cors',
+        // 使用 Rust 端 TCP 检测，绕过 WebView2 的 CORS 限制
+        const online = await invoke('check_local_server', {
+          host: SERVER_HOST,
+          port: SERVER_PORT,
         });
 
-        clearTimeout(timeoutId);
-
-        if (response.ok || response.status === 404) {
+        if (online) {
           serverDot.className = 'status-dot connected';
           serverStatus.textContent = '已连接';
           retryCount = 0;
@@ -463,25 +473,20 @@
           log('服务器连接成功！', 'success');
           log('正在加载 Web 端...', 'info');
 
+          // 短暂延迟后导航到 Web 端
           setTimeout(() => {
             log('正在导航到 Web 端...', 'success');
-            // 优先使用 Tauri 的 navigate_to_url 命令
-            const invoke = getTauriInvoke();
-            if (invoke) {
-              invoke('navigate_to_url', { url: SERVER_URL })
-                .then(() => log('导航成功', 'success'))
-                .catch(err => {
-                  log(`navigate_to_url 失败: ${err}，回退到 location.href`, 'warn');
-                  window.location.href = SERVER_URL;
-                });
-            } else {
-              window.location.href = SERVER_URL;
-            }
+            invoke('navigate_to_url', { url: SERVER_URL })
+              .then(() => log('导航成功', 'success'))
+              .catch(err => {
+                log(`navigate_to_url 失败: ${err}，回退到 location.href`, 'warn');
+                window.location.href = SERVER_URL;
+              });
           }, 800);
 
           return true;
         } else {
-          throw new Error(`HTTP ${response.status}`);
+          throw new Error('TCP 连接失败');
         }
       } catch (err) {
         serverDot.className = 'status-dot error';
@@ -491,14 +496,8 @@
         retryText.textContent = '重新连接';
         retryCount++;
 
-        if (err.name === 'AbortError') {
-          log('连接超时（5秒）', 'error');
-        } else if (err.message.includes('Failed to fetch')) {
-          log('无法连接到服务器，请确认 Web 端已启动', 'error');
-        } else {
-          log(`连接失败: ${err.message}`, 'error');
-        }
-
+        log(`无法连接到服务器（${err.message}）`, 'error');
+        log(`请确认 Web 端已启动：npx next dev -p 5176`, 'warn');
         log(`重试次数: ${retryCount}`, 'warn');
         return false;
       }
@@ -569,8 +568,8 @@
     // ============ 自动检测循环 ============
     async function autoRetry() {
       const connected = await checkServer();
-      if (!connected && retryCount < 10) {
-        // 自动重试，间隔递增（2s, 4s, 6s...）
+      if (!connected) {
+        // 持续自动重试，间隔递增（2s, 4s, 6s...最多 10s）
         const delay = Math.min(2000 * retryCount, 10000);
         log(`${delay / 1000}秒后自动重试...`, 'info');
         setTimeout(autoRetry, delay);

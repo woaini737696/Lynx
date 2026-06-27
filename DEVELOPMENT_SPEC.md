@@ -21,9 +21,15 @@
 - [ ] 验证：`git status` 应 clean（无未跟踪的临时文件）
 
 ### 1.3 生产服务器同步
-- **当前阶段**：开发期，无生产服务器
-- **部署阶段**：代码同步到 Gitee 即视为完成同步；阿里云 ECS 部署延后到正式部署阶段
-- **部署阶段触发条件**：所有 P0 功能成熟 + 用户明确指示"开始部署"
+- **当前阶段**：已有阿里云生产服务器，支持正式部署
+- **部署架构**：Node.js 20 + PM2 托管 Next.js + MySQL 8.0 + Nginx 反向代理
+- **部署流程**：本地构建 → 上传服务器 → PM2 reload → 健康检查
+- **代码同步**：代码同步到 Gitee 即视为完成代码同步；生产部署需手动触发
+- **生产环境注意事项**：
+  - 生产环境必须重新生成 `AUTH_SECRET`（`openssl rand -base64 32`）
+  - 禁止在生产环境运行 `prisma seed`（仅开发环境可用）
+  - 生产环境数据库连接必须使用密码
+  - 启用 Sentry 错误监控（配置 `SENTRY_DSN`）
 
 ### 1.4 开发日志同步规范（强制）
 - **每次迭代完成并 commit + push 后，必须同步更新 `DEV_LOG.md`**，在文件顶部（`---` 之后）新增一个迭代区块
@@ -254,10 +260,38 @@
 
 | 变量名 | 用途 | 默认值 | 说明 |
 |---|---|---|---|
-| `DATABASE_URL` | MySQL 连接串 | - | Prisma 数据库连接字符串 |
-| `NEXTAUTH_URL` | NextAuth 回调 URL | `http://localhost:5176` | 必须与端口规范 §2 一致 |
-| `NEXTAUTH_SECRET` | NextAuth 加密密钥 | - | 生产环境必须重新生成 |
-| `TASK_DROPPED_RETENTION_DAYS` | 软删除任务保留天数 | `30` | 超过该天数的 `dropped` 任务由定时清理任务删除 |
+| `DATABASE_URL` | MySQL 连接串 | - | Prisma 数据库连接字符串，生产环境必须带密码 |
+| `NEXTAUTH_URL` | NextAuth 回调 URL | `http://localhost:5176` | 必须与端口规范 §2 一致，生产环境改为正式域名 |
+| `AUTH_SECRET` | NextAuth 加密密钥 | - | 生产环境必须重新生成（`openssl rand -base64 32`） |
+| `DEEPSEEK_API_KEY` | DeepSeek API Key | - | 支持动态切换 LLM 提供商 |
+| `DEEPSEEK_BASE_URL` | DeepSeek Base URL | `https://api.deepseek.com/v1` | - |
+| `DEEPSEEK_MODEL` | DeepSeek 模型名 | `deepseek-chat` | - |
+| `MIMO_API_KEY` | 小米 MiMo API Key | - | - |
+| `MIMO_BASE_URL` | MiMo Base URL | `https://api.xiaomimimo.com/v1` | - |
+| `MIMO_MODEL` | MiMo 模型名 | `mimo-v2.5` | - |
+| `DEFAULT_LLM_PROVIDER` | 默认 LLM 提供商 | `deepseek` | deepseek / mimo |
+| `EMBEDDING_API_KEY` | 向量模型 Key | - | 不填则降级 TF-IDF 模式 |
+| `EMBEDDING_BASE_URL` | Embedding Base URL | `https://api.siliconflow.cn/v1` | - |
+| `EMBEDDING_MODEL` | Embedding 模型名 | `BAAI/bge-m3` | - |
+| `ASR_API_KEY` | 语音识别 API Key | - | 可选，ASR 功能使用 |
+| `ASR_BASE_URL` | 语音识别 Base URL | - | - |
+| `ASR_MODEL` | 语音识别模型名 | `mimo-v2.5-asr` | - |
+| `TTS_API_KEY` | 语音合成 API Key | - | 可选，TTS 功能使用 |
+| `TTS_BASE_URL` | 语音合成 Base URL | - | - |
+| `TTS_MODEL` | 语音合成模型名 | `mimo-v2.5-tts` | - |
+| `TTS_VOICECLONE_MODEL` | 音色复刻模型名 | `mimo-v2.5-tts-voiceclone` | - |
+| `VISION_API_KEY` | 视觉多模态 API Key | - | 可选，多模态功能使用 |
+| `VISION_BASE_URL` | 视觉多模态 Base URL | - | - |
+| `VISION_MODEL` | 视觉多模态模型名 | `deepseek-chat` | - |
+| `LARK_APP_ID` | 飞书应用 App ID | - | 飞书集成使用 |
+| `LARK_APP_SECRET` | 飞书应用 Secret | - | - |
+| `LARK_WEBHOOK_TOKEN` | 飞书 Webhook Token | - | 飞书 Webhook 验证 |
+| `VAPID_PUBLIC_KEY` | Web Push 公钥 | - | 推送通知使用 |
+| `VAPID_PRIVATE_KEY` | Web Push 私钥 | - | - |
+| `VAPID_SUBJECT` | Web Push 主题 | - | mailto: 链接或网站 URL |
+| `SENTRY_DSN` | Sentry 错误监控 DSN | - | 可选，生产环境建议启用 |
+| `TASK_DROPPED_RETENTION_DAYS` | 软删除任务保留天数 | `30` | 超过该天数的 dropped 任务由定时清理任务删除 |
+| `WS_PORT` | WebSocket 网关端口 | `3001` | 多端协同网关端口 |
 | `DESKTOP_LATEST_VERSION` | 桌面端最新版本号 | - | 用于 Tauri Updater 版本检查 |
 | `DESKTOP_DOWNLOAD_URL` | 桌面端下载地址 | - | 用于 Tauri Updater 下载 |
 | `DESKTOP_SIGNATURE` | 桌面端签名 | - | 用于 Tauri Updater 校验 |
@@ -285,3 +319,68 @@
 - **中间件层**：`src/middleware.ts` 中 API 路由的 401 响应已接入统一信封
 - **存量 API**：历史 API 暂不强制改造，但新增或修改 API 时必须使用统一信封
 - **禁止**：新增 API 使用 `{ error: "..." }` 旧格式返回错误
+
+## 12. 代码风格规范（强制）
+
+### 12.1 ESLint 配置
+- 项目使用 Next.js 内置 ESLint 配置（`next lint`）
+- 检查命令：`npx next lint`
+- 提交前必须确保 `npx next lint` 0 错误 0 警告
+- 禁止使用 `eslint-disable` 绕过检查，如确需绕过需在注释中说明理由
+
+### 12.2 TypeScript 规范
+- 所有代码必须通过 `npx tsc --noEmit` 类型检查
+- 禁止使用 `any` 类型，如确需使用需用 `unknown` 替代并做类型收窄
+- 组件 Props 必须显式定义 interface 或 type
+- API 请求/响应体必须定义 TypeScript 类型
+- 禁止 `// @ts-ignore`，如确需忽略使用 `// @ts-expect-error` 并说明理由
+
+### 12.3 命名规范
+- 组件名：PascalCase（如 `UserList`）
+- 变量/函数：camelCase（如 `getUserList`）
+- 常量：UPPER_SNAKE_CASE（如 `MAX_RETRY_COUNT`）
+- 类型/接口：PascalCase，接口不加 `I` 前缀
+- 文件命名：组件用 PascalCase，工具函数用 kebab-case
+- Hook：`use` 开头（如 `useAuth`）
+
+### 12.4 导入规范
+- 导入顺序：第三方库 → 内部绝对路径 → 相对路径
+- 使用绝对路径导入（`@/lib/xxx`），避免深层相对路径（`../../xxx`）
+- 禁止未使用的导入（`no-unused-vars`）
+- React 17+ 无需导入 React（JSX 自动转换）
+
+### 12.5 代码格式
+- 使用 2 空格缩进
+- 字符串使用单引号
+- 语句末尾不加分号
+- 尾随逗号：多行对象/数组最后一项加逗号
+- 大括号风格：同一行（K&R 风格）
+- 最大行长度：120 字符
+
+## 13. 测试规范（强制）
+
+### 13.1 测试类型
+- **单元测试**：工具函数、Hooks、独立组件
+- **集成测试**：API 路由、多组件交互
+- **E2E 测试**：端到端功能验证（使用 `E2E` 前缀标记测试数据）
+
+### 13.2 自测要求
+- 每次迭代完成后必须进行自测，自测结果记录在 DEV_LOG.md
+- 核心功能必须验证：登录、灵感创建、看板操作、AI 对话、权限校验
+- 自测后必须清理测试数据（`npx tsx scripts/cleanup-e2e-data.ts`）
+- 禁止遗留测试数据污染数据库
+
+### 13.3 启动验证
+- 每次完成任务后必须启动 dev server 验证（见 §1.7）
+- 验证步骤：
+  1. MySQL 运行检查
+  2. dev server 启动（`npx next dev -p 5176`）
+  3. HTTP 探测首页返回 200
+  4. 检查控制台无致命错误
+- 启动失败必须修复后再提交
+
+### 13.4 数据清理规范
+- 所有测试数据使用 `E2E` 或 `测试` 前缀
+- E2E 测试必须在 `afterEach` 中清理创建的数据
+- 手动测试数据用完立即删除
+- 开发结束前运行清理脚本确认无脏数据

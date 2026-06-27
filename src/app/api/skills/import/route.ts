@@ -8,7 +8,7 @@ import { requireAuth } from "@/lib/auth-utils";
 // body:
 //   { markdown: string } 单个 Markdown
 //   { items: string[] } 批量 Markdown
-//   { json: string | object } JSON 批量导入（LynnHub 导出格式）
+//   { json: string | object } JSON 批量导入（Lynx 导出格式）
 //   { mode?: "skip" | "overwrite" } 去重模式，默认 skip
 // 鉴权：必须登录，创建技能强制 userId = user.id，去重仅匹配本人技能
 export async function POST(req: NextRequest) {
@@ -277,7 +277,7 @@ export async function POST(req: NextRequest) {
 
 // 从 JSON payload 中提取 Skill 数据数组
 // 支持两种格式：
-//   1. LynnHub 导出格式: { version, skills: [...] }
+//   1. Lynx 导出格式: { version, skills: [...] }
 //   2. 直接数组: [...]
 function extractSkillsFromJson(payload: unknown): Array<{
   name?: string;

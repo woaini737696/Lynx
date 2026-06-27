@@ -92,14 +92,17 @@ class AudioRecorder {
     fun stop(): ByteArray {
         isRecording = false
         try {
-            audioRecord?.stop()
-        } catch (_: Exception) {}
-        try {
-            audioRecord?.release()
-        } catch (_: Exception) {}
-        audioRecord = null
-        recordingThread?.interrupt()
-        recordingThread = null
+            try {
+                audioRecord?.stop()
+            } catch (_: Exception) {}
+            recordingThread?.interrupt()
+            recordingThread = null
+        } finally {
+            try {
+                audioRecord?.release()
+            } catch (_: Exception) {}
+            audioRecord = null
+        }
         synchronized(pcmBuffer) {
             return pcmBuffer.toByteArray()
         }

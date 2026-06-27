@@ -2315,7 +2315,7 @@ export default function AIAssistantPage() {
     }
   };
 
-  // 预加载默认 Hermes 技能（6 个 LynnHub 专用技能）
+  // 预加载默认 Hermes 技能（6 个 Lynx 专用技能）
   const handlePreloadHermesSkills = async () => {
     setHermesPreloading(true);
     try {
@@ -3461,7 +3461,7 @@ export default function AIAssistantPage() {
                   }}
                   className="w-full"
                 >
-                  <Sparkles className="mr-1 h-3 w-3" /> 预加载默认技能（6 个 LynnHub 技能）
+                  <Sparkles className="mr-1 h-3 w-3" /> 预加载默认技能（6 个 Lynx 技能）
                 </Button>
               </div>
 
@@ -3736,7 +3736,7 @@ export default function AIAssistantPage() {
                           <div className="flex flex-col items-center gap-3 py-10 text-center">
                             <p className="text-sm text-muted-foreground">
                               {hermesRunning
-                                ? "暂无 Hermes 技能。点击「预加载默认技能」加载 6 个 LynnHub 专用技能。"
+                                ? "暂无 Hermes 技能。点击「预加载默认技能」加载 6 个 Lynx 专用技能。"
                                 : "Hermes Agent 未运行，显示已学习的技能。点击「预加载默认技能」可添加技能。"}
                             </p>
                             <Button

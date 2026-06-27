@@ -33,6 +33,13 @@ pub async fn open_app(app_name: &str) -> Result<(), String> {
     }
 }
 
+/// PowerShell 单引号字符串转义
+/// 
+/// PowerShell 单引号字符串中，仅单引号需要转义（用 '' 表示一个单引号）
+fn escape_powershell_single_quote(s: &str) -> String {
+    s.replace('\'', "''")
+}
+
 /// 截屏：保存到 app_data_dir()/screenshots/（跨平台，替代硬编码 D:\LynnHub）
 pub async fn take_screenshot(app_handle: &tauri::AppHandle) -> Result<String, String> {
     let app_data = app_handle
@@ -54,9 +61,10 @@ pub async fn take_screenshot(app_handle: &tauri::AppHandle) -> Result<String, St
     // 使用 PowerShell 截图命令（Windows）
     #[cfg(target_os = "windows")]
     {
+        let escaped_path = escape_powershell_single_quote(&file_path_str);
         let ps_script = format!(
             r#"Add-Type -AssemblyName System.Windows.Forms; Add-Type -AssemblyName System.Drawing; $bounds = [System.Windows.Forms.SystemInformation]::VirtualScreen; $bmp = New-Object System.Drawing.Bitmap($bounds.Width, $bounds.Height); $g = [System.Drawing.Graphics]::FromImage($bmp); $g.CopyFromScreen($bounds.Location, [System.Drawing.Point]::Empty, $bounds.Size); $bmp.Save('{}'); $g.Dispose(); $bmp.Dispose()"#,
-            file_path_str.replace('\\', "\\\\")
+            escaped_path
         );
 
         let status = tokio::process::Command::new("powershell")

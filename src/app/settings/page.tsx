@@ -697,7 +697,7 @@ function HermesConfigSection() {
     }
   };
 
-  // 一键配置 Hermes 模型（复用 LynnHub 的 DeepSeek / MiMo API Key）
+  // 一键配置 Hermes 模型（复用 Lynx 的 DeepSeek / MiMo API Key）
   const handleConfigureModel = async () => {
     setConfiguringModel(true);
     try {
@@ -1059,7 +1059,7 @@ function HermesConfigSection() {
           </div>
           {modelConfigured === false && (
             <div className="mt-2 text-[11px] text-muted-foreground">
-              Hermes 需要配置 LLM 模型才能执行任务。点击「一键配置模型」会自动复用 LynnHub 的 DeepSeek / MiMo API Key 写入 Hermes 配置。
+              Hermes 需要配置 LLM 模型才能执行任务。点击「一键配置模型」会自动复用 Lynx 的 DeepSeek / MiMo API Key 写入 Hermes 配置。
             </div>
           )}
           {availableModels.length > 0 && (

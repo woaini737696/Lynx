@@ -11,7 +11,7 @@ const logger = getLogger("hermes-api");
 
 // POST /api/hermes/configure-model - 一键配置 Hermes 的 LLM 模型
 // body: { provider?: "deepseek" | "mimo" | "auto" }
-// 复用 LynnHub 的 DeepSeek / MiMo API Key，写入 Hermes 的 .env 并设置默认模型
+// 复用 Lynx 的 DeepSeek / MiMo API Key，写入 Hermes 的 .env 并设置默认模型
 export async function POST(req: NextRequest) {
   const auth = await requireAuth();
   if (auth.user === null) return auth.error;

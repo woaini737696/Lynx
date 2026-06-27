@@ -1,5 +1,5 @@
 {
-  "name": "LynnHub",
+  "name": "Lynx",
   "appid": "",
   "description": "个人认知操作系统 - 灵感收敛 · 工作聚焦 · 记忆复利",
   "versionName": "0.1.0",
@@ -40,7 +40,7 @@
     "usingComponents": true
   },
   "h5": {
-    "title": "LynnHub",
+    "title": "Lynx",
     "router": { "mode": "history" }
   },
   "vueVersion": "3"

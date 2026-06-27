@@ -5,7 +5,7 @@ import { getLogger } from "@/lib/logger";
 
 const logger = getLogger("hermes-api");
 
-// POST /api/hermes/skills/sync - 手动触发同步 Hermes /learn 生成的 skills 到 LynnHub
+// POST /api/hermes/skills/sync - 手动触发同步 Hermes /learn 生成的 skills 到 Lynx
 export async function POST() {
   const auth = await requireAuth();
   if (auth.user === null) return auth.error;

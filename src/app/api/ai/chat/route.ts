@@ -128,7 +128,7 @@ function detectIntent(text: string): { tool: string; args: Record<string, any> }
     return { tool: "getPatrolResults", args: { limit: 5 } };
   }
   if (/发送.*通知|通知.*发送|send.*notification/.test(t)) {
-    return { tool: "sendNotification", args: { title: "LynnHub 通知", body: text.replace(/帮我|发送|通知|send|notification/g, "").trim() || "测试通知" } };
+    return { tool: "sendNotification", args: { title: "Lynx 通知", body: text.replace(/帮我|发送|通知|send|notification/g, "").trim() || "测试通知" } };
   }
   if (/导出|备份|export|backup/.test(t)) {
     return { tool: "exportBackup", args: { type: "all" } };
@@ -458,7 +458,7 @@ export async function POST(req: NextRequest) {
         const userText = typeof lastUserMsg?.content === "string" ? lastUserMsg.content : "";
         if (userText.trim()) {
           // ============ 系统工具意图检测 ============
-          // Hermes 不知 LynnHub 数据库，对于创建灵感/任务/看板等系统工具意图，
+          // Hermes 不知 Lynx 数据库，对于创建灵感/任务/看板等系统工具意图，
           // 跳过 Hermes Takeover，直接走 LLM + Function Calling 路径，避免走错路径（如建 md 文件）
           const systemIntent = detectIntent(userText);
           if (systemIntent) {
@@ -564,7 +564,7 @@ export async function POST(req: NextRequest) {
         );
       }
       // 替换助理名称
-      finalSystemPrompt = finalSystemPrompt.replace(/LynnHub 的 AI 助理/g, `${assistantName}（LynnHub AI 助理）`);
+      finalSystemPrompt = finalSystemPrompt.replace(/Lynx 的 AI 助理/g, `${assistantName}（Lynx AI 助理）`);
 
       // 注入用户历史反馈（bad case）到 system prompt，让 AI 避免重复类似错误
       const feedbackCtx = await getFeedbackContext();
