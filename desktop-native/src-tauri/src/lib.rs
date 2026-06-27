@@ -347,6 +347,66 @@ async fn check_local_server(host: String, port: u16) -> Result<bool, String> {
     Ok(result)
 }
 
+/// 云端 API 代理：前端通过此命令访问云端，避免 token 暴露
+#[derive(Serialize, Deserialize)]
+pub struct CloudRequestPayload {
+    pub method: String,
+    pub path: String,
+    pub body: Option<serde_json::Value>,
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct CloudResponse {
+    pub status: u16,
+    pub data: serde_json::Value,
+}
+
+#[tauri::command]
+async fn cloud_request(
+    state: tauri::State<'_, Arc<AppState>>,
+    payload: CloudRequestPayload,
+) -> Result<CloudResponse, String> {
+    let cloud = state.cloud_endpoint.lock().map_err(|e| e.to_string())?.clone();
+    let token = state.user_token.lock().map_err(|e| e.to_string())?.clone();
+
+    let url = if payload.path.starts_with("http://") || payload.path.starts_with("https://") {
+        payload.path.clone()
+    } else {
+        let base = cloud.trim_end_matches('/');
+        let path = payload.path.trim_start_matches('/');
+        format!("{}/{}", base, path)
+    };
+
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(30))
+        .build()
+        .map_err(|e| e.to_string())?;
+
+    let mut builder = match payload.method.to_uppercase().as_str() {
+        "GET" => client.get(&url),
+        "POST" => client.post(&url),
+        "PATCH" => client.patch(&url),
+        "PUT" => client.put(&url),
+        "DELETE" => client.delete(&url),
+        _ => return Err(format!("不支持的 HTTP 方法: {}", payload.method)),
+    };
+
+    builder = builder.header("Content-Type", "application/json");
+    if let Some(t) = token {
+        builder = builder.bearer_auth(t);
+    }
+
+    if let Some(body) = payload.body {
+        builder = builder.json(&body);
+    }
+
+    let resp = builder.send().await.map_err(|e| e.to_string())?;
+    let status = resp.status().as_u16();
+    let data = resp.json::<serde_json::Value>().await.unwrap_or_else(|_| serde_json::Value::Null);
+
+    Ok(CloudResponse { status, data })
+}
+
 /// 检查桌面端更新（通过 tauri-plugin-updater 查询配置的 endpoint）
 /// 返回 true 表示有可用更新，false 表示已是最新
 #[tauri::command]
@@ -466,6 +526,7 @@ pub fn run() {
             navigate_to_url,
             check_local_server,
             check_for_updates,
+            cloud_request,
         ])
         .setup(|app| {
             log::info!("LynnHub 桌面端启动完成");
