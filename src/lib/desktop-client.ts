@@ -2,17 +2,35 @@
 // 在 Tauri 环境中调用本地 Rust 命令；在 Web 环境中走云端 API
 //
 // 检测逻辑：window.__TAURI__ 存在则视为桌面端
+// Tauri 2.x API 结构：window.__TAURI__.core.invoke（主路径）
+// Tauri 1.x 兼容路径：window.__TAURI__.invoke
 
 declare global {
   interface Window {
     __TAURI__?: {
+      // Tauri 1.x 兼容路径
       invoke?: <T = unknown>(cmd: string, args?: Record<string, unknown>) => Promise<T>;
       event?: {
         listen?: <T = unknown>(event: string, handler: (e: { payload: T }) => void) => Promise<() => void>;
         emit?: (event: string, payload?: unknown) => Promise<void>;
       };
+      // Tauri 2.x 标准路径
+      core?: {
+        invoke?: <T = unknown>(cmd: string, args?: Record<string, unknown>) => Promise<T>;
+      };
     };
   }
+}
+
+/** 获取 invoke 函数（兼容 Tauri 1.x/2.x） */
+function getInvokeFn(): ((cmd: string, args?: Record<string, unknown>) => Promise<unknown>) | null {
+  const t = window.__TAURI__;
+  if (!t) return null;
+  // Tauri 2.x 标准路径
+  if (t.core?.invoke) return t.core.invoke;
+  // Tauri 1.x 兼容路径
+  if (t.invoke) return t.invoke;
+  return null;
 }
 
 /** 是否运行在 Tauri 桌面端环境 */
@@ -27,10 +45,11 @@ export function isWeb(): boolean {
 
 /** 调用 Tauri 命令（仅桌面端可用） */
 export async function invoke<T = unknown>(cmd: string, args?: Record<string, unknown>): Promise<T> {
-  if (!isDesktop() || !window.__TAURI__?.invoke) {
+  const fn = getInvokeFn();
+  if (!fn) {
     throw new Error(`invoke('${cmd}') 仅在桌面端可用，当前为 Web 环境`);
   }
-  return window.__TAURI__.invoke<T>(cmd, args);
+  return fn(cmd, args) as Promise<T>;
 }
 
 /** 监听 Tauri 事件 */
@@ -38,16 +57,18 @@ export async function listen<T = unknown>(
   event: string,
   handler: (payload: T) => void
 ): Promise<(() => void) | null> {
-  if (!isDesktop() || !window.__TAURI__?.event?.listen) {
+  const t = window.__TAURI__;
+  if (!t?.event?.listen) {
     return null;
   }
-  return window.__TAURI__.event.listen<T>(event, (e) => handler(e.payload));
+  return t.event.listen<T>(event, (e) => handler(e.payload));
 }
 
 /** 触发 Tauri 事件 */
 export async function emit(event: string, payload?: unknown): Promise<void> {
-  if (!isDesktop() || !window.__TAURI__?.event?.emit) return;
-  await window.__TAURI__.event.emit(event, payload);
+  const t = window.__TAURI__;
+  if (!t?.event?.emit) return;
+  await t.event.emit(event, payload);
 }
 
 // ============ 桌面端能力封装 ============

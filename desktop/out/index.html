@@ -363,6 +363,31 @@
   </div>
 
   <script>
+    // ============ Tauri 2.x API 兼容封装 ============
+    // Tauri 2.x 的全局 API 结构：window.__TAURI__.core.invoke
+    // Tauri 1.x 兼容路径：window.__TAURI__.invoke
+    function getTauriInvoke() {
+      const t = window.__TAURI__;
+      if (!t) return null;
+      // Tauri 2.x 标准路径
+      if (t.core && typeof t.core.invoke === 'function') return t.core.invoke;
+      // Tauri 1.x 兼容路径
+      if (typeof t.invoke === 'function') return t.invoke;
+      return null;
+    }
+
+    function getTauriEvent() {
+      const t = window.__TAURI__;
+      if (!t) return null;
+      return t.event || null;
+    }
+
+    async function tauriInvoke(cmd, args) {
+      const fn = getTauriInvoke();
+      if (!fn) throw new Error('Tauri invoke 不可用');
+      return fn(cmd, args);
+    }
+
     // ============ 主题管理 ============
     const THEME_KEY = 'lynnhub-theme';
     const savedTheme = localStorage.getItem(THEME_KEY) || 'system';
@@ -373,7 +398,6 @@
       } else {
         document.documentElement.setAttribute('data-theme', theme);
       }
-      // 更新按钮状态
       document.querySelectorAll('[data-theme-btn]').forEach(btn => {
         btn.classList.toggle('active', btn.dataset.themeBtn === theme);
       });
@@ -395,8 +419,6 @@
       line.textContent = `[${time}] ${message}`;
       logArea.appendChild(line);
       logArea.scrollTop = logArea.scrollHeight;
-
-      // 限制日志条数
       while (logArea.children.length > 50) {
         logArea.removeChild(logArea.firstChild);
       }
@@ -423,7 +445,6 @@
       log(`正在连接 ${SERVER_URL} ...`);
 
       try {
-        // 使用 fetch 检测服务器是否在线（带超时）
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 5000);
 
@@ -435,7 +456,6 @@
         clearTimeout(timeoutId);
 
         if (response.ok || response.status === 404) {
-          // 服务器在线（404 也算在线，因为 /api/health 可能不存在）
           serverDot.className = 'status-dot connected';
           serverStatus.textContent = '已连接';
           retryCount = 0;
@@ -443,12 +463,12 @@
           log('服务器连接成功！', 'success');
           log('正在加载 Web 端...', 'info');
 
-          // 短暂延迟后跳转到 Web 端
           setTimeout(() => {
             log('正在导航到 Web 端...', 'success');
-            // 优先使用 Tauri 的 navigate_to_url 命令（更可靠）
-            if (window.__TAURI__ && window.__TAURI__.invoke) {
-              window.__TAURI__.invoke('navigate_to_url', { url: SERVER_URL })
+            // 优先使用 Tauri 的 navigate_to_url 命令
+            const invoke = getTauriInvoke();
+            if (invoke) {
+              invoke('navigate_to_url', { url: SERVER_URL })
                 .then(() => log('导航成功', 'success'))
                 .catch(err => {
                   log(`navigate_to_url 失败: ${err}，回退到 location.href`, 'warn');
@@ -489,9 +509,10 @@
       const agentDot = document.getElementById('agent-dot');
       const agentStatus = document.getElementById('agent-status');
 
-      if (window.__TAURI__ && window.__TAURI__.invoke) {
+      const invoke = getTauriInvoke();
+      if (invoke) {
         try {
-          const status = await window.__TAURI__.invoke('get_agent_status');
+          const status = await invoke('get_agent_status');
           if (status && status.wsConnected) {
             agentDot.className = 'status-dot connected';
             agentStatus.textContent = '已连接';
@@ -508,7 +529,8 @@
         }
       } else {
         agentDot.className = 'status-dot error';
-        agentStatus.textContent = '不可用（非桌面端）';
+        agentStatus.textContent = '不可用';
+        log('window.__TAURI__ 不存在或 invoke 不可用', 'error');
       }
     }
 
@@ -557,7 +579,21 @@
 
     // ============ 启动 ============
     log('桌面端启动完成', 'success');
-    log(`Tauri 环境: ${!!window.__TAURI__}`, 'info');
+    // 诊断 Tauri API 结构
+    const tauriObj = window.__TAURI__;
+    if (tauriObj) {
+      log('window.__TAURI__ 存在', 'success');
+      log(`  - .invoke: ${typeof tauriObj.invoke}`, 'info');
+      log(`  - .core: ${typeof tauriObj.core}`, 'info');
+      if (tauriObj.core) {
+        log(`  - .core.invoke: ${typeof tauriObj.core.invoke}`, 'info');
+      }
+      log(`  - .event: ${typeof tauriObj.event}`, 'info');
+      const invokeFn = getTauriInvoke();
+      log(`  -> invoke 可用: ${!!invokeFn}`, invokeFn ? 'success' : 'error');
+    } else {
+      log('window.__TAURI__ 不存在！withGlobalTauri 可能未生效', 'error');
+    }
     log(`默认主题: ${savedTheme}`, 'info');
 
     // 先检查 HermesAgent，再检查服务器
