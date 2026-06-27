@@ -9,6 +9,7 @@
 
 | 迭代 | 日期 | 任务概要 |
 |------|------|----------|
+| [迭代 46](#迭代-46---2026-06-28) | 2026-06-28 | Lynx 原生桌面端独立安装版：NSIS exe 安装包 + 品牌安装界面 |
 | [迭代 45](#迭代-45---2026-06-27) | 2026-06-27 | 桌面端 Phase1 本地打包：生成可双击安装的 MSI 安装包（22MB） |
 | [迭代 44](#迭代-44---2026-06-27) | 2026-06-27 | 桌面端原生壳 Phase1：无边框窗口 + 全局快捷键 + 远程 IPC 授权 |
 | [迭代 43](#迭代-43---2026-06-27) | 2026-06-27 | 完成全部 15 项需求优化与提升建议 |
@@ -64,6 +65,62 @@
 
 ### Commit
 `1f0dab03` — feat(desktop): iter 44 - 原生壳Phase1 无边框窗口+全局快捷键Ctrl+Shift+L+远程IPC授权+窗口控制封装
+
+---
+
+## 迭代 46 - 2026-06-28
+
+### 任务概要
+响应用户要求：将 Lynx 桌面端从原有 `desktop/` 复制并改造为独立原生桌面软件 `desktop-native/`，生成用户指定的 exe 安装包（非 MSI），安装界面符合 Lynx 橙黑品牌、类豆包/Kimi 安装流程；同时严格保留原 `desktop/` 版本不动。
+
+### 完成内容
+
+#### 1. 独立目录复制与隔离
+- 将 `desktop/` 完整复制到 `desktop-native/`，后续所有改造仅在 `desktop-native/` 内进行
+- 新增 `desktop-native/.gitignore`：排除 `/dist/`、`/dist-web/`、`/out/app/`、`/src-tauri/target/` 等构建产物
+- 同步更新根目录 `.gitignore`，新增 `/desktop-native/dist/`、`/desktop-native/dist-web/`、`/desktop-native/out/app/` 等规则
+
+#### 2. 项目元数据统一为 Lynx 原生桌面端
+- `desktop-native/package.json`：`name` / `description` / `version` 改为 `1.2.0`
+- `desktop-native/src-tauri/Cargo.toml`：`name` / `description` 改为 Lynx 相关，版本 `1.2.0`
+- `desktop-native/src-tauri/tauri.conf.json`：`identifier` / `productName` / `version` 改为 `1.2.0`，bundle 描述同步更新
+
+#### 3. 独立前端打包流程
+- 使用 `next.desktop-native.config.mjs` 做 Next.js static export，产物到 `desktop-native/dist-web/`
+- 新增 `desktop-native/build-web.ps1`：构建独立前端并注入 Tauri 全局 API 脚本
+- 新增 `desktop-native/build-native.ps1`：串联「前端构建 → 合并到 out/app → Tauri release 构建 → NSIS 安装包生成」
+- 启动页 `desktop-native/out/index.html`：橙黑品牌主题、骨架屏、本地服务检测、云端切换预留
+
+#### 4. 品牌化 NSIS exe 安装包
+- 新增 `desktop-native/installer.nsi`：完整 NSIS 安装脚本
+  - 橙黑品牌色（`#F97316` / `#111827` / `#0A0A0A`）
+  - 豆包/Kimi 风格欢迎页、安装目录页、完成页
+  - 安装前检测旧版本并提示卸载
+  - 安装完成可选创建桌面快捷方式
+  - 卸载页清理安装目录与注册表
+- `tauri.conf.json` bundle targets 改为 `["nsis"]`，语言 `SimpChinese`，installMode `both`
+- 产物：`desktop-native/dist/Lynx-Setup-1.2.0.exe`
+
+#### 5. 构建环境固化
+- `desktop-native/src-tauri/.cargo/config.toml`：
+  - `target-dir = "D:/cargo-target-native"`（纯 ASCII 路径，避免中文路径链接错误）
+  - 移除 GNU 工具链配置，统一使用 MSVC
+- 构建脚本强制校验：`rustup show active-toolchain` 必须包含 `msvc`
+- NSIS 自动探测：`C:\Program Files (x86)\NSIS\`、`C:\Program Files\NSIS\`、`%LOCALAPPDATA%\tauri\NSIS\`
+
+#### 6. 规范同步
+- `DEVELOPMENT_SPEC.md` §9.9 新增「原生桌面端（Lynx 独立安装版）」强制规范，覆盖独立目录、前端打包、安装包格式、构建命令、安装验证、与原桌面端差异、禁止行为
+
+### 自测结果
+- **构建产物**：`desktop-native/dist/Lynx-Setup-1.2.0.exe` 已生成
+- **静默安装**：`Lynx-Setup-1.2.0.exe /S /D=D:\Lynx-Test-Install` 成功
+- **产物检查**：安装目录包含 `lynnhub-desktop-native.exe`（22.37 MB）、`uninstall.exe`、`out/index.html`、`out/app/...` 完整前端资源
+- **版本信息**：产品名 `Lynx`、文件描述 `Lynx`、产品版本 `1.2.0`、文件版本 `1.2.0`
+- **图形界面安装**：建议用户在 TRAE 外部双击 `Lynx-Setup-1.2.0.exe` 进一步验证安装向导界面风格
+- **沙箱限制**：TRAE 沙箱不允许删除 `D:\Lynx-Test-Install`，需用户在测试后手动清理
+
+### Commit
+待提交
 
 ---
 

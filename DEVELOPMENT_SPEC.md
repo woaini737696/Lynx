@@ -264,6 +264,36 @@
 - **light.exe ICE 验证报错可忽略**：WiX 3.14 在某些 Windows 环境下 `light.exe` 会报 `LGHT0217` ICE 验证错误（script engine 注册问题），但 MSI 产物已完整生成在 `bundle/msi/` 目录，可直接使用；tauri 因此报 `failed to run light.exe` 但实际产物已生成
 - **NSIS exe 打包沙箱限制**：TRAE 沙箱会拦截 `D:\cargo-target\release\*.d` 写入导致 `tauri build --bundles nsis` 失败（`os error 5 拒绝访问`），如需 NSIS exe 需在 TRAE 外部终端执行；MSI 是 Windows 标准安装包已满足双击安装需求
 
+### 9.9 原生桌面端（Lynx 独立安装版，强制）
+- **独立目录**：原生桌面端源码位于 `desktop-native/`，从 `desktop/` 复制并改造而来；禁止回改 `desktop/` 原版本，两条产品线并行存在
+- **产品定位**：类豆包/Kimi 的独立原生桌面软件，非 Web 套壳；本地前端 + 云端 API，安装即用
+- **独立前端打包**：
+  - 使用 `next.desktop-native.config.mjs` 做 Next.js static export，产物到 `desktop-native/dist-web/`
+  - 构建脚本 `desktop-native/build-web.ps1` 生成离线可用前端
+  - `build-native.ps1` 将 `dist-web/` 合并到 `out/app/`，最终与 Tauri 二进制一起打包
+  - Tauri `frontendDist` 指向 `../out`，启动页 `out/index.html` 负责加载本地前端并检测云端服务
+- **安装包格式**：使用 NSIS 生成 `Lynx-Setup-1.2.0.exe`（用户要求的 exe 安装包），不再生成 MSI
+  - 自定义安装脚本：`desktop-native/installer.nsi`
+  - 品牌风格：橙黑主题、无边框现代感、类豆包安装流程
+  - 版本号统一：`package.json` / `Cargo.toml` / `tauri.conf.json` / `installer.nsi` 必须一致
+- **构建命令**：
+  - 进入 `desktop-native/` 目录执行 `build-native.ps1`
+  - 必须预先安装 NSIS 3.x（推荐路径 `C:\Program Files (x86)\NSIS\makensis.exe`）
+  - 必须使用 MSVC 工具链（`stable-x86_64-pc-windows-msvc`）
+  - Cargo target-dir 指向 `D:/cargo-target-native`（纯 ASCII 路径，避免中文路径链接错误）
+- **安装与卸载验证**：
+  - 静默安装：`Lynx-Setup-1.2.0.exe /S /D=D:\TargetDir`
+  - 产物检查：安装目录必须包含 `lynnhub-desktop-native.exe`、`uninstall.exe`、`out/index.html`、`out/app/...` 完整前端资源
+  - 版本信息检查：产品名 `Lynx`、版本 `1.2.0`、文件大小约 22MB
+  - 卸载：执行安装目录 `uninstall.exe /S`
+- **与原桌面端差异**：
+  - `desktop/`：保留原有 WebView2 套壳形态，基于 `src/` 复用前端
+  - `desktop-native/`：独立原生安装版，离线前端资源，面向终端用户发布
+- **禁止行为**：
+  - 禁止在 `desktop-native/` 中引用 `desktop/src-tauri/` 的构建产物
+  - 禁止将 `output: 'export'` 写入根目录 `next.config.mjs`
+  - 禁止提交 `dist/`、`dist-web/`、`out/app/`、`src-tauri/target/` 到版本控制（已加入 `.gitignore`）
+
 ## 10. 环境变量规范（强制）
 
 - **配置文件**：`.env`（本地开发）、`.env.example`（示例模板，必须提交到仓库）

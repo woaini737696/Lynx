@@ -1,0 +1,482 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Lynx</title>
+  <style>
+    /* ============ Lynx 品牌色 ============ */
+    :root {
+      --bg-primary: #0a0a0a;
+      --bg-secondary: #141414;
+      --bg-tertiary: #1f1f1f;
+      --text-primary: #ffffff;
+      --text-secondary: #a1a1aa;
+      --text-tertiary: #71717a;
+      --brand-orange: #f97316;
+      --brand-orange-light: #fb923c;
+      --brand-orange-glow: rgba(249, 115, 22, 0.45);
+      --border: #27272a;
+      --success: #22c55e;
+      --error: #ef4444;
+    }
+
+    [data-theme="light"] {
+      --bg-primary: #fafafa;
+      --bg-secondary: #f4f4f5;
+      --bg-tertiary: #e4e4e7;
+      --text-primary: #18181b;
+      --text-secondary: #52525b;
+      --text-tertiary: #a1a1aa;
+      --border: #e4e4e7;
+    }
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+      background: var(--bg-primary);
+      color: var(--text-primary);
+      height: 100vh;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      user-select: none;
+    }
+
+    /* 主题切换 */
+    .theme-toggle {
+      position: fixed;
+      top: 16px;
+      right: 16px;
+      display: flex;
+      gap: 4px;
+      background: var(--bg-secondary);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 4px;
+      box-shadow: 0 2px 12px rgba(0, 0, 0, 0.12);
+    }
+
+    .theme-btn {
+      background: transparent;
+      border: none;
+      color: var(--text-secondary);
+      padding: 6px 10px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 13px;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      transition: all 0.2s ease;
+    }
+
+    .theme-btn:hover {
+      background: var(--bg-tertiary);
+      color: var(--text-primary);
+    }
+
+    .theme-btn.active {
+      background: var(--brand-orange);
+      color: white;
+    }
+
+    /* 启动容器 */
+    .launch-container {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 32px;
+      width: 100%;
+      max-width: 360px;
+      padding: 24px;
+      animation: container-in 0.7s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+    }
+
+    @keyframes container-in {
+      0% { opacity: 0; transform: translateY(16px); }
+      100% { opacity: 1; transform: translateY(0); }
+    }
+
+    /* Logo */
+    .logo-wrap {
+      position: relative;
+      width: 88px;
+      height: 88px;
+      border-radius: 24px;
+      background: linear-gradient(135deg, var(--brand-orange) 0%, #ea580c 100%);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 36px;
+      font-weight: 700;
+      color: white;
+      box-shadow:
+        0 0 0 1px rgba(255, 255, 255, 0.12) inset,
+        0 10px 40px -10px var(--brand-orange-glow),
+        0 0 60px -16px var(--brand-orange-glow);
+      animation: logo-in 0.8s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+    }
+
+    .logo-wrap::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      border-radius: inherit;
+      background: linear-gradient(135deg, rgba(255,255,255,0.25), transparent 55%);
+      pointer-events: none;
+    }
+
+    @keyframes logo-in {
+      0% { opacity: 0; transform: scale(0.7); }
+      100% { opacity: 1; transform: scale(1); }
+    }
+
+    .brand-text {
+      text-align: center;
+    }
+
+    .brand-title {
+      font-size: 26px;
+      font-weight: 700;
+      color: var(--text-primary);
+      letter-spacing: -0.02em;
+    }
+
+    .brand-subtitle {
+      font-size: 14px;
+      color: var(--text-secondary);
+      margin-top: 6px;
+      line-height: 1.5;
+    }
+
+    /* 骨架屏 */
+    .skeleton-card {
+      width: 100%;
+      background: var(--bg-secondary);
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      padding: 22px;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+
+    .skeleton-line {
+      height: 12px;
+      border-radius: 6px;
+      background: linear-gradient(
+        90deg,
+        var(--bg-tertiary) 25%,
+        rgba(255, 255, 255, 0.06) 50%,
+        var(--bg-tertiary) 75%
+      );
+      background-size: 200% 100%;
+      animation: shimmer 1.8s ease-in-out infinite;
+    }
+
+    [data-theme="light"] .skeleton-line {
+      background: linear-gradient(
+        90deg,
+        var(--bg-tertiary) 25%,
+        rgba(0, 0, 0, 0.04) 50%,
+        var(--bg-tertiary) 75%
+      );
+      background-size: 200% 100%;
+    }
+
+    .skeleton-line.short { width: 55%; }
+    .skeleton-line.medium { width: 78%; }
+    .skeleton-line.long { width: 100%; }
+
+    @keyframes shimmer {
+      0% { background-position: -200% 0; }
+      100% { background-position: 200% 0; }
+    }
+
+    /* 加载指示 */
+    .loading-row {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      color: var(--text-secondary);
+      font-size: 13px;
+      min-height: 20px;
+    }
+
+    .spinner {
+      width: 16px;
+      height: 16px;
+      border: 2px solid rgba(249, 115, 22, 0.2);
+      border-top-color: var(--brand-orange);
+      border-radius: 50%;
+      animation: spin 0.9s linear infinite;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    .status-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: var(--brand-orange);
+      box-shadow: 0 0 8px var(--brand-orange-glow);
+      animation: pulse 1.6s ease-in-out infinite;
+    }
+
+    .status-dot.error { background: var(--error); box-shadow: 0 0 8px rgba(239, 68, 68, 0.45); }
+    .status-dot.success { background: var(--success); box-shadow: 0 0 8px rgba(34, 197, 94, 0.45); }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.5; }
+    }
+
+    .help-row {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      margin-top: 4px;
+    }
+
+    .help-link {
+      font-size: 12px;
+      color: var(--text-tertiary);
+      background: none;
+      border: none;
+      cursor: pointer;
+      transition: color 0.2s;
+    }
+
+    .help-link:hover {
+      color: var(--brand-orange);
+    }
+
+    .server-url {
+      font-size: 12px;
+      color: var(--text-tertiary);
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    }
+
+    /* 滚动条 */
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+  </style>
+</head>
+<body>
+  <!-- 主题切换 -->
+  <div class="theme-toggle">
+    <button class="theme-btn" data-theme-btn="light" title="浅色">☀️</button>
+    <button class="theme-btn active" data-theme-btn="dark" title="深色">🌙</button>
+    <button class="theme-btn" data-theme-btn="system" title="自适应">🖥️</button>
+  </div>
+
+  <!-- 启动画面 -->
+  <div class="launch-container">
+    <div class="logo-wrap">X</div>
+    <div class="brand-text">
+      <div class="brand-title">Lynx</div>
+      <div class="brand-subtitle">Lynx AI 工作台，不用学，直接干</div>
+    </div>
+
+    <!-- 骨架屏 -->
+    <div class="skeleton-card">
+      <div class="skeleton-line long"></div>
+      <div class="skeleton-line medium"></div>
+      <div class="skeleton-line short"></div>
+      <div class="skeleton-line long"></div>
+    </div>
+
+    <!-- 加载状态 -->
+    <div class="loading-row">
+      <span class="spinner" id="status-spinner"></span>
+      <span class="status-dot" id="status-dot"></span>
+      <span id="loading-text">正在启动 Lynx...</span>
+    </div>
+
+    <div class="help-row">
+      <span class="server-url" id="server-url">localhost:5176</span>
+      <button class="help-link" id="btn-retry" style="display:none;">重试连接</button>
+      <button class="help-link" id="btn-local" style="display:none;">启动离线版</button>
+      <button class="help-link" id="btn-cloud" style="display:none;">切换云端</button>
+    </div>
+  </div>
+
+  <script>
+    // ============ Tauri 2.x API 兼容封装 ============
+    function getTauriInvoke() {
+      const t = window.__TAURI__;
+      if (!t) return null;
+      if (t.core && typeof t.core.invoke === 'function') return t.core.invoke;
+      if (typeof t.invoke === 'function') return t.invoke;
+      return null;
+    }
+
+    async function tauriInvoke(cmd, args) {
+      const fn = getTauriInvoke();
+      if (!fn) throw new Error('Tauri invoke 不可用');
+      return fn(cmd, args);
+    }
+
+    // ============ 主题管理 ============
+    const THEME_KEY = 'lynnhub-theme';
+    const savedTheme = localStorage.getItem(THEME_KEY) || 'dark';
+
+    function applyTheme(theme) {
+      if (theme === 'system') {
+        document.documentElement.removeAttribute('data-theme');
+      } else {
+        document.documentElement.setAttribute('data-theme', theme);
+      }
+      document.querySelectorAll('[data-theme-btn]').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.themeBtn === theme);
+      });
+      localStorage.setItem(THEME_KEY, theme);
+    }
+
+    applyTheme(savedTheme);
+
+    document.querySelectorAll('[data-theme-btn]').forEach(btn => {
+      btn.addEventListener('click', () => applyTheme(btn.dataset.themeBtn));
+    });
+
+    // ============ 服务器连接检测 ============
+    const DEFAULT_LOCAL_URL = 'http://localhost:5176';
+    const CLOUD_URL = 'https://app.lynnhub.com';
+    const SERVER_HOST = 'localhost';
+    const SERVER_PORT = 5176;
+
+    const loadingTextEl = document.getElementById('loading-text');
+    const statusDot = document.getElementById('status-dot');
+    const statusSpinner = document.getElementById('status-spinner');
+    const serverUrlEl = document.getElementById('server-url');
+    const btnRetry = document.getElementById('btn-retry');
+    const btnLocal = document.getElementById('btn-local');
+    const btnCloud = document.getElementById('btn-cloud');
+
+    let retryCount = 0;
+    const MAX_RETRY = 20;
+    const OFFLINE_OFFER_RETRY = 3; // 失败 3 次后提供离线版入口
+    const MAX_RETRY_INTERVAL = 8000;
+    let currentUrl = DEFAULT_LOCAL_URL;
+
+    function setStatus(type, text) {
+      loadingTextEl.textContent = text;
+      statusDot.className = 'status-dot ' + type;
+      if (type === 'loading') {
+        statusSpinner.style.display = 'inline-block';
+      } else {
+        statusSpinner.style.display = 'none';
+      }
+    }
+
+    async function checkServer() {
+      const invoke = getTauriInvoke();
+      if (!invoke) {
+        setStatus('error', '本地运行环境未就绪');
+        return false;
+      }
+
+      try {
+        const online = await invoke('check_local_server', {
+          host: SERVER_HOST,
+          port: SERVER_PORT,
+        });
+
+        if (online) {
+          setStatus('success', '即将进入 Lynx...');
+          currentUrl = DEFAULT_LOCAL_URL;
+          setTimeout(() => {
+            invoke('navigate_to_url', { url: currentUrl })
+              .catch(() => { window.location.href = currentUrl; });
+          }, 400);
+          return true;
+        }
+      } catch (err) {
+        console.warn('检测本地服务失败:', err);
+      }
+      return false;
+    }
+
+    async function autoRetry() {
+      const connected = await checkServer();
+      if (!connected) {
+        retryCount++;
+        if (retryCount >= MAX_RETRY) {
+          setStatus('error', '无法连接到本地服务');
+          serverUrlEl.textContent = `${SERVER_HOST}:${SERVER_PORT} (${MAX_RETRY} 次重试失败)`;
+          btnRetry.style.display = 'inline';
+          btnLocal.style.display = 'inline';
+          btnCloud.style.display = 'inline';
+          return;
+        }
+        // 优先尝试开发服务，3 次失败后即提供离线原生入口
+        if (retryCount >= OFFLINE_OFFER_RETRY) {
+          setStatus('loading', `正在连接本地服务（第 ${retryCount}/${MAX_RETRY} 次重试）...`);
+          btnLocal.style.display = 'inline';
+          btnCloud.style.display = 'inline';
+        }
+        const delay = Math.min(600 + retryCount * 300, MAX_RETRY_INTERVAL);
+        setTimeout(autoRetry, delay);
+      }
+    }
+
+    btnRetry.addEventListener('click', () => {
+      retryCount = 0;
+      btnRetry.style.display = 'none';
+      btnLocal.style.display = 'none';
+      btnCloud.style.display = 'none';
+      autoRetry();
+    });
+
+    btnLocal.addEventListener('click', async () => {
+      const invoke = getTauriInvoke();
+      const localAppUrl = './app/index.html';
+      setStatus('success', '正在启动离线原生版...');
+      setTimeout(() => {
+        if (invoke) {
+          invoke('navigate_to_url', { url: localAppUrl })
+            .catch(() => { window.location.href = localAppUrl; });
+        } else {
+          window.location.href = localAppUrl;
+        }
+      }, 400);
+    });
+
+    btnCloud.addEventListener('click', async () => {
+      const invoke = getTauriInvoke();
+      if (invoke) {
+        try {
+          await invoke('set_cloud_endpoint', { endpoint: CLOUD_URL });
+        } catch (e) {
+          console.warn('设置云端 endpoint 失败:', e);
+        }
+      }
+      currentUrl = CLOUD_URL;
+      setStatus('success', '正在切换到云端模式...');
+      setTimeout(() => {
+        if (invoke) {
+          invoke('navigate_to_url', { url: CLOUD_URL })
+            .catch(() => { window.location.href = CLOUD_URL; });
+        } else {
+          window.location.href = CLOUD_URL;
+        }
+      }, 400);
+    });
+
+    // ============ 启动 ============
+    autoRetry();
+  </script>
+</body>
+</html>
