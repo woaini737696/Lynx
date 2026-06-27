@@ -62,7 +62,7 @@
 - 注：从项目根执行 cargo 会因中文路径「工作空间」触发 MinGW dlltool 失败，必须在 `desktop/src-tauri/` 下执行（已记入规范 §9.8）
 
 ### Commit
-（待提交后回填）
+`1f0dab03` — feat(desktop): iter 44 - 原生壳Phase1 无边框窗口+全局快捷键Ctrl+Shift+L+远程IPC授权+窗口控制封装
 
 ---
 
