@@ -1,7 +1,7 @@
 ; ============================================================
 ; Lynx 原生桌面端 NSIS 安装脚本
-; 品牌风格：橙黑主题、无边框现代感、类豆包/Kimi 安装流程
-; 产物：Lynx-Setup-1.2.0.exe
+; 品牌风格：豆包/Kimi 级单页居中安装流程
+; 产物：dist\Lynx-Setup-1.2.0.exe
 ; ============================================================
 
 !include "MUI2.nsh"
@@ -42,35 +42,25 @@ VIAddVersionKey "ProductVersion"  "${PRODUCT_VERSION}"
 !define BRAND_GRAY    "27272A"
 !define BRAND_TEXT    "1F2937"
 
-; ---------- MUI 设置 ----------
+; ---------- MUI 设置（禁用默认欢迎/目录/完成页，只保留安装进度页） ----------
 !define MUI_ABORTWARNING
 !define MUI_ABORTWARNING_TEXT "确定要取消 ${PRODUCT_NAME} 安装吗？"
+!define MUI_ICON "src-tauri\icons\icon.ico"
+!define MUI_UNICON "src-tauri\icons\icon.ico"
 
-; 欢迎页：大标题 + 卖点文案（豆包风格）
-!define MUI_WELCOMEPAGE_TITLE       "安装 ${PRODUCT_NAME}"
-!define MUI_WELCOMEPAGE_TEXT        "${PRODUCT_NAME} 是你的全平台 AI 工作台。$\n$\n- 本地前端 + 云端 API，安装即用$\n- 全局快捷键 Ctrl+Shift+L 快速唤起$\n- 自动更新，持续获得新能力$\n$\n点击下一步开始安装。"
-
-; 目录页
-!define MUI_DIRECTORYPAGE_TEXT_TOP  "请选择 ${PRODUCT_NAME} 的安装位置。"
-
-; 完成页
-!define MUI_FINISHPAGE_TITLE        "${PRODUCT_NAME} 安装完成"
-!define MUI_FINISHPAGE_TEXT         "${PRODUCT_NAME} 已成功安装到你的电脑。$\n$\n点击完成立即启动 ${PRODUCT_NAME}。"
-!define MUI_FINISHPAGE_RUN          "$INSTDIR\lynnhub-desktop-native.exe"
-!define MUI_FINISHPAGE_RUN_TEXT     "立即启动 ${PRODUCT_NAME}"
-
-; 界面颜色：现代白主区 + 深色文字
-!define MUI_BGCOLOR                 "FFFFFF"
-!define MUI_TEXTCOLOR               "${BRAND_TEXT}"
+; 进度页文案
+!define MUI_INSTFILESPAGE_FINISHHEADER_TEXT "${PRODUCT_NAME} 安装完成"
+!define MUI_INSTFILESPAGE_FINISHHEADER_SUBTEXT "正在启动 ${PRODUCT_NAME}..."
+!define MUI_INSTFILESPAGE_ABORTHEADER_TEXT "安装已取消"
+!define MUI_INSTFILESPAGE_ABORTHEADER_SUBTEXT "${PRODUCT_NAME} 安装未完成。"
 
 ; ---------- 安装页面流程 ----------
-!insertmacro MUI_PAGE_WELCOME
-!insertmacro MUI_PAGE_DIRECTORY
+; 自定义单页安装（logo + 路径 + 立即安装）
+Page custom CustomInstallPage CustomInstallPageLeave
+; 标准进度页
 !insertmacro MUI_PAGE_INSTFILES
-!insertmacro MUI_PAGE_FINISH
 
 ; ---------- 卸载页面流程 ----------
-!insertmacro MUI_UNPAGE_WELCOME
 !insertmacro MUI_UNPAGE_CONFIRM
 !insertmacro MUI_UNPAGE_INSTFILES
 !insertmacro MUI_UNPAGE_FINISH
@@ -78,9 +68,15 @@ VIAddVersionKey "ProductVersion"  "${PRODUCT_VERSION}"
 ; ---------- 语言 ----------
 !insertmacro MUI_LANGUAGE "SimpChinese"
 
+; ---------- 自定义页面变量 ----------
+Var Dialog
+Var LogoImg
+Var PathEdit
+Var DesktopCheckbox
+Var InstallBtn
+
 ; ---------- 初始化：检测旧版本并提示卸载 ----------
 Function .onInit
-  ; 64 位系统强制 64 位安装目录
   ${If} ${RunningX64}
     SetRegView 64
   ${EndIf}
@@ -99,6 +95,104 @@ Function .onInit
         Delete "$R0"
         RMDir /r "$INSTDIR"
       no_remove_uninstaller:
+  ${EndIf}
+FunctionEnd
+
+; ---------- 自定义安装页面：豆包风格 ----------
+Function CustomInstallPage
+  nsDialogs::Create 1018
+  Pop $Dialog
+  ${If} $Dialog == error
+    Abort
+  ${EndIf}
+
+  ; 隐藏 MUI 默认的 上一步/下一步/取消 按钮
+  GetDlgItem $R0 $HWNDPARENT 1
+  ShowWindow $R0 ${SW_HIDE}
+  GetDlgItem $R0 $HWNDPARENT 2
+  ShowWindow $R0 ${SW_HIDE}
+  GetDlgItem $R0 $HWNDPARENT 3
+  ShowWindow $R0 ${SW_HIDE}
+
+  ; 设置对话框背景为白色
+  SetCtlColors $Dialog FFFFFF FFFFFF
+
+  ; Logo 图片（居中，128x128）
+  File "assets\installer-logo.bmp"
+  ${NSD_CreateBitmap} 196 48 128 128 ""
+  Pop $LogoImg
+  ${NSD_SetImage} $LogoImg "$PLUGINSDIR\installer-logo.bmp" $R0
+
+  ; 产品名
+  ${NSD_CreateLabel} 0 190 520 30 "${PRODUCT_NAME}"
+  Pop $0
+  SetCtlColors $0 ${BRAND_TEXT} FFFFFF
+  CreateFont $R1 "Microsoft YaHei" "18" "700"
+  SendMessage $0 ${WM_SETFONT} $R1 0
+
+  ; 安装路径标签
+  ${NSD_CreateLabel} 80 245 360 18 "安装路径"
+  Pop $0
+  SetCtlColors $0 ${BRAND_TEXT} FFFFFF
+  CreateFont $R2 "Microsoft YaHei" "10" "400"
+  SendMessage $0 ${WM_SETFONT} $R2 0
+
+  ; 安装路径输入框
+  ${NSD_CreateText} 80 265 270 28 "$INSTDIR"
+  Pop $PathEdit
+  SetCtlColors $PathEdit ${BRAND_TEXT} FFFFFF
+  SendMessage $PathEdit ${WM_SETFONT} $R2 0
+
+  ; 浏览按钮
+  ${NSD_CreateButton} 360 265 80 28 "浏览..."
+  Pop $0
+  SetCtlColors $0 ${BRAND_TEXT} FFFFFF
+  SendMessage $0 ${WM_SETFONT} $R2 0
+  ${NSD_OnClick} $0 OnBrowseClick
+
+  ; 创建桌面快捷方式复选框
+  ${NSD_CreateCheckbox} 80 305 300 18 "创建桌面快捷方式"
+  Pop $DesktopCheckbox
+  SetCtlColors $DesktopCheckbox ${BRAND_TEXT} FFFFFF
+  SendMessage $DesktopCheckbox ${WM_SETFONT} $R2 0
+  ${NSD_Check} $DesktopCheckbox
+
+  ; 立即安装按钮（橙底白字）
+  ${NSD_CreateButton} 80 350 360 42 "立即安装"
+  Pop $InstallBtn
+  SetCtlColors $InstallBtn FFFFFF ${BRAND_ORANGE}
+  CreateFont $R3 "Microsoft YaHei" "12" "700"
+  SendMessage $InstallBtn ${WM_SETFONT} $R3 0
+  ${NSD_OnClick} $InstallBtn OnInstallClick
+
+  ; 底部提示
+  ${NSD_CreateLabel} 0 420 520 18 "点击“立即安装”即表示同意软件许可协议"
+  Pop $0
+  SetCtlColors $0 888888 FFFFFF
+  CreateFont $R4 "Microsoft YaHei" "9" "400"
+  SendMessage $0 ${WM_SETFONT} $R4 0
+
+  nsDialogs::Show
+FunctionEnd
+
+Function OnBrowseClick
+  nsDialogs::SelectFolderDialog "请选择 ${PRODUCT_NAME} 的安装位置" "$INSTDIR"
+  Pop $R0
+  ${If} $R0 != error
+    ${NSD_SetText} $PathEdit "$R0\${PRODUCT_NAME}"
+  ${EndIf}
+FunctionEnd
+
+Function OnInstallClick
+  ; 触发离开页面，进入安装进度（模拟点击 MUI 下一步，控件 ID 为 1）
+  SendMessage $HWNDPARENT ${WM_COMMAND} 1 0
+FunctionEnd
+
+Function CustomInstallPageLeave
+  ${NSD_GetText} $PathEdit $INSTDIR
+  ${If} $INSTDIR == ""
+    MessageBox MB_OK|MB_ICONEXCLAMATION "请选择安装路径。"
+    Abort
   ${EndIf}
 FunctionEnd
 
@@ -135,12 +229,18 @@ Section "Lynx 主程序" SecMain
   WriteRegDWORD HKLM "${PRODUCT_UNINST_KEY}" "NoRepair" 1
   WriteRegDWORD HKLM "${PRODUCT_UNINST_KEY}" "EstimatedSize" 48000
 
-  ; 开始菜单快捷方式
-  CreateShortcut "$SMPROGRAMS\${PRODUCT_NAME}.lnk" "$INSTDIR\lynnhub-desktop-native.exe" "" "$INSTDIR\lynnhub-desktop-native.exe" 0
-SectionEnd
+  ; 桌面快捷方式（默认创建；静默安装时直接创建）
+  ${If} ${Silent}
+    CreateShortcut "$DESKTOP\${PRODUCT_NAME}.lnk" "$INSTDIR\lynnhub-desktop-native.exe" "" "$INSTDIR\lynnhub-desktop-native.exe" 0
+  ${Else}
+    ${NSD_GetState} $DesktopCheckbox $R0
+    ${If} $R0 == "1"
+      CreateShortcut "$DESKTOP\${PRODUCT_NAME}.lnk" "$INSTDIR\lynnhub-desktop-native.exe" "" "$INSTDIR\lynnhub-desktop-native.exe" 0
+    ${EndIf}
+  ${EndIf}
 
-Section /o "创建桌面快捷方式" SecDesktop
-  CreateShortcut "$DESKTOP\${PRODUCT_NAME}.lnk" "$INSTDIR\lynnhub-desktop-native.exe" "" "$INSTDIR\lynnhub-desktop-native.exe" 0
+  ; 安装完成自动启动
+  Exec "$INSTDIR\lynnhub-desktop-native.exe"
 SectionEnd
 
 ; ---------- 卸载部分 ----------
@@ -155,7 +255,6 @@ Section "Uninstall"
   RMDir /r "$INSTDIR\out"
 
   ; 删除快捷方式
-  Delete "$SMPROGRAMS\${PRODUCT_NAME}.lnk"
   Delete "$DESKTOP\${PRODUCT_NAME}.lnk"
 
   ; 删除注册表
@@ -167,4 +266,3 @@ Section "Uninstall"
 
   SetAutoClose true
 SectionEnd
-

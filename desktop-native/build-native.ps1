@@ -1,4 +1,4 @@
-﻿# Lynx 原生桌面端完整构建脚本
+# Lynx 原生桌面端完整构建脚本
 # 产物：dist\Lynx-Setup-1.2.0.exe
 # 注意：需要预先安装 Rust MSVC 工具链、Node.js、NSIS
 
@@ -41,7 +41,20 @@ if (-not $makensis) {
 }
 Write-Info "使用 NSIS: $makensis"
 
-# 3. 构建独立前端（Next.js static export -> desktop-native/dist-web）
+# 3. 生成安装包资源（高清 logo / installer bmp / icon）
+Write-Info "生成安装包资源..."
+$assetScript = Join-Path $root "..\scripts\generate-desktop-native-assets.py"
+if (Test-Path $assetScript) {
+    & python $assetScript
+    if ($LASTEXITCODE -ne 0) {
+        throw "安装资源生成失败"
+    }
+    Write-Ok "安装资源生成完成"
+} else {
+    Write-Info "未找到资源生成脚本，跳过: $assetScript"
+}
+
+# 4. 构建独立前端（Next.js static export -> desktop-native/dist-web）
 Write-Info "构建独立前端到 dist-web..."
 $webScript = Join-Path $root "build-web.ps1"
 if (!(Test-Path $webScript)) {

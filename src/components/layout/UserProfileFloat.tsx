@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { LogOut, Loader2, Settings2 } from "lucide-react";
 
@@ -10,6 +10,7 @@ export function UserProfileFloat() {
   const [loading, setLoading] = useState(true);
   const [menuOpen, setMenuOpen] = useState(false);
   const [signingOut, setSigningOut] = useState(false);
+  const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     fetch("/api/auth/session")
@@ -55,11 +56,25 @@ export function UserProfileFloat() {
   const initial = displayName.charAt(0).toUpperCase();
   const hasAvatar = !!user.avatarUrl;
 
+  const openMenu = () => {
+    if (closeTimerRef.current) {
+      clearTimeout(closeTimerRef.current);
+      closeTimerRef.current = null;
+    }
+    setMenuOpen(true);
+  };
+
+  const closeMenu = () => {
+    closeTimerRef.current = setTimeout(() => {
+      setMenuOpen(false);
+    }, 180);
+  };
+
   return (
     <div
-      className="fixed bottom-5 left-5 z-50 hidden lg:block"
-      onMouseEnter={() => setMenuOpen(true)}
-      onMouseLeave={() => setMenuOpen(false)}
+      className="fixed bottom-5 left-5 z-50 hidden lg:block pb-2"
+      onMouseEnter={openMenu}
+      onMouseLeave={closeMenu}
     >
       <button
         type="button"

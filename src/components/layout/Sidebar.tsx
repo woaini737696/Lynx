@@ -1,7 +1,7 @@
 "use client";
 
 import { usePathname } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Target,
   KanbanSquare,
@@ -148,6 +148,7 @@ function SidebarUserProfile() {
   const [loading, setLoading] = useState(true);
   const [menuOpen, setMenuOpen] = useState(false);
   const [signingOut, setSigningOut] = useState(false);
+  const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     fetch("/api/auth/session")
@@ -193,11 +194,25 @@ function SidebarUserProfile() {
   const initial = displayName.charAt(0).toUpperCase();
   const hasAvatar = !!user.avatarUrl;
 
+  const openMenu = () => {
+    if (closeTimerRef.current) {
+      clearTimeout(closeTimerRef.current);
+      closeTimerRef.current = null;
+    }
+    setMenuOpen(true);
+  };
+
+  const closeMenu = () => {
+    closeTimerRef.current = setTimeout(() => {
+      setMenuOpen(false);
+    }, 180);
+  };
+
   return (
     <div
-      className="relative"
-      onMouseEnter={() => setMenuOpen(true)}
-      onMouseLeave={() => setMenuOpen(false)}
+      className="relative pb-2"
+      onMouseEnter={openMenu}
+      onMouseLeave={closeMenu}
     >
       <button
         type="button"
