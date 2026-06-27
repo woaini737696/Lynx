@@ -411,6 +411,27 @@ pub fn run() {
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_http::init())
+        // 全局快捷键：Ctrl+Shift+L 唤起/隐藏主窗口（豆包/Kimi 式唤起）
+        // 注：避开 Ctrl+Space（中文输入法切换冲突）
+        .plugin(
+            tauri_plugin_global_shortcut::Builder::new()
+                .with_shortcuts(["Ctrl+Shift+L"])
+                .expect("注册全局快捷键 Ctrl+Shift+L 失败")
+                .with_handler(|app, _shortcut, event| {
+                    use tauri_plugin_global_shortcut::ShortcutState;
+                    if event.state == ShortcutState::Pressed {
+                        if let Some(window) = app.get_webview_window("main") {
+                            if window.is_visible().unwrap_or(false) {
+                                let _ = window.hide();
+                            } else {
+                                let _ = window.show();
+                                let _ = window.set_focus();
+                            }
+                        }
+                    }
+                })
+                .build(),
+        )
         .on_window_event(|window, event| {
             if let tauri::WindowEvent::CloseRequested { api, .. } = event {
                 // 关闭按钮最小化到托盘而非退出

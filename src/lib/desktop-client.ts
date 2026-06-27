@@ -18,8 +18,27 @@ declare global {
       core?: {
         invoke?: <T = unknown>(cmd: string, args?: Record<string, unknown>) => Promise<T>;
       };
+      // Tauri 2.x window 模块（withGlobalTauri 注入）
+      window?: {
+        getCurrentWindow?: () => TauriWindow;
+      };
     };
   }
+}
+
+/** Tauri 2.x 窗口实例（仅声明用到的子集） */
+export interface TauriWindow {
+  minimize(): Promise<void>;
+  maximize(): Promise<void>;
+  unmaximize(): Promise<void>;
+  toggleMaximize(): Promise<void>;
+  close(): Promise<void>;
+  hide(): Promise<void>;
+  show(): Promise<void>;
+  setFocus(): Promise<void>;
+  isMaximized(): Promise<boolean>;
+  isVisible(): Promise<boolean>;
+  onResized(handler: () => void): Promise<() => void>;
 }
 
 /** 获取 invoke 函数（兼容 Tauri 1.x/2.x） */
@@ -69,6 +88,53 @@ export async function emit(event: string, payload?: unknown): Promise<void> {
   const t = window.__TAURI__;
   if (!t?.event?.emit) return;
   await t.event.emit(event, payload);
+}
+
+// ============ 窗口控制（无边框自定义标题栏用） ============
+
+/** 获取当前 Tauri 窗口实例（仅桌面端） */
+export function getCurrentWindow(): TauriWindow | null {
+  if (!isDesktop()) return null;
+  try {
+    return window.__TAURI__?.window?.getCurrentWindow?.() ?? null;
+  } catch {
+    return null;
+  }
+}
+
+/** 最小化窗口 */
+export async function windowMinimize(): Promise<void> {
+  await getCurrentWindow()?.minimize();
+}
+
+/** 切换最大化/还原 */
+export async function windowToggleMaximize(): Promise<void> {
+  await getCurrentWindow()?.toggleMaximize();
+}
+
+/** 关闭窗口（实际最小化到托盘，由 Rust 端 CloseRequested 拦截） */
+export async function windowClose(): Promise<void> {
+  await getCurrentWindow()?.close();
+}
+
+/** 查询当前是否最大化 */
+export async function windowIsMaximized(): Promise<boolean> {
+  try {
+    return (await getCurrentWindow()?.isMaximized()) ?? false;
+  } catch {
+    return false;
+  }
+}
+
+/** 监听窗口尺寸变化（最大化/还原时更新 UI） */
+export async function onWindowResized(handler: () => void): Promise<(() => void) | null> {
+  const win = getCurrentWindow();
+  if (!win?.onResized) return null;
+  try {
+    return await win.onResized(handler);
+  } catch {
+    return null;
+  }
 }
 
 // ============ 桌面端能力封装 ============

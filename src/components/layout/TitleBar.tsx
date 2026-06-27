@@ -2,22 +2,22 @@
 
 import { useEffect, useState } from "react";
 import { Minus, Square, X, Maximize2 } from "lucide-react";
-import { isDesktop } from "@/lib/desktop-client";
-
-function getTauriWindow(): any | null {
-  if (typeof window === "undefined") return null;
-  try {
-    return (window as any).__TAURI__?.window?.getCurrentWindow?.() || null;
-  } catch {
-    return null;
-  }
-}
+import {
+  isDesktop,
+  getCurrentWindow,
+  windowMinimize,
+  windowToggleMaximize,
+  windowClose,
+  windowIsMaximized,
+  onWindowResized,
+} from "@/lib/desktop-client";
 
 /**
- * 桌面端自定义标题栏
+ * 桌面端自定义标题栏（无边框窗口用，豆包/Kimi 风格）
  * - 仅在 Tauri 桌面端显示
- * - 隐藏原生标题栏的 Lynx 图标/文字
- * - 提供拖拽区域和最小化/最大化/关闭按钮
+ * - 左侧 Lynx 品牌标识 + 右侧最小化/最大化/关闭按钮
+ * - 中间为可拖拽区域（data-tauri-drag-region）
+ * - 双击拖拽区域切换最大化（原生窗口行为）
  */
 export function TitleBar() {
   const [mounted, setMounted] = useState(false);
@@ -28,25 +28,17 @@ export function TitleBar() {
   }, []);
 
   useEffect(() => {
-    const win = getTauriWindow();
-    if (!win) return;
+    if (!isDesktop()) return;
 
     const updateState = async () => {
-      try {
-        const maximized = await win.isMaximized();
-        setIsMaximized(maximized);
-      } catch {
-        // ignore
-      }
+      setIsMaximized(await windowIsMaximized());
     };
     updateState();
 
     let unlisten: (() => void) | null = null;
-    if (typeof win.onResized === "function") {
-      win.onResized(updateState).then((fn: any) => {
-        unlisten = fn;
-      }).catch(() => {});
-    }
+    onWindowResized(updateState).then((fn) => {
+      unlisten = fn;
+    });
 
     return () => {
       if (unlisten) unlisten();
@@ -54,51 +46,36 @@ export function TitleBar() {
   }, []);
 
   if (!mounted || !isDesktop()) return null;
-
-  const win = getTauriWindow();
-  if (!win) return null;
-
-  const minimize = () => {
-    try {
-      win.minimize?.();
-    } catch {
-      // ignore
-    }
-  };
-
-  const maximize = () => {
-    try {
-      if (isMaximized) {
-        win.unmaximize?.();
-      } else {
-        win.maximize?.();
-      }
-    } catch {
-      // ignore
-    }
-  };
-
-  const close = () => {
-    try {
-      win.close?.();
-    } catch {
-      // ignore
-    }
-  };
+  if (!getCurrentWindow()) return null;
 
   return (
-    <div className="glass-bar flex h-9 w-full shrink-0 select-none items-center justify-between px-3">
-      <div className="flex items-center gap-2">
+    <div className="glass-bar flex h-9 w-full shrink-0 select-none items-center justify-between px-2">
+      {/* 左侧：Lynx 品牌标识 */}
+      <div className="flex items-center gap-2 pl-1">
+        <div
+          className="flex h-5 w-5 items-center justify-center rounded-[6px] text-[11px] font-bold text-white shadow-sm"
+          style={{
+            background: "linear-gradient(135deg, #f97316, #ea580c)",
+          }}
+          aria-hidden
+        >
+          X
+        </div>
         <span className="text-xs font-medium text-foreground/70">Lynx</span>
       </div>
 
-      {/* 拖拽区域：占据标题栏中间空白 */}
-      <div data-tauri-drag-region className="flex-1 self-stretch" />
+      {/* 中间：拖拽区域（双击切换最大化） */}
+      <div
+        data-tauri-drag-region
+        onDoubleClick={() => windowToggleMaximize()}
+        className="flex-1 self-stretch"
+      />
 
+      {/* 右侧：窗口控制按钮 */}
       <div className="flex items-center gap-0.5">
         <button
           type="button"
-          onClick={minimize}
+          onClick={() => windowMinimize()}
           className="flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
           aria-label="最小化"
         >
@@ -106,7 +83,7 @@ export function TitleBar() {
         </button>
         <button
           type="button"
-          onClick={maximize}
+          onClick={() => windowToggleMaximize()}
           className="flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
           aria-label={isMaximized ? "还原" : "最大化"}
         >
@@ -118,8 +95,8 @@ export function TitleBar() {
         </button>
         <button
           type="button"
-          onClick={close}
-          className="flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-graveyard hover:text-white"
+          onClick={() => windowClose()}
+          className="flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-destructive hover:text-white"
           aria-label="关闭"
         >
           <X className="h-3.5 w-3.5" />

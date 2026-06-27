@@ -9,6 +9,7 @@
 
 | 迭代 | 日期 | 任务概要 |
 |------|------|----------|
+| [迭代 44](#迭代-44---2026-06-27) | 2026-06-27 | 桌面端原生壳 Phase1：无边框窗口 + 全局快捷键 + 远程 IPC 授权 |
 | [迭代 43](#迭代-43---2026-06-27) | 2026-06-27 | 完成全部 15 项需求优化与提升建议 |
 | [迭代 42](#迭代-42---2026-06-27) | 2026-06-27 | 全维度代码扫描 + 自动修复 50+ 项 |
 | [迭代 41](#迭代-41---2026-06-27) | 2026-06-27 | 删除接口 + 全局 Loading + 记忆图谱批量管理 + SSE 流式技能生成 |
@@ -19,6 +20,49 @@
 | [迭代 36](#迭代-36---2026-06-26) | 2026-06-26 | 角色管理 CRUD + 用户管理打通 + 职业工作空间 |
 | [迭代 35](#迭代-35---2026-06-26) | 2026-06-26 | 角色管理按职位分配 + 职业定制 AI 工作空间 |
 | [迭代 34](#迭代-34---2026-06-26) | 2026-06-26 | C 盘数据迁移 + 磁盘使用规范 |
+
+---
+
+## 迭代 44 - 2026-06-27
+
+### 任务概要
+桌面端原生壳 Phase 1：把 Lynx 桌面端从「等本地服务起来的启动器」改造为「豆包/Kimi 级原生壳 + 云端 UI 深度集成」的独立安装产品形态。本轮完成原生壳核心：无边框窗口 + 自定义标题栏 + 全局快捷键 + 远程 IPC 授权 + 窗口控制封装。
+
+### 方案决策
+- 架构选定：**Tauri 原生壳 + 云端 UI 深度原生集成**（对标豆包/Kimi/Trae Solo）。弃用「内置本地后端」（体积 100MB+、启动慢）与「纯静态 SPA 重写」（需重写全部 Web UI）。
+- 分两阶段：Phase 1 本地跑通（前端 `frontendDist` 指 `localhost:5176`），Phase 2 部署云端后切 `app.lynnhub.com` 为真·独立安装产品。
+
+### 完成内容
+
+#### 1. 无边框窗口 + 自定义标题栏
+- `desktop/src-tauri/tauri.conf.json`：`decorations: true` → `decorations: false` + `shadow: true`，消除「系统标题栏 + 自定义 TitleBar」双标题栏问题；版本号 `1.0.0` → `1.2.0`
+- `src/components/layout/TitleBar.tsx`：重写为豆包级标题栏——左侧 Lynx 橙黑品牌标识（渐变圆角 X）、中间 `data-tauri-drag-region` 拖拽区（双击切换最大化）、右侧最小化/最大化/关闭按钮；改用 `desktop-client.ts` 封装，移除 `any` 强转
+
+#### 2. 全局快捷键（豆包/Kimi 式唤起）
+- `desktop/src-tauri/Cargo.toml`：新增 `tauri-plugin-global-shortcut = "2.0"`
+- `desktop/src-tauri/src/lib.rs`：注册 `Ctrl+Shift+L` 全局快捷键，按下时切换主窗口显示/隐藏（避开 `Ctrl+Space`，与中文输入法切换冲突）
+- `desktop/src-tauri/capabilities/default.json`：新增 `global-shortcut:default` 权限
+
+#### 3. 远程 IPC 授权（Web UI 调用 Tauri 命令的关键）
+- `desktop/src-tauri/capabilities/default.json`：新增 `remote.urls`（`http://localhost:5176/**`、`http://127.0.0.1:5176/**`、`https://app.lynnhub.com/**`），让从 localhost/云端加载的 Web UI 能调用 Tauri 命令
+- 新增窗口权限：`core:window:allow-toggle-maximize`、`core:window:allow-is-maximized`
+- 关键发现：Tauri 2.x 已废弃 v1 的 `dangerousRemoteDomainIpcAccess`，改用 capabilities 的 `remote.urls` 字段（已记入规范 §9.8）
+
+#### 4. 窗口控制封装
+- `src/lib/desktop-client.ts`：补全 `__TAURI__.window` 类型声明（含 `TauriWindow` 接口）；新增 `getCurrentWindow/windowMinimize/windowToggleMaximize/windowClose/windowIsMaximized/onWindowResized` 封装
+
+#### 5. 规范同步
+- `DEVELOPMENT_SPEC.md` §9.8 新增「原生壳规范（豆包/Kimi 级桌面端）」：架构定位、无边框窗口、全局快捷键、远程 IPC、窗口控制 API、endpoint 切换、cargo 执行目录、工具链共 8 条强制规范
+
+### 自测结果
+- **cargo check**（在 `desktop/src-tauri/` 目录执行）：exit 0，8 个 warning 均为历史遗留（unused imports / deprecated `shell().open()`），无新增错误
+- **npx tsc --noEmit**：0 错误
+- **MySQL 3306**：运行中
+- **Dev server 5176**：HOME=200、LOGIN=200（Web 端未受影响，TitleBar 在 Web 端返回 null）
+- 注：从项目根执行 cargo 会因中文路径「工作空间」触发 MinGW dlltool 失败，必须在 `desktop/src-tauri/` 下执行（已记入规范 §9.8）
+
+### Commit
+（待提交后回填）
 
 ---
 
