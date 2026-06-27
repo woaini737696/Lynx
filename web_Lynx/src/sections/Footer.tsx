@@ -56,15 +56,13 @@ export default function Footer() {
               textShadow: '0 2px 30px rgba(0,0,0,0.4)',
               textWrap: 'balance',
             }}
-          >
-            准备好开启了吗？
-          </h2>
+          >准备好开启了吗？</h2>
 
           <p
             className="mb-8 md:mb-10 max-w-[420px] mx-auto"
             style={{ fontSize: '16px', lineHeight: 1.7, color: 'rgba(240, 244, 248, 0.45)' }}
           >
-            选择适合你的平台，体验 AI 驱动的全新工作方式
+            选择适合你的平台，体验会自主学习、成长、进化的 AI 工作台
           </p>
 
           <div className="flex flex-col sm:flex-row items-center justify-center gap-3 md:gap-4 mb-8 md:mb-10">
@@ -99,7 +97,7 @@ export default function Footer() {
             <div className="flex items-center gap-2">
               <img src="/lynx-logo-black.png" alt="Lynx" className="w-5 h-5" style={{ opacity: 0.5, borderRadius: '4px' }} />
               <span style={{ color: 'rgba(240, 244, 248, 0.25)', fontSize: '13px' }}>
-                Lynx Technology Co., Ltd.
+                Lynx · Lynx AI工作台，不用学，直接干
               </span>
             </div>
             <div className="flex items-center gap-6">
