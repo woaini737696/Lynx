@@ -120,7 +120,7 @@
 - **沙箱限制**：TRAE 沙箱不允许删除 `D:\Lynx-Test-Install`，需用户在测试后手动清理
 
 ### Commit
-待提交
+`a6313506` — feat(desktop-native): iter 46 - Lynx原生桌面端独立安装版NSIS exe安装包
 
 ---
 
