@@ -4,8 +4,8 @@
       <view class="logo-circle">
         <text class="logo-text">L</text>
       </view>
-      <text class="login-title">LynnHub</text>
-      <text class="login-subtitle">灵感收敛 · 工作聚焦 · 记忆复利</text>
+      <text class="login-title">Lynx</text>
+      <text class="login-subtitle">Lynx AI工作台，不用学，直接干</text>
     </view>
 
     <view class="login-form">
