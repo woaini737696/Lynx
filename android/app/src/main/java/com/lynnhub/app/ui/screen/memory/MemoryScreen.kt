@@ -20,6 +20,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Psychology
 import androidx.compose.material.icons.filled.Search
@@ -40,6 +41,8 @@ import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.pulltorefresh.PullToRefreshContainer
 import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import androidx.compose.runtime.Composable
@@ -51,6 +54,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.input.nestedscroll.nestedScroll
@@ -64,6 +68,7 @@ import com.lynnhub.app.ui.theme.Blue500
 import com.lynnhub.app.ui.theme.Green500
 import com.lynnhub.app.ui.theme.Orange500
 import com.lynnhub.app.ui.theme.Purple500
+import com.lynnhub.app.ui.component.ErrorState
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -71,6 +76,7 @@ import java.util.Locale
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MemoryScreen(
+    onBack: () -> Unit = {},
     viewModel: MemoryViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
@@ -99,7 +105,60 @@ fun MemoryScreen(
 
     Scaffold(
         containerColor = MaterialTheme.colorScheme.surface,
-        snackbarHost = { SnackbarHost(snackbarHostState) }
+        snackbarHost = { SnackbarHost(snackbarHostState) },
+        topBar = {
+            TopAppBar(
+                navigationIcon = {
+                    IconButton(onClick = onBack) {
+                        Icon(
+                            imageVector = Icons.Filled.ArrowBack,
+                            contentDescription = "返回",
+                            tint = MaterialTheme.colorScheme.onSurface
+                        )
+                    }
+                },
+                title = {
+                    Text(
+                        text = "记忆",
+                        style = MaterialTheme.typography.headlineMedium,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        fontWeight = FontWeight.Bold
+                    )
+                },
+                actions = {
+                    IconButton(onClick = { showSearch = !showSearch }) {
+                        Icon(
+                            imageVector = Icons.Filled.Search,
+                            contentDescription = "搜索",
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    IconButton(onClick = { /* TODO: 添加记忆 */ }) {
+                        Box(
+                            modifier = Modifier
+                                .size(36.dp)
+                                .background(
+                                    brush = Brush.linearGradient(
+                                        colors = listOf(Amber500, Orange500)
+                                    ),
+                                    shape = RoundedCornerShape(10.dp)
+                                ),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Filled.Add,
+                                contentDescription = "添加记忆",
+                                tint = Color.White,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+                    }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.surface
+                )
+            )
+        }
     ) { paddingValues ->
         Box(
             modifier = Modifier
@@ -108,11 +167,6 @@ fun MemoryScreen(
                 .nestedScroll(refreshState.nestedScrollConnection)
         ) {
             Column(modifier = Modifier.fillMaxSize()) {
-                MemoryHeader(
-                    onSearchClick = { showSearch = !showSearch },
-                    onAddClick = { /* TODO: 添加记忆 */ }
-                )
-
                 if (showSearch) {
                     MemorySearchField(
                         query = uiState.searchQuery,
@@ -139,6 +193,13 @@ fun MemoryScreen(
                         ) {
                             CircularProgressIndicator(color = Amber500)
                         }
+                    }
+                    uiState.error != null && displayList.isEmpty() && !uiState.isSearching -> {
+                        val errorMsg = uiState.error
+                        ErrorState(
+                            message = errorMsg ?: "加载失败",
+                            onRetry = { viewModel.loadMemory() }
+                        )
                     }
                     uiState.isSearching -> {
                         Box(
@@ -185,54 +246,6 @@ fun MemoryScreen(
                 containerColor = MaterialTheme.colorScheme.surface,
                 contentColor = Amber500
             )
-        }
-    }
-}
-
-@Composable
-private fun MemoryHeader(
-    onSearchClick: () -> Unit,
-    onAddClick: () -> Unit
-) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 16.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Text(
-            text = "记忆",
-            style = MaterialTheme.typography.headlineMedium,
-            color = MaterialTheme.colorScheme.onSurface,
-            fontWeight = FontWeight.Bold,
-            modifier = Modifier.weight(1f)
-        )
-        IconButton(onClick = onSearchClick) {
-            Icon(
-                imageVector = Icons.Filled.Search,
-                contentDescription = "搜索",
-                tint = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-        }
-        IconButton(onClick = onAddClick) {
-            Box(
-                modifier = Modifier
-                    .size(36.dp)
-                    .background(
-                        brush = androidx.compose.ui.graphics.Brush.linearGradient(
-                            colors = listOf(Amber500, Orange500)
-                        ),
-                        shape = RoundedCornerShape(10.dp)
-                    ),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    imageVector = Icons.Filled.Add,
-                    contentDescription = "添加",
-                    tint = Color.White,
-                    modifier = Modifier.size(20.dp)
-                )
-            }
         }
     }
 }
@@ -383,7 +396,7 @@ private fun MemoryNodeCard(
             Spacer(modifier = Modifier.height(10.dp))
 
             Text(
-                text = node.content,
+                text = node.fullContent.ifBlank { node.label },
                 style = MaterialTheme.typography.bodyLarge,
                 color = MaterialTheme.colorScheme.onSurface,
                 fontWeight = FontWeight.Medium,

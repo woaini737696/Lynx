@@ -137,7 +137,7 @@ class TasksViewModel @Inject constructor(
         }
         viewModelScope.launch {
             try {
-                apiService.toggleLarkTask(task.guid, LarkTaskToggleRequest(complete = newCompleted))
+                apiService.toggleLarkTask(task.guid, LarkTaskToggleRequest(action = if (newCompleted) "complete" else "reopen"))
             } catch (e: Exception) {
                 // 回滚
                 _uiState.update { s ->

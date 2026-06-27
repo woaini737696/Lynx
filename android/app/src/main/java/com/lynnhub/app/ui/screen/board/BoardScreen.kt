@@ -24,6 +24,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.lynnhub.app.data.remote.dto.TaskDto
+import com.lynnhub.app.ui.component.ErrorState
 import com.lynnhub.app.ui.theme.Amber500
 import com.lynnhub.app.ui.theme.Green500
 import com.lynnhub.app.ui.theme.Orange500
@@ -87,36 +88,47 @@ fun BoardScreen(
             }
         }
     ) { paddingValues ->
-        if (uiState.isLoading && uiState.tasks.isEmpty()) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(paddingValues),
-                contentAlignment = Alignment.Center
-            ) {
-                CircularProgressIndicator(color = Amber500)
+        when {
+            uiState.isLoading && uiState.tasks.isEmpty() -> {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(paddingValues),
+                    contentAlignment = Alignment.Center
+                ) {
+                    CircularProgressIndicator(color = Amber500)
+                }
             }
-        } else {
-            Row(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(paddingValues)
-                    .horizontalScroll(rememberScrollState())
-                    .padding(horizontal = 12.dp, vertical = 8.dp),
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                BoardColumn.ALL.forEachIndexed { index, column ->
-                    BoardColumnCard(
-                        column = column,
-                        tasks = uiState.tasksForColumn(column.key),
-                        onTaskClick = { viewModel.showEditDialog(it) },
-                        onComplete = { viewModel.completeTask(it) },
-                        onDelete = { viewModel.deleteTask(it) },
-                        onAddClick = {
-                            viewModel.switchColumn(index)
-                            viewModel.showAddDialog()
-                        }
-                    )
+            uiState.error != null && uiState.tasks.isEmpty() -> {
+                val errorMsg = uiState.error
+                ErrorState(
+                    message = errorMsg ?: "加载失败",
+                    onRetry = { viewModel.loadTasks() },
+                    modifier = Modifier.padding(paddingValues)
+                )
+            }
+            else -> {
+                Row(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(paddingValues)
+                        .horizontalScroll(rememberScrollState())
+                        .padding(horizontal = 12.dp, vertical = 8.dp),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    BoardColumn.ALL.forEachIndexed { index, column ->
+                        BoardColumnCard(
+                            column = column,
+                            tasks = uiState.tasksForColumn(column.key),
+                            onTaskClick = { viewModel.showEditDialog(it) },
+                            onComplete = { viewModel.completeTask(it) },
+                            onDelete = { viewModel.deleteTask(it) },
+                            onAddClick = {
+                                viewModel.switchColumn(index)
+                                viewModel.showAddDialog()
+                            }
+                        )
+                    }
                 }
             }
         }

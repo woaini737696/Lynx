@@ -3,6 +3,22 @@ package com.lynnhub.app.data.remote.dto
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
+// ============ 通用响应包装 ============
+@Serializable
+data class ApiSuccessResponse<T>(
+    val success: Boolean = true,
+    val data: T? = null
+)
+
+@Serializable
+data class ApiPaginatedResponse<T>(
+    val success: Boolean = true,
+    val data: List<T> = emptyList(),
+    val total: Int = 0,
+    val hasMore: Boolean = false,
+    val cursor: String? = null
+)
+
 // ============ Auth ============
 @Serializable
 data class LoginRequest(
@@ -35,13 +51,32 @@ data class FocusTaskDto(
 )
 
 @Serializable
+data class FocusItemDto(
+    val id: String,
+    val taskId: String,
+    val position: Int = 0,
+    val completed: Boolean = false,
+    val task: FocusTaskDto
+)
+
+@Serializable
+data class DailyFocusDto(
+    val id: String,
+    val date: String? = null,
+    val cardIds: List<String> = emptyList(),
+    val status: String = "pending",
+    val items: List<FocusItemDto> = emptyList()
+)
+
+@Serializable
 data class FocusResponse(
-    val tasks: List<FocusTaskDto> = emptyList()
+    val dailyFocus: DailyFocusDto? = null
 )
 
 @Serializable
 data class FocusPatchRequest(
-    val completed: Boolean? = null
+    val itemId: String,
+    val completed: Boolean
 )
 
 // ============ Task (看板) ============
@@ -79,11 +114,26 @@ data class TaskPatchRequest(
 )
 
 @Serializable
-data class TaskStatsDto(
+data class TaskPatchResponse(
+    val task: TaskDto,
+    val success: Boolean = true,
+    val cognitionExtracted: Boolean = false,
+    val cognitionPending: Boolean = false
+)
+
+@Serializable
+data class TaskStatsByColumnDto(
     val northstar: Int = 0,
     val campaign: Int = 0,
-    val task: Int = 0,
-    val done: Int = 0
+    val task: Int = 0
+)
+
+@Serializable
+data class TaskStatsDto(
+    val totalCompleted: Int = 0,
+    val totalActive: Int = 0,
+    val thisWeekCompleted: Int = 0,
+    val byColumn: TaskStatsByColumnDto = TaskStatsByColumnDto()
 )
 
 // ============ Idea (灵感) ============
@@ -132,9 +182,29 @@ data class IdeaDeleteRequest(
 )
 
 @Serializable
-data class IdeasResponse(
-    val ideas: List<IdeaDto> = emptyList()
+data class IdeaIdDto(
+    val id: String
 )
+
+@Serializable
+data class IdeaCreateResponse(
+    val success: Boolean = true,
+    val data: IdeaIdDto? = null
+)
+
+@Serializable
+data class IdeaDeletedDto(
+    val deleted: Int = 0
+)
+
+@Serializable
+data class IdeaDeleteResponse(
+    val success: Boolean = true,
+    val data: IdeaDeletedDto? = null
+)
+
+/** 灵感列表分页响应，等价于 ApiPaginatedResponse<IdeaDto> */
+typealias IdeasPaginatedResponse = ApiPaginatedResponse<IdeaDto>
 
 // ============ Lark Task (飞书任务) ============
 @Serializable
@@ -169,7 +239,7 @@ data class LarkTaskDetailResponse(
 
 @Serializable
 data class LarkTaskToggleRequest(
-    val complete: Boolean
+    val action: String // "complete" | "reopen"
 )
 
 @Serializable
@@ -267,14 +337,24 @@ data class ChatCreateSessionRequest(
 )
 
 @Serializable
+data class ChatSessionCreateResponse(
+    val session: ChatSessionDto
+)
+
+@Serializable
 data class AiModelDto(
-    val provider: String,
-    val models: List<String>
+    val id: String = "",
+    val name: String = "",
+    val model: String = "",
+    val available: Boolean = false
 )
 
 @Serializable
 data class AiModelsResponse(
-    val providers: List<AiModelDto> = emptyList()
+    val providers: List<AiModelDto> = emptyList(),
+    @SerialName("default")
+    val defaultProvider: String? = null,
+    val catalog: kotlinx.serialization.json.JsonElement? = null
 )
 
 // ============ AI Settings ============
@@ -288,13 +368,21 @@ data class AiSettingsDto(
     val distilledStyle: String? = null
 )
 
+@Serializable
+data class AiSettingsResponse(
+    val settings: AiSettingsDto? = null
+)
+
 // ============ Memory ============
 @Serializable
 data class MemoryNodeDto(
     val id: String,
+    val label: String = "",
     val type: String, // idea | conversation | cognition
-    val content: String = "",
+    val color: String? = null,
     val strength: Double = 0.0,
+    val connections: List<String> = emptyList(),
+    val fullContent: String = "",
     val score: Double? = null,
     val createdAt: String = ""
 )
@@ -305,8 +393,22 @@ data class MemoryResponse(
 )
 
 @Serializable
+data class MemorySearchItemDto(
+    val id: String,
+    val label: String = "",
+    val source: String = "",
+    val score: Double = 0.0,
+    val type: String = ""
+)
+
+@Serializable
 data class MemorySearchResponse(
-    val results: List<MemoryNodeDto> = emptyList()
+    val results: List<MemorySearchItemDto> = emptyList(),
+    val query: String = "",
+    val limit: Int = 10,
+    val offset: Int = 0,
+    val total: Int = 0,
+    val hasMore: Boolean = false
 )
 
 // ============ Cognition ============

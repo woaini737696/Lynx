@@ -693,7 +693,7 @@ private fun ExecuteResultCard(result: HermesExecuteResponse) {
                         }
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(
-                            text = step,
+                            text = if (step.result.isNotBlank()) "${step.action}: ${step.result}" else step.action,
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurface,
                             modifier = Modifier.weight(1f)

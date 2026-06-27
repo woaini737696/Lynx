@@ -41,20 +41,21 @@ data class MemoryUiState(
     /** 是否处于搜索态（有查询关键词） */
     val inSearchMode: Boolean get() = searchQuery.isNotBlank()
 
-    /** 当前展示的列表：搜索态展示搜索结果，否则展示全量节点 */
-    val displayList: List<MemoryNodeDto>
-        get() {
-            val source = if (inSearchMode) searchResults else nodes
-            val type = selectedTab.type
-            val filtered = if (type == null) source else source.filter { it.type == type }
-            return if (inSearchMode) {
-                // 搜索结果按相似度分数倒序
-                filtered.sortedByDescending { it.score ?: 0.0 }
-            } else {
-                // 全量节点按创建时间倒序
-                filtered.sortedByDescending { it.createdAt }
-            }
+    /** 当前展示的列表：搜索态展示搜索结果，否则展示全量节点。
+     *  用 by lazy 缓存，每个 UiState 实例只计算一次 filter + sort，
+     *  避免每次重组/读取都重新计算（等价于 derivedStateOf 的缓存语义）。 */
+    val displayList: List<MemoryNodeDto> by lazy {
+        val source = if (inSearchMode) searchResults else nodes
+        val type = selectedTab.type
+        val filtered = if (type == null) source else source.filter { it.type == type }
+        if (inSearchMode) {
+            // 搜索结果按相似度分数倒序
+            filtered.sortedByDescending { it.score ?: 0.0 }
+        } else {
+            // 全量节点按创建时间倒序
+            filtered.sortedByDescending { it.createdAt }
         }
+    }
 }
 
 @HiltViewModel
@@ -141,7 +142,19 @@ class MemoryViewModel @Inject constructor(
         _uiState.update { it.copy(isSearching = true, error = null) }
         try {
             val response = apiService.searchMemory(query)
-            val sorted = response.results.sortedByDescending { it.score ?: 0.0 }
+            val sorted = response.results
+                .sortedByDescending { it.score }
+                .map { item ->
+                    MemoryNodeDto(
+                        id = item.id,
+                        label = item.label,
+                        type = item.type,
+                        strength = 0.0,
+                        fullContent = item.label,
+                        score = item.score,
+                        createdAt = ""
+                    )
+                }
             _uiState.update { it.copy(searchResults = sorted, isSearching = false) }
         } catch (e: Exception) {
             _uiState.update {
