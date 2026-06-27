@@ -50,10 +50,9 @@
   },
   "plugins": {
     "updater": {
-      "active": true,
+      "active": false,
       "endpoints": [
-        "https://app.lynnhub.com/api/desktop/update",
-        "http://localhost:5176/api/desktop/update"
+        "https://app.lynnhub.com/api/desktop/update"
       ],
       "pubkey": "",
       "dialog": true
