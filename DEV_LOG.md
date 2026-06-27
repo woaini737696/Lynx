@@ -5,6 +5,122 @@
 
 ---
 
+## 迭代 43 - 2026-06-27
+
+### 任务概要
+完成全部 15 项需求优化与提升建议：需求不合理 3 项 + 需求可优化 5 项 + 需求提升 7 项。
+
+### 完成内容
+
+#### 需求不合理修复（3 项）
+
+1. **HermesAgent 反馈闭环实现**
+   - 新建 `src/lib/hermes-learner.ts`：processFeedbackReports() 从 HermesReport 读取 bad 标注，写入 feedback-learning.jsonl
+   - getFeedbackContext() 读取最近 5 条 bad case，注入 AI 助理 system prompt
+   - instrumentation.ts 注册每小时执行的定时任务处理反馈
+   - 巡检 scheduler 每天调用 processFeedbackReports()
+
+2. **巡检 cron scheduler 实现**
+   - 安装 node-cron + @types/node-cron
+   - 新建 `src/lib/patrol-scheduler.ts`：startPatrolScheduler/schedulePatrolRule/cancelPatrolRule
+   - 新建 `src/lib/patrol-runner.ts`：提取 runPatrolRule() 核心逻辑，API 和 scheduler 共用
+   - 支持 "HH:mm" 格式和标准 cron 表达式
+   - PatrolRule CRUD 时动态注册/取消 cron job
+   - instrumentation.ts 启动 scheduler
+
+3. **Memory.label 独立字段**
+   - schema.prisma Memory 添加 `label String? @db.VarChar(500)`
+   - PATCH 不再覆盖源实体内容，只更新 Memory.label
+   - GET 优先使用 label，回退到源实体内容截取
+   - 前端编辑标签只发送 { label }，不再破坏原始数据
+
+#### 需求可优化（5 项）
+
+4. **AI 消息服务端自动持久化**
+   - persistAssistantMessageSafely() 幂等函数，含最新消息去重检查
+   - 4 个流式 done 事件路径均自动持久化并返回 messageId
+   - 前端收到 messageId 时跳过重复 POST，断连不再丢失消息
+
+5. **SSE 断连恢复**
+   - 服务端每个事件添加 id 递增序号
+   - 检测 Last-Event-ID 头，断连重连返回提示
+   - 前端网络中断显示"连接中断，是否重新生成？"+ 重新生成按钮
+
+6. **Task 回收站页面**
+   - 新建 `src/app/board/trash/page.tsx`：展示软删除任务，支持恢复和永久删除
+   - GET /api/tasks 支持 ?status=dropped 查询
+   - 看板页面添加回收站入口（Trash2 图标）
+
+7. **备份导出完整化**
+   - SINGLE_TYPES 从 7 类扩展到 23 类
+   - 新增：chatsessions/chatmessages/patrolrules/patrollogs/dailyfocuses/graveyard/flowexecutions/skillexecutions/hermesreports/aisettings/professionworkspaces/users/roles/taskpatterns/larktasks/larktaskcomments/larkwebhookevents
+   - User 排除 passwordHash，AISetting 排除敏感 API Key
+
+8. **权限缓存版本号机制**
+   - User 表添加 permissionVersion 字段
+   - JWT token 包含 permissionVersion
+   - 缓存 key 改为 userId:version，版本不匹配重新查询
+   - 角色变更时递增所有关联用户 permissionVersion
+
+#### 需求提升（7 项）
+
+9. **SWR 引入**
+   - 安装 swr
+   - 新建 `src/lib/swr-config.ts`：全局配置（fetcher/重试/去重/401 跳转）
+   - 新建 `src/lib/use-api.ts`：封装 useIdeas/useTasks/useCognitions/useMemory/usePatrolRules 等 hooks
+   - layout.tsx 包裹 SWRConfig
+   - cognition 和 graveyard 页面试点迁移
+
+10. **framer-motion 列表动画**
+    - 安装 framer-motion
+    - 新建 `src/components/ui/AnimatedList.tsx`：AnimatePresence + layout 动画
+    - inbox/cognition/board 页面引入列表动画
+
+11. **onDelete: Cascade 批量补全**
+    - 21 处关系添加 onDelete 策略
+    - Cascade：user 关系（15 处）
+    - SetNull：idea/conversation/cognition 外键（6 处）
+
+12. **桌面应用跨平台路径**
+    - desktop.rs：截图目录改用 app_data_dir()
+    - browser.rs：agent-browser 路径改用环境变量 + PATH 查找
+    - lib.rs：默认授权目录改用 dirs::data_dir()
+
+13. **桌面自动更新链路**
+    - tauri.conf.json：updater.active=true
+    - /api/desktop/update：返回 Tauri 2.x 格式 JSON
+    - lib.rs：check_for_updates command + 启动延迟 5 秒自动检查
+
+14. **API 响应统一信封**
+    - 新建 `src/lib/api-response.ts`：successResponse/listResponse/createdResponse/errorResponse + 快捷函数
+    - auth-utils/middleware 错误响应改用统一函数
+    - DEVELOPMENT_SPEC §11 新增 API 响应规范
+
+15. **README.md 全面重写**
+    - 覆盖所有核心功能（知识管理/AI 能力/协作/管理后台/多端支持）
+    - 完整技术栈/快速开始/项目结构/开发规范/环境变量表
+    - 桌面端开发说明和自动更新章节
+
+### 自测验证
+- **tsc --noEmit**：0 错误
+- **prisma db push**：成功（Memory.label + User.permissionVersion + onDelete 策略）
+- **MySQL 3306 + Dev server 5176**：运行中（Ready in 2.4s）
+- **功能测试 22/22 全部通过**
+- **脏数据已清理**
+
+### 新增文件
+- `src/lib/hermes-learner.ts` — Hermes 反馈学习管道
+- `src/lib/patrol-scheduler.ts` — 巡检 cron 调度器
+- `src/lib/patrol-runner.ts` — 巡检核心逻辑
+- `src/lib/api-response.ts` — API 统一响应信封
+- `src/lib/swr-config.ts` — SWR 全局配置
+- `src/lib/use-api.ts` — SWR hooks 封装
+- `src/components/ui/AnimatedList.tsx` — 列表动画组件
+- `src/app/board/trash/page.tsx` — 回收站页面
+- `instrumentation.ts` — Next.js instrumentation（启动 scheduler）
+
+---
+
 ## 迭代 42 - 2026-06-27
 
 ### 任务概要

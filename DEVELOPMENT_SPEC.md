@@ -268,3 +268,20 @@
 - **默认值**：未配置时使用 `30` 天
 - **读取位置**：`src/lib/cron/cleanup-dropped-tasks.ts`（或对应定时任务实现）
 - **变更影响**：调整该值不会立即触发清理，需等待下次 cron 执行周期
+
+## 11. API 响应规范（强制）
+
+- **统一信封**：所有新增 API 必须使用 `src/lib/api-response.ts` 中的函数返回响应，禁止裸 `NextResponse.json({ ... })`
+- **信封格式**：
+  - 成功：`{ success: true, data: T }` 或 `{ success: true, data: T[], total: number }`
+  - 失败：`{ success: false, error: { code: string, message: string } }`
+- **工具函数**：
+  - `successResponse(data, status?)` — 单个资源
+  - `listResponse(data, total?)` — 列表
+  - `createdResponse(data)` — 创建成功（201）
+  - `errorResponse(message, status?, code?)` — 自定义错误
+  - `badRequest(msg)` / `unauthorized(msg?)` / `forbidden(msg?)` / `notFound(msg?)` / `serverError(msg?)` — 常用快捷函数
+- **鉴权层**：`requireAuth` / `requireAdmin` / `requirePermission` 已接入统一信封，鉴权失败自动返回 `{ success: false, error: { code, message } }`
+- **中间件层**：`src/middleware.ts` 中 API 路由的 401 响应已接入统一信封
+- **存量 API**：历史 API 暂不强制改造，但新增或修改 API 时必须使用统一信封
+- **禁止**：新增 API 使用 `{ error: "..." }` 旧格式返回错误

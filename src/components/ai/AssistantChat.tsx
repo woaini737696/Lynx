@@ -463,6 +463,7 @@ export function AssistantChat({ onClose }: AssistantChatProps = {}) {
             reasoningMode: cfg.reasoningMode,
             stream: true,
             assistantMode: true,
+            sessionId: sessionId || undefined,
           }),
           signal: controller.signal,
         });
@@ -486,6 +487,8 @@ export function AssistantChat({ onClose }: AssistantChatProps = {}) {
         let hermesMode: boolean | undefined;
         let hermesFallback: boolean | undefined;
         let streamError: string | undefined;
+        // 服务端自动持久化返回的 messageId：若存在则跳过前端单独 POST 持久化
+        let serverMessageId: string | undefined;
 
         while (true) {
           const { done, value } = await reader.read();
@@ -509,6 +512,8 @@ export function AssistantChat({ onClose }: AssistantChatProps = {}) {
                 hermesMode?: boolean;
                 hermesFallback?: boolean;
                 message?: string;
+                messageId?: string;
+                sessionId?: string;
               };
               if (evt.type === "meta") {
                 provider = evt.provider;
@@ -532,6 +537,7 @@ export function AssistantChat({ onClose }: AssistantChatProps = {}) {
                 toolCalled = evt.toolCalled || null;
                 hermesMode = evt.hermesMode;
                 hermesFallback = evt.hermesFallback;
+                serverMessageId = evt.messageId;
               } else if (evt.type === "error") {
                 streamError = evt.message || "流式响应异常";
               }
@@ -565,7 +571,8 @@ export function AssistantChat({ onClose }: AssistantChatProps = {}) {
         });
 
         // 持久化 AI 回复到当前会话（非阻塞），并刷新会话列表
-        if (sessionId && finalContent) {
+        // 若服务端已自动持久化（done 事件含 messageId），则跳过前端单独 POST，避免重复写入
+        if (!serverMessageId && sessionId && finalContent) {
           fetch(`/api/ai/chat/sessions/${sessionId}/messages`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -579,6 +586,8 @@ export function AssistantChat({ onClose }: AssistantChatProps = {}) {
           }).catch(() => {
             /* noop */
           });
+        }
+        if (sessionId && finalContent) {
           void fetchSessions().then((list) => {
             const cur = list.find((s) => s.id === sessionId);
             if (cur) setCurrentSessionTitle(cur.title);
@@ -685,6 +694,7 @@ export function AssistantChat({ onClose }: AssistantChatProps = {}) {
             reasoningMode: cfg.reasoningMode,
             stream: true,
             assistantMode: true,
+            sessionId: sessionId || undefined,
           }),
           signal: controller.signal,
         });
@@ -708,6 +718,8 @@ export function AssistantChat({ onClose }: AssistantChatProps = {}) {
         let hermesMode: boolean | undefined;
         let hermesFallback: boolean | undefined;
         let streamError: string | undefined;
+        // 服务端自动持久化返回的 messageId：若存在则跳过前端单独 POST 持久化
+        let serverMessageId: string | undefined;
 
         while (true) {
           const { done, value } = await reader.read();
@@ -731,6 +743,8 @@ export function AssistantChat({ onClose }: AssistantChatProps = {}) {
                 hermesMode?: boolean;
                 hermesFallback?: boolean;
                 message?: string;
+                messageId?: string;
+                sessionId?: string;
               };
               if (evt.type === "meta") {
                 provider = evt.provider;
@@ -756,6 +770,7 @@ export function AssistantChat({ onClose }: AssistantChatProps = {}) {
                 toolCalled = evt.toolCalled || null;
                 hermesMode = evt.hermesMode;
                 hermesFallback = evt.hermesFallback;
+                serverMessageId = evt.messageId;
               } else if (evt.type === "error") {
                 streamError = evt.message || "流式响应异常";
               }
@@ -792,7 +807,8 @@ export function AssistantChat({ onClose }: AssistantChatProps = {}) {
         if (tts && finalContent) tts.finish();
 
         // 持久化 AI 回复并刷新会话列表（非阻塞）
-        if (sessionId && finalContent) {
+        // 若服务端已自动持久化（done 事件含 messageId），则跳过前端单独 POST，避免重复写入
+        if (!serverMessageId && sessionId && finalContent) {
           fetch(`/api/ai/chat/sessions/${sessionId}/messages`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -806,6 +822,8 @@ export function AssistantChat({ onClose }: AssistantChatProps = {}) {
           }).catch(() => {
             /* noop */
           });
+        }
+        if (sessionId && finalContent) {
           void fetchSessions().then((list) => {
             const cur = list.find((s) => s.id === sessionId);
             if (cur) setCurrentSessionTitle(cur.title);

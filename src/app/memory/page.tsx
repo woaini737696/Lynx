@@ -888,7 +888,8 @@ export default function MemoryPage() {
       }
 
       // ---- 文字标签：深色文字 + 白色描边，浅色背景下清晰可读 ----
-      const rawLabel = node.data.label;
+      // 优先使用独立 label，为空时回退到 fullContent 前 20 字符
+      const rawLabel = node.data.label || node.data.fullContent.slice(0, 20);
       const label = rawLabel.length > 14 ? rawLabel.slice(0, 14) + "…" : rawLabel;
       const textY = p.sy + nodeR + 14;
       ctx.font =
@@ -1694,6 +1695,8 @@ export default function MemoryPage() {
                   {paginated.map((node) => {
                     const Icon = TYPE_ICON[node.type];
                     const isSelected = node.id === selectedId;
+                    // 兜底：label 为空时回退到 fullContent 前 20 字符
+                    const displayLabel = node.label || node.fullContent.slice(0, 20);
                     return (
                       <div
                         key={node.id}
@@ -1754,7 +1757,7 @@ export default function MemoryPage() {
                             onClick={(e) => {
                               e.stopPropagation();
                               setEditingId(node.id);
-                              setEditingLabel(node.label);
+                              setEditingLabel(displayLabel);
                             }}
                             className="rounded p-1 text-muted-foreground hover:bg-muted hover:text-cognition"
                             aria-label="编辑"

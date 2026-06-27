@@ -13,6 +13,7 @@ use tauri::{Manager, Emitter, Listener};
 use tauri::menu::{Menu, MenuItem, PredefinedMenuItem};
 use tauri::tray::TrayIconBuilder;
 use tauri_plugin_shell::ShellExt;
+use tauri_plugin_updater::UpdaterExt;
 use std::thread;
 
 // ============ 全局状态 ============
@@ -37,14 +38,13 @@ pub struct AppState {
 
 impl Default for AppState {
     fn default() -> Self {
-        // 默认授权目录：D:\LynnHub\user-data\（符合 D 盘规范）
-        let default_dir = if cfg!(target_os = "windows") {
-            "D:\\LynnHub\\user-data".to_string()
-        } else {
-            dirs::home_dir()
-                .map(|h| h.join("LynnHub").join("user-data").to_string_lossy().to_string())
-                .unwrap_or_else(|| "./user-data".to_string())
-        };
+        // 默认授权目录：跨平台 app data 目录下的 LynnHub/user-data
+        // （Windows: %APPDATA%\LynnHub\user-data，macOS: ~/Library/Application Support/LynnHub/user-data，Linux: ~/.local/share/LynnHub/user-data）
+        // 在 Tauri setup 阶段可用 app.path().app_data_dir()，但 Default 在 Builder 之前执行，
+        // 因此这里用 dirs crate 提供等价路径，避免硬编码 D:\LynnHub
+        let default_dir = dirs::data_dir()
+            .map(|d| d.join("LynnHub").join("user-data").to_string_lossy().to_string())
+            .unwrap_or_else(|| "./user-data".to_string());
 
         // 确保默认授权目录存在
         let _ = std::fs::create_dir_all(&default_dir);
@@ -213,8 +213,8 @@ async fn rpa_desktop_open_app(app_name: String) -> Result<(), String> {
 
 /// 桌面 RPA：截图
 #[tauri::command]
-async fn rpa_desktop_screenshot() -> Result<String, String> {
-    rpa::desktop::take_screenshot().await
+async fn rpa_desktop_screenshot(app: tauri::AppHandle) -> Result<String, String> {
+    rpa::desktop::take_screenshot(&app).await
 }
 
 /// 文件操作：读取授权目录内文件
@@ -333,6 +333,50 @@ async fn check_local_server(host: String, port: u16) -> Result<bool, String> {
     Ok(result)
 }
 
+/// 检查桌面端更新（通过 tauri-plugin-updater 查询配置的 endpoint）
+/// 返回 true 表示有可用更新，false 表示已是最新
+#[tauri::command]
+async fn check_for_updates(app: tauri::AppHandle) -> Result<bool, String> {
+    log::info!("开始检查桌面端更新...");
+    let updater = app
+        .updater()
+        .map_err(|e| format!("初始化 updater 失败: {}", e))?;
+    match updater.check().await {
+        Ok(Some(update)) => {
+            log::info!(
+                "发现新版本: {} (当前 {}), 更新说明: {}",
+                update.version,
+                update.current_version,
+                update.body.as_deref().unwrap_or("(无)")
+            );
+            // 通知前端有更新可用，前端可弹窗引导用户下载
+            let date_str = update
+                .date
+                .map(|d| d.to_string())
+                .unwrap_or_default();
+            let _ = app.emit(
+                "update-available",
+                serde_json::json!({
+                    "version": update.version,
+                    "currentVersion": update.current_version,
+                    "notes": update.body,
+                    "date": date_str,
+                }),
+            );
+            Ok(true)
+        }
+        Ok(None) => {
+            log::info!("已是最新版本，无需更新");
+            Ok(false)
+        }
+        Err(e) => {
+            log::warn!("检查更新失败: {}", e);
+            // 检查失败不阻断流程，返回 false 并记录日志
+            Ok(false)
+        }
+    }
+}
+
 // ============ 应用主入口 ============
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -386,6 +430,7 @@ pub fn run() {
             open_external,
             navigate_to_url,
             check_local_server,
+            check_for_updates,
         ])
         .setup(|app| {
             log::info!("LynnHub 桌面端启动完成");
@@ -440,12 +485,40 @@ pub fn run() {
                 })
                 .build(app)?;
 
-            // 启动时自动检查更新（异步）
+            // 启动时自动检查更新（延迟 5 秒，避免与启动流程竞争）
             let app_handle2 = app.handle().clone();
-            thread::spawn(move || {
-                thread::sleep(std::time::Duration::from_secs(5));
+            tauri::async_runtime::spawn(async move {
+                tokio::time::sleep(std::time::Duration::from_secs(5)).await;
                 log::info!("开始检查更新...");
                 let _ = app_handle2.emit("app-started", ());
+                // 实际调用 updater 检查（失败不阻断，结果通过 update-available 事件下发）
+                match app_handle2.updater() {
+                    Ok(updater) => match updater.check().await {
+                        Ok(Some(update)) => {
+                            log::info!(
+                                "发现新版本: {} (当前 {})",
+                                update.version,
+                                update.current_version
+                            );
+                            let date_str = update
+                                .date
+                                .map(|d| d.to_string())
+                                .unwrap_or_default();
+                            let _ = app_handle2.emit(
+                                "update-available",
+                                serde_json::json!({
+                                    "version": update.version,
+                                    "currentVersion": update.current_version,
+                                    "notes": update.body,
+                                    "date": date_str,
+                                }),
+                            );
+                        }
+                        Ok(None) => log::info!("已是最新版本"),
+                        Err(e) => log::warn!("启动检查更新失败: {}", e),
+                    },
+                    Err(e) => log::warn!("updater 初始化失败: {}", e),
+                }
             });
             Ok(())
         })

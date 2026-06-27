@@ -11,13 +11,20 @@ const TASK_COLUMNS = ["northstar", "campaign", "task"] as const;
 type TaskColumn = (typeof TASK_COLUMNS)[number];
 
 // 获取看板任务
-export async function GET() {
+export async function GET(req: NextRequest) {
   try {
     const { user, error } = await requireAuth();
     if (error) return error;
 
+    // 支持 ?status=dropped 查询参数，返回软删除任务；默认返回 active + done 任务
+    const status = req.nextUrl.searchParams.get("status");
+    const statusFilter =
+      status === "dropped"
+        ? { status: "dropped" }
+        : { status: { in: ["active", "done"] } };
+
     const tasks = await prisma.task.findMany({
-      where: { status: { in: ["active", "done"] }, ...buildUserFilter(user) },
+      where: { ...statusFilter, ...buildUserFilter(user) },
       orderBy: [{ column: "asc" }, { position: "asc" }],
       take: 100, // 上限保护，避免数据增长后拉全表
     });
@@ -44,7 +51,7 @@ export async function POST(req: NextRequest) {
     const limits: Record<TaskColumn, number> = { northstar: 3, campaign: 5, task: 10 };
 
     const count = await prisma.task.count({
-      where: { column: col, status: "active" },
+      where: { column: col, status: "active", ...buildUserFilter(user) },
     });
     if (count >= limits[col]) {
       return NextResponse.json(

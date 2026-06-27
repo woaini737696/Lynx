@@ -3,6 +3,7 @@ import { prisma } from "@/lib/db";
 import { requireAuth, buildUserFilter } from "@/lib/auth-utils";
 import { validateString, validateEnum } from "@/lib/validate";
 import { Prisma } from "@prisma/client";
+import { schedulePatrolRule } from "@/lib/patrol-scheduler";
 
 // 巡检对象枚举
 const PATROL_SCOPES = ["inbox", "board", "graveyard", "all"] as const;
@@ -92,6 +93,11 @@ export async function POST(req: NextRequest) {
         userId: user.id,
       },
     });
+
+    // 动态注册 cron job（enabled 且非 manual 时生效）
+    if (enabled) {
+      schedulePatrolRule(rule.id, rule.triggerTime);
+    }
 
     return NextResponse.json({ rule, success: true });
   } catch (e) {

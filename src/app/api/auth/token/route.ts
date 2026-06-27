@@ -46,6 +46,7 @@ export async function POST(req: NextRequest) {
       id: user.id,
       username: user.username,
       role: user.role,
+      permissionVersion: user.permissionVersion,
     });
 
     return NextResponse.json({

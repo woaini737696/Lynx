@@ -249,10 +249,14 @@ export async function GET() {
     };
 
     const nodes = memories.map((m) => {
-      let label = m.content.slice(0, 20);
-      if (m.idea) label = m.idea.content.slice(0, 20);
-      else if (m.conversation) label = m.conversation.title.slice(0, 20);
-      else if (m.cognition) label = m.cognition.content.slice(0, 20);
+      // 优先使用 Memory.label 独立字段（用户自定义标签），为空时回退到源实体内容
+      let label = m.label || "";
+      if (!label) {
+        label = m.content.slice(0, 20);
+        if (m.idea) label = m.idea.content.slice(0, 20);
+        else if (m.conversation) label = m.conversation.title.slice(0, 20);
+        else if (m.cognition) label = m.cognition.content.slice(0, 20);
+      }
 
       return {
         id: m.id,

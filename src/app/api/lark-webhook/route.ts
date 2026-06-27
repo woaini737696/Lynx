@@ -7,8 +7,10 @@ import { handleWebhookEvent } from "@/lib/lark-webhook-handler";
 //   2. 事件通知：schema 2.0 格式 { schema: "2.0", header: {...}, event: {...} }
 export async function POST(req: NextRequest) {
   let body: any;
+  let rawBody = "";
   try {
-    body = await req.json();
+    rawBody = await req.text();
+    body = JSON.parse(rawBody);
   } catch {
     return NextResponse.json(
       { error: "请求体不是合法的 JSON" },
@@ -17,7 +19,15 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const result = await handleWebhookEvent(body);
+    const headers: Record<string, string | string[] | undefined> = {};
+    req.headers.forEach((value, key) => {
+      headers[key.toLowerCase()] = value;
+    });
+
+    const result = await handleWebhookEvent(body, {
+      headers,
+      rawBody,
+    });
 
     // URL 验证：原样返回 challenge
     if (result.challenge !== undefined) {

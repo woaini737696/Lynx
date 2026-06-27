@@ -46,6 +46,18 @@ export async function POST(
       );
     }
 
+    // 幂等检查：若会话最新一条消息与本次写入完全相同（role + content），
+    // 直接返回该消息，避免服务端自动持久化与前端 POST 重复写入
+    // （服务端 /api/ai/chat 流式 done 事件已自动持久化 assistant 消息）
+    const latest = await prisma.chatMessage.findFirst({
+      where: { sessionId: params.id },
+      orderBy: { createdAt: "desc" },
+      select: { id: true, role: true, content: true },
+    });
+    if (latest && latest.role === role && latest.content === content) {
+      return NextResponse.json({ message: latest, idempotent: true }, { status: 201 });
+    }
+
     const message = await prisma.chatMessage.create({
       data: {
         sessionId: params.id,

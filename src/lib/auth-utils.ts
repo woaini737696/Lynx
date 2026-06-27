@@ -3,11 +3,14 @@ import { auth } from "@/auth";
 import { headers } from "next/headers";
 import { prisma } from "@/lib/db";
 import { verifyToken } from "@/lib/jwt";
+import { unauthorized, forbidden } from "@/lib/api-response";
 
 export interface AuthUser {
   id: string;
   username: string;
   role: string; // admin | editor | viewer
+  // 权限缓存版本号：用于多实例部署时的缓存键，角色变更时递增以失效旧缓存
+  permissionVersion: number;
 }
 
 /**
@@ -27,7 +30,7 @@ export async function getCurrentUser(): Promise<AuthUser | null> {
 
     const user = await prisma.user.findUnique({
       where: { id: payload.id },
-      select: { id: true, username: true, role: true, active: true },
+      select: { id: true, username: true, role: true, active: true, permissionVersion: true },
     });
 
     if (!user || !user.active) return null;
@@ -36,6 +39,7 @@ export async function getCurrentUser(): Promise<AuthUser | null> {
       id: user.id,
       username: user.username,
       role: user.role,
+      permissionVersion: user.permissionVersion,
     };
   }
 
@@ -48,7 +52,7 @@ export async function getCurrentUser(): Promise<AuthUser | null> {
 
   const user = await prisma.user.findUnique({
     where: { id: userId },
-    select: { id: true, username: true, role: true, active: true },
+    select: { id: true, username: true, role: true, active: true, permissionVersion: true },
   });
 
   if (!user || !user.active) return null;
@@ -57,6 +61,7 @@ export async function getCurrentUser(): Promise<AuthUser | null> {
     id: user.id,
     username: user.username,
     role: user.role,
+    permissionVersion: user.permissionVersion,
   };
 }
 
@@ -75,10 +80,7 @@ export async function requireAuth(): Promise<{
   if (!user) {
     return {
       user: null,
-      error: new Response(
-        JSON.stringify({ error: "未登录" }),
-        { status: 401, headers: { "Content-Type": "application/json" } }
-      ),
+      error: unauthorized("未登录"),
     };
   }
   return { user };
@@ -100,10 +102,7 @@ export async function requireAdmin(): Promise<{
   if (result.user.role !== "admin") {
     return {
       user: null,
-      error: new Response(
-        JSON.stringify({ error: "权限不足，需要管理员角色" }),
-        { status: 403, headers: { "Content-Type": "application/json" } }
-      ),
+      error: forbidden("权限不足，需要管理员角色"),
     };
   }
   return result;
@@ -120,12 +119,18 @@ const PERMISSION_CACHE_TTL = 5 * 60 * 1000; // 5 分钟
 /**
  * 获取用户权限列表（带缓存）
  * admin 直通返回 ["*"] 表示全部权限
+ * 缓存键使用 userId:permissionVersion，角色变更时递增 permissionVersion 即可使所有实例缓存失效
  */
-async function getUserPermissions(userId: string, role: string): Promise<string[]> {
+async function getUserPermissions(
+  userId: string,
+  role: string,
+  permissionVersion: number
+): Promise<string[]> {
   if (role === "admin") return ["*"]; // admin 拥有全部权限
 
-  // 查缓存
-  const cached = permissionCache.get(userId);
+  // 查缓存：键包含 permissionVersion，版本号变更后自动 miss
+  const cacheKey = `${userId}:${permissionVersion}`;
+  const cached = permissionCache.get(cacheKey);
   if (cached && cached.expiresAt > Date.now()) {
     return cached.permissions;
   }
@@ -137,7 +142,7 @@ async function getUserPermissions(userId: string, role: string): Promise<string[
       select: { permissions: true },
     });
     const perms = Array.isArray(roleRow?.permissions) ? (roleRow!.permissions as string[]) : [];
-    permissionCache.set(userId, { permissions: perms, expiresAt: Date.now() + PERMISSION_CACHE_TTL });
+    permissionCache.set(cacheKey, { permissions: perms, expiresAt: Date.now() + PERMISSION_CACHE_TTL });
     return perms;
   } catch {
     return [];
@@ -169,15 +174,16 @@ export async function requirePermission(permKey: string): Promise<{
   const result = await requireAuth();
   if (result.user === null) return result;
 
-  const perms = await getUserPermissions(result.user.id, result.user.role);
+  const perms = await getUserPermissions(
+    result.user.id,
+    result.user.role,
+    result.user.permissionVersion
+  );
   const hasPerm = perms.includes("*") || perms.includes(permKey);
   if (!hasPerm) {
     return {
       user: null,
-      error: new Response(
-        JSON.stringify({ error: `权限不足，需要权限：${permKey}` }),
-        { status: 403, headers: { "Content-Type": "application/json" } }
-      ),
+      error: forbidden(`权限不足，需要权限：${permKey}`),
     };
   }
   return result;

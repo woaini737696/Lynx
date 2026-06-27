@@ -94,6 +94,7 @@ export async function PATCH(
 }
 
 // 删除任务
+// 对已软删除（status=dropped）的任务执行硬删除（永久删除）；否则执行软删除
 export async function DELETE(
   req: NextRequest,
   { params }: { params: { id: string } }
@@ -116,10 +117,15 @@ export async function DELETE(
       return NextResponse.json({ error: "无权访问" }, { status: 403 });
     }
 
-    await prisma.task.update({
-      where: { id },
-      data: { status: "dropped" },
-    });
+    // 已在回收站的任务执行永久删除；否则软删除送入回收站
+    if (existing.status === "dropped") {
+      await prisma.task.delete({ where: { id } });
+    } else {
+      await prisma.task.update({
+        where: { id },
+        data: { status: "dropped" },
+      });
+    }
     return NextResponse.json({ success: true });
   } catch (e) {
     logger.error({ err: e }, "删除任务失败");

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useMemo, useCallback } from "react";
+import useSWR from "swr";
 import {
   RefreshCw,
   Skull,
@@ -20,6 +21,7 @@ import { HelpButton } from "@/components/layout/HelpButton";
 import { EmptyState } from "@/components/layout/EmptyState";
 import { Pagination, useClientPagination } from "@/components/ui/ListControls";
 import { cn } from "@/lib/utils";
+import { fetcher } from "@/lib/swr-config";
 
 interface GraveyardItem {
   id: string;
@@ -35,6 +37,12 @@ interface GraveyardItem {
 type SortBy = "abandonedAt" | "createdAt";
 
 export default function GraveyardPage() {
+  // SWR 获取数据：自动去重 / 重试 / 缓存
+  const { data: swrData, error: swrError, isLoading, mutate } = useSWR<{ items: GraveyardItem[] }>(
+    "/api/graveyard",
+    fetcher
+  );
+
   const [items, setItems] = useState<GraveyardItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [revivingId, setRevivingId] = useState<string | null>(null);
@@ -59,30 +67,20 @@ export default function GraveyardPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [sortBy, setSortBy] = useState<SortBy>("abandonedAt");
 
+  // SWR 数据同步到本地 state（保留本地状态作为操作中的乐观更新载体）
   useEffect(() => {
-    let mounted = true;
-    const load = async () => {
+    if (swrData?.items) {
+      setItems(swrData.items);
+      setLoading(false);
+    }
+    if (swrError && !swrData) {
+      setLoading(false);
+      toast("加载灵感墓地失败", "error");
+    }
+    if (isLoading) {
       setLoading(true);
-      try {
-        const res = await fetch("/api/graveyard");
-        if (!mounted) return;
-        if (res.ok) {
-          const data = await res.json();
-          setItems(data.items || []);
-        }
-      } catch (e) {
-        if (!mounted) return;
-        console.error(e);
-        toast("加载灵感墓地失败", "error");
-      } finally {
-        if (mounted) setLoading(false);
-      }
-    };
-    load();
-    return () => {
-      mounted = false;
-    };
-  }, []);
+    }
+  }, [swrData, swrError, isLoading]);
 
   // 过滤 + 排序（基于搜索词和排序选项）
   const visibleItems = useMemo(() => {

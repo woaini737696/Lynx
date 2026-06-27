@@ -99,6 +99,8 @@ export async function PATCH(
         );
       }
       data.role = role;
+      // 角色变更时递增 permissionVersion，使多实例部署中所有实例的权限缓存自动失效
+      data.permissionVersion = { increment: 1 };
     }
 
     if (active !== undefined) {

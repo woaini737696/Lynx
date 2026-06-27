@@ -2,6 +2,7 @@
 // 处理飞书事件订阅 v2 格式的事件通知，持久化到数据库并提供 SSE 实时推送
 import { runSyncAsync } from "./lark-sync";
 import { prisma } from "@/lib/db";
+import crypto from "crypto";
 
 // ==================== 类型定义 ====================
 
@@ -129,6 +130,50 @@ function verifyToken(token: string | undefined): boolean {
   return token === expected;
 }
 
+/**
+ * 验证飞书 Webhook 请求签名（官方 v2 安全验证）
+ * 算法：Base64(HMAC-SHA256(encrypt_key, timestamp + "\n" + body))
+ * @param timestamp 时间戳（秒）
+ * @param body 原始请求体字符串
+ * @param signature 请求头 X-Lark-Signature
+ * @param encryptKey 飞书应用的 Encrypt Key
+ */
+export function verifyLarkSignature(
+  timestamp: string,
+  body: string,
+  signature: string,
+  encryptKey: string
+): boolean {
+  try {
+    const stringToSign = `${timestamp}\n${body}`;
+    const hmac = crypto.createHmac("sha256", encryptKey);
+    hmac.update(stringToSign);
+    const expectedSignature = hmac.digest("base64");
+    return crypto.timingSafeEqual(
+      Buffer.from(signature),
+      Buffer.from(expectedSignature)
+    );
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * 从请求头和 body 中提取时间戳
+ * 优先级：X-Lark-Request-Timestamp > header.create_time
+ */
+function extractTimestamp(headers: Record<string, string | string[] | undefined>, body: any): string {
+  const headerTs = headers["x-lark-request-timestamp"];
+  if (headerTs && typeof headerTs === "string") {
+    return headerTs;
+  }
+  const createTime = body?.header?.create_time;
+  if (createTime) {
+    return String(createTime);
+  }
+  return "";
+}
+
 // ==================== 对外 API ====================
 
 /**
@@ -136,9 +181,17 @@ function verifyToken(token: string | undefined): boolean {
  * - URL 验证：返回 challenge
  * - 任务事件：持久化到数据库 + 通知 SSE 订阅者 + 触发异步同步
  * - 幂等性：用 event_id 去重
- * - 安全：校验 token（未配置 LARK_WEBHOOK_TOKEN 则跳过）
+ * - 安全：校验 token + 签名（未配置 LARK_WEBHOOK_ENCRYPT_KEY 则跳过签名校验）
  */
-export async function handleWebhookEvent(body: any): Promise<WebhookHandleResult> {
+export async function handleWebhookEvent(
+  body: any,
+  options?: {
+    headers?: Record<string, string | string[] | undefined>;
+    rawBody?: string;
+  }
+): Promise<WebhookHandleResult> {
+  const { headers = {}, rawBody = "" } = options || {};
+
   // URL 验证（飞书首次配置时发送）
   if (body?.type === "url_verification" && body.challenge) {
     if (!verifyToken(body.token)) {
@@ -162,6 +215,24 @@ export async function handleWebhookEvent(body: any): Promise<WebhookHandleResult
 
   if (!verifyToken(token)) {
     return { processed: false, error: "token 校验失败" };
+  }
+
+  // 签名验证（如果配置了 LARK_WEBHOOK_ENCRYPT_KEY）
+  const encryptKey = process.env.LARK_WEBHOOK_ENCRYPT_KEY;
+  if (encryptKey) {
+    const signature = headers["x-lark-signature"];
+    const signatureStr = Array.isArray(signature) ? signature[0] : signature;
+    if (!signatureStr) {
+      return { processed: false, error: "缺少签名头" };
+    }
+    const timestamp = extractTimestamp(headers, body);
+    if (!timestamp) {
+      return { processed: false, error: "缺少时间戳" };
+    }
+    const bodyStr = rawBody || JSON.stringify(body);
+    if (!verifyLarkSignature(timestamp, bodyStr, signatureStr, encryptKey)) {
+      return { processed: false, error: "签名校验失败" };
+    }
   }
 
   // 幂等去重

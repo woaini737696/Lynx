@@ -28,6 +28,8 @@ export interface JwtPayload {
   id: string;
   username: string;
   role: string;
+  // 权限缓存版本号：角色变更时递增，用于多实例部署时缓存失效
+  permissionVersion?: number;
   iat?: number;
   exp?: number;
 }

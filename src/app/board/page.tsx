@@ -1,7 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Check, Plus, RotateCcw, X, Target, Swords, ListChecks, ChevronDown, ChevronRight, TrendingUp, Brain, Loader2 } from "lucide-react";
+import Link from "next/link";
+import { Check, Plus, RotateCcw, X, Target, Swords, ListChecks, ChevronDown, ChevronRight, TrendingUp, Brain, Loader2, Trash2 } from "lucide-react";
+import { AnimatePresence, motion } from "framer-motion";
 import { cn } from "@/lib/utils";
 import { BOARD_COLUMNS, type BoardColumn } from "@/lib/utils";
 import { toast } from "@/components/ui/toast";
@@ -344,6 +346,14 @@ export default function BoardPage() {
                 </div>
               </div>
             ) : null}
+            <Link
+              href="/board/trash"
+              className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-border bg-card px-3 py-1.5 text-[11px] font-medium text-foreground transition-all hover:bg-muted hover:border-foreground/30 focus:outline-none focus:ring-2 focus:ring-muted active:scale-[0.97]"
+              title="回收站"
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+              <span className="hidden sm:inline">回收站</span>
+            </Link>
             <HelpButton contentKey="board" />
           </div>
         }
@@ -428,30 +438,37 @@ export default function BoardPage() {
                     <span className="text-xs text-muted-foreground">暂无{meta.label}</span>
                   </div>
                 ) : (
-                  col.tasks.map((task) => (
-                    <div
-                      key={task.id}
-                      className={cn(
-                        "group flex cursor-pointer items-start gap-2.5 rounded-xl border border-border bg-background p-2.5 transition-all hover:border-primary/30 hover:shadow-sm",
-                        updatingTaskId === task.id && "opacity-60 pointer-events-none"
-                      )}
-                      onClick={() => toggleDone(task)}
-                    >
-                      <div
+                  <AnimatePresence mode="popLayout">
+                    {col.tasks.map((task) => (
+                      <motion.div
+                        key={task.id}
+                        layout
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, scale: 0.95, transition: { duration: 0.15 } }}
+                        transition={{ duration: 0.2 }}
                         className={cn(
-                          "mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded border transition-colors",
-                          "border-border bg-transparent hover:border-primary"
+                          "group flex cursor-pointer items-start gap-2.5 rounded-xl border border-border bg-background p-2.5 transition-all hover:border-primary/30 hover:shadow-sm",
+                          updatingTaskId === task.id && "opacity-60 pointer-events-none"
                         )}
+                        onClick={() => toggleDone(task)}
                       >
-                        {updatingTaskId === task.id && (
-                          <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />
-                        )}
-                      </div>
-                      <span className="flex-1 text-xs leading-relaxed">
-                        {task.content}
-                      </span>
-                    </div>
-                  ))
+                        <div
+                          className={cn(
+                            "mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded border transition-colors",
+                            "border-border bg-transparent hover:border-primary"
+                          )}
+                        >
+                          {updatingTaskId === task.id && (
+                            <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />
+                          )}
+                        </div>
+                        <span className="flex-1 text-xs leading-relaxed">
+                          {task.content}
+                        </span>
+                      </motion.div>
+                    ))}
+                  </AnimatePresence>
                 )}
               </div>
             </Card>
@@ -489,37 +506,44 @@ export default function BoardPage() {
                 <span className="text-xs text-muted-foreground">暂无已完成任务</span>
               </div>
             ) : (
-              doneTasks.map((task) => (
-                <div
-                  key={task.id}
-                  className={cn(
-                    "group flex cursor-pointer items-start gap-2.5 rounded-xl border border-border bg-background p-2.5 transition-all hover:border-task/30 hover:shadow-sm",
-                    updatingTaskId === task.id && "opacity-60 pointer-events-none"
-                  )}
-                  onClick={() => toggleDone(task)}
-                >
-                  <div className="mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded border border-task bg-task text-white">
-                    {updatingTaskId === task.id ? (
-                      <Loader2 className="h-3 w-3 animate-spin" />
-                    ) : (
-                      <Check className="h-3 w-3" />
+              <AnimatePresence mode="popLayout">
+                {doneTasks.map((task) => (
+                  <motion.div
+                    key={task.id}
+                    layout
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, scale: 0.95, transition: { duration: 0.15 } }}
+                    transition={{ duration: 0.2 }}
+                    className={cn(
+                      "group flex cursor-pointer items-start gap-2.5 rounded-xl border border-border bg-background p-2.5 transition-all hover:border-task/30 hover:shadow-sm",
+                      updatingTaskId === task.id && "opacity-60 pointer-events-none"
                     )}
-                  </div>
-                  <div className="flex-1">
-                    <span className="text-xs leading-relaxed line-through text-muted-foreground">
-                      {task.content}
-                    </span>
-                    {task.updatedAt && (
-                      <div className="mt-0.5 text-[10px] text-muted-foreground/70">
-                        完成于 {new Date(task.updatedAt).toLocaleString("zh-CN")}
-                      </div>
-                    )}
-                  </div>
-                  <RotateCcw
-                    className="h-3 w-3 shrink-0 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100"
-                  />
-                </div>
-              ))
+                    onClick={() => toggleDone(task)}
+                  >
+                    <div className="mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded border border-task bg-task text-white">
+                      {updatingTaskId === task.id ? (
+                        <Loader2 className="h-3 w-3 animate-spin" />
+                      ) : (
+                        <Check className="h-3 w-3" />
+                      )}
+                    </div>
+                    <div className="flex-1">
+                      <span className="text-xs leading-relaxed line-through text-muted-foreground">
+                        {task.content}
+                      </span>
+                      {task.updatedAt && (
+                        <div className="mt-0.5 text-[10px] text-muted-foreground/70">
+                          完成于 {new Date(task.updatedAt).toLocaleString("zh-CN")}
+                        </div>
+                      )}
+                    </div>
+                    <RotateCcw
+                      className="h-3 w-3 shrink-0 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100"
+                    />
+                  </motion.div>
+                ))}
+              </AnimatePresence>
             )}
           </div>
         )}
