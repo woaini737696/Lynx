@@ -5,11 +5,37 @@ use serde_json::{json, Value};
 use std::path::Path;
 
 /// 校验路径是否在授权目录白名单内
+/// 
+/// 安全策略：
+/// - 对已存在的路径：直接 canonicalize 后比较
+/// - 对不存在的路径（如新写入文件）：取父目录 canonicalize 后比较，防止 ../ 路径遍历
 pub fn is_path_authorized(path: &str, authorized_dirs: &[String]) -> bool {
-    let abs_path = match Path::new(path).canonicalize() {
-        Ok(p) => p,
-        Err(_) => return false,
+    let path = Path::new(path);
+
+    let abs_path = if path.exists() {
+        match path.canonicalize() {
+            Ok(p) => p,
+            Err(_) => return false,
+        }
+    } else {
+        let parent = match path.parent() {
+            Some(p) if !p.as_os_str().is_empty() => p,
+            _ => return false,
+        };
+        let file_name = match path.file_name() {
+            Some(name) => name,
+            None => return false,
+        };
+        let canon_parent = match parent.canonicalize() {
+            Ok(p) => p,
+            Err(_) => return false,
+        };
+        canon_parent.join(file_name)
     };
+
+    if abs_path.components().any(|c| c.as_os_str() == "..") {
+        return false;
+    }
 
     for dir in authorized_dirs {
         let abs_dir = match Path::new(dir).canonicalize() {

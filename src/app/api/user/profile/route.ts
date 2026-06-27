@@ -32,10 +32,11 @@ export async function GET() {
     return NextResponse.json({ user });
   } catch (e) {
     logger.error({ err: e }, "获取用户资料失败");
-    return NextResponse.json(
-      { error: "服务器错误：" + (e as Error).message },
-      { status: 500 }
-    );
+    const isDev = process.env.NODE_ENV !== "production";
+    const errorMsg = isDev
+      ? "服务器错误：" + (e as Error).message
+      : "服务器错误";
+    return NextResponse.json({ error: errorMsg }, { status: 500 });
   }
 }
 
@@ -73,9 +74,10 @@ export async function PUT(req: NextRequest) {
     return NextResponse.json({ user: updated, success: true });
   } catch (e) {
     logger.error({ err: e }, "更新用户资料失败");
-    return NextResponse.json(
-      { error: "服务器错误：" + (e as Error).message },
-      { status: 500 }
-    );
+    const isDev = process.env.NODE_ENV !== "production";
+    const errorMsg = isDev
+      ? "服务器错误：" + (e as Error).message
+      : "服务器错误";
+    return NextResponse.json({ error: errorMsg }, { status: 500 });
   }
 }

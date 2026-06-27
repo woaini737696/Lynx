@@ -13,6 +13,52 @@ use tauri::{AppHandle, Manager, Emitter, Listener};
 /// 静态变量：本次会话内 L2 是否已授权
 static L2_APPROVED_THIS_SESSION: AtomicBool = AtomicBool::new(false);
 
+/// 静态变量：本次会话内 L3 是否已授权（once 模式用）
+static L3_APPROVED_THIS_SESSION: AtomicBool = AtomicBool::new(false);
+
+/// 按权限等级检查授权（通用入口，不依赖 LocalAction）
+/// 
+/// 权限等级：
+/// L1 低 - 直接执行
+/// L2 中 - once模式首次弹窗，approve模式每次弹窗
+/// L3 高 - once模式首次弹窗，approve模式每次弹窗
+pub async fn check_permission_by_level(
+    level: &str,
+    desc: &str,
+    auth_mode: &str,
+    app: &AppHandle,
+    command: &str,
+) -> bool {
+    match auth_mode {
+        "free" => true,
+        "once" => {
+            if level == "L1" {
+                return true;
+            }
+            if level == "L2" {
+                if L2_APPROVED_THIS_SESSION.load(Ordering::SeqCst) {
+                    return true;
+                }
+                let approved = request_approval(app, desc, command, level).await;
+                if approved {
+                    L2_APPROVED_THIS_SESSION.store(true, Ordering::SeqCst);
+                }
+                approved
+            } else {
+                if L3_APPROVED_THIS_SESSION.load(Ordering::SeqCst) {
+                    return true;
+                }
+                let approved = request_approval(app, desc, command, level).await;
+                if approved {
+                    L3_APPROVED_THIS_SESSION.store(true, Ordering::SeqCst);
+                }
+                approved
+            }
+        }
+        _ => request_approval(app, desc, command, level).await,
+    }
+}
+
 /// 检查权限：根据 auth_mode 和 action 等级决定是否需要弹窗
 pub async fn check_permission(
     action: &LocalAction,
@@ -28,29 +74,7 @@ pub async fn check_permission(
         LocalAction::DesktopScreenshot => ("L2", "屏幕截图"),
         LocalAction::ShellExec => ("L3", "执行系统命令"),
     };
-
-    match auth_mode {
-        // 免审批：直接通过
-        "free" => true,
-        // 一次性授权：L2 已授权过则免；L3 仍需首次确认
-        "once" => {
-            if level == "L2" {
-                if L2_APPROVED_THIS_SESSION.load(Ordering::SeqCst) {
-                    return true;
-                }
-                let approved = request_approval(app, desc, command, level).await;
-                if approved {
-                    L2_APPROVED_THIS_SESSION.store(true, Ordering::SeqCst);
-                }
-                approved
-            } else {
-                // L3 在 once 模式下也仅首次确认（简化）
-                request_approval(app, desc, command, level).await
-            }
-        }
-        // 弹窗审批：L2/L3 都需弹窗
-        _ => request_approval(app, desc, command, level).await,
-    }
+    check_permission_by_level(level, desc, auth_mode, app, command).await
 }
 
 /// 请求用户审批（通过 Tauri 事件触发前端弹窗）
@@ -126,4 +150,5 @@ pub async fn request_approval(
 /// 重置会话授权（用户切换模式或手动重置时调用）
 pub fn reset_session_approval() {
     L2_APPROVED_THIS_SESSION.store(false, Ordering::SeqCst);
+    L3_APPROVED_THIS_SESSION.store(false, Ordering::SeqCst);
 }

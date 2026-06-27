@@ -114,7 +114,10 @@ pub async fn execute_local(
             }
         }
         LocalAction::ShellExec => {
-            let cmd = extract_shell_command(command).unwrap_or_default();
+            let cmd = match extract_shell_command(command) {
+                Some(c) => c,
+                None => return (false, String::new(), Some("未能从指令中识别出明确的Shell命令，已拒绝执行".to_string())),
+            };
             let auth_mode = state.auth_mode.lock().unwrap().clone();
             match rpa::shell::execute(&cmd, None, &auth_mode, state, app).await {
                 Ok(result) => (true, format!("执行结果: {}", result), None),
@@ -193,17 +196,22 @@ fn extract_content(command: &str) -> Option<String> {
 }
 
 fn extract_shell_command(command: &str) -> Option<String> {
-    // 提取 `code` 或 "命令：..." 后的内容
     if let Some(start) = command.find('`') {
         if let Some(end) = command[start + 1..].find('`') {
-            return Some(command[start + 1..start + 1 + end].to_string());
+            let cmd = command[start + 1..start + 1 + end].trim().to_string();
+            if !cmd.is_empty() {
+                return Some(cmd);
+            }
         }
     }
     if let Some(idx) = command.find("命令") {
         let rest = &command[idx..];
         if let Some(colon) = rest.find(':').or_else(|| rest.find('：')) {
-            return Some(rest[colon..].trim_start_matches([':', '：', ' ']).to_string());
+            let cmd = rest[colon..].trim_start_matches([':', '：', ' ']).trim().to_string();
+            if !cmd.is_empty() {
+                return Some(cmd);
+            }
         }
     }
-    Some(command.to_string())
+    None
 }
