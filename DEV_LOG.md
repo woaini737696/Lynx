@@ -111,7 +111,7 @@
 - **MSI 安装测试**：待用户双击安装验证（需本机 dev server 运行）
 
 ### Commit
-（待提交）
+`9305c185` — feat(desktop): iter 45 - 桌面端Phase1本地打包生成MSI安装包(22MB)
 
 ---
 
