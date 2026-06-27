@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { requirePermission } from "@/lib/auth-utils";
+import { clearMemoryCache } from "@/lib/memory-cache";
 
 // 删除记忆节点：同时清理其他节点 connections 中对该节点的引用
 export async function DELETE(
@@ -42,6 +43,12 @@ export async function DELETE(
 
     await prisma.memory.delete({ where: { id } });
 
+    // 清除缓存（记忆归属者 + 操作者）
+    clearMemoryCache(memory.userId || auth.user.id);
+    if (memory.userId && memory.userId !== auth.user.id) {
+      clearMemoryCache(auth.user.id);
+    }
+
     return NextResponse.json({ success: true, id });
   } catch (e) {
     console.error("删除记忆失败:", e);
@@ -54,6 +61,9 @@ export async function PATCH(
   req: NextRequest,
   { params }: { params: { id: string } }
 ) {
+  // 鉴权：修复此前遗漏的 requirePermission，避免未登录用户篡改记忆标签
+  const auth = await requirePermission("memory:update");
+  if (auth.error) return auth.error;
   try {
     const { id } = params;
     const { label } = await req.json().catch(() => ({ label: "" }));
@@ -65,6 +75,10 @@ export async function PATCH(
     const memory = await prisma.memory.findUnique({ where: { id } });
     if (!memory) {
       return NextResponse.json({ error: "记忆不存在" }, { status: 404 });
+    }
+    // 非 admin 仅能更新自己的记忆
+    if (auth.user.role !== "admin" && memory.userId && memory.userId !== auth.user.id) {
+      return NextResponse.json({ error: "无权修改他人的记忆" }, { status: 403 });
     }
 
     const trimmed = label.trim();
@@ -92,6 +106,9 @@ export async function PATCH(
       where: { id },
       data: { content: trimmed },
     });
+
+    // 清除缓存
+    clearMemoryCache(memory.userId || auth.user.id);
 
     return NextResponse.json({ success: true, id, label: trimmed });
   } catch (e) {

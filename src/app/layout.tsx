@@ -5,6 +5,7 @@ import { LightningInput } from "@/components/lightning/LightningInput";
 import { CommandPalette } from "@/components/layout/CommandPalette";
 import { SuppressDevErrors } from "@/components/layout/SuppressDevErrors";
 import { Toaster } from "@/components/ui/toast";
+import { AsyncLoadingProvider } from "@/components/ui/AsyncLoading";
 import { ThemeProvider } from "@/components/theme/ThemeProvider";
 import { ReminderManager } from "@/components/layout/ReminderManager";
 import { PWARegister } from "@/components/layout/PWARegister";
@@ -49,15 +50,17 @@ export default function RootLayout({
       </head>
       <body className="min-h-screen bg-background text-foreground antialiased">
         <ThemeProvider>
-          <SuppressDevErrors />
-          <DesktopBridge />
-          <AppShell>{children}</AppShell>
-          <LightningInput />
-          <CommandPalette />
-          <ReminderManager />
-          <PWARegister />
-          <AssistantGlobalEntry />
-          <Toaster />
+          <AsyncLoadingProvider>
+            <SuppressDevErrors />
+            <DesktopBridge />
+            <AppShell>{children}</AppShell>
+            <LightningInput />
+            <CommandPalette />
+            <ReminderManager />
+            <PWARegister />
+            <AssistantGlobalEntry />
+            <Toaster />
+          </AsyncLoadingProvider>
         </ThemeProvider>
       </body>
     </html>

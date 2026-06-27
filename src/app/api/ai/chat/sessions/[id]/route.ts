@@ -50,6 +50,9 @@ export async function GET(
           model: m.model,
           tokens: m.tokens,
           durationMs: m.durationMs,
+          // 标注字段：供前端展示已标注状态（feedback API 已支持写入）
+          feedback: m.feedback,
+          feedbackReason: m.feedbackReason,
           createdAt: m.createdAt.toISOString(),
         })),
       },

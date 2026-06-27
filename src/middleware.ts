@@ -32,6 +32,18 @@ export default auth((req) => {
 
   // 未登录处理
   if (!req.auth) {
+    // API 路由（/api/*）：返回 JSON 401，不重定向到登录页
+    // API 客户端（fetch/axios）期望 JSON 错误响应，而非 HTML 重定向
+    if (pathname.startsWith("/api/")) {
+      return new NextResponse(
+        JSON.stringify({ error: "未登录", code: "UNAUTHORIZED" }),
+        {
+          status: 401,
+          headers: { "Content-Type": "application/json" },
+        }
+      );
+    }
+
     // RSC 预取请求（带 _rsc 查询参数或 RSC 头）：返回 401 而非重定向
     // 避免浏览器跟随重定向导致 net::ERR_ABORTED 控制台报错
     // 客户端路由器会根据 401 自行处理跳转到登录页

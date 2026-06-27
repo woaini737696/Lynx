@@ -62,7 +62,9 @@ export async function POST(req: NextRequest) {
     if (error) return error;
 
     const body = await req.json();
-    const { source, title, rawContent, useAI } = body;
+    const { source, title, rawContent } = body;
+    // useAI 默认 false：避免无谓的 AI 提取开销，前端按需显式开启
+    const useAI = body.useAI === true;
     // PDF 专用字段：base64 编码的文件数据
     const fileData = body.fileData as string | undefined;
     const filename = body.filename as string | undefined;

@@ -346,6 +346,7 @@ export const PERMISSION_CATALOG: PermissionDef[] = [
 
   // 记忆模块
   { key: "memory:write", label: "写入记忆", description: "向记忆图谱写入节点", group: "记忆" },
+  { key: "memory:update", label: "更新记忆", description: "修改记忆节点标签", group: "记忆" },
   { key: "memory:read", label: "读取记忆", description: "查询记忆图谱节点", group: "记忆" },
   { key: "memory:delete", label: "删除记忆", description: "删除记忆节点", group: "记忆" },
   { key: "memory:rebuild", label: "重建记忆", description: "重建记忆图谱 embedding", group: "记忆" },

@@ -24,8 +24,12 @@ import {
   ArrowLeft,
   Bot,
   RefreshCw,
+  CheckSquare,
+  Square,
+  AlertTriangle,
 } from "lucide-react";
 import { toast } from "@/components/ui/toast";
+import { useAsyncLoading } from "@/lib/use-async-loading";
 import { PageHeader, Card, Button, Skeleton } from "@/components/layout/PageHeader";
 import { HelpButton } from "@/components/layout/HelpButton";
 import { Pagination, useClientPagination } from "@/components/ui/ListControls";
@@ -252,6 +256,19 @@ export default function MemoryPage() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingLabel, setEditingLabel] = useState("");
   const [deletingId, setDeletingId] = useState<string | null>(null);
+
+  // ---- 批量管理状态 ----
+  // 是否处于批量管理模式
+  const [batchMode, setBatchMode] = useState(false);
+  // 当前选中的节点 id 集合
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  // 批量删除进行中
+  const [batchDeleting, setBatchDeleting] = useState(false);
+  // 是否显示批量删除确认弹窗
+  const [showBatchConfirm, setShowBatchConfirm] = useState(false);
+
+  // 全局异步加载反馈：耗时超过 800ms 的操作会显示 overlay
+  const { run: runAsync } = useAsyncLoading();
 
   // 增量渲染：节点逐步显现的计数（用于分批渲染，避免一次性渲染大量节点卡顿）
   const [materializeCount, setMaterializeCount] = useState(0);
@@ -549,7 +566,7 @@ export default function MemoryPage() {
     async (id: string) => {
       setDeletingId(id);
       try {
-        const res = await fetch(`/api/memory/${id}`, { method: "DELETE" });
+        const res = await runAsync("删除记忆", fetch(`/api/memory/${id}`, { method: "DELETE" }));
         if (!res.ok) {
           const d = await res.json().catch(() => ({}));
           throw new Error(d.error || "删除失败");
@@ -1186,6 +1203,75 @@ export default function MemoryPage() {
     return list;
   }, [filteredNodes, filterType, searchQuery, sortBy]);
 
+  // ---- 批量管理 ----
+  // 孤立节点（无连接），用于"全选孤立"快捷操作
+  const orphanNodes = useMemo(
+    () => nodes.filter((n) => n.connections.length === 0),
+    [nodes]
+  );
+
+  // 切换某个节点的选中状态
+  const toggleSelection = useCallback((id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }, []);
+
+  // 全选当前列表中可见的节点（受搜索/筛选影响）
+  const selectAllVisible = useCallback(() => {
+    setSelectedIds(new Set(listNodes.map((n) => n.id)));
+  }, [listNodes]);
+
+  // 全选孤立节点（无连接的节点，适合清理测试数据）
+  const selectOrphans = useCallback(() => {
+    setSelectedIds(new Set(orphanNodes.map((n) => n.id)));
+  }, [orphanNodes]);
+
+  // 清空选择
+  const clearSelection = useCallback(() => {
+    setSelectedIds(new Set());
+  }, []);
+
+  // 进入/退出批量管理模式
+  const toggleBatchMode = useCallback(() => {
+    setBatchMode((b) => !b);
+    setSelectedIds(new Set());
+  }, []);
+
+  // 批量删除选中的记忆节点
+  const handleBatchDelete = useCallback(async () => {
+    if (selectedIds.size === 0) return;
+    setShowBatchConfirm(false);
+    setBatchDeleting(true);
+    try {
+      const ids = Array.from(selectedIds);
+      const res = await runAsync(
+        `批量删除 ${ids.length} 个记忆`,
+        fetch("/api/memory/batch", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ ids }),
+        })
+      );
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}));
+        throw new Error(d.error || "批量删除失败");
+      }
+      const data = await res.json();
+      toast(`已删除 ${data.deleted} 个记忆（请求 ${data.requested}）`, "success");
+      setSelectedIds(new Set());
+      setBatchMode(false);
+      await load();
+    } catch (e: any) {
+      toast(e.message || "批量删除失败", "error");
+    } finally {
+      setBatchDeleting(false);
+    }
+  }, [selectedIds, runAsync, load]);
+
   // 列表分页（客户端）
   const {
     page,
@@ -1225,6 +1311,13 @@ export default function MemoryPage() {
                 </button>
               ))}
             </div>
+            <Button
+              onClick={toggleBatchMode}
+              variant={batchMode ? "primary" : "outline"}
+            >
+              <CheckSquare className="h-3.5 w-3.5" />
+              <span className="hidden sm:inline">{batchMode ? "退出批量" : "批量管理"}</span>
+            </Button>
             <Button onClick={() => setShowHelp(true)} variant="ghost">
               <HelpCircle className="h-3.5 w-3.5" />
               <span className="hidden sm:inline">说明</span>
@@ -1535,6 +1628,61 @@ export default function MemoryPage() {
               </div>
             </div>
 
+            {/* 批量管理工具栏 */}
+            {batchMode && (
+              <div className="mb-2 rounded-xl border border-cognition/30 bg-cognition/5 p-2.5">
+                <div className="mb-2 flex items-center justify-between">
+                  <div className="flex items-center gap-1.5 text-[11px] font-medium text-cognition">
+                    <CheckSquare className="h-3.5 w-3.5" />
+                    批量管理模式
+                  </div>
+                  <button
+                    onClick={toggleBatchMode}
+                    className="text-[11px] text-muted-foreground hover:text-foreground"
+                  >
+                    退出
+                  </button>
+                </div>
+                <div className="mb-2 flex flex-wrap items-center gap-1.5">
+                  <button
+                    onClick={selectOrphans}
+                    className="rounded-md border border-graveyard/30 bg-graveyard/10 px-2 py-1 text-[11px] text-graveyard transition-colors hover:bg-graveyard/20"
+                  >
+                    全选孤立 ({orphanNodes.length})
+                  </button>
+                  <button
+                    onClick={selectAllVisible}
+                    className="rounded-md border border-border bg-background px-2 py-1 text-[11px] text-foreground/80 transition-colors hover:bg-muted"
+                  >
+                    全选 ({listNodes.length})
+                  </button>
+                  <button
+                    onClick={clearSelection}
+                    className="rounded-md border border-border bg-background px-2 py-1 text-[11px] text-muted-foreground transition-colors hover:bg-muted"
+                  >
+                    清空
+                  </button>
+                  <div className="ml-auto flex items-center gap-2 text-[11px] text-muted-foreground">
+                    选中 <strong className="text-foreground">{selectedIds.size}</strong>
+                  </div>
+                </div>
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-[10px] text-muted-foreground">
+                    总 {stats.total} · 孤立 {stats.isolated} · 选中 {selectedIds.size}
+                  </span>
+                  <Button
+                    size="sm"
+                    variant="danger"
+                    disabled={selectedIds.size === 0 || batchDeleting}
+                    onClick={() => setShowBatchConfirm(true)}
+                  >
+                    <Trash2 className="h-3 w-3" />
+                    删除选中 ({selectedIds.size})
+                  </Button>
+                </div>
+              </div>
+            )}
+
             {/* 列表 */}
             <div className="max-h-[420px] flex-1 overflow-auto pr-1">
               {listNodes.length === 0 ? (
@@ -1549,16 +1697,35 @@ export default function MemoryPage() {
                     return (
                       <div
                         key={node.id}
-                        onClick={() => focusNode(node.id)}
+                        onClick={() => (batchMode ? toggleSelection(node.id) : focusNode(node.id))}
                         onMouseEnter={() => setHoveredId(node.id)}
                         onMouseLeave={() => setHoveredId(null)}
                         className={cn(
                           "group flex cursor-pointer items-center gap-2 rounded-lg border px-2 py-1.5 text-xs transition-all",
-                          isSelected
+                          batchMode && selectedIds.has(node.id)
+                            ? "border-cognition/50 bg-cognition/10"
+                            : isSelected
                             ? "border-cognition/50 bg-cognition/10"
                             : "border-transparent hover:border-border hover:bg-muted/40"
                         )}
                       >
+                        {/* 批量选择复选框 */}
+                        {batchMode && (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              toggleSelection(node.id);
+                            }}
+                            className="shrink-0"
+                            aria-label={selectedIds.has(node.id) ? "取消选择" : "选择"}
+                          >
+                            {selectedIds.has(node.id) ? (
+                              <CheckSquare className="h-4 w-4 text-cognition" />
+                            ) : (
+                              <Square className="h-4 w-4 text-muted-foreground" />
+                            )}
+                          </button>
+                        )}
                         {/* 类型图标 */}
                         <span
                           className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full"
@@ -1627,7 +1794,7 @@ export default function MemoryPage() {
             )}
           </Card>
 
-          <div className="grid grid-cols-3 gap-2">
+          <div className={cn("grid gap-2", batchMode ? "grid-cols-4" : "grid-cols-3")}>
             <StatCard
               value={stats.total}
               label="总节点"
@@ -1646,9 +1813,57 @@ export default function MemoryPage() {
               icon={<BookOpen className="h-3.5 w-3.5" />}
               color="text-graveyard"
             />
+            {batchMode && (
+              <StatCard
+                value={selectedIds.size}
+                label="选中"
+                icon={<CheckSquare className="h-3.5 w-3.5" />}
+                color="text-cognition"
+              />
+            )}
           </div>
         </div>
       </div>
+
+      {/* 批量删除确认弹窗 */}
+      {showBatchConfirm && (
+        <div
+          className="fixed inset-0 z-[80] flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm"
+          onClick={() => setShowBatchConfirm(false)}
+        >
+          <div
+            className="w-full max-w-sm rounded-2xl border border-border bg-card p-5 shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="mb-3 flex items-center gap-2 text-sm font-semibold text-graveyard">
+              <AlertTriangle className="h-4 w-4" />
+              确认批量删除
+            </div>
+            <p className="mb-4 text-xs leading-relaxed text-foreground/80">
+              即将删除 <strong className="text-graveyard">{selectedIds.size}</strong> 个记忆节点，此操作不可撤销。
+              其他节点中对这些记忆的引用也会被同步清理。
+            </p>
+            <div className="flex justify-end gap-2">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setShowBatchConfirm(false)}
+              >
+                取消
+              </Button>
+              <Button
+                variant="danger"
+                size="sm"
+                onClick={handleBatchDelete}
+                disabled={batchDeleting}
+              >
+                <Trash2 className="h-3 w-3" />
+                {batchDeleting ? "删除中..." : `确认删除 ${selectedIds.size} 项`}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* 编辑标签弹窗 */}
       {editingId && editingNode && (
@@ -1731,6 +1946,7 @@ export default function MemoryPage() {
               <p>7. <strong>时间过滤</strong>：顶部选择全部/近7天/近30天/近90天，过滤显示节点。</p>
               <p>8. <strong>记忆列表</strong>：右侧面板支持搜索、类型筛选、排序与分页，点击列表项可在图谱中聚焦该节点，支持编辑标签与删除。</p>
               <p>9. <strong>性能优化</strong>：力导向计算在 Web Worker 中运行，主线程仅负责渲染；背景预渲染、节点按需渐变、rAF 合并 tick，节点超过 100 也能流畅交互。</p>
+              <p>10. <strong>批量管理</strong>：点击右上角「批量管理」进入批量模式，列表项显示复选框；支持「全选孤立」（快速选中无连接节点，适合清理 e2e 测试数据）、「全选」、「清空」快捷操作，选中后点击「删除选中(N)」批量删除，删除前有确认弹窗。</p>
             </div>
             <div className="mt-4 flex justify-end">
               <Button size="sm" onClick={() => setShowHelp(false)}>

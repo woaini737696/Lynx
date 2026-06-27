@@ -82,3 +82,6 @@ _test_workbuddy_/
 Temp/
 npm-cache/
 _to_delete_/
+cargo-target/
+desktop-build/
+desktop-junction/

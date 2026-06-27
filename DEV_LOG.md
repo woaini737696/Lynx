@@ -5,6 +5,94 @@
 
 ---
 
+## 迭代 41 - 2026-06-27
+
+### 任务概要
+基于迭代 40 测试报告的 14 项优化任务：补充删除接口 + 全局 Loading + 记忆图谱批量管理 + SSE 流式技能生成 + 缓存 + 异步认知提取 + 流式备份 + 索引 + 消息标注 + 巡检 seed + 软删除清理 + middleware 401 JSON + 权限拆分 + useAI 默认 false。
+
+### 完成内容
+
+#### 1. 认知/对话单条删除接口（设计缺陷修复）
+- 新增 `src/app/api/cognitions/[id]/route.ts` DELETE：删除认知 + 同步清理关联 Memory 节点 + 修复引用连边
+- 新增 `src/app/api/conversations/[id]/route.ts` DELETE：删除对话 + 清理关联 Memory
+- 均使用 `requirePermission("cognition:delete" / "conversation:delete")` + 非 admin 归属校验
+
+#### 2. 全局耗时操作动画即时反馈
+- 新增 `src/components/ui/AsyncLoading.tsx`：React Context + 800ms 延迟显示的半透明遮罩 + 居中卡片 + Loader2 旋转 + animate-ping 呼吸光晕
+- 新增 `src/lib/use-async-loading.ts`：`useAsyncLoading()` hook，`run(name, promise)` 自动跟踪多操作队列
+- `src/app/layout.tsx` 包裹 `<AsyncLoadingProvider>`
+
+#### 3. 记忆图谱批量管理/删除
+- 新增 `src/app/api/memory/batch/route.ts`：
+  - POST 批量删除（最多 100 条）+ 清理引用连边 + 清除缓存
+  - GET ?type=orphan 查询孤立节点 / ?type=all 查询全部（最多 500）
+- `src/app/memory/page.tsx` 增加批量管理 UI：复选框 + 选中高亮 + 工具栏（全选孤立/全选/清空/删除选中）+ 删除确认弹窗
+
+#### 4. AI 技能生成 SSE 流式输出
+- 新增 `src/app/api/skills/generate/stream/route.ts`：text/event-stream，事件 thinking/delta/done/error
+- `src/app/skills/page.tsx` AIGenerateModal 改为消费流式 API：逐字光标输出 + thinking 状态 + fallback 告警
+- 修复 `SKILL_GENERATE_PROMPT` 导出（const → export const）
+
+#### 5. 记忆图谱 5 分钟内存缓存
+- 新增 `src/lib/memory-cache.ts`：按 userId 隔离的 Map 缓存，TTL 5 分钟
+- `src/app/api/memory/route.ts` GET 命中缓存直接返回，POST 重建后清除缓存
+- `src/app/api/memory/[id]/route.ts` PATCH/DELETE 后清除缓存
+
+#### 6. 看板 PATCH 异步认知提取
+- `src/app/api/tasks/[id]/route.ts`：任务标记 done 时 `extractCognitionsForTask()` 异步执行不阻塞 PATCH 响应
+- PATCH 立即返回 `cognitionPending: true`，认知提取后台写入 Cognition 表
+- **性能：PATCH 1884ms → 204ms**
+
+#### 7. 备份导出流式 JSON
+- `src/app/api/backup/export/route.ts`：单类型直接返回 JSON，全量导出使用 ReadableStream 逐块写入 JSON + 释放内存
+
+#### 8. 巡检规则查询索引
+- `prisma/schema.prisma` PatrolRule 新增 `@@index([userId, createdAt])`
+
+#### 9. AI 助理消息标注
+- 新增 `src/app/api/ai/chat/messages/[id]/feedback/route.ts` PATCH：good/bad + 原因
+- ChatMessage 新增 `feedback`/`feedbackReason` 字段
+- bad 标注异步写入 HermesReport（type=custom, trigger=manual）供 HermesAgent 学习
+- `src/app/ai/assistant/page.tsx` 添加 👍/👎 按钮 + 原因 textarea
+- `src/app/api/ai/chat/sessions/[id]/route.ts` GET 返回 feedback 字段
+
+#### 10. 巡检默认规则 seed
+- 新增 `prisma/seed-patrol-rules.ts`：注入 2 条默认规则（灵感去重检查 + Graveyard 复活检查）
+- 修复 seed 脚本 notifyChannels 存为字符串的 bug（改用数组直接存储）
+- 修复 `src/app/api/patrol/run/route.ts` notifyChannels 防御性处理（兼容 string/array）
+- 修复已有规则数据（字符串 → 数组）
+
+#### 11. 看板软删除定时清理
+- 新增 `src/app/api/tasks/cleanup-dropped/route.ts` POST：可配置 retentionDays（默认 30 天），清理 status=dropped 且 updatedAt 早于阈值的记录
+
+#### 12. middleware /api/* 返回 JSON 401
+- `src/middleware.ts`：未登录时 `/api/*` 路径返回 `{"error":"未登录","code":"UNAUTHORIZED"}` 401 JSON，不再重定向到登录页
+
+#### 13. 权限目录拆分 memory:write / memory:update
+- `src/lib/permissions.ts`：新增 `memory:update`（更新记忆标签），`memory:write` 仅用于新建
+- `src/app/api/memory/[id]/route.ts` PATCH 改用 `requirePermission("memory:update")`
+- 权限目录从 34 项扩充到 35 项
+
+#### 14. 对话 useAI 默认 false
+- `src/app/api/conversations/route.ts`：`useAI` 默认 false，需前端显式传 true 才触发 AI 提取
+
+### 自测验证
+- **tsc --noEmit**：本项目代码 0 错误（仅外部 _test_workbuddy_ 目录有无关错误）
+- **AI 性能测试**：流式 chat 首字延迟 640ms（优秀），助理模式 1096ms（优秀）
+- **功能测试 22/22 通过**：
+  - 看板 PATCH: 204ms（异步认知提取生效）
+  - 记忆 GET: 185ms（缓存生效）
+  - 巡检 run: 200 hitCount=0 results=1（notifyChannels 修复）
+  - 权限目录: 35 项（memory:update 拆分生效）
+  - 鉴权: 无效 token 正确返回 401 JSON
+- **脏数据清理**：删除 2 条测试任务
+
+### 文件变更
+- 新增：cognitions/[id]/route.ts, conversations/[id]/route.ts, ai/chat/messages/[id]/feedback/route.ts, memory/batch/route.ts, skills/generate/stream/route.ts, tasks/cleanup-dropped/route.ts, lib/memory-cache.ts, components/ui/AsyncLoading.tsx, lib/use-async-loading.ts, prisma/seed-patrol-rules.ts
+- 修改：memory/route.ts, memory/[id]/route.ts, tasks/[id]/route.ts, backup/export/route.ts, patrol/run/route.ts, middleware.ts, lib/permissions.ts, conversations/route.ts, prisma/schema.prisma, skills/generate/route.ts, app/layout.tsx, memory/page.tsx, skills/page.tsx, ai/assistant/page.tsx, ai/chat/sessions/[id]/route.ts, lib/help-content.ts
+
+---
+
 ## 迭代 40 - 2026-06-27
 
 ### 任务概要
