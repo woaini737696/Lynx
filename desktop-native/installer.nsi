@@ -54,10 +54,15 @@ VIAddVersionKey "ProductVersion"  "${PRODUCT_VERSION}"
 !define MUI_INSTFILESPAGE_ABORTHEADER_TEXT "安装已取消"
 !define MUI_INSTFILESPAGE_ABORTHEADER_SUBTEXT "${PRODUCT_NAME} 安装未完成。"
 
+; 进度条样式：平滑 + 品牌色（橙）
+!define MUI_INSTFILESPAGE_PROGRESSBAR "smooth"
+!define MUI_INSTALLCOLORS "${BRAND_ORANGE} FFFFFF"
+
 ; ---------- 安装页面流程 ----------
 ; 自定义单页安装（logo + 路径 + 立即安装）
 Page custom CustomInstallPage CustomInstallPageLeave
-; 标准进度页
+; 标准进度页（显示时统一品牌风格）
+!define MUI_PAGE_CUSTOMFUNCTION_SHOW InstFilesShow
 !insertmacro MUI_PAGE_INSTFILES
 
 ; ---------- 卸载页面流程 ----------
@@ -196,15 +201,26 @@ Function CustomInstallPageLeave
   ${EndIf}
 FunctionEnd
 
+; ---------- 进度页显示时：统一白色背景，隐藏取消按钮 ----------
+Function InstFilesShow
+  ; 设置进度页背景为白色
+  SetCtlColors $HWNDPARENT FFFFFF FFFFFF
+  ; 隐藏取消按钮（控件 ID 3），避免用户误触
+  GetDlgItem $R0 $HWNDPARENT 3
+  ShowWindow $R0 ${SW_HIDE}
+FunctionEnd
+
 ; ---------- 安装部分 ----------
 Section "Lynx 主程序" SecMain
   SectionIn RO
   SetOutPath "$INSTDIR"
   SetOverwrite ifnewer
 
+  DetailPrint "正在准备安装 ${PRODUCT_NAME}..."
   ; 主程序（由 Tauri/MSVC 构建）
   File "D:\cargo-target-native\release\lynnhub-desktop-native.exe"
 
+  DetailPrint "正在释放前端资源..."
   ; 启动页资源（Tauri frontendDist: ../out）
   SetOutPath "$INSTDIR\out"
   File /r "out\*.*"

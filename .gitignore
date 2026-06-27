@@ -97,3 +97,8 @@ desktop-junction/
 /test-hello/
 /vs_buildtools.exe
 .git-commit-msg.txt
+
+# 其他临时/测试文件
+ui_*.xml
+test_black.png
+selftest.ps1

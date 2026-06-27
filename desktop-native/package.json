@@ -7,8 +7,8 @@
     "dev": "tauri dev",
     "build": "tauri build",
     "tauri": "tauri",
-    "frontend:dev": "cd ../ && npx next dev -p 5176",
-    "frontend:build": "cd ../ && npx next build",
+    "frontend:dev": "cd native-ui && npm run dev",
+    "frontend:build": "cd native-ui && npm run build",
     "sidecar:dev": "node sidecar/dev-agent.js",
     "sidecar:build": "node sidecar/build-agent.js"
   },

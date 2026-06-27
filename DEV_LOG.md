@@ -9,6 +9,7 @@
 
 | 迭代 | 日期 | 任务概要 |
 |------|------|----------|
+| [迭代 48](#迭代-48---2026-06-28) | 2026-06-28 | 方案一：Lynx 原生桌面端一级页面与核心功能原生 UI 重构 |
 | [迭代 47](#迭代-47---2026-06-28) | 2026-06-28 | 修复 Lynx 桌面端图标、安装界面与 hover 菜单体验问题 |
 | [迭代 46](#迭代-46---2026-06-28) | 2026-06-28 | Lynx 原生桌面端独立安装版：NSIS exe 安装包 + 品牌安装界面 |
 | [迭代 45](#迭代-45---2026-06-27) | 2026-06-27 | 桌面端 Phase1 本地打包：生成可双击安装的 MSI 安装包（22MB） |
@@ -108,6 +109,68 @@
 
 ### Commit
 `943100df` — feat(desktop-native): iter 47 - 修复安装包图标、安装界面与hover菜单
+
+---
+
+## 迭代 48 - 2026-06-28
+
+### 任务概要
+按方案一（Tauri + 原生 UI 重构）推进 Lynx 原生桌面端改造：优先将一级页面与核心功能重构为原生 React SPA，同时收尾问题 1/2/4 的体验修复，并打通完整构建流程生成可安装的 exe 包。
+
+### 完成内容
+
+#### 1. 统一 Lynx 品牌图标（问题 1）
+- `desktop-native/native-ui/src/components/ui/Logo.tsx`：绘制高清黑底白色猞猁 SVG logo，作为标题栏与应用内品牌标识
+- `desktop-native/src-tauri/icons/`：使用 `npx tauri icon` 重新生成全部尺寸图标（ico/png/icns/iOS/Android），确保窗口图标、任务栏图标、托盘图标、安装包图标一致
+- `desktop-native/native-ui/src/components/layout/TitleBar.tsx`：标题栏左上角仅保留单个 Lynx logo + 产品名，消除双图标/双标题栏问题
+
+#### 2. NSIS 安装界面豆包风格收尾（问题 2）
+- `desktop-native/installer.nsi`：
+  - 自定义安装页保持大 Logo 居中 + 安装路径 + 立即安装按钮
+  - 进度页增加品牌色（橙）平滑进度条、白色背景统一、隐藏取消按钮
+  - 安装完成自动启动 Lynx
+- `desktop-native/build-native.ps1`：修复路径转义导致的解析错误，确保完整构建脚本可正常执行
+
+#### 3. 修复用户 hover 菜单无法点击（问题 4）
+- `desktop-native/native-ui/src/components/layout/UserMenu.tsx`：
+  - 保留 180ms 延迟关闭
+  - 菜单从「左侧弹出」改为「向上弹出」，避免鼠标移向菜单时触发 Sidebar 收起导致菜单消失
+  - 支持点击头像切换菜单
+
+#### 4. 原生 UI 一级页面与核心功能（方案一）
+- 新建 `desktop-native/native-ui/` 独立 React + Vite + TypeScript 工程：
+  - `src/App.tsx`：BrowserRouter 路由，覆盖 focus / board / ai/workspace / ai/assistant / agent / web fallback
+  - `src/lib/cloud-api.ts`：封装云端 API 代理，通过 Tauri `cloud_request` 命令访问云端，避免 token 暴露
+  - `src/stores/uiStore.ts` / `authStore.ts`：Zustand 管理 UI 与登录状态
+  - `src/lib/theme.ts`：light / dark / system 三档主题
+- 核心原生页面：
+  - `FocusPage.tsx`：今日聚焦卡片、完成进度、状态切换
+  - `BoardPage.tsx`：北极星/战役/任务三列看板、添加任务、状态切换
+  - `AIWorkspacePage.tsx`：模板分类、搜索、收藏、参数配置
+  - `AIAssistantPage.tsx`：聊天界面、快捷指令、消息复制
+  - `AgentPage.tsx` + `HermesPanel.tsx`：本地 HermesAgent 状态、安装/启动
+- 全局布局组件：
+  - `AppLayout.tsx`：TitleBar + Sidebar + QuickSearch 框架
+  - `Sidebar.tsx`：导航、展开/收起、HermesAgent 入口
+  - `TitleBar.tsx`：无边框窗口控制
+  - `QuickSearch.tsx`：全局快速搜索入口
+- 使用说明入口：
+  - 新增 `src/components/ui/HelpButton.tsx` 与 `src/lib/help-content.ts`
+  - 为 focus / board / ai-workspace / ai-assistant / agent 五个一级页面右上角添加问号说明按钮
+
+#### 5. Rust 后端配套
+- `desktop-native/src-tauri/src/lib.rs`：确认已暴露 `cloud_request`、`execute_assistant_command`、`get_agent_status`、`install_ai_env`、`start_hermes_agent` 等命令，支撑原生 UI 数据流
+
+### 自测结果
+- `npm run build`（native-ui）：0 错误，产物输出到 `desktop-native/out/app/`
+- `npm run build`（desktop-native Tauri）：0 错误，生成 `D:\cargo-target-native\release\lynnhub-desktop-native.exe`（约 22.4 MB）
+- `makensis` 编译 `desktop-native/installer.nsi`：0 错误，生成 `desktop-native/dist/Lynx-Setup-1.2.0.exe`（5.64 MB）
+- 静默安装验证：`Lynx-Setup-1.2.0.exe /S /D=D:\Lynn工作空间\LynnHub\desktop-native\dist-test` 成功，产物包含主程序、uninstall.exe、out/index.html、out/app 完整资源
+- 版本信息：ProductName = Lynx，FileVersion = 1.2.0
+- 清理：自测安装目录 `dist-test` 已删除
+
+### Commit
+`TODO` — feat(desktop-native): iter 48 - 方案一原生UI重构一级页面+核心功能+图标安装页hover菜单修复
 
 ---
 
