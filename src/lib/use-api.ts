@@ -1,5 +1,5 @@
 import useSWR from "swr";
-import { fetcher } from "./swr-config";
+import { fetcher } from "@/components/providers/SWRProvider";
 
 // 灵感列表
 export function useIdeas() {

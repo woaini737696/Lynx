@@ -1,6 +1,5 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
-import { SWRConfig } from "swr";
 import { AppShell } from "@/components/layout/AppShell";
 import { LightningInput } from "@/components/lightning/LightningInput";
 import { CommandPalette } from "@/components/layout/CommandPalette";
@@ -12,7 +11,7 @@ import { ReminderManager } from "@/components/layout/ReminderManager";
 import { PWARegister } from "@/components/layout/PWARegister";
 import { AssistantGlobalEntry } from "@/components/ai/AssistantGlobalEntry";
 import { DesktopBridge } from "@/components/layout/DesktopBridge";
-import { swrConfig } from "@/lib/swr-config";
+import { SWRProvider } from "@/components/providers/SWRProvider";
 
 export const metadata: Metadata = {
   title: "LynnHub · 个人认知操作系统",
@@ -52,7 +51,7 @@ export default function RootLayout({
       </head>
       <body className="min-h-screen bg-background text-foreground antialiased">
         <ThemeProvider>
-          <SWRConfig value={swrConfig}>
+          <SWRProvider>
             <AsyncLoadingProvider>
               <SuppressDevErrors />
               <DesktopBridge />
@@ -64,7 +63,7 @@ export default function RootLayout({
               <AssistantGlobalEntry />
               <Toaster />
             </AsyncLoadingProvider>
-          </SWRConfig>
+          </SWRProvider>
         </ThemeProvider>
       </body>
     </html>

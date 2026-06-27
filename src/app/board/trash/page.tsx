@@ -22,7 +22,7 @@ import { EmptyState } from "@/components/layout/EmptyState";
 import { Pagination, useClientPagination } from "@/components/ui/ListControls";
 import { AnimatedList } from "@/components/ui/AnimatedList";
 import { useAsyncLoading } from "@/lib/use-async-loading";
-import { fetcher } from "@/lib/swr-config";
+import { fetcher } from "@/components/providers/SWRProvider";
 import { BOARD_COLUMNS, type BoardColumn } from "@/lib/utils";
 import { cn } from "@/lib/utils";
 
