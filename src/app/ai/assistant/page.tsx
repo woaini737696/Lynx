@@ -2986,10 +2986,10 @@ export default function AIAssistantPage() {
             {settings.hermesTakeover ? (
               <span
                 className="inline-flex items-center gap-1 rounded-full border border-green-500/40 bg-green-500/10 px-2 py-0.5 text-[10px] font-medium text-green-600 dark:text-green-400"
-                title="Hermes Agent 接管模式（模式 C）：持久化记忆 + 持续学习，失败时自动回退到 LLM"
+                title="Lynx Agent 接管模式（模式 C）：持久化记忆 + 持续学习，失败时自动回退到 LLM"
               >
                 <Sparkles className="h-2.5 w-2.5" />
-                🤖 Hermes Agent 模式
+                🤖 Lynx Agent 模式
               </span>
             ) : (
               <span
@@ -3347,7 +3347,7 @@ export default function AIAssistantPage() {
               </div>
 
               <div className="space-y-3 rounded-xl border border-border p-4">
-                <h3 className="text-sm font-medium">🤖 Hermes Agent 超级助理</h3>
+                <h3 className="text-sm font-medium">🤖 Lynx Agent 超级助理</h3>
                 <div className={cn(
                   "rounded-lg border p-3 transition-colors",
                   settings.hermesTakeover
@@ -3371,7 +3371,7 @@ export default function AIAssistantPage() {
                     />
                   </label>
                   <p className="mt-1.5 text-[10px] leading-relaxed text-muted-foreground">
-                    开启后 AI 助理由 Hermes Agent 驱动，拥有持久化记忆和持续学习能力。失败时自动回退到 LLM 模式。
+                    开启后 AI 助理由 Lynx Agent 驱动，拥有持久化记忆和持续学习能力。失败时自动回退到 LLM 模式。
                   </p>
                 </div>
                 <label className="flex cursor-pointer items-center justify-between">
@@ -3723,7 +3723,7 @@ export default function AIAssistantPage() {
                     <div className="min-h-0 flex-1 overflow-y-auto px-5 py-3">
                       {skillTab === "hermes" && (
                         <div className="mb-3 rounded-md border border-primary/30 bg-primary/5 p-2 text-[10px] text-primary">
-                          Hermes Skills Hub 提供 672+ 官方技能，需先在设置中启用 Hermes Agent。
+                          Lynx Skills Hub 提供 672+ 官方技能，需先在设置中启用 Lynx Agent。
                         </div>
                       )}
                       {skillsLoading ? (
@@ -3737,7 +3737,7 @@ export default function AIAssistantPage() {
                             <p className="text-sm text-muted-foreground">
                               {hermesRunning
                                 ? "暂无 Hermes 技能。点击「预加载默认技能」加载 6 个 Lynx 专用技能。"
-                                : "Hermes Agent 未运行，显示已学习的技能。点击「预加载默认技能」可添加技能。"}
+                                : "Lynx Agent 未运行，显示已学习的技能。点击「预加载默认技能」可添加技能。"}
                             </p>
                             <Button
                               size="sm"
@@ -4001,7 +4001,7 @@ export default function AIAssistantPage() {
         <Modal
           open={showApproval}
           onClose={() => handleApprovalResponse(false)}
-          title="HermesAgent 操作审批"
+          title="Lynx Agent 操作审批"
           size="md"
         >
           {currentApproval && (

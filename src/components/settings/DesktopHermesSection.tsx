@@ -216,7 +216,7 @@ export function DesktopHermesSection() {
     setStarting(true);
     try {
       await startHermesAgent();
-      toast("HermesAgent 已启动", "success");
+      toast("Lynx Agent 已启动", "success");
       await refreshStatus();
     } catch (e: any) {
       toast("启动失败：" + e.message, "error");
@@ -298,7 +298,7 @@ export function DesktopHermesSection() {
       <div className="mb-4 flex items-center justify-between">
         <div className="flex items-center gap-2">
           <Cpu className="h-4 w-4 text-northstar" />
-          <h2 className="text-sm font-semibold">桌面端 HermesAgent（本地超级 AI 助理）</h2>
+          <h2 className="text-sm font-semibold">桌面端 Lynx Agent（本地超级 AI 助理）</h2>
           {wsConnected ? (
             <span className="inline-flex items-center gap-1 rounded-full bg-task/10 px-2 py-0.5 text-[10px] text-task">
               <Wifi className="h-2.5 w-2.5" /> 云端已连接
@@ -379,7 +379,7 @@ export function DesktopHermesSection() {
               <div className="flex items-center gap-2 text-xs">
                 <span className={`h-2 w-2 rounded-full ${hasToken ? "bg-green-500" : "bg-gray-400"}`} />
                 <span className="font-medium text-foreground">
-                  HermesAgent 进程{hasToken ? "（运行中）" : "（未启动）"}
+                  Lynx Agent 进程{hasToken ? "（运行中）" : "（未启动）"}
                 </span>
                 {status?.version && (
                   <span className="text-muted-foreground">v{status.version}</span>
@@ -391,7 +391,7 @@ export function DesktopHermesSection() {
                     {starting ? (
                       <><Loader2 className="h-3 w-3 animate-spin" /> 启动中...</>
                     ) : (
-                      <><Power className="h-3 w-3" /> 启动 HermesAgent</>
+                      <><Power className="h-3 w-3" /> 启动 Lynx Agent</>
                     )}
                   </Button>
                 )}
@@ -512,7 +512,7 @@ export function DesktopHermesSection() {
 
 function SafetyGuideModal({ open, onClose }: { open: boolean; onClose: () => void }) {
   return (
-    <Modal open={open} onClose={onClose} title="HermesAgent 安全操作说明" size="lg">
+    <Modal open={open} onClose={onClose} title="Lynx Agent 安全操作说明" size="lg">
       <div className="space-y-4 text-xs text-foreground">
         <section>
           <h4 className="mb-1.5 flex items-center gap-1.5 font-semibold text-northstar">
@@ -588,7 +588,7 @@ function SafetyGuideModal({ open, onClose }: { open: boolean; onClose: () => voi
             <li>• 所有本地操作在你的电脑上执行，文件内容不上传云端</li>
             <li>• 仅指令文本和执行结果摘要通过 WS 回传到云端（用于多端协同）</li>
             <li>• LLM 调用走你配置的 API Key（DeepSeek / MiMo），不经过中间服务器</li>
-            <li>• HermesAgent profile 存储在 <code className="rounded bg-muted px-1">D:\LynnHub\.lynnhub\hermes-profiles\</code> 完全本地化</li>
+            <li>• Lynx Agent profile 存储在 <code className="rounded bg-muted px-1">D:\LynnHub\.lynnhub\hermes-profiles\</code> 完全本地化</li>
           </ul>
         </section>
 

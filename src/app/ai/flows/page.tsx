@@ -2660,7 +2660,7 @@ function NodeConfigPanel({
           {node.type === "hermes" && (
             <div className="mb-3">
               <div className="mb-2 rounded-md border border-primary/30 bg-primary/5 p-2 text-[10px] text-primary">
-                调用本地 Hermes Agent 执行桌面操作（需先在设置中启动 Hermes）
+                调用本地 Lynx Agent 执行桌面操作（需先在设置中启动 Lynx Agent）
               </div>
               <label className="mb-1 block text-[11px] font-medium text-muted-foreground">任务描述</label>
               <textarea

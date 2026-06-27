@@ -1,59 +1,77 @@
 # Lynx
 
-> Lynx AI工作台，不用学，直接干
+> Lynx AI 工作台，不用学，直接干。
 
-Lynx 是一个会自主学习、成长、进化的超级 AI 助理平台，集灵感管理、决策看板、智能记忆图谱、AI 工作流、技能自动蒸馏于一体，支持 Web、Windows 桌面、Android 三端互通可互相操控。
+Lynx 是一个会自主学习、成长、进化的超级 AI 助理平台。它不只是 AI 聊天框，而是一套能自动执行、自动学习、自动记忆的完整工作系统，集灵感管理、决策看板、智能记忆图谱、AI 工作流、技能自动蒸馏、AGI 级 AI 能力于一体，支持 **Web / Windows 桌面 / Android** 三端互通可互相操控。
+
+## 核心亮点
+
+- **会进化的超级助理**：基于自研 **Lynx Agent**（实现于 HermesAgent 引擎）持久化记忆 + 持续学习管道 + bad 标注反馈纠错 + 巡检自动发现模式，越用越懂你
+- **四大核心能力**：AI 工作流 / 自动蒸馏技能 / 智能记忆图谱 / AGI 级 AI 能力
+- **三端互通**：Web、Windows、Android 共用一套 API 信封，可互相操控与远程指令
+- **开箱即用**：60+ 预置技能、35 项细粒度权限、默认巡检规则、12 岗位职业工作空间
+- **本地优先**：所有数据存本地 D 盘、桌面端 HermesAgent 引擎完全本地化运行
 
 ## 核心功能
 
 ### 知识管理
-- ⚡ **闪电灵感**：快速捕捉灵感，支持附件、标签
-- 📋 **决策看板**：北极星指标 → 战役 → 任务三层看板，支持拖拽排序
-- 🧠 **记忆图谱**：基于 embedding 的语义记忆图谱，自动连边，支持语义搜索
-- 💡 **认知库**：方法/经验/提示词沉淀，AI 自动提取认知
-- 📁 **对话资产**：捕获 Kimi/Claude/Codex 对话，提取结论和待办
-- ⚰️ **灵感墓地**：归档不活跃灵感，支持复活检查
+- ⚡ **闪电灵感**：快速捕捉灵感，支持附件、标签、自动收敛
+- 📋 **决策看板**：北极星 → 战役 → 任务三层看板，拖拽排序，AI 自动提取认知
+- 🧠 **记忆图谱**：基于 BGE-M3 embedding 的语义记忆图谱，自动连边（Top-K=20），5 分钟缓存，支持语义搜索
+- 💡 **认知库**：方法 / 经验 / 提示词沉淀，AI 自动提取，独立 label 字段不污染源内容
+- 📁 **对话资产**：捕获 Kimi / Claude / Codex 对话，提取结论和待办
+- ⚰️ **灵感墓地**：归档不活跃灵感，支持复活检查与定时清理
 - 🔗 **汇聚视图**：多源数据统一看板
 
 ### AI 能力
-- 🤖 **AI 超级助理**：流式对话、工具调用、语音对话、消息标注反馈
-- 🎯 **Hermes Agent**：持久化记忆、持续学习、主动汇报、跨平台响应
-- 🛠️ **技能库**：可复用技能模板，AI 流式生成，公共广场
-- 🔄 **AI 工作流**：可视化工作流编排，定时执行
-- 📊 **AI 巡检**：自动化巡检规则，定时检查灵感去重 / Graveyard 复活
+- 🤖 **AI 超级助理**：流式对话（首字延迟 < 700ms）、工具调用、语音对话、消息 good/bad 标注反馈学习
+- 🎯 **Lynx Agent**（基于 HermesAgent 技术实现）：本地化运行，持久化记忆、持续学习、主动汇报、跨平台响应、操作审批安全机制
+- 🛠️ **技能库**：可复用技能模板，AI SSE 流式生成，公共广场 + 导入导出
+- 🔄 **AI 工作流**：可视化工作流编排，定时执行，flow-engine 调度
+- 📊 **AI 巡检**：自动化巡检规则，定时检查灵感去重 / Graveyard 复活 / 定时清理软删除任务
 
 ### 协作能力
 - 📋 **飞书任务同步**：双向同步飞书任务，Webhook 实时推送
 - 🔔 **推送通知**：Web Push 通知，支持飞书加急
-- 🖥️ **远程操控**：PC 远程控制，多设备协同
+- 🖥️ **远程操控**：PC 远程控制，多设备协同，WS 网关独立进程（端口 3001）
 
 ### 管理后台
-- 👥 **用户管理**：角色权限管理（35 项细粒度权限）
+- 👥 **用户管理**：角色权限管理（35 项细粒度权限，memory:write / memory:update 分离）
 - 🏢 **职业工作空间**：12 岗位定制化 AI 工具白名单
-- 📊 **词元统计**：AI 调用量统计，每日 / 7日 / 累计
-- 🔑 **用户 AI Key**：用户级 AI 大模型 Key 配置
+- 📊 **词元统计**：AI 调用量统计，每日 / 昨日 / 7日 / 累计，管理员可切换用户查看 + 排行榜
+- 🔑 **用户 AI Key**：用户级 AI 大模型 Key 配置（支持 DeepSeek / MiMo / 自定义）
 
 ### 多端支持
-- 🌐 **Web 端**：Next.js 14，端口 5176
-- 🖥️ **桌面端**：Tauri 框架，Windows / macOS / Linux，内置自动更新
-- 📱 **移动端**：响应式 Web + PWA
+- 🌐 **Web 端**：Next.js 14，端口 5176（强制），响应式 + PWA
+- 🖥️ **桌面端**：Tauri 2.x + Rust（MSVC 工具链），1280×800 居中，托盘 + 全局快捷键 `Ctrl+Shift+L`，内置自动更新
+- 📱 **移动端**：uni-app Android，五 Tab 结构（聚焦 / 看板 / 助理 / 任务 / 我的），便携使用 + 远程操控 Lynx Agent
 
-## 技术栈
+## 技术架构
 
 | 层级 | 技术 |
 |------|------|
-| 前端 | Next.js 14, React 18, TypeScript, Tailwind CSS |
+| 前端 | Next.js 14, React 18, TypeScript, Tailwind CSS, SWR, framer-motion |
 | 后端 | Next.js API Routes, Prisma ORM, MySQL 8.0+ |
-| AI | DeepSeek, MiMo（小米大模型）, BGE-M3 Embedding, TTS/ASR |
-| 桌面 | Tauri 2.x, Rust |
-| 部署 | Node.js 20, PM2 |
+| AI | DeepSeek, MiMo（小米大模型）, BGE-M3 Embedding, TTS/ASR, 视觉多模态 |
+| 桌面 | Tauri 2.x, Rust, HermesAgent 引擎（本地超级 AI 助理） |
+| 移动 | uni-app, Vue 3, Vite |
+| 部署 | Node.js 20, PM2, Nginx |
+
+### 架构亮点
+- **统一 API 信封**：`{ success, data }` / `{ success, error: { code, message } }` 全端一致
+- **双通道鉴权**：NextAuth session（Web）+ JWT Bearer Token（App / 桌面）
+- **权限缓存版本号**：角色变更自动失效多实例缓存（permissionVersion 递增机制）
+- **SSE 断连恢复**：流式输出支持断点续传
+- **5 分钟记忆图谱缓存**：避免每次全量查询节点 + 边
+- **Top-K 连边限制**：每个节点最多 20 条连边，防止 O(n²) 膨胀
 
 ## 快速开始
 
 ### 环境要求
 - Node.js 20+
-- MySQL 8.0+
+- MySQL 8.0+（推荐 8.4）
 - npm 10+
+- Rust + MSVC 工具链（桌面端开发）
 
 ### 安装
 ```bash
@@ -73,17 +91,17 @@ npx prisma db push
 npx prisma generate
 
 # 初始化默认数据（按顺序执行）
-npx tsx prisma/seed.ts          # 创建默认管理员账号
-npx tsx prisma/seed-roles.ts    # 初始化角色权限（admin/editor/viewer）
-npx tsx prisma/seed-skills.ts   # 注入 60 个预置技能（12 岗位）
-npx tsx prisma/seed-patrol-rules.ts  # 注入默认巡检规则
+npx tsx prisma/seed.ts                # 创建默认管理员账号
+npx tsx prisma/seed-roles.ts          # 初始化角色权限（admin/editor/viewer）
+npx tsx prisma/seed-skills.ts         # 注入 60 个预置技能（12 岗位）
+npx tsx prisma/seed-patrol-rules.ts   # 注入默认巡检规则
 
-# 启动开发服务器（端口 5176）
-npm run dev
+# 启动开发服务器（端口必须 5176）
+npx next dev -p 5176
 ```
 
 ### 默认账号
-- **管理员账号**：`admin` / `admin123`
+- **管理员账号**：`admin` / `admin123`（或 `lynn` / `lynn123`）
 - 首次登录后请立即修改密码（设置 → 个人资料）
 
 ### 桌面端开发
@@ -93,9 +111,17 @@ npm install
 npm run dev      # 启动 Tauri 桌面端（自动拉起 Web 端 5176）
 ```
 
+### 安卓端开发
+```bash
+cd mobile
+npm install
+# 使用 HBuilderX 打开 mobile/ 目录，运行到 Android 真机或模拟器
+```
+
 ### 访问
 - Web 端：http://localhost:5176
 - MySQL：localhost:3306
+- WS 网关：localhost:3001
 
 ### 部署指南
 生产环境部署请参考项目内部署脚本和配置，阿里云服务器部署流程：
@@ -110,36 +136,64 @@ npm run dev      # 启动 Tauri 桌面端（自动拉起 Web 端 5176）
 src/
 ├── app/                    # Next.js App Router
 │   ├── inbox/              # 灵感收件箱
-│   ├── board/              # 决策看板
+│   ├── board/              # 决策看板（含 /board/trash 回收站）
 │   ├── cognition/          # 认知库
 │   ├── memory/             # 记忆图谱
 │   ├── assets/             # 对话资产
 │   ├── graveyard/          # 灵感墓地
 │   ├── converge/           # 汇聚视图
 │   ├── skills/             # 技能库 + 公共广场
-│   ├── ai/                 # AI 助理 / 工作流 / 飞书任务
-│   ├── admin/              # 管理后台（用户/角色/词元/职业空间）
-│   ├── settings/           # 系统设置（备份/巡检/推送/远程操控）
-│   └── api/                # API 路由（含 hermes / desktop/update）
+│   ├── ai/                 # AI 助理 / 工作流 / 飞书任务 / 工作空间
+│   ├── admin/              # 管理后台（用户 / 角色 / 词元统计）
+│   ├── settings/           # 系统设置（备份 / 巡检 / 推送 / 远程操控 / 诊断）
+│   └── api/                # API 路由（含 hermes 引擎 / desktop/update）
 ├── components/             # React 组件
-├── lib/                    # 工具库
+│   ├── ai/                 # AI 助理组件（含 AssistantChat）
+│   ├── layout/             # 布局（AppShell / CaptureBar / Sidebar / TitleBar）
+│   ├── settings/           # 设置（含 DesktopHermesSection Lynx Agent 配置）
+│   └── ui/                 # 通用 UI（Modal / Toast / ContextMenu / AnimatedList）
+├── lib/                    # 工具库（含 hermes-learner / hermes-client / flow-engine）
 ├── hooks/                  # React Hooks
+└── workers/                # Web Worker（力导向仿真）
 desktop/                    # Tauri 桌面应用（Rust）
 │   └── src-tauri/
-│       ├── src/            # HermesAgent + RPA + 自动更新
+│       ├── src/            # HermesAgent 引擎 + RPA + 自动更新 + auth
 │       └── tauri.conf.json # 桌面端配置
+mobile/                     # uni-app Android 应用（Vue 3）
 prisma/                     # 数据库 schema 和 seed
 scripts/                    # 测试和维护脚本
+web_Lynx/                   # 官网（Vite + React + TypeScript）
 ```
+
+## Lynx Agent（基于 HermesAgent 技术实现）
+
+Lynx Agent 是产品端显示名称，其底层引擎基于自研的 **HermesAgent** 技术实现 —— 一个本地化运行、持久化记忆、持续学习、可跨平台响应的 AGI 级 AI 代理框架。
+
+### 三大进化机制
+1. **Hermes 学习管道**：从用户行为 / 对话 / 任务执行中自动萃取模式，沉淀为可复用技能
+2. **bad 标注反馈学习**：用户对 AI 回复标注 "bad" 时，附带 reason 写入 HermesReport，下次生成时主动避开
+3. **巡检自动发现模式**：定时巡检规则扫描历史数据，主动发现高频模式并提报
+
+### 三种 AI 模式
+- **模式 A**：纯 LLM 对话（默认）
+- **模式 B**：LLM + 工具调用（RAG / 记忆检索 / 技能执行）
+- **模式 C**：Lynx Agent 接管（持久化记忆 + 持续学习，失败自动回退到 LLM）
+
+### 安全机制
+- 授权目录白名单（允许 Lynx Agent 访问的目录）
+- 操作审批弹窗（高危操作需用户确认）
+- 完全本地化 profile 存储于 `D:\LynnHub\.lynnhub\hermes-profiles\`
 
 ## 开发规范
 
 - **端口**：开发服务器固定 5176，禁止 3000
-- **数据库**：MySQL 数据目录 `D:\LynnHub\mysql_data`
+- **数据库**：MySQL 数据目录 `D:\LynnHub\mysql_data`，启动前必须检测 3306 端口
 - **磁盘**：所有数据存储在 D 盘，禁止 C 盘
+- **配置**：`next.config.mjs` 是 Web 配置，禁止包含 `output: 'export'`（会导致 API 路由 `headers()` 报 `dynamic = "error"`）
 - **提交**：每次迭代自动提交并推送到 Gitee
 - **文档**：每个功能模块右上角必须包含使用说明
-- **测试**：自测后清理 E2E 测试数据
+- **测试**：自测后清理 E2E 测试数据，避免脏数据
+- **桌面端**：必须使用 MSVC 工具链（stable-x86_64-pc-windows-msvc）
 
 详见 [DEVELOPMENT_SPEC.md](./DEVELOPMENT_SPEC.md)
 
@@ -192,6 +246,15 @@ scripts/                    # 测试和维护脚本
 ## 开发日志
 
 详细的迭代记录见 [DEV_LOG.md](./DEV_LOG.md)。
+
+## 相关文档
+
+- [开发规范](./DEVELOPMENT_SPEC.md)
+- [官网设计系统与主题配色](./DESIGN_SYSTEM.md)
+- [安卓端 PRD 方案](./ANDROID_PRD.md)
+- [API 文档](./docs/API.md)
+- [用户指南](./docs/USER_GUIDE.md)
+- [Lynx Agent 使用指南](./docs/hermes-usage-guide.md)
 
 ## License
 

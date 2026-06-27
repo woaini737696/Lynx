@@ -790,7 +790,7 @@ function HermesConfigSection() {
       });
       const data = await res.json();
       if (res.ok && data.success) {
-        toast("Hermes Agent 安装成功", "success");
+        toast("Lynx Agent 安装成功", "success");
         await loadStatus();
       } else {
         toast(data.error || "安装失败", "error");
@@ -813,7 +813,7 @@ function HermesConfigSection() {
       });
       const data = await res.json();
       if (res.ok && data.success) {
-        toast(data.message || "Hermes Agent 已启动", "success");
+        toast(data.message || "Lynx Agent 已启动", "success");
         await loadStatus();
       } else {
         toast(data.error || "启动失败", "error");
@@ -832,7 +832,7 @@ function HermesConfigSection() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ action: "stop" }),
       });
-      toast("Hermes Agent 已停止", "success");
+      toast("Lynx Agent 已停止", "success");
       await loadStatus();
     } catch (e: any) {
       toast("停止失败：" + e.message, "error");
@@ -896,7 +896,7 @@ function HermesConfigSection() {
 
   if (loading) {
     return (
-      <Section icon={<Cpu className="h-4 w-4 text-northstar" />} title="Hermes Agent（本地 AI 代理）">
+      <Section icon={<Cpu className="h-4 w-4 text-northstar" />} title="Lynx Agent（本地 AI 代理）">
         <div className="flex items-center gap-2 text-xs text-muted-foreground">
           <Loader2 className="h-3 w-3 animate-spin" /> 加载中...
         </div>
@@ -911,12 +911,12 @@ function HermesConfigSection() {
   return (
     <Section
       icon={<Cpu className="h-4 w-4 text-northstar" />}
-      title="Hermes Agent（本地 AI 代理）"
+      title="Lynx Agent（本地 AI 代理）"
     >
       {/* 说明 */}
       <div className="mb-4 rounded-md border border-northstar/20 bg-northstar/5 p-3 text-xs text-muted-foreground">
         <div className="mb-1 flex items-center justify-between">
-          <div className="font-medium text-foreground">🤖 Hermes Agent 是什么？</div>
+          <div className="font-medium text-foreground">🤖 Lynx Agent 是什么？</div>
           <div className="flex items-center gap-2">
             <a
               href="/docs/hermes-usage-guide.md"
@@ -1225,7 +1225,7 @@ function HermesConfigSection() {
         <div className="flex items-center justify-between">
           <div>
             <div className="text-xs font-medium text-foreground">随系统自动启动</div>
-            <div className="text-[11px] text-muted-foreground">服务启动时自动拉起 Hermes Agent</div>
+            <div className="text-[11px] text-muted-foreground">服务启动时自动拉起 Lynx Agent</div>
           </div>
           <button
             type="button"
