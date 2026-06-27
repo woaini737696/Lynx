@@ -72,10 +72,15 @@ export default function Navbar() {
 
         {/* Center nav */}
         <div className="hidden md:flex items-center gap-8">
-          {['核心能力', '文档解析', '代码助手', '创作引擎'].map((label) => (
+          {[
+            { label: '核心能力', id: 'capabilities' },
+            { label: '超级助理', id: 'assistant' },
+            { label: '三端互通', id: 'crossplatform' },
+            { label: '团队版', id: 'team' },
+          ].map((item) => (
             <button
-              key={label}
-              onClick={() => scrollTo(label === '核心能力' || label === '创作引擎' ? 'capabilities' : 'terminal')}
+              key={item.label}
+              onClick={() => scrollTo(item.id)}
               className="font-medium transition-all duration-200 cursor-pointer"
               style={{ fontSize: '16px', color: 'rgba(240, 244, 248, 0.65)' }}
               onMouseEnter={(e) => {
@@ -87,7 +92,7 @@ export default function Navbar() {
                 e.currentTarget.style.transform = 'scale(1)'
               }}
             >
-              {label}
+              {item.label}
             </button>
           ))}
         </div>
