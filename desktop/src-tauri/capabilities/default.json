@@ -3,6 +3,13 @@
   "identifier": "default",
   "description": "LynnHub 桌面端默认权限配置",
   "windows": ["main"],
+  "remote": {
+    "urls": [
+      "http://localhost:5176/**",
+      "http://127.0.0.1:5176/**",
+      "https://app.lynnhub.com/**"
+    ]
+  },
   "permissions": [
     "core:default",
     "core:window:default",
@@ -15,6 +22,8 @@
     "core:window:allow-unminimize",
     "core:window:allow-maximize",
     "core:window:allow-unmaximize",
+    "core:window:allow-toggle-maximize",
+    "core:window:allow-is-maximized",
     "core:webview:default",
     "core:app:default",
     "core:event:default",
@@ -46,6 +55,7 @@
     "http:allow-fetch",
     "http:allow-fetch-cancel",
     "http:allow-fetch-read-body",
-    "http:allow-fetch-send"
+    "http:allow-fetch-send",
+    "global-shortcut:default"
   ]
 }
