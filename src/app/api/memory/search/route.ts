@@ -29,13 +29,9 @@ export async function GET(req: NextRequest) {
     // 生成查询向量
     const queryVec = await embedText(q);
 
-    // 拉取有 embedding 的 Memory（按用户过滤），按 createdAt 降序分页查询
-    // 先查总数（用于分页元信息）
-    const total = await prisma.memory.count({
-      where: { embedding: { not: null }, ...buildUserFilter(user) },
-    });
-
-    // 分页拉取候选集（按 createdAt 降序）
+    // 修复：先拉取全部有 embedding 的记录，计算相似度排序后再分页。
+    // 原实现按 createdAt 分页拉取候选集再算相似度，分页基于时间而非相似度，
+    // 导致高相似度记录可能因时间靠后被分页截断。
     const memories = await prisma.memory.findMany({
       where: { embedding: { not: null }, ...buildUserFilter(user) },
       include: {
@@ -43,9 +39,7 @@ export async function GET(req: NextRequest) {
         conversation: { select: { title: true, source: true } },
         cognition: { select: { content: true, type: true } },
       },
-      orderBy: { createdAt: "desc" },
-      skip: offset,
-      take: limit,
+      // 不在 DB 层分页，拉取全部候选后按相似度排序再分页
     });
 
     // 计算相似度并按相似度降序排列
@@ -69,12 +63,18 @@ export async function GET(req: NextRequest) {
       })
       .sort((a, b) => b.score - a.score);
 
+    // 相似度排序后再分页
+    const total = scored.length;
+    const paged = scored.slice(offset, offset + limit);
+    const hasMore = offset + paged.length < total;
+
     return NextResponse.json({
-      results: scored,
+      results: paged,
       query: q,
       limit,
       offset,
       total,
+      hasMore,
     });
   } catch (e) {
     console.error("语义搜索失败:", e);

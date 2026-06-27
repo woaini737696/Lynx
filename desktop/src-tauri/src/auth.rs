@@ -5,6 +5,20 @@
 // L2 中 - 本地文件读写、浏览器自动化：首次弹窗授权
 // L3 高 - 系统命令执行、桌面应用RPA、删除文件：每次审批
 
+//! 授权与审批模块
+//!
+//! 实现三档授权策略与前端弹窗审批流程，控制本地 RPA 操作的执行权限。
+//!
+//! # 权限等级
+//! - **L1 低**：云端数据 CRUD，直接执行无需审批
+//! - **L2 中**：本地文件读写、浏览器自动化，`once` 模式下首次授权后会话内免审批
+//! - **L3 高**：系统命令执行、桌面应用 RPA、删除文件，`approve` 模式下每次需审批
+//!
+//! # 授权模式（`auth_mode`）
+//! - `approve`：每次高危操作均弹窗审批（默认）
+//! - `once`：会话内首次授权后同类操作免审批
+//! - `free`：免审批仅记录（最高效但最不安全）
+
 use crate::hermes::router::LocalAction;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
@@ -106,7 +120,7 @@ pub async fn request_approval(
 
     // 监听前端响应
     let app_handle = app.clone();
-    let _listener = app_handle.listen("approval-response", move |event| {
+    let listener_id = app_handle.listen("approval-response", move |event| {
         let payload = event.payload();
         if let Ok(data) = serde_json::from_str::<serde_json::Value>(payload) {
             if data.get("requestId") == Some(&serde_json::Value::String(request_id_clone.clone())) {
@@ -134,8 +148,8 @@ pub async fn request_approval(
             .unwrap_or(0),
     }));
 
-    // 等待响应（超时 60 秒视为拒绝）
-    match rx.recv_timeout(Duration::from_secs(60)) {
+    // 等待响应（超时 60 秒视为拒绝），无论收到响应还是超时都清理监听器，避免泄漏
+    let result = match rx.recv_timeout(Duration::from_secs(60)) {
         Ok(approved) => {
             log::info!("审批结果: {} ({} - {})", approved, level, action_desc);
             approved
@@ -144,7 +158,12 @@ pub async fn request_approval(
             log::warn!("审批超时（60秒），视为拒绝");
             false
         }
-    }
+    };
+
+    // 清理事件监听器，防止内存泄漏（每次请求都会注册一个监听器）
+    app_handle.unlisten(listener_id);
+
+    result
 }
 
 /// 重置会话授权（用户切换模式或手动重置时调用）

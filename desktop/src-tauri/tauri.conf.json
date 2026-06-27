@@ -10,7 +10,7 @@
     "frontendDist": "../out"
   },
   "app": {
-    "withGlobalTauri": true,
+    "withGlobalTauri": false,
     "windows": [
       {
         "title": "Lynx",
@@ -56,7 +56,7 @@
       "endpoints": [
         "https://app.lynnhub.com/api/desktop/update"
       ],
-      "pubkey": "",
+      "pubkey": "REPLACE_WITH_REAL_PUBKEY_GENERATED_BY_tauri_signer_generate",
       "dialog": true
     }
   }

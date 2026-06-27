@@ -6,6 +6,7 @@ import { AlertCircle, RefreshCw, Home } from "lucide-react";
 /**
  * 全局 Error Boundary（App Router 根级）。
  * 捕获子树渲染错误，提供重试和返回首页操作。
+ * 开发环境（NODE_ENV !== "production"）下额外展示错误堆栈，便于调试。
  */
 export default function GlobalError({
   error,
@@ -18,6 +19,8 @@ export default function GlobalError({
     // 上报到控制台（生产环境可替换为 Sentry/日志服务）
     console.error("[GlobalError]", error);
   }, [error]);
+
+  const isDev = process.env.NODE_ENV !== "production";
 
   return (
     <div className="flex min-h-[60vh] flex-col items-center justify-center p-8 text-center">
@@ -34,6 +37,12 @@ export default function GlobalError({
         <p className="mb-6 font-mono text-[11px] text-muted-foreground/60">
           错误编号：{error.digest}
         </p>
+      )}
+      {/* 开发环境显示详细错误堆栈，便于调试 */}
+      {isDev && error.stack && (
+        <pre className="mb-6 max-h-[40vh] w-full max-w-2xl overflow-auto rounded-xl border border-border bg-muted/50 p-4 text-left font-mono text-[11px] leading-relaxed text-muted-foreground">
+          {error.stack}
+        </pre>
       )}
       <div className="flex items-center gap-3">
         <button

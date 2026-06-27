@@ -2,9 +2,17 @@
 // 通过 Tauri shell plugin 调用默认浏览器，复杂抓取走 agent-browser CLI
 
 use serde_json::json;
+use crate::EMERGENCY_STOP;
+use std::sync::atomic::Ordering;
 
 /// 在默认浏览器中打开 URL
+///
+/// 安全策略：执行前检查紧急停止标志，若已触发则拒绝执行。
 pub async fn open_url(url: &str) -> Result<(), String> {
+    if EMERGENCY_STOP.load(Ordering::SeqCst) {
+        return Err("紧急停止已触发，浏览器操作已暂停".to_string());
+    }
+
     // Tauri shell open 走系统默认浏览器
     // 这里通过 reqwest 触发一个本地代理（agent-browser）或者直接调用 open 命令
     let cmd = if cfg!(target_os = "windows") {
@@ -38,7 +46,13 @@ pub async fn open_url(url: &str) -> Result<(), String> {
 
 /// 导航到 URL 并提取页面数据
 /// 复用 agent-browser CLI：优先用 AGENT_BROWSER_PATH 环境变量，其次 PATH 查找，最后回退 "agent-browser"
+///
+/// 安全策略：执行前检查紧急停止标志，若已触发则拒绝执行。
 pub async fn navigate_and_extract(url: &str, selector: Option<&str>) -> Result<serde_json::Value, String> {
+    if EMERGENCY_STOP.load(Ordering::SeqCst) {
+        return Err("紧急停止已触发，浏览器自动化已暂停".to_string());
+    }
+
     // 解析 agent-browser 可执行文件路径（跨平台，替代硬编码 D:\LynnHub\npm-global）
     let agent_browser_path: String = if let Ok(p) = std::env::var("AGENT_BROWSER_PATH") {
         if !p.is_empty() {

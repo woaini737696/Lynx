@@ -2,9 +2,17 @@
 // 集成 enigo（键鼠模拟）+ screenshots（截图）
 
 use tauri::Manager;
+use crate::EMERGENCY_STOP;
+use std::sync::atomic::Ordering;
 
 /// 启动本地应用
+///
+/// 安全策略：执行前检查紧急停止标志，若已触发则拒绝执行。
 pub async fn open_app(app_name: &str) -> Result<(), String> {
+    if EMERGENCY_STOP.load(Ordering::SeqCst) {
+        return Err("紧急停止已触发，桌面应用启动已暂停".to_string());
+    }
+
     let (cmd, args) = match app_name.to_lowercase().as_str() {
         "excel" => ("cmd", vec!["/C", "start", "excel"]),
         "wechat" | "微信" => ("cmd", vec!["/C", "start", "WeChat"]),
@@ -41,7 +49,13 @@ fn escape_powershell_single_quote(s: &str) -> String {
 }
 
 /// 截屏：保存到 app_data_dir()/screenshots/（跨平台，替代硬编码 D:\LynnHub）
+///
+/// 安全策略：执行前检查紧急停止标志，若已触发则拒绝执行。
 pub async fn take_screenshot(app_handle: &tauri::AppHandle) -> Result<String, String> {
+    if EMERGENCY_STOP.load(Ordering::SeqCst) {
+        return Err("紧急停止已触发，屏幕截图已暂停".to_string());
+    }
+
     let app_data = app_handle
         .path()
         .app_data_dir()
@@ -57,6 +71,11 @@ pub async fn take_screenshot(app_handle: &tauri::AppHandle) -> Result<String, St
         .unwrap_or(0);
     let file_path = save_dir.join(format!("screenshot_{}.png", timestamp));
     let file_path_str = file_path.to_string_lossy().to_string();
+
+    // 执行截图前再次检查紧急停止（目录创建等耗时操作后状态可能变化）
+    if EMERGENCY_STOP.load(Ordering::SeqCst) {
+        return Err("紧急停止已触发，屏幕截图已中断".to_string());
+    }
 
     // 使用 PowerShell 截图命令（Windows）
     #[cfg(target_os = "windows")]

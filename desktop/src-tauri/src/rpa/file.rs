@@ -3,12 +3,21 @@
 
 use serde_json::{json, Value};
 use std::path::Path;
+use crate::EMERGENCY_STOP;
+use std::sync::atomic::Ordering;
 
 /// 校验路径是否在授权目录白名单内
-/// 
+///
 /// 安全策略：
 /// - 对已存在的路径：直接 canonicalize 后比较
 /// - 对不存在的路径（如新写入文件）：取父目录 canonicalize 后比较，防止 ../ 路径遍历
+///
+/// # 参数
+/// - `path`: 待校验的文件/目录路径
+/// - `authorized_dirs`: 授权目录白名单（已 canonicalize 的绝对路径）
+///
+/// # 返回
+/// `true` 表示路径在授权目录内，`false` 表示越权或路径无法解析。
 pub fn is_path_authorized(path: &str, authorized_dirs: &[String]) -> bool {
     let path = Path::new(path);
 
@@ -50,7 +59,14 @@ pub fn is_path_authorized(path: &str, authorized_dirs: &[String]) -> bool {
 }
 
 /// 读取文件内容
+///
+/// 安全策略：
+/// 1. 紧急停止检查（EMERGENCY_STOP=true 时拒绝执行）
+/// 2. 路径必须在授权目录白名单内
 pub async fn read_file(path: &str, authorized_dirs: &[String]) -> Result<String, String> {
+    if EMERGENCY_STOP.load(Ordering::SeqCst) {
+        return Err("紧急停止已触发，文件读取已暂停".to_string());
+    }
     if !is_path_authorized(path, authorized_dirs) {
         return Err(format!("路径不在授权目录内: {}", path));
     }
@@ -61,7 +77,14 @@ pub async fn read_file(path: &str, authorized_dirs: &[String]) -> Result<String,
 }
 
 /// 写入文件
+///
+/// 安全策略：
+/// 1. 紧急停止检查（EMERGENCY_STOP=true 时拒绝执行）
+/// 2. 路径必须在授权目录白名单内
 pub async fn write_file(path: &str, content: &str, authorized_dirs: &[String]) -> Result<(), String> {
+    if EMERGENCY_STOP.load(Ordering::SeqCst) {
+        return Err("紧急停止已触发，文件写入已暂停".to_string());
+    }
     if !is_path_authorized(path, authorized_dirs) {
         return Err(format!("路径不在授权目录内: {}", path));
     }
@@ -73,6 +96,11 @@ pub async fn write_file(path: &str, content: &str, authorized_dirs: &[String]) -
             .map_err(|e| format!("创建父目录失败: {}", e))?;
     }
 
+    // 写入前再次检查紧急停止（目录创建等耗时操作后状态可能变化）
+    if EMERGENCY_STOP.load(Ordering::SeqCst) {
+        return Err("紧急停止已触发，文件写入已中断".to_string());
+    }
+
     tokio::fs::write(path, content)
         .await
         .map_err(|e| format!("写入文件失败: {}", e))?;
@@ -82,7 +110,14 @@ pub async fn write_file(path: &str, content: &str, authorized_dirs: &[String]) -
 }
 
 /// 列出目录内容
+///
+/// 安全策略：
+/// 1. 紧急停止检查（EMERGENCY_STOP=true 时拒绝执行）
+/// 2. 路径必须在授权目录白名单内
 pub async fn list_dir(dir: &str, authorized_dirs: &[String]) -> Result<Value, String> {
+    if EMERGENCY_STOP.load(Ordering::SeqCst) {
+        return Err("紧急停止已触发，目录列举已暂停".to_string());
+    }
     if !is_path_authorized(dir, authorized_dirs) {
         return Err(format!("路径不在授权目录内: {}", dir));
     }
@@ -113,7 +148,14 @@ pub async fn list_dir(dir: &str, authorized_dirs: &[String]) -> Result<Value, St
 }
 
 /// 删除文件（仅授权目录内）
+///
+/// 安全策略：
+/// 1. 紧急停止检查（EMERGENCY_STOP=true 时拒绝执行）
+/// 2. 路径必须在授权目录白名单内
 pub async fn delete_file(path: &str, authorized_dirs: &[String]) -> Result<(), String> {
+    if EMERGENCY_STOP.load(Ordering::SeqCst) {
+        return Err("紧急停止已触发，文件删除已暂停".to_string());
+    }
     if !is_path_authorized(path, authorized_dirs) {
         return Err(format!("路径不在授权目录内: {}", path));
     }
@@ -123,7 +165,14 @@ pub async fn delete_file(path: &str, authorized_dirs: &[String]) -> Result<(), S
 }
 
 /// 创建目录
+///
+/// 安全策略：
+/// 1. 紧急停止检查（EMERGENCY_STOP=true 时拒绝执行）
+/// 2. 路径必须在授权目录白名单内
 pub async fn create_dir(path: &str, authorized_dirs: &[String]) -> Result<(), String> {
+    if EMERGENCY_STOP.load(Ordering::SeqCst) {
+        return Err("紧急停止已触发，目录创建已暂停".to_string());
+    }
     if !is_path_authorized(path, authorized_dirs) {
         return Err(format!("路径不在授权目录内: {}", path));
     }

@@ -6,6 +6,13 @@ import { writeMemoryForConversation } from "@/lib/memory-sync";
 import { parsePdf } from "@/lib/file-parser";
 import { requireAuth, requirePermission, buildUserFilter } from "@/lib/auth-utils";
 import { getLogger } from "@/lib/logger";
+import {
+  paginatedResponse,
+  errorResponse,
+  decodeCursor,
+  buildCursorWhereDesc,
+  nextCursorFrom,
+} from "@/lib/api-response";
 
 const logger = getLogger("conversations-api");
 
@@ -190,20 +197,41 @@ export async function POST(req: NextRequest) {
   }
 }
 
-// 获取对话资产列表
-export async function GET() {
+// 获取对话资产列表（支持游标分页）
+// GET /api/conversations?cursor=xxx&limit=30
+export async function GET(req: NextRequest) {
   try {
     const { user, error } = await requireAuth();
     if (error) return error;
 
-    const conversations = await prisma.conversation.findMany({
-      where: buildUserFilter(user),
-      orderBy: { capturedAt: "desc" },
-      take: 30,
-    });
-    return NextResponse.json({ conversations });
+    const { searchParams } = new URL(req.url);
+    const cursorParam = searchParams.get("cursor");
+    const limit = Math.min(Math.max(Number(searchParams.get("limit") || 30), 1), 100);
+    const cursor = decodeCursor(cursorParam);
+
+    const where = {
+      ...buildUserFilter(user),
+      ...buildCursorWhereDesc(cursor, "capturedAt"),
+    };
+
+    const [conversations, total] = await Promise.all([
+      prisma.conversation.findMany({
+        where,
+        orderBy: [{ capturedAt: "desc" }, { id: "desc" }],
+        take: limit + 1,
+      }),
+      prisma.conversation.count({ where }),
+    ]);
+
+    const hasMore = conversations.length > limit;
+    const data = hasMore ? conversations.slice(0, limit) : conversations;
+    const nextCursor = hasMore
+      ? nextCursorFrom(data as unknown as Record<string, unknown>[], "capturedAt")
+      : null;
+
+    return paginatedResponse(data, total, hasMore, nextCursor);
   } catch (e) {
     logger.error({ err: e }, "获取对话失败");
-    return NextResponse.json({ error: "服务器错误" }, { status: 500 });
+    return errorResponse(500, "服务器错误");
   }
 }

@@ -12,6 +12,7 @@ import { cn } from "@/lib/utils";
 import { SearchInput, FilterSelect, Pagination, useClientPagination } from "@/components/ui/ListControls";
 import type { ReviveSuggestion } from "@/lib/reminder-scheduler";
 import { openContextMenu } from "@/components/ui/ContextMenu";
+import { RetryState } from "@/components/ui/RetryState";
 
 /** 附件结构（与 Idea.attachments 字段一致） */
 interface Attachment {
@@ -53,6 +54,8 @@ const COLUMNS = [
 export default function InboxPage() {
   const [ideas, setIdeas] = useState<Idea[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [retryCount, setRetryCount] = useState(0);
   const [processing, setProcessing] = useState<string | null>(null);
   const [expanding, setExpanding] = useState<string | null>(null);
   const [abandoning, setAbandoning] = useState<Idea | null>(null);
@@ -90,17 +93,20 @@ export default function InboxPage() {
     let mounted = true;
     const load = async () => {
       setLoading(true);
+      setLoadError(null);
       try {
         const res = await fetch("/api/ideas");
         if (!mounted) return;
         if (res.ok) {
           const data = await res.json();
           setIdeas(data.ideas || []);
+        } else if (res.status >= 500) {
+          setLoadError("服务器异常，加载灵感失败");
         }
       } catch (e) {
         if (!mounted) return;
         console.error(e);
-        toast("加载灵感失败", "error");
+        setLoadError("网络错误，加载灵感失败");
       } finally {
         if (mounted) setLoading(false);
       }
@@ -125,7 +131,7 @@ export default function InboxPage() {
     return () => {
       mounted = false;
     };
-  }, []);
+  }, [retryCount]);
 
   // 手动刷新复活建议
   const refreshReviveSuggestions = useCallback(async () => {
@@ -540,7 +546,12 @@ export default function InboxPage() {
         </Card>
       )}
 
-      {loading ? (
+      {loadError && !loading ? (
+        <RetryState
+          message={loadError}
+          onRetry={() => setRetryCount((c) => c + 1)}
+        />
+      ) : loading ? (
         <div className="space-y-3">
           <PageHeader title="Inbox" subtitle="加载中..." />
           {Array.from({ length: 4 }).map((_, i) => (

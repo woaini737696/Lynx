@@ -2,19 +2,32 @@
 // 供 App 端 Token 鉴权使用，与 NextAuth session 并存
 
 import crypto from "crypto";
+import os from "os";
 
 // 动态读取 SECRET：避免模块加载时 process.env 尚未填充导致 SECRET 为 undefined
 // （Next.js dev server 中 .env 由 dotenv 在运行时注入，模块顶层常量可能读取过早）
 function getSecret(): string {
   const s = process.env.AUTH_SECRET;
-  if (!s) {
-    if (process.env.NODE_ENV === "production") {
-      throw new Error("AUTH_SECRET 环境变量未配置，请运行 `openssl rand -base64 32` 生成并配置到 .env");
-    }
-    return "";
+  if (s) return s;
+
+  if (process.env.NODE_ENV === "production") {
+    throw new Error("AUTH_SECRET 环境变量未配置，请运行 `openssl rand -base64 32` 生成并配置到 .env");
   }
-  return s;
+
+  // 开发环境：生成一个固定的默认 secret（不安全但非空），避免空密钥导致的安全问题
+  // 基于 hostname + 固定盐值，保证同一开发机器上 secret 稳定（重启后 token 不失效）
+  const devSecret = `dev-secret-not-for-production:${os.hostname()}:lynx-hub`;
+  if (!devSecretWarningShown) {
+    devSecretWarningShown = true;
+    console.warn(
+      "[jwt] WARNING: AUTH_SECRET 未配置，开发环境使用默认非安全 secret。请勿在生产环境使用！"
+    );
+  }
+  return devSecret;
 }
+
+// 标记 warning 是否已打印（避免重复日志）
+let devSecretWarningShown = false;
 
 function base64url(input: Buffer | string): string {
   return Buffer.from(input).toString("base64url");

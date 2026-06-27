@@ -1,10 +1,18 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { writeMemoryForIdea } from "@/lib/memory-sync";
 import { requireAuth, requirePermission, buildUserFilter } from "@/lib/auth-utils";
 import { getLogger } from "@/lib/logger";
 import { validateString, validateEnum } from "@/lib/validate";
+import {
+  successResponse,
+  paginatedResponse,
+  errorResponse,
+  decodeCursor,
+  buildCursorWhereDesc,
+  nextCursorFrom,
+} from "@/lib/api-response";
 
 const logger = getLogger("ideas-api");
 
@@ -63,7 +71,7 @@ export async function POST(req: NextRequest) {
     // 输入校验：content max 5000，source/status 枚举
     const content = validateString(body?.content, 5000);
     if (!content) {
-      return NextResponse.json({ error: "内容不能为空" }, { status: 400 });
+      return errorResponse(400, "内容不能为空");
     }
     const source = validateEnum(body?.source, IDEA_SOURCES);
     const status = validateEnum(body?.status, IDEA_STATUSES);
@@ -73,10 +81,7 @@ export async function POST(req: NextRequest) {
     if (body?.attachments !== undefined && body?.attachments !== null) {
       const validated = validateAttachments(body.attachments);
       if (validated === null) {
-        return NextResponse.json(
-          { error: "attachments 格式非法（需为数组，每项含 type/name/url）" },
-          { status: 400 }
-        );
+        return errorResponse(400, "attachments 格式非法（需为数组，每项含 type/name/url）");
       }
       attachments = validated;
     }
@@ -97,28 +102,50 @@ export async function POST(req: NextRequest) {
       logger.error({ err: e, ideaId: idea.id }, "writeMemory 异步失败");
     });
 
-    return NextResponse.json({ id: idea.id, success: true }, { status: 201 });
+    return successResponse({ id: idea.id }, 201);
   } catch (e) {
     logger.error({ err: e }, "闪电输入失败");
-    return NextResponse.json({ error: "服务器错误" }, { status: 500 });
+    return errorResponse(500, "服务器错误");
   }
 }
 
-// 获取 Inbox 灵感列表
-export async function GET() {
+// 获取 Inbox 灵感列表（支持游标分页）
+// GET /api/ideas?cursor=xxx&limit=20
+export async function GET(req: NextRequest) {
   try {
     const { user, error } = await requireAuth();
     if (error) return error;
 
-    const ideas = await prisma.idea.findMany({
-      where: { status: "inbox", ...buildUserFilter(user) },
-      orderBy: { createdAt: "desc" },
-      take: 50,
-    });
-    return NextResponse.json({ ideas });
+    const { searchParams } = new URL(req.url);
+    const cursorParam = searchParams.get("cursor");
+    const limit = Math.min(Math.max(Number(searchParams.get("limit") || 50), 1), 100);
+    const cursor = decodeCursor(cursorParam);
+
+    const where = {
+      status: "inbox",
+      ...buildUserFilter(user),
+      ...buildCursorWhereDesc(cursor, "createdAt"),
+    };
+
+    const [ideas, total] = await Promise.all([
+      prisma.idea.findMany({
+        where,
+        orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+        take: limit + 1,
+      }),
+      prisma.idea.count({ where }),
+    ]);
+
+    const hasMore = ideas.length > limit;
+    const data = hasMore ? ideas.slice(0, limit) : ideas;
+    const nextCursor = hasMore
+      ? nextCursorFrom(data as unknown as Record<string, unknown>[], "createdAt")
+      : null;
+
+    return paginatedResponse(data, total, hasMore, nextCursor);
   } catch (e) {
     logger.error({ err: e }, "获取 Inbox 失败");
-    return NextResponse.json({ error: "服务器错误" }, { status: 500 });
+    return errorResponse(500, "服务器错误");
   }
 }
 
@@ -132,10 +159,10 @@ export async function DELETE(req: NextRequest) {
     const body = await req.json().catch(() => ({}));
     const ids = body?.ids;
     if (!Array.isArray(ids) || ids.length === 0) {
-      return NextResponse.json({ error: "ids 参数必须为非空数组" }, { status: 400 });
+      return errorResponse(400, "ids 参数必须为非空数组");
     }
     if (ids.length > 100) {
-      return NextResponse.json({ error: "单次最多删除 100 条" }, { status: 400 });
+      return errorResponse(400, "单次最多删除 100 条");
     }
 
     // 只能删除自己的灵感
@@ -148,12 +175,9 @@ export async function DELETE(req: NextRequest) {
 
     logger.info({ deleted: result.count, userId: user.id }, "批量删除灵感");
 
-    return NextResponse.json({
-      success: true,
-      deleted: result.count,
-    });
+    return successResponse({ deleted: result.count });
   } catch (e) {
     logger.error({ err: e }, "批量删除灵感失败");
-    return NextResponse.json({ error: "服务器错误" }, { status: 500 });
+    return errorResponse(500, "服务器错误");
   }
 }

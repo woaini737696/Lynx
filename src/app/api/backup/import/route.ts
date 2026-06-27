@@ -7,9 +7,23 @@ import { rateLimit, getClientKey } from "@/lib/rate-limit";
 
 const logger = getLogger("backup-import-api");
 
+// 批量写入的批次大小（每批一个事务提交）
+const BATCH_SIZE = 100;
+
+/**
+ * 将数组按 size 切分为多批
+ */
+function chunk<T>(arr: T[], size: number): T[][] {
+  const result: T[][] = [];
+  for (let i = 0; i < arr.length; i += size) {
+    result.push(arr.slice(i, i + size));
+  }
+  return result;
+}
+
 // POST /api/backup/import
 // body: { data: { ideas?, tasks?, conversations?, cognitions?, memories?, skills?, flows? } }
-// 仅 admin 可访问；导入时跳过已存在的 ID（upsert）
+// 仅 admin 可访问；导入时跳过已存在的 ID（createMany + skipDuplicates）
 // 返回导入统计：{ ideas: 10, tasks: 15, ... }
 // 限流：3 次/分钟
 export async function POST(req: NextRequest) {
@@ -50,27 +64,28 @@ export async function POST(req: NextRequest) {
 
     // ============ Ideas ============
     if (Array.isArray(data.ideas)) {
+      const items = (data.ideas as Record<string, unknown>[])
+        .filter((item) => item?.id)
+        .map((item) => ({
+          id: String(item.id),
+          content: (item.content as string) ?? "",
+          source: (item.source as string) ?? "lightning",
+          status: (item.status as string) ?? "inbox",
+          tags: (item.tags ?? []) as Prisma.InputJsonValue,
+          userId: (item.userId as string) ?? null,
+          createdAt: item.createdAt ? new Date(item.createdAt as string) : undefined,
+          updatedAt: item.updatedAt ? new Date(item.updatedAt as string) : undefined,
+        }));
       let count = 0;
-      for (const item of data.ideas) {
+      for (const batch of chunk(items, BATCH_SIZE)) {
         try {
-          if (!item?.id) continue;
-          await prisma.idea.upsert({
-            where: { id: item.id },
-            create: {
-              id: item.id,
-              content: item.content ?? "",
-              source: item.source ?? "lightning",
-              status: item.status ?? "inbox",
-              tags: (item.tags ?? []) as Prisma.InputJsonValue,
-              userId: item.userId ?? null,
-              createdAt: item.createdAt ? new Date(item.createdAt) : undefined,
-              updatedAt: item.updatedAt ? new Date(item.updatedAt) : undefined,
-            },
-            update: {}, // 已存在则跳过（不更新）
+          const result = await prisma.idea.createMany({
+            data: batch as any,
+            skipDuplicates: true, // INSERT IGNORE，已存在则跳过
           });
-          count++;
+          count += result.count;
         } catch (e) {
-          logger.error({ err: e }, "导入 idea 失败");
+          logger.error({ err: e }, "批量导入 idea 失败");
         }
       }
       stats.ideas = count;
@@ -78,28 +93,29 @@ export async function POST(req: NextRequest) {
 
     // ============ Tasks ============
     if (Array.isArray(data.tasks)) {
+      const items = (data.tasks as Record<string, unknown>[])
+        .filter((item) => item?.id)
+        .map((item) => ({
+          id: String(item.id),
+          content: (item.content as string) ?? "",
+          column: (item.column as string) ?? "task",
+          position: (item.position as number) ?? 0,
+          status: (item.status as string) ?? "active",
+          sourceId: (item.sourceId as string) ?? null,
+          userId: (item.userId as string) ?? null,
+          createdAt: item.createdAt ? new Date(item.createdAt as string) : undefined,
+          updatedAt: item.updatedAt ? new Date(item.updatedAt as string) : undefined,
+        }));
       let count = 0;
-      for (const item of data.tasks) {
+      for (const batch of chunk(items, BATCH_SIZE)) {
         try {
-          if (!item?.id) continue;
-          await prisma.task.upsert({
-            where: { id: item.id },
-            create: {
-              id: item.id,
-              content: item.content ?? "",
-              column: item.column ?? "task",
-              position: item.position ?? 0,
-              status: item.status ?? "active",
-              sourceId: item.sourceId ?? null,
-              userId: item.userId ?? null,
-              createdAt: item.createdAt ? new Date(item.createdAt) : undefined,
-              updatedAt: item.updatedAt ? new Date(item.updatedAt) : undefined,
-            },
-            update: {},
+          const result = await prisma.task.createMany({
+            data: batch as any,
+            skipDuplicates: true,
           });
-          count++;
+          count += result.count;
         } catch (e) {
-          logger.error({ err: e }, "导入 task 失败");
+          logger.error({ err: e }, "批量导入 task 失败");
         }
       }
       stats.tasks = count;
@@ -107,30 +123,31 @@ export async function POST(req: NextRequest) {
 
     // ============ Conversations ============
     if (Array.isArray(data.conversations)) {
+      const items = (data.conversations as Record<string, unknown>[])
+        .filter((item) => item?.id)
+        .map((item) => ({
+          id: String(item.id),
+          source: (item.source as string) ?? "kimi",
+          title: (item.title as string) ?? "",
+          rawContent: (item.rawContent as string) ?? "",
+          conclusions: (item.conclusions ?? []) as Prisma.InputJsonValue,
+          todos: (item.todos ?? []) as Prisma.InputJsonValue,
+          prompts: (item.prompts ?? []) as Prisma.InputJsonValue,
+          data: (item.data ?? []) as Prisma.InputJsonValue,
+          capturedAt: item.capturedAt ? new Date(item.capturedAt as string) : undefined,
+          userId: (item.userId as string) ?? null,
+          createdAt: item.createdAt ? new Date(item.createdAt as string) : undefined,
+        }));
       let count = 0;
-      for (const item of data.conversations) {
+      for (const batch of chunk(items, BATCH_SIZE)) {
         try {
-          if (!item?.id) continue;
-          await prisma.conversation.upsert({
-            where: { id: item.id },
-            create: {
-              id: item.id,
-              source: item.source ?? "kimi",
-              title: item.title ?? "",
-              rawContent: item.rawContent ?? "",
-              conclusions: (item.conclusions ?? []) as Prisma.InputJsonValue,
-              todos: (item.todos ?? []) as Prisma.InputJsonValue,
-              prompts: (item.prompts ?? []) as Prisma.InputJsonValue,
-              data: (item.data ?? []) as Prisma.InputJsonValue,
-              capturedAt: item.capturedAt ? new Date(item.capturedAt) : undefined,
-              userId: item.userId ?? null,
-              createdAt: item.createdAt ? new Date(item.createdAt) : undefined,
-            },
-            update: {},
+          const result = await prisma.conversation.createMany({
+            data: batch as any,
+            skipDuplicates: true,
           });
-          count++;
+          count += result.count;
         } catch (e) {
-          logger.error({ err: e }, "导入 conversation 失败");
+          logger.error({ err: e }, "批量导入 conversation 失败");
         }
       }
       stats.conversations = count;
@@ -138,28 +155,29 @@ export async function POST(req: NextRequest) {
 
     // ============ Cognitions ============
     if (Array.isArray(data.cognitions)) {
+      const items = (data.cognitions as Record<string, unknown>[])
+        .filter((item) => item?.id)
+        .map((item) => ({
+          id: String(item.id),
+          type: (item.type as string) ?? "method",
+          content: (item.content as string) ?? "",
+          source: (item.source as string) ?? "manual",
+          ideaId: (item.ideaId as string) ?? null,
+          conversationId: (item.conversationId as string) ?? null,
+          tags: (item.tags ?? []) as Prisma.InputJsonValue,
+          userId: (item.userId as string) ?? null,
+          createdAt: item.createdAt ? new Date(item.createdAt as string) : undefined,
+        }));
       let count = 0;
-      for (const item of data.cognitions) {
+      for (const batch of chunk(items, BATCH_SIZE)) {
         try {
-          if (!item?.id) continue;
-          await prisma.cognition.upsert({
-            where: { id: item.id },
-            create: {
-              id: item.id,
-              type: item.type ?? "method",
-              content: item.content ?? "",
-              source: item.source ?? "manual",
-              ideaId: item.ideaId ?? null,
-              conversationId: item.conversationId ?? null,
-              tags: (item.tags ?? []) as Prisma.InputJsonValue,
-              userId: item.userId ?? null,
-              createdAt: item.createdAt ? new Date(item.createdAt) : undefined,
-            },
-            update: {},
+          const result = await prisma.cognition.createMany({
+            data: batch as any,
+            skipDuplicates: true,
           });
-          count++;
+          count += result.count;
         } catch (e) {
-          logger.error({ err: e }, "导入 cognition 失败");
+          logger.error({ err: e }, "批量导入 cognition 失败");
         }
       }
       stats.cognitions = count;
@@ -167,29 +185,30 @@ export async function POST(req: NextRequest) {
 
     // ============ Memories ============
     if (Array.isArray(data.memories)) {
+      const items = (data.memories as Record<string, unknown>[])
+        .filter((item) => item?.id)
+        .map((item) => ({
+          id: String(item.id),
+          type: (item.type as string) ?? "idea",
+          ideaId: (item.ideaId as string) ?? null,
+          conversationId: (item.conversationId as string) ?? null,
+          cognitionId: (item.cognitionId as string) ?? null,
+          content: (item.content as string) ?? "",
+          connections: (item.connections ?? []) as Prisma.InputJsonValue,
+          strength: (item.strength as number) ?? 1.0,
+          userId: (item.userId as string) ?? null,
+          createdAt: item.createdAt ? new Date(item.createdAt as string) : undefined,
+        }));
       let count = 0;
-      for (const item of data.memories) {
+      for (const batch of chunk(items, BATCH_SIZE)) {
         try {
-          if (!item?.id) continue;
-          await prisma.memory.upsert({
-            where: { id: item.id },
-            create: {
-              id: item.id,
-              type: item.type ?? "idea",
-              ideaId: item.ideaId ?? null,
-              conversationId: item.conversationId ?? null,
-              cognitionId: item.cognitionId ?? null,
-              content: item.content ?? "",
-              connections: (item.connections ?? []) as Prisma.InputJsonValue,
-              strength: item.strength ?? 1.0,
-              userId: item.userId ?? null,
-              createdAt: item.createdAt ? new Date(item.createdAt) : undefined,
-            },
-            update: {},
+          const result = await prisma.memory.createMany({
+            data: batch as any,
+            skipDuplicates: true,
           });
-          count++;
+          count += result.count;
         } catch (e) {
-          logger.error({ err: e }, "导入 memory 失败");
+          logger.error({ err: e }, "批量导入 memory 失败");
         }
       }
       stats.memories = count;
@@ -197,32 +216,33 @@ export async function POST(req: NextRequest) {
 
     // ============ Skills ============
     if (Array.isArray(data.skills)) {
+      const items = (data.skills as Record<string, unknown>[])
+        .filter((item) => item?.id)
+        .map((item) => ({
+          id: String(item.id),
+          name: (item.name as string) ?? "",
+          description: (item.description as string) ?? "",
+          category: (item.category as string) ?? "general",
+          content: (item.content as string) ?? "",
+          parameters: (item.parameters ?? []) as Prisma.InputJsonValue,
+          promptTemplate: (item.promptTemplate as string) ?? "",
+          source: (item.source as string) ?? "imported",
+          tags: (item.tags ?? []) as Prisma.InputJsonValue,
+          usageCount: (item.usageCount as number) ?? 0,
+          userId: (item.userId as string) ?? null,
+          createdAt: item.createdAt ? new Date(item.createdAt as string) : undefined,
+          updatedAt: item.updatedAt ? new Date(item.updatedAt as string) : undefined,
+        }));
       let count = 0;
-      for (const item of data.skills) {
+      for (const batch of chunk(items, BATCH_SIZE)) {
         try {
-          if (!item?.id) continue;
-          await prisma.skill.upsert({
-            where: { id: item.id },
-            create: {
-              id: item.id,
-              name: item.name ?? "",
-              description: item.description ?? "",
-              category: item.category ?? "general",
-              content: item.content ?? "",
-              parameters: (item.parameters ?? []) as Prisma.InputJsonValue,
-              promptTemplate: item.promptTemplate ?? "",
-              source: item.source ?? "imported",
-              tags: (item.tags ?? []) as Prisma.InputJsonValue,
-              usageCount: item.usageCount ?? 0,
-              userId: item.userId ?? null,
-              createdAt: item.createdAt ? new Date(item.createdAt) : undefined,
-              updatedAt: item.updatedAt ? new Date(item.updatedAt) : undefined,
-            },
-            update: {},
+          const result = await prisma.skill.createMany({
+            data: batch as any,
+            skipDuplicates: true,
           });
-          count++;
+          count += result.count;
         } catch (e) {
-          logger.error({ err: e }, "导入 skill 失败");
+          logger.error({ err: e }, "批量导入 skill 失败");
         }
       }
       stats.skills = count;
@@ -230,29 +250,30 @@ export async function POST(req: NextRequest) {
 
     // ============ Flows ============
     if (Array.isArray(data.flows)) {
+      const items = (data.flows as Record<string, unknown>[])
+        .filter((item) => item?.id)
+        .map((item) => ({
+          id: String(item.id),
+          name: (item.name as string) ?? "",
+          description: (item.description as string) ?? "",
+          nodes: (item.nodes ?? []) as Prisma.InputJsonValue,
+          edges: (item.edges ?? []) as Prisma.InputJsonValue,
+          enabled: (item.enabled as boolean) ?? true,
+          lastRun: item.lastRun ? new Date(item.lastRun as string) : null,
+          userId: (item.userId as string) ?? null,
+          createdAt: item.createdAt ? new Date(item.createdAt as string) : undefined,
+          updatedAt: item.updatedAt ? new Date(item.updatedAt as string) : undefined,
+        }));
       let count = 0;
-      for (const item of data.flows) {
+      for (const batch of chunk(items, BATCH_SIZE)) {
         try {
-          if (!item?.id) continue;
-          await prisma.flow.upsert({
-            where: { id: item.id },
-            create: {
-              id: item.id,
-              name: item.name ?? "",
-              description: item.description ?? "",
-              nodes: (item.nodes ?? []) as Prisma.InputJsonValue,
-              edges: (item.edges ?? []) as Prisma.InputJsonValue,
-              enabled: item.enabled ?? true,
-              lastRun: item.lastRun ? new Date(item.lastRun) : null,
-              userId: item.userId ?? null,
-              createdAt: item.createdAt ? new Date(item.createdAt) : undefined,
-              updatedAt: item.updatedAt ? new Date(item.updatedAt) : undefined,
-            },
-            update: {},
+          const result = await prisma.flow.createMany({
+            data: batch as any,
+            skipDuplicates: true,
           });
-          count++;
+          count += result.count;
         } catch (e) {
-          logger.error({ err: e }, "导入 flow 失败");
+          logger.error({ err: e }, "批量导入 flow 失败");
         }
       }
       stats.flows = count;

@@ -180,7 +180,7 @@
 - 清理 18 条遗留测试 memory 节点（10 条自测 + 8 条明显测试数据）
 
 ### Commit
-`TODO` — feat(android): iter 49 - Android App 全面优化修复崩溃与API对齐
+`be6b4b71` — feat(android): iter 49 - Android App 全面优化修复崩溃与API对齐
 
 ---
 

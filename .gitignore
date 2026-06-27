@@ -102,3 +102,7 @@ desktop-junction/
 ui_*.xml
 test_black.png
 selftest.ps1
+screen_test*.png
+test_ui.xml
+/test-screenshots/
+/desktop/src-tauri/target/

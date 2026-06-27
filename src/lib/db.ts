@@ -4,16 +4,18 @@ const globalForPrisma = globalThis as unknown as {
   prisma: PrismaClient | undefined;
 };
 
-// Prisma 连接池配置：
-// - connection_limit=20：开发/中等并发场景足够（默认 num_cpus*2+1）
-// - pool_timeout=10：避免连接耗尽时长时间挂起
+// Prisma 连接池配置（从环境变量读取，便于不同部署环境调优）：
+// - DATABASE_CONNECTION_LIMIT：连接池上限，默认 20
+// - DATABASE_POOL_TIMEOUT：连接获取超时（秒），默认 10
 function buildDatabaseUrl(): string {
   const base = process.env.DATABASE_URL || "";
   if (!base) return base;
   // 避免重复追加参数
   if (base.includes("connection_limit=")) return base;
   const sep = base.includes("?") ? "&" : "?";
-  return `${base}${sep}connection_limit=20&pool_timeout=10`;
+  const connectionLimit = process.env.DATABASE_CONNECTION_LIMIT || "20";
+  const poolTimeout = process.env.DATABASE_POOL_TIMEOUT || "10";
+  return `${base}${sep}connection_limit=${connectionLimit}&pool_timeout=${poolTimeout}`;
 }
 
 export const prisma =
