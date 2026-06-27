@@ -197,13 +197,13 @@ export function Sidebar() {
 
       <aside
         className={cn(
-          "fixed left-0 top-0 z-50 flex h-screen flex-col border-r border-border bg-card transition-all duration-300 ease-in-out lg:sticky lg:top-0 lg:h-full",
+          "desktop-sidebar-full fixed left-0 top-0 z-50 flex h-screen flex-col border-r border-border bg-card transition-all duration-300 ease-in-out lg:sticky lg:top-0 lg:h-full",
           collapsed ? "w-[72px] px-2" : "w-[210px] px-3",
           mobileOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
         )}
       >
-        {/* Logo 区域 */}
-        <div className="flex h-14 items-center justify-between border-b border-border/60 px-1">
+        {/* Logo 区域（桌面端隐藏，让侧边栏内容延伸到顶部） */}
+        <div className="desktop-hide-logo flex h-14 items-center justify-between border-b border-border/60 px-1">
           <Link
             href="/"
             prefetch={false}

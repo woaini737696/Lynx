@@ -81,7 +81,7 @@ interface AssistantSettings {
 }
 
 const DEFAULT_SETTINGS: AssistantSettings = {
-  assistantName: "Lynn",
+  assistantName: "Lynx",
   assistantAvatar: "🤖",
   avatarUrl: null,
 };
@@ -249,7 +249,7 @@ export function AssistantChat({ onClose }: AssistantChatProps = {}) {
       .then((data: { settings?: Partial<AssistantSettings> }) => {
         if (cancelled || !data.settings) return;
         setSettings({
-          assistantName: data.settings.assistantName || "Lynn",
+          assistantName: data.settings.assistantName || "Lynx",
           assistantAvatar: data.settings.assistantAvatar || "🤖",
           avatarUrl: data.settings.avatarUrl || null,
         });
@@ -1039,7 +1039,7 @@ export function AssistantChat({ onClose }: AssistantChatProps = {}) {
   };
 
   const isEmpty = messages.length === 0;
-  const displayName = settings.assistantName || "Lynn";
+  const displayName = settings.assistantName || "Lynx";
 
   return (
     <div className="flex h-full flex-col bg-background">

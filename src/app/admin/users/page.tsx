@@ -21,6 +21,7 @@ import { HelpButton } from "@/components/layout/HelpButton";
 import { toast } from "@/components/ui/toast";
 import { SearchInput, FilterSelect, Pagination, useClientPagination } from "@/components/ui/ListControls";
 import { PROFESSION_ICON_MAP } from "@/lib/permissions";
+import { openContextMenu } from "@/components/ui/ContextMenu";
 
 type User = {
   id: string;
@@ -331,6 +332,11 @@ export default function UsersPage() {
                   <tr
                     key={user.id}
                     className="border-b border-border/60 transition-colors last:border-0 hover:bg-muted/20"
+                    onContextMenu={(e) => openContextMenu(e, [
+                      { label: "编辑用户", icon: <Pencil className="h-3.5 w-3.5" />, onClick: () => openEdit(user) },
+                      { separator: true },
+                      { label: "删除用户", icon: <Trash2 className="h-3.5 w-3.5" />, danger: true, disabled: currentUser?.id === user.id, onClick: () => setDeleteTarget(user) },
+                    ])}
                   >
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-2">

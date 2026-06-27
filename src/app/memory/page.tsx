@@ -33,6 +33,7 @@ import { useAsyncLoading } from "@/lib/use-async-loading";
 import { PageHeader, Card, Button, Skeleton } from "@/components/layout/PageHeader";
 import { HelpButton } from "@/components/layout/HelpButton";
 import { Pagination, useClientPagination } from "@/components/ui/ListControls";
+import { openContextMenu } from "@/components/ui/ContextMenu";
 import { cn } from "@/lib/utils";
 
 type GraphNode = {
@@ -1703,6 +1704,11 @@ export default function MemoryPage() {
                         onClick={() => (batchMode ? toggleSelection(node.id) : focusNode(node.id))}
                         onMouseEnter={() => setHoveredId(node.id)}
                         onMouseLeave={() => setHoveredId(null)}
+                        onContextMenu={(e) => openContextMenu(e, [
+                          { label: "编辑标签", icon: <Pencil className="h-3.5 w-3.5" />, onClick: () => { setEditingId(node.id); setEditingLabel(displayLabel); } },
+                          { separator: true },
+                          { label: "删除", icon: <Trash2 className="h-3.5 w-3.5" />, danger: true, onClick: () => handleDelete(node.id) },
+                        ])}
                         className={cn(
                           "group flex cursor-pointer items-center gap-2 rounded-lg border px-2 py-1.5 text-xs transition-all",
                           batchMode && selectedIds.has(node.id)

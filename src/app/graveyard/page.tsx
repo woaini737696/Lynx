@@ -22,6 +22,7 @@ import { EmptyState } from "@/components/layout/EmptyState";
 import { Pagination, useClientPagination } from "@/components/ui/ListControls";
 import { cn } from "@/lib/utils";
 import { fetcher } from "@/components/providers/SWRProvider";
+import { openContextMenu, type ContextMenuItem } from "@/components/ui/ContextMenu";
 
 interface GraveyardItem {
   id: string;
@@ -454,6 +455,13 @@ export default function GraveyardPage() {
                     ? () => toggleSelect(item.id)
                     : () => setDetailItem(item)
                 }
+                onContextMenu={(e) => openContextMenu(e, [
+                  { label: "查看详情", icon: <Eye className="h-3.5 w-3.5" />, onClick: () => setDetailItem(item) },
+                  { label: "编辑", icon: <Pencil className="h-3.5 w-3.5" />, onClick: () => openEdit(item) },
+                  !item.revivedAt && { label: "复活", icon: <RefreshCw className="h-3.5 w-3.5" />, onClick: () => revive(item.id) },
+                  { separator: true },
+                  { label: "删除", icon: <Trash2 className="h-3.5 w-3.5" />, danger: true, onClick: () => setConfirmDeleteId(item.id) },
+                ].filter(Boolean) as ContextMenuItem[])}
               >
                 <div className="mb-3 flex items-start justify-between gap-2">
                   <div className="flex items-center gap-2">

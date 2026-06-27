@@ -51,6 +51,7 @@ import { Modal } from "@/components/ui/Modal";
 import { toast } from "@/components/ui/toast";
 import { cn } from "@/lib/utils";
 import { SearchInput, Pagination, useClientPagination } from "@/components/ui/ListControls";
+import { openContextMenu } from "@/components/ui/ContextMenu";
 import { RichTextEditor } from "@/components/editor/RichTextEditor";
 import type {
   SkillParameter,
@@ -594,16 +595,29 @@ export default function SkillsPage() {
                 <>
                   <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
                     {paginated.map((skill) => (
-                      <SkillCard
+                      <div
                         key={skill.id}
-                        skill={skill}
-                        onEdit={() => openEdit(skill)}
-                        onDelete={() => handleDelete(skill)}
-                        onExport={() => handleExport(skill)}
-                        onUse={() => handleUse(skill)}
-                        onPublish={() => handlePublish(skill)}
-                        onUnpublish={() => handleUnpublish(skill)}
-                      />
+                        onContextMenu={(e) => openContextMenu(e, [
+                          { label: "使用", onClick: () => handleUse(skill) },
+                          { label: "编辑", onClick: () => openEdit(skill) },
+                          { label: "导出", onClick: () => handleExport(skill) },
+                          ...(skill.isPublic
+                            ? [{ label: "从广场下架", onClick: () => handleUnpublish(skill) }]
+                            : [{ label: "发布到广场", onClick: () => handlePublish(skill) }]),
+                          { separator: true },
+                          { label: "删除", danger: true, onClick: () => handleDelete(skill) },
+                        ])}
+                      >
+                        <SkillCard
+                          skill={skill}
+                          onEdit={() => openEdit(skill)}
+                          onDelete={() => handleDelete(skill)}
+                          onExport={() => handleExport(skill)}
+                          onUse={() => handleUse(skill)}
+                          onPublish={() => handlePublish(skill)}
+                          onUnpublish={() => handleUnpublish(skill)}
+                        />
+                      </div>
                     ))}
                   </div>
                   <div className="mt-5">
