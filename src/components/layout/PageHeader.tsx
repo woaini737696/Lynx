@@ -30,29 +30,6 @@ export function PageHeader({ title, subtitle, action, className }: PageHeaderPro
   );
 }
 
-export function EmptyState({
-  icon,
-  title,
-  description,
-  action,
-}: {
-  icon: React.ReactNode;
-  title: string;
-  description: string;
-  action?: React.ReactNode;
-}) {
-  return (
-    <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-border bg-card/60 p-10 text-center sm:p-14">
-      <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-muted text-3xl">
-        {icon}
-      </div>
-      <h3 className="text-base font-semibold text-foreground sm:text-lg">{title}</h3>
-      <p className="mt-2 max-w-xs text-sm text-muted-foreground">{description}</p>
-      {action && <div className="mt-6">{action}</div>}
-    </div>
-  );
-}
-
 export function Card({
   children,
   className,

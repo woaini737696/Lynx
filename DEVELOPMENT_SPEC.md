@@ -66,12 +66,36 @@
 - **验证记录**：在 DEV_LOG.md 的「自测结果」中记录 dev server 启动状态（端口 5176 + HTTP 状态码 + MySQL 状态）
 - **禁止**：跳过服务启动验证直接 commit/push，或仅靠 `tsc --noEmit` 通过就认为任务完成
 
+### 1.8 内存缓存规范（强制）
+- **适用场景**：高频读取但低频变更的数据（如记忆图谱、技能列表、岗位工作空间配置等）
+- **缓存策略**：
+  - **TTL 缓存**：使用 5 分钟（300s）过期策略，过期后下次请求自动重新拉取
+  - **按 key 失效**：数据变更时通过 `invalidateCache(key)` 主动失效对应缓存项，避免脏读
+  - **请求合并**：同一 key 的并发请求自动去重（Promise 复用），避免缓存击穿
+- **实现位置**：`src/lib/cache.ts`（提供 `withCache(key, ttl, fetcher)` 工具函数）
+- **使用范例**：记忆图谱 `/api/memory/graph` 已接入 5 分钟缓存；写入/更新/删除记忆后调用 `invalidateCache("memory:graph")`
+- **禁止**：在缓存中存储用户敏感数据（API Key、Token）或会话信息；缓存命中时仍需做权限校验
+- **监控**：缓存命中率日志通过 `logger.debug` 输出，便于性能调优
+
+### 1.9 异步认知提取规范（强制）
+- **适用场景**：看板任务标记完成（`PATCH /api/tasks/:id` status=done）时触发的 AI 认知提取
+- **同步 vs 异步**：
+  - **同步模式（已废弃）**：在 PATCH 请求中串行调用 AI 提取认知，导致响应时间从 ~200ms 飙升到 ~1800ms
+  - **异步模式（强制）**：PATCH 请求立即返回 200 + 任务数据，认知提取通过 `setImmediate` / `queueMicrotask` 在后台执行
+- **实现要点**：
+  - PATCH 接口先更新 Task 状态并返回响应，再异步触发 `extractCognitionsFromTask(taskId)`
+  - 异步任务失败不影响主流程，仅 `logger.warn` 记录
+  - 提取结果通过 `extractedCognitions` 字段在下次拉取任务列表时附带返回，或通过 WS 推送给前端
+- **前端配合**：前端 `toggleDone` 收到 200 响应后立即更新 UI，认知提取结果通过轮询或 WS 事件异步展示
+- **禁止**：在 PATCH 接口中同步等待 AI 调用完成再返回响应
+
 ## 2. 端口规范（强制）
 
 | 服务 | 端口 | 说明 |
 |---|---|---|
 | Web 后端（Next.js） | **5176** | 严禁占用 3000 或其他项目端口 |
 | 移动端 H5（Vite） | **5175** | 严禁占用其他端口 |
+| WebSocket 网关 | **3001** | 多端协同网关（`src/lib/ws-gateway.ts`），独立于 Next.js 进程 |
 | Hermes Dashboard | 9119 | Hermes Agent 默认端口 |
 
 所有脚本、配置、文档、代理 target 均需遵循此规范。
@@ -219,3 +243,28 @@
 - **本地调试**：`cd desktop && npm run tauri dev`（需要 Rust 工具链）
 - **构建发布**：`cd desktop && npm run tauri build`（生成各平台安装包）
 - **桥接组件**：`DesktopBridge` 组件在 `layout.tsx` 全局挂载，负责 session 同步
+
+## 10. 环境变量规范（强制）
+
+- **配置文件**：`.env`（本地开发）、`.env.example`（示例模板，必须提交到仓库）
+- **新增环境变量时必须同步更新 `.env.example`**，并在本节登记用途与默认值
+- **禁止**：在代码中硬编码本应通过环境变量配置的值（如端口、密钥、保留天数等）
+
+### 10.1 环境变量清单
+
+| 变量名 | 用途 | 默认值 | 说明 |
+|---|---|---|---|
+| `DATABASE_URL` | MySQL 连接串 | - | Prisma 数据库连接字符串 |
+| `NEXTAUTH_URL` | NextAuth 回调 URL | `http://localhost:5176` | 必须与端口规范 §2 一致 |
+| `NEXTAUTH_SECRET` | NextAuth 加密密钥 | - | 生产环境必须重新生成 |
+| `TASK_DROPPED_RETENTION_DAYS` | 软删除任务保留天数 | `30` | 超过该天数的 `dropped` 任务由定时清理任务删除 |
+| `DESKTOP_LATEST_VERSION` | 桌面端最新版本号 | - | 用于 Tauri Updater 版本检查 |
+| `DESKTOP_DOWNLOAD_URL` | 桌面端下载地址 | - | 用于 Tauri Updater 下载 |
+| `DESKTOP_SIGNATURE` | 桌面端签名 | - | 用于 Tauri Updater 校验 |
+
+### 10.2 TASK_DROPPED_RETENTION_DAYS 说明
+- **作用**：控制看板中 `status=dropped` 的任务保留天数，超期后由定时清理任务（cron）自动删除
+- **取值范围**：正整数（单位：天），最小 1，最大 365
+- **默认值**：未配置时使用 `30` 天
+- **读取位置**：`src/lib/cron/cleanup-dropped-tasks.ts`（或对应定时任务实现）
+- **变更影响**：调整该值不会立即触发清理，需等待下次 cron 执行周期

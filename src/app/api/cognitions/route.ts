@@ -4,6 +4,14 @@ import { ai, defaultModel, COGNITION_EXTRACT_PROMPT } from "@/lib/ai";
 import { generateText } from "ai";
 import { writeMemoryForCognition } from "@/lib/memory-sync";
 import { requireAuth, requirePermission, buildUserFilter } from "@/lib/auth-utils";
+import { getLogger } from "@/lib/logger";
+import { validateString } from "@/lib/validate";
+
+const logger = getLogger("cognitions-api");
+
+// 认知类型与来源枚举（与 Prisma schema 注释保持一致）
+const VALID_COGNITION_TYPES = new Set(["method", "experience", "prompt"]);
+const VALID_COGNITION_SOURCES = new Set(["conversation", "idea", "manual"]);
 
 // 获取认知库
 export async function GET() {
@@ -18,7 +26,7 @@ export async function GET() {
     });
     return NextResponse.json({ cognitions });
   } catch (e) {
-    console.error("获取认知失败:", e);
+    logger.error({ err: e }, "获取认知失败");
     return NextResponse.json({ error: "服务器错误" }, { status: 500 });
   }
 }
@@ -33,19 +41,41 @@ export async function POST(req: NextRequest) {
 
     const body = await req.json();
     const {
-      content,
-      source = "manual",
-      type,
+      source: rawSource = "manual",
+      type: rawType,
       ideaId = null,
     } = body as {
-      content: string;
+      content?: string;
       source?: string;
-      type?: "method" | "experience" | "prompt";
+      type?: string;
       ideaId?: string | null;
     };
 
+    // 校验 source 枚举
+    if (!VALID_COGNITION_SOURCES.has(rawSource)) {
+      return NextResponse.json(
+        { error: "source 必须为 conversation | idea | manual" },
+        { status: 400 }
+      );
+    }
+    const source = rawSource;
+
+    // 校验 content（字符串，长度上限 10000）
+    const content = validateString(body?.content, 10000);
     if (!content) {
       return NextResponse.json({ error: "内容不能为空" }, { status: 400 });
+    }
+
+    // 校验 type 枚举（可选，提供时必须合法）
+    let type: "method" | "experience" | "prompt" | undefined;
+    if (rawType !== undefined && rawType !== null && rawType !== "") {
+      if (!VALID_COGNITION_TYPES.has(rawType)) {
+        return NextResponse.json(
+          { error: "type 必须为 method | experience | prompt" },
+          { status: 400 }
+        );
+      }
+      type = rawType as "method" | "experience" | "prompt";
     }
 
     // 直接写入模式：用户在看板完成弹窗中确认入库
@@ -61,12 +91,17 @@ export async function POST(req: NextRequest) {
         },
       });
       // 异步写入 Memory（不阻塞）
-      writeMemoryForCognition(c.id, c.content).catch(() => {});
-      return NextResponse.json({
-        created: [c],
-        count: 1,
-        success: true,
+      writeMemoryForCognition(c.id, c.content).catch((e) => {
+        logger.error({ err: e, cognitionId: c.id }, "writeMemory 异步失败");
       });
+      return NextResponse.json(
+        {
+          created: [c],
+          count: 1,
+          success: true,
+        },
+        { status: 201 }
+      );
     }
 
     // AI 提取模式：从内容中提取多条认知
@@ -85,7 +120,7 @@ export async function POST(req: NextRequest) {
         });
         extracted = JSON.parse(result.text);
       } catch (e) {
-        console.error("AI 提取认知失败:", e);
+        logger.error({ err: e }, "AI 提取认知失败");
       }
     }
 
@@ -98,30 +133,33 @@ export async function POST(req: NextRequest) {
 
     let created: Array<{ id: string; type: string; content: string }> = [];
     if (allItems.length > 0) {
-      await prisma.cognition.createMany({
-        data: allItems.map((item) => ({
-          type: item.type,
-          content: item.content,
-          source,
-          tags: [],
-          userId: user.id,
-        })),
-      });
-      // 查询刚创建的记录（按 userId + createdAt desc 取对应数量）
-      const fresh = await prisma.cognition.findMany({
-        where: { userId: user.id },
-        orderBy: { createdAt: "desc" },
-        take: allItems.length,
-        select: { id: true, type: true, content: true },
-      });
-      created = fresh;
+      // 使用事务逐条 create 并收集返回的 id，避免 createMany + findMany 回查在并发请求下取到他人记录
+      created = await prisma.$transaction(
+        allItems.map((item) =>
+          prisma.cognition.create({
+            data: {
+              type: item.type,
+              content: item.content,
+              source,
+              tags: [],
+              userId: user.id,
+            },
+            select: { id: true, type: true, content: true },
+          })
+        )
+      );
       // 异步批量写入 Memory（不阻塞响应）
-      Promise.all(fresh.map((c) => writeMemoryForCognition(c.id, c.content))).catch(() => {});
+      Promise.all(created.map((c) => writeMemoryForCognition(c.id, c.content))).catch((e) => {
+        logger.error({ err: e }, "批量 writeMemory 异步失败");
+      });
     }
 
-    return NextResponse.json({ created, count: created.length, success: true });
+    return NextResponse.json(
+      { created, count: created.length, success: true },
+      { status: 201 }
+    );
   } catch (e) {
-    console.error("提取认知失败:", e);
+    logger.error({ err: e }, "提取认知失败");
     return NextResponse.json({ error: "服务器错误" }, { status: 500 });
   }
 }

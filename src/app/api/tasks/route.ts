@@ -56,7 +56,7 @@ export async function POST(req: NextRequest) {
     const task = await prisma.task.create({
       data: { content, column: col, position: count, status: "active", userId: user.id },
     });
-    return NextResponse.json({ task, success: true });
+    return NextResponse.json({ task, success: true }, { status: 201 });
   } catch (e) {
     logger.error({ err: e }, "新增任务失败");
     return NextResponse.json({ error: "服务器错误" }, { status: 500 });

@@ -5,6 +5,109 @@
 
 ---
 
+## 迭代 42 - 2026-06-27
+
+### 任务概要
+全维度代码扫描 + 自动修复：5 个维度扫描发现 100+ 问题，自动修复 50+ 项（P0 安全 8 项 + P1 校验/性能/业务 25 项 + P2 前端/文档 17 项），列出需求优化建议。
+
+### 扫描范围
+1. 后端 API（鉴权/错误处理/性能/数据一致性/输入校验/HTTP 状态码/响应格式）
+2. 前端 UI（z-index/深色模式/重复组件/响应式/交互/loading/空状态/动效/a11y/数据获取）
+3. 帮助文档（19 个模块帮助内容 vs 实际功能对比）
+4. 配置文件（tsconfig/prisma/.env/next.config/package.json/middleware/.gitignore）
+5. 业务流程（AI 助理/记忆图谱/看板/灵感/巡检/技能/备份/权限/桌面端）
+
+### 完成内容
+
+#### P0 安全修复（8 项）
+1. **tasks/cleanup-dropped 越权全库删除**：非 admin 追加 buildUserFilter 仅清理自己的 dropped 任务 + 物理删除事务级联清理 Cognition
+2. **memory POST 重建鉴权**：requireAuth → requirePermission("memory:rebuild")
+3. **patrol/run 飞书通知发错人**：lark-sync 的 getCurrentUser 重命名导入为 getLarkCliUser，消除遮蔽
+4. **backup/export 流式无 try-catch**：ReadableStream start 回调内包裹 try-catch + controller.error + logger
+5. **cognitions/[id] 删除无事务**：$transaction 包裹清引用→删 Memory→删 Cognition
+6. **conversations/[id] 删除无事务**：同上
+7. **memory/batch 删除无事务**：$transaction + 收集受影响 userId 清缓存
+8. **tasks/[id] PATCH column 不安全强转**：.catch(() => ({})) + column/status 枚举校验
+
+#### P1 校验/性能/业务修复（25 项）
+9. **错误响应泄漏内部 message**：3 处改为通用 "服务器错误" + logger 记录原始错误
+10. **fire-and-forget 空 catch**：5 处改为 logger.error
+11. **cognitions POST createMany 竞态**：改为 $transaction 逐条 create
+12. **DailyFocus 完成任务不触发认知提取**：新建 src/lib/cognition-extract.ts 独立模块，focus PATCH 异步调用
+13. **Memory PATCH 不重新生成 embedding**：异步 embedText + float32ToBuffer 更新
+14. **批量删除 Memory 未清理他人缓存**：收集受影响 userId 逐个清缓存 + 兜底清全部
+15. **memory/[id] PATCH 跨实体更新无事务**：$transaction 包裹
+16. **cognitions/[id] / conversations/[id] 补 GET 端点**：新增 GET handler
+17. **skills/generate 校验 body**：workLog 字符串+长度校验、conversation 数组校验
+18. **cognitions/conversations/skills 校验**：接入 validateString + 枚举校验
+19. **路径参数 id 校验**：所有 [id] 路由加长度校验
+20. **memory POST force 布尔校验**：force === true 严格判断
+21. **backup/export 全量查询 take 上限**：每表 take:10000 + truncated 标记
+22. **tasks/[id] 重复查询**：复用 existing 记录
+23. **patrol/run 串行查询改并行**：Promise.all + push Promise.allSettled
+24. **skills GET take 上限**：take:100
+25. **删除节点全表扫描优化**：userId 缩小范围 + $transaction 批量更新
+26. **memory POST O(n²) Top-K 限制**：MAX_CONNECTIONS_PER_NODE = 20
+27. **创建型 POST 返回 201**：ideas/tasks/cognitions/conversations/skills
+28. **console.error → logger.error**：6 个文件统一日志
+29. **conversations source 校验放宽**：允许任意非空字符串（支持自定义来源）
+30. **404 文案统一**：tasks "未找到" → "任务不存在"
+31. **backup/export 移除未使用 import**：requireAuth
+32. **SKILL_GENERATE_PROMPT 移至 src/lib/skill-parser.ts**：避免 Next.js 路由文件类型约束
+33. **Task 表 [status, updatedAt] 索引**：prisma schema 添加
+
+#### P2 前端/文档修复（17 项）
+34. **帮助内容更新**：skills(v2.1)/ai-assistant(v3.1)/board(v2.1)/settings-patrol(v2.1) + 新增 conversations/backup 帮助条目
+35. **backup 页面添加 HelpButton**：违反 DEVELOPMENT_SPEC §3.1 规范已修复
+36. **tsconfig 排除 _test_workbuddy_**：消除 tsc 无关错误
+37. **.env.example 补充 TASK_DROPPED_RETENTION_DAYS**
+38. **next.config.mjs 添加 images.remotePatterns**
+39. **global-error.tsx 适配深色模式**：硬编码颜色改 Tailwind dark: 类名
+40. **EmptyState 组件统一**：删除 PageHeader 重复定义，统一使用独立组件
+41. **confirm() 替换为自定义弹窗**：6 个文件改用 Modal 确认
+42. **useAsyncLoading 接入**：cognition/assets/backup 页面接入全局 Loading Overlay
+43. **Modal 焦点陷阱**：Tab 循环 + 打开聚焦 + 关闭恢复焦点
+44. **z-index 规范化**：Z_INDEX 常量定义
+45. **board toggleDone loading 反馈**：updatingTaskId 状态 + disabled
+46. **skills SSE AbortController**：关闭弹窗可主动中断流
+47. **DEVELOPMENT_SPEC 更新**：§1.8 内存缓存 + §1.9 异步认知提取 + §10 环境变量规范 + WS 端口 3001
+48. **EmptyState 导入路径修复**：ai/lark-tasks 和 skills/market 页面
+49. **Prisma schema 同步**：db push 成功
+
+### 自测验证
+- **tsc --noEmit**：0 错误（src/scripts/prisma 目录）
+- **prisma generate + db push**：成功
+- **MySQL 3306**：运行中
+- **Dev server 5176**：运行中（Ready in 2.3s）
+- **功能测试 22/22 全部通过**：
+  - 看板 PATCH: 54ms（异步认知提取生效）
+  - 记忆 GET: 39ms（缓存生效）
+  - 记忆 PATCH 鉴权: 40ms（middleware 401 JSON 生效）
+  - 巡检 run: 2061ms hitCount=0（notifyChannels 修复生效）
+  - 权限目录: 35 项（memory:update 拆分生效）
+  - 创建型 POST: 返回 201（HTTP 约定修复生效）
+  - 对话创建: source="self-test" 接受（校验放宽生效）
+- **脏数据清理**：删除 2 条测试任务
+
+### 新增文件
+- `src/lib/cognition-extract.ts` — 认知提取独立模块
+- `src/lib/skill-parser.ts` — SKILL_GENERATE_PROMPT 常量
+
+### 未修复（需后续迭代）
+- P0: AI 消息持久化与流式脱钩（需重构持久化策略）
+- P0: SSE 断连无恢复（需 Last-Event-ID 协议支持）
+- P0: HermesAgent 反馈闭环未真正实现（需 Hermes 学习管道）
+- P1: Task 软删除无恢复 UI（需回收站页面）
+- P1: Task 拖拽 position 冲突（需前端拖拽实现）
+- P1: 巡检自动触发未实现（需 cron scheduler）
+- P1: 桌面应用硬编码路径（需跨平台路径配置）
+- P1: 约 20 处关系缺 onDelete: Cascade（需 schema 批量修改）
+- P2: SWR/React Query 引入（需全局数据获取重构）
+- P2: 列表增删动画（需 framer-motion 引入）
+- P2: README.md 严重过时（需重写）
+
+---
+
 ## 迭代 41 - 2026-06-27
 
 ### 任务概要

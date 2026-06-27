@@ -7,13 +7,20 @@ import {
   cosineSimilarity,
 } from "@/lib/embedding";
 import { hasAIEmbedding } from "@/lib/ai";
-import { requireAuth, buildUserFilter } from "@/lib/auth-utils";
+import { requireAuth, requirePermission, buildUserFilter } from "@/lib/auth-utils";
 import { getMemoryCache, setMemoryCache, clearMemoryCache } from "@/lib/memory-cache";
+import { getLogger } from "@/lib/logger";
+
+const logger = getLogger("memory-api");
+
+// 每个节点的最大连边数（Top-K 限制，与 tool-executor.ts 的 MAX_CONNECTIONS_PER_NODE 保持一致）
+const MAX_CONNECTIONS_PER_NODE = 20;
 
 // 重建记忆图谱：从 Idea/Conversation/Cognition 同步到 Memory 表，生成 embedding，计算相似度连边
 export async function POST(req: NextRequest) {
   try {
-    const { user, error } = await requireAuth();
+    // 重建记忆图谱是重操作（O(n²) + embedding API），需 memory:rebuild 权限避免任意登录用户触发 DoS
+    const { user, error } = await requirePermission("memory:rebuild");
     if (error) return error;
 
     const { force } = await req.json().catch(() => ({ force: false }));
@@ -94,7 +101,7 @@ export async function POST(req: NextRequest) {
       const lookupKey = `${src.type}:${src.ideaId || src.conversationId || src.cognitionId || ""}`;
       const existing = existingMap.get(lookupKey);
 
-      if (existing && existing.embedding && !force) {
+      if (existing && existing.embedding && force !== true) {
         embeddings.set(src.id, bufferToFloat32(existing.embedding));
         skipped++;
         continue;
@@ -167,6 +174,8 @@ export async function POST(req: NextRequest) {
         const sim = cosineSimilarity(vecI, vecJ);
         if (sim >= threshold) {
           connections.push(decoded[j].id);
+          // Top-K 限制：每个节点最多保留 MAX_CONNECTIONS_PER_NODE 条连边，避免 O(n²) 膨胀
+          if (connections.length >= MAX_CONNECTIONS_PER_NODE) break;
         }
       }
       edgeCount += connections.length;
@@ -202,7 +211,7 @@ export async function POST(req: NextRequest) {
       threshold,
     });
   } catch (e) {
-    console.error("重建记忆图谱失败:", e);
+    logger.error({ err: e }, "重建记忆图谱失败");
     return NextResponse.json({ error: "服务器错误" }, { status: 500 });
   }
 }
@@ -287,7 +296,7 @@ export async function GET() {
 
     return NextResponse.json(responseData);
   } catch (e) {
-    console.error("获取记忆图谱失败:", e);
+    logger.error({ err: e }, "获取记忆图谱失败");
     return NextResponse.json({ error: "服务器错误" }, { status: 500 });
   }
 }

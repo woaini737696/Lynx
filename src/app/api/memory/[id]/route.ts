@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { requirePermission } from "@/lib/auth-utils";
 import { clearMemoryCache } from "@/lib/memory-cache";
+import { getLogger } from "@/lib/logger";
+
+const logger = getLogger("memory-api");
 
 // 删除记忆节点：同时清理其他节点 connections 中对该节点的引用
 export async function DELETE(
@@ -12,6 +15,9 @@ export async function DELETE(
   if (auth.error) return auth.error;
   try {
     const { id } = params;
+    if (!id || typeof id !== "string" || id.length < 10 || id.length > 50) {
+      return NextResponse.json({ error: "无效的 ID" }, { status: 400 });
+    }
     const memory = await prisma.memory.findUnique({ where: { id } });
     if (!memory) {
       return NextResponse.json({ error: "记忆不存在" }, { status: 404 });
@@ -21,27 +27,31 @@ export async function DELETE(
       return NextResponse.json({ error: "无权删除他人的记忆" }, { status: 403 });
     }
 
-    // 拉取所有记忆，在代码层过滤出 connections 中引用了该 id 的节点（Json 字段不便做数据库层过滤）
+    // 缩小扫描范围：仅查询同一用户的 Memory（per-user 图谱），避免全表扫描
     const all = await prisma.memory.findMany({
+      where: {
+        id: { not: id },
+        ...(memory.userId ? { userId: memory.userId } : {}),
+      },
       select: { id: true, connections: true, strength: true },
     });
     const related = all.filter(
       (m) =>
-        m.id !== id &&
         Array.isArray(m.connections) &&
         (m.connections as string[]).includes(id)
     );
 
-    // 移除其他节点对该节点的引用，并重算 strength
-    for (const r of related) {
-      const conns = (r.connections as string[]).filter((c) => c !== id);
-      await prisma.memory.update({
-        where: { id: r.id },
-        data: { connections: conns, strength: conns.length },
-      });
-    }
-
-    await prisma.memory.delete({ where: { id } });
+    // 批量提交：收集更新操作后用 $transaction 一次性执行（清理引用 → 删节点）
+    await prisma.$transaction([
+      ...related.map((r) => {
+        const conns = (r.connections as string[]).filter((c) => c !== id);
+        return prisma.memory.update({
+          where: { id: r.id },
+          data: { connections: conns, strength: conns.length },
+        });
+      }),
+      prisma.memory.delete({ where: { id } }),
+    ]);
 
     // 清除缓存（记忆归属者 + 操作者）
     clearMemoryCache(memory.userId || auth.user.id);
@@ -51,7 +61,7 @@ export async function DELETE(
 
     return NextResponse.json({ success: true, id });
   } catch (e) {
-    console.error("删除记忆失败:", e);
+    logger.error({ err: e }, "删除记忆失败");
     return NextResponse.json({ error: "服务器错误" }, { status: 500 });
   }
 }
@@ -66,6 +76,9 @@ export async function PATCH(
   if (auth.error) return auth.error;
   try {
     const { id } = params;
+    if (!id || typeof id !== "string" || id.length < 10 || id.length > 50) {
+      return NextResponse.json({ error: "无效的 ID" }, { status: 400 });
+    }
     const { label } = await req.json().catch(() => ({ label: "" }));
 
     if (!label || typeof label !== "string" || !label.trim()) {
@@ -112,7 +125,7 @@ export async function PATCH(
 
     return NextResponse.json({ success: true, id, label: trimmed });
   } catch (e) {
-    console.error("更新记忆标签失败:", e);
+    logger.error({ err: e }, "更新记忆标签失败");
     return NextResponse.json({ error: "服务器错误" }, { status: 500 });
   }
 }

@@ -93,9 +93,11 @@ export async function POST(req: NextRequest) {
     });
 
     // 异步写入 Memory（不阻塞响应）
-    writeMemoryForIdea(idea.id, idea.content).catch(() => {});
+    writeMemoryForIdea(idea.id, idea.content).catch((e) => {
+      logger.error({ err: e, ideaId: idea.id }, "writeMemory 异步失败");
+    });
 
-    return NextResponse.json({ id: idea.id, success: true });
+    return NextResponse.json({ id: idea.id, success: true }, { status: 201 });
   } catch (e) {
     logger.error({ err: e }, "闪电输入失败");
     return NextResponse.json({ error: "服务器错误" }, { status: 500 });

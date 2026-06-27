@@ -3,7 +3,7 @@ import { prisma } from "@/lib/db";
 import { requireAuth, requirePermission, buildUserFilter } from "@/lib/auth-utils";
 import { chat } from "@/lib/ai-provider";
 import { sendPushNotification, type PushSubscriptionObject } from "@/lib/push";
-import { runLarkCliService, getCurrentUser } from "@/lib/lark-sync";
+import { runLarkCliService, getCurrentUser as getLarkCliUser } from "@/lib/lark-sync";
 import { Prisma } from "@prisma/client";
 import { getLogger } from "@/lib/logger";
 
@@ -26,45 +26,71 @@ async function collectScopeData(
 ): Promise<Array<{ itemId: string; content: string; type: string }>> {
   const items: Array<{ itemId: string; content: string; type: string }> = [];
 
+  // 并行查询各 scope 数据（scope=all 时三个查询同时进行，避免串行往返）
+  const queries: Promise<{
+    type: string;
+    rows: Array<{ itemId: string; content: string }>;
+  }>[] = [];
+
   if (scope === "inbox" || scope === "all") {
-    const ideas = await prisma.idea.findMany({
-      where: { status: "inbox", ...userFilter },
-      orderBy: { createdAt: "desc" },
-      take: 100,
-    });
-    for (const idea of ideas) {
-      items.push({ itemId: idea.id, content: idea.content, type: "idea" });
-    }
+    queries.push(
+      (async () => {
+        const ideas = await prisma.idea.findMany({
+          where: { status: "inbox", ...userFilter },
+          orderBy: { createdAt: "desc" },
+          take: 100,
+        });
+        return {
+          type: "idea",
+          rows: ideas.map((i) => ({ itemId: i.id, content: i.content })),
+        };
+      })()
+    );
   }
 
   if (scope === "board" || scope === "all") {
-    const tasks = await prisma.task.findMany({
-      where: { status: "active", ...userFilter },
-      orderBy: { createdAt: "desc" },
-      take: 100,
-    });
-    for (const task of tasks) {
-      items.push({ itemId: task.id, content: task.content, type: "task" });
-    }
+    queries.push(
+      (async () => {
+        const tasks = await prisma.task.findMany({
+          where: { status: "active", ...userFilter },
+          orderBy: { createdAt: "desc" },
+          take: 100,
+        });
+        return {
+          type: "task",
+          rows: tasks.map((t) => ({ itemId: t.id, content: t.content })),
+        };
+      })()
+    );
   }
 
   if (scope === "graveyard" || scope === "all") {
-    const whereClause =
-      userFilter.userId
-        ? { idea: { userId: userFilter.userId } }
-        : {};
-    const graveyards = await prisma.graveyard.findMany({
-      where: whereClause,
-      include: { idea: { select: { content: true } } },
-      orderBy: { abandonedAt: "desc" },
-      take: 100,
-    });
-    for (const g of graveyards) {
-      items.push({
-        itemId: g.id,
-        content: `灵感：${g.idea?.content || ""}\n放弃原因：${g.reason}\n复活条件：${g.reviveCondition}`,
-        type: "graveyard",
-      });
+    queries.push(
+      (async () => {
+        const whereClause = userFilter.userId
+          ? { idea: { userId: userFilter.userId } }
+          : {};
+        const graveyards = await prisma.graveyard.findMany({
+          where: whereClause,
+          include: { idea: { select: { content: true } } },
+          orderBy: { abandonedAt: "desc" },
+          take: 100,
+        });
+        return {
+          type: "graveyard",
+          rows: graveyards.map((g) => ({
+            itemId: g.id,
+            content: `灵感：${g.idea?.content || ""}\n放弃原因：${g.reason}\n复活条件：${g.reviveCondition}`,
+          })),
+        };
+      })()
+    );
+  }
+
+  const results = await Promise.all(queries);
+  for (const r of results) {
+    for (const row of r.rows) {
+      items.push({ ...row, type: r.type });
     }
   }
 
@@ -84,13 +110,16 @@ async function sendNotifications(
       const subscriptions = await prisma.pushSubscription.findMany({
         where: { userId },
       });
-      for (const sub of subscriptions) {
-        const subscription: PushSubscriptionObject = {
-          endpoint: sub.endpoint,
-          keys: sub.keys as { p256dh: string; auth: string },
-        };
-        await sendPushNotification(subscription, { title, body: message });
-      }
+      // 并行推送：用 allSettled 避免单条失败影响其他订阅
+      await Promise.allSettled(
+        subscriptions.map((sub) => {
+          const subscription: PushSubscriptionObject = {
+            endpoint: sub.endpoint,
+            keys: sub.keys as { p256dh: string; auth: string },
+          };
+          return sendPushNotification(subscription, { title, body: message });
+        })
+      );
     } catch (e) {
       logger.error({ err: e }, "发送 push 通知失败");
     }
@@ -101,7 +130,9 @@ async function sendNotifications(
     try {
       const settings = await prisma.aISetting.findFirst();
       if (settings?.feishuNotify) {
-        const me = getCurrentUser();
+        // 注意：getLarkCliUser 返回服务器 lark-cli 配置用户（运维身份），非请求发起者
+        // user 表暂无 openId 字段，保留 lark-cli 配置用户作为飞书通知接收人
+        const me = getLarkCliUser();
         if (me) {
           const shellQuote = (s: string) => `"${s.replace(/"/g, '\\"')}"`;
           const text = `🔔【AI 巡检】${title}\n${message}`;
@@ -296,7 +327,7 @@ ${itemsText}
       success: aiSuccess,
     });
   } catch (e) {
-    console.error("执行巡检失败:", e);
+    logger.error({ err: e }, "执行巡检失败");
     return NextResponse.json({ error: "服务器错误" }, { status: 500 });
   }
 }

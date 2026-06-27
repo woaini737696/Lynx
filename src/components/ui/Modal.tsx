@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { X } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -21,15 +21,52 @@ const sizeMap = {
 };
 
 export function Modal({ open, onClose, title, children, size = "md", className }: ModalProps) {
-  // Esc 关闭
+  const modalRef = useRef<HTMLDivElement>(null);
+  const previousFocusRef = useRef<HTMLElement | null>(null);
+
+  // Esc 关闭 + Tab 焦点循环（focus trap）
   useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
+      if (e.key === "Escape") {
+        onClose();
+        return;
+      }
+      if (e.key !== "Tab") return;
+      const focusable = modalRef.current?.querySelectorAll<HTMLElement>(
+        'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+      );
+      if (!focusable || focusable.length === 0) return;
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (e.shiftKey && document.activeElement === first) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && document.activeElement === last) {
+        e.preventDefault();
+        first.focus();
+      }
     };
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
   }, [open, onClose]);
+
+  // 打开时：记录触发元素焦点 + 聚焦内部首个可聚焦元素；关闭时恢复焦点
+  useEffect(() => {
+    if (!open) return;
+    previousFocusRef.current = document.activeElement as HTMLElement;
+    // 等待 DOM 渲染后聚焦首个可聚焦元素
+    const timer = setTimeout(() => {
+      const focusable = modalRef.current?.querySelectorAll<HTMLElement>(
+        'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+      );
+      (focusable?.[0] as HTMLElement | undefined)?.focus();
+    }, 0);
+    return () => {
+      clearTimeout(timer);
+      previousFocusRef.current?.focus();
+    };
+  }, [open]);
 
   // 打开时禁用 body 滚动
   useEffect(() => {
@@ -51,6 +88,7 @@ export function Modal({ open, onClose, title, children, size = "md", className }
       onClick={onClose}
     >
       <div
+        ref={modalRef}
         className={cn(
           "w-full max-h-[90vh] overflow-y-auto rounded-xl bg-card p-5 shadow-2xl",
           sizeMap[size],

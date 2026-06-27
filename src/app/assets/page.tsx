@@ -5,8 +5,10 @@ import { MessageSquare, Plus, Sparkles, ChevronDown, ChevronUp, UploadCloud, Loa
 import { cn } from "@/lib/utils";
 import { CONVERSATION_SOURCES, type ConversationSource } from "@/lib/utils";
 import { toast } from "@/components/ui/toast";
-import { PageHeader, EmptyState, Card, Button, Badge, Skeleton } from "@/components/layout/PageHeader";
+import { PageHeader, Card, Button, Badge, Skeleton } from "@/components/layout/PageHeader";
+import { EmptyState } from "@/components/layout/EmptyState";
 import { SearchInput, FilterSelect, Pagination, useClientPagination } from "@/components/ui/ListControls";
+import { useAsyncLoading } from "@/lib/use-async-loading";
 import {
   getFileType,
   fileTypeToSource,
@@ -107,6 +109,8 @@ export default function AssetsPage() {
 
   const [searchQuery, setSearchQuery] = useState("");
   const [filterSource, setFilterSource] = useState<ConversationSource | "all">("all");
+  // 全局异步加载反馈：耗时超过 800ms 的操作会显示 overlay
+  const { run: runAsync } = useAsyncLoading();
 
   useEffect(() => {
     let mounted = true;
@@ -140,11 +144,11 @@ export default function AssetsPage() {
     }
     setCapturing(true);
     try {
-      const res = await fetch("/api/conversations", {
+      const res = await runAsync("捕获对话", fetch("/api/conversations", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ source, title, rawContent, useAI }),
-      });
+      }));
       if (res.ok) {
         const data = await res.json();
         setConversations((prev) => [data.conversation, ...prev]);
@@ -273,7 +277,7 @@ export default function AssetsPage() {
         );
       }
 
-      const res = await fetch("/api/conversations", {
+      const res = await runAsync(`上传文件：${file.name}`, fetch("/api/conversations", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -284,7 +288,7 @@ export default function AssetsPage() {
           fileData: pdfFileData,
           filename: file.name,
         }),
-      });
+      }));
 
       if (res.ok) {
         const data = await res.json();
@@ -550,7 +554,7 @@ export default function AssetsPage() {
         </div>
       ) : conversations.length === 0 ? (
         <EmptyState
-          icon={<MessageSquare className="h-8 w-8 text-campaign" />}
+          icon={MessageSquare}
           title="暂无对话资产"
           description="粘贴 Kimi/Trae Solo/Claude/Codex/GPT 对话，或拖拽文件自动解析"
           action={

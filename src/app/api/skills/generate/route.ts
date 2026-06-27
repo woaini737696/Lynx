@@ -1,51 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { chat, type LLMProvider } from "@/lib/ai-provider";
-import type { SkillParameter } from "@/lib/skill-parser";
+import { type SkillParameter, SKILL_GENERATE_PROMPT } from "@/lib/skill-parser";
 import { requirePermission } from "@/lib/auth-utils";
+import { getLogger } from "@/lib/logger";
 
-// AI 生成 Skill 的系统提示词（导出供 stream 端点复用）
-export const SKILL_GENERATE_PROMPT = `你是一个技能提取专家。用户会提供一段工作记录（可能附带与 AI 的对话历史），你的任务是：
-
-1. 分析工作记录，识别其中可复用的工作模式/流程
-2. 将其抽象为一个参数化的 Skill（技能模板），使其能在类似场景下重复使用
-3. 为 Skill 设计合理的参数（用 {{param}} 占位）
-
-请用 JSON 输出，格式如下：
-{
-  "name": "技能名称（简洁，2-8字）",
-  "description": "技能描述（一句话说明用途）",
-  "category": "general | finance | report | review | knowledge | meeting | product | custom",
-  "tags": ["标签1", "标签2"],
-  "parameters": [
-    {
-      "key": "paramKey（英文驼峰）",
-      "label": "参数标签（中文）",
-      "type": "text | textarea | select | date | number",
-      "required": true,
-      "placeholder": "输入提示（可选）",
-      "options": ["选项1", "选项2"],
-      "defaultValue": "默认值（可选）"
-    }
-  ],
-  "content": "Markdown 正文，包含 # 标题、## 步骤（编号列表）、说明等",
-  "promptTemplate": "AI 提示词模板，用 {{paramKey}} 引用参数"
-}
-
-分类规则：
-- finance：财务相关（预测、分析、预算）
-- report：报告生成（周报、月报、总结）
-- review：审查类（代码审查、文档审查）
-- knowledge：知识处理（蒸馏、提取、整理）
-- meeting：会议相关（纪要、议程）
-- product：产品相关（需求、规划）
-- general：通用工作流程
-- custom：无法归类的自定义技能
-
-注意：
-- parameters 可以为空数组（如果技能不需要参数）
-- promptTemplate 中引用的 {{paramKey}} 必须在 parameters 中定义
-- content 应包含清晰的步骤说明
-- 只输出 JSON，不要其他内容`;
+const logger = getLogger("skills-generate-api");
 
 interface GenerateRequestBody {
   workLog?: string;
@@ -131,6 +90,16 @@ export async function POST(req: NextRequest) {
   if (auth.error) return auth.error;
   try {
     const body = (await req.json()) as GenerateRequestBody;
+    // 输入校验：workLog 必须为字符串（长度上限 10000），conversation 必须为数组
+    if (typeof body.workLog !== "undefined" && body.workLog !== null && typeof body.workLog !== "string") {
+      return NextResponse.json({ error: "workLog 必须为字符串" }, { status: 400 });
+    }
+    if (body.workLog && body.workLog.length > 10000) {
+      return NextResponse.json({ error: "workLog 不能超过 10000 字符" }, { status: 400 });
+    }
+    if (body.conversation !== undefined && !Array.isArray(body.conversation)) {
+      return NextResponse.json({ error: "conversation 必须为数组" }, { status: 400 });
+    }
     const workLog = body.workLog || "";
     const conversation = body.conversation || [];
 
@@ -177,7 +146,7 @@ ${conversationText || "(无)"}
       );
       skillText = result.content;
     } catch (e) {
-      console.error("AI 生成 Skill 失败，降级为 fallback:", e);
+      logger.error({ err: e }, "AI 生成 Skill 失败，降级为 fallback");
       const fallback = fallbackGenerateSkill(workLog, conversation);
       const errMsg = (e as Error).message || "未知错误";
       return NextResponse.json({
@@ -258,9 +227,9 @@ ${conversationText || "(无)"}
 
     return NextResponse.json({ skill });
   } catch (e) {
-    console.error("AI 生成 Skill 失败:", e);
+    logger.error({ err: e }, "AI 生成 Skill 失败");
     return NextResponse.json(
-      { error: "服务器错误：" + (e as Error).message },
+      { error: "服务器错误" },
       { status: 500 }
     );
   }

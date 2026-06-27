@@ -75,7 +75,7 @@ async function testIdeas(): Promise<void> {
   record("灵感", "GET /api/ideas 列表", list, (o, s) => s === 200 && Array.isArray(o?.ideas), (o) => `count=${o?.ideas?.length ?? 0}`);
 
   const created = await req("POST", "/api/ideas", { content: "[自测] 临时灵感-请忽略", source: "lightning" });
-  record("灵感", "POST /api/ideas 创建", created, (o, s) => s === 200 && !!o?.id, (o) => `id=${o?.id}`);
+  record("灵感", "POST /api/ideas 创建", created, (o, s) => (s === 200 || s === 201) && !!o?.id, (o) => `id=${o?.id}`);
   const ideaId = created.obj?.id;
 
   if (ideaId) {
@@ -91,7 +91,7 @@ async function testTasks(): Promise<void> {
   record("看板", "GET /api/tasks 列表", list, (o, s) => s === 200 && Array.isArray(o?.tasks), (o) => `count=${o?.tasks?.length ?? 0}`);
 
   const created = await req("POST", "/api/tasks", { content: "[自测] 临时任务-请忽略", column: "task" });
-  record("看板", "POST /api/tasks 创建", created, (o, s) => s === 200 && !!o?.task?.id, (o) => `id=${o?.task?.id ?? ""}`);
+  record("看板", "POST /api/tasks 创建", created, (o, s) => (s === 200 || s === 201) && !!o?.task?.id, (o) => `id=${o?.task?.id ?? ""}`);
   const taskId = created.obj?.task?.id;
 
   if (taskId) {
@@ -111,7 +111,7 @@ async function testCognitions(): Promise<void> {
 
   // 传 type 直接写入，避免触发 AI 提取（快速验证）
   const created = await req("POST", "/api/cognitions", { content: "[自测] 临时认知-请忽略", type: "method", source: "manual" });
-  record("认知", "POST /api/cognitions 创建(type=method)", created, (o, s) => s === 200 && o?.success && Array.isArray(o?.created), (o) => `count=${o?.count ?? 0}, ids=${(o?.created || []).map((c: any) => c.id).join(",")}`);
+  record("认知", "POST /api/cognitions 创建(type=method)", created, (o, s) => (s === 200 || s === 201) && o?.success && Array.isArray(o?.created), (o) => `count=${o?.count ?? 0}, ids=${(o?.created || []).map((c: any) => c.id).join(",")}`);
   const cogIds: string[] = (created.obj?.created || []).map((c: any) => c.id);
 
   for (const id of cogIds) {
@@ -187,7 +187,7 @@ async function testConversations(): Promise<void> {
 
   // useAI=false 避免慢
   const created = await req("POST", "/api/conversations", { source: "self-test", rawContent: "[自测] 临时对话-请忽略", title: "自测对话", useAI: false }, 15000);
-  record("对话", "POST /api/conversations 创建(useAI=false)", created, (o, s) => s === 200 && !!o?.conversation?.id, (o) => `id=${o?.conversation?.id ?? ""}`);
+  record("对话", "POST /api/conversations 创建(useAI=false)", created, (o, s) => (s === 200 || s === 201) && !!o?.conversation?.id, (o) => `id=${o?.conversation?.id ?? ""}`);
   const convId = created.obj?.conversation?.id;
 
   if (convId) {

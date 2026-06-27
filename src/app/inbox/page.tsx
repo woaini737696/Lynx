@@ -6,6 +6,7 @@ import { toast } from "@/components/ui/toast";
 import { PageHeader, Card, Button, Badge, Skeleton } from "@/components/layout/PageHeader";
 import { HelpButton } from "@/components/layout/HelpButton";
 import { EmptyState } from "@/components/layout/EmptyState";
+import { Modal } from "@/components/ui/Modal";
 import { cn } from "@/lib/utils";
 import { SearchInput, FilterSelect, Pagination, useClientPagination } from "@/components/ui/ListControls";
 import type { ReviveSuggestion } from "@/lib/reminder-scheduler";
@@ -77,6 +78,8 @@ export default function InboxPage() {
   const [multiSelectMode, setMultiSelectMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [batchDeleting, setBatchDeleting] = useState(false);
+  // 批量删除二次确认
+  const [confirmBatchDelete, setConfirmBatchDelete] = useState(false);
 
   const [searchQuery, setSearchQuery] = useState("");
   const [filterTime, setFilterTime] = useState<"all" | "today" | "7days">("all");
@@ -209,9 +212,10 @@ export default function InboxPage() {
       toast("请先选择要删除的灵感", "error");
       return;
     }
-    if (!confirm(`确定要永久删除选中的 ${selectedIds.size} 条灵感吗？此操作不可恢复。`)) {
-      return;
-    }
+    setConfirmBatchDelete(true);
+  };
+
+  const performBatchDelete = async () => {
     setBatchDeleting(true);
     try {
       const res = await fetch("/api/ideas", {
@@ -232,6 +236,7 @@ export default function InboxPage() {
       toast("批量删除失败", "error");
     }
     setBatchDeleting(false);
+    setConfirmBatchDelete(false);
   };
 
   // 进入/退出多选模式
@@ -1001,6 +1006,31 @@ export default function InboxPage() {
           />
         </div>
       )}
+
+      {/* 批量删除二次确认弹窗 */}
+      <Modal
+        open={confirmBatchDelete}
+        onClose={() => setConfirmBatchDelete(false)}
+        title="确认删除"
+        size="sm"
+      >
+        <p className="text-sm text-muted-foreground">
+          确定要永久删除选中的 {selectedIds.size} 条灵感吗？此操作不可恢复。
+        </p>
+        <div className="mt-4 flex justify-end gap-2">
+          <Button size="sm" variant="ghost" onClick={() => setConfirmBatchDelete(false)}>
+            取消
+          </Button>
+          <Button
+            size="sm"
+            variant="danger"
+            onClick={() => void performBatchDelete()}
+            disabled={batchDeleting}
+          >
+            {batchDeleting ? "删除中..." : "确认删除"}
+          </Button>
+        </div>
+      </Modal>
     </div>
   );
 }

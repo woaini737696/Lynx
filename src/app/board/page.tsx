@@ -62,6 +62,8 @@ export default function BoardPage() {
   const [adding, setAdding] = useState<BoardColumn | null>(null);
   const [newContent, setNewContent] = useState("");
   const [error, setError] = useState<string | null>(null);
+  // toggleDone 进行中的任务 ID，用于显示 loading 反馈
+  const [updatingTaskId, setUpdatingTaskId] = useState<string | null>(null);
   const [stats, setStats] = useState<TaskStats | null>(null);
   const [showDone, setShowDone] = useState(false);
 
@@ -146,6 +148,7 @@ export default function BoardPage() {
 
   const toggleDone = async (task: Task) => {
     const newStatus = task.status === "done" ? "active" : "done";
+    setUpdatingTaskId(task.id);
     try {
       const res = await fetch(`/api/tasks/${task.id}`, {
         method: "PATCH",
@@ -202,9 +205,13 @@ export default function BoardPage() {
         }
         // 通知今日聚焦页刷新
         window.postMessage({ type: "LYNNHUB_REFRESH_FOCUS" }, "*");
+      } else {
+        toast("操作失败，请重试", "error");
       }
     } catch {
       toast("网络错误", "error");
+    } finally {
+      setUpdatingTaskId(null);
     }
   };
 
@@ -424,7 +431,10 @@ export default function BoardPage() {
                   col.tasks.map((task) => (
                     <div
                       key={task.id}
-                      className="group flex cursor-pointer items-start gap-2.5 rounded-xl border border-border bg-background p-2.5 transition-all hover:border-primary/30 hover:shadow-sm"
+                      className={cn(
+                        "group flex cursor-pointer items-start gap-2.5 rounded-xl border border-border bg-background p-2.5 transition-all hover:border-primary/30 hover:shadow-sm",
+                        updatingTaskId === task.id && "opacity-60 pointer-events-none"
+                      )}
                       onClick={() => toggleDone(task)}
                     >
                       <div
@@ -433,6 +443,9 @@ export default function BoardPage() {
                           "border-border bg-transparent hover:border-primary"
                         )}
                       >
+                        {updatingTaskId === task.id && (
+                          <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />
+                        )}
                       </div>
                       <span className="flex-1 text-xs leading-relaxed">
                         {task.content}
@@ -479,11 +492,18 @@ export default function BoardPage() {
               doneTasks.map((task) => (
                 <div
                   key={task.id}
-                  className="group flex cursor-pointer items-start gap-2.5 rounded-xl border border-border bg-background p-2.5 transition-all hover:border-task/30 hover:shadow-sm"
+                  className={cn(
+                    "group flex cursor-pointer items-start gap-2.5 rounded-xl border border-border bg-background p-2.5 transition-all hover:border-task/30 hover:shadow-sm",
+                    updatingTaskId === task.id && "opacity-60 pointer-events-none"
+                  )}
                   onClick={() => toggleDone(task)}
                 >
                   <div className="mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded border border-task bg-task text-white">
-                    <Check className="h-3 w-3" />
+                    {updatingTaskId === task.id ? (
+                      <Loader2 className="h-3 w-3 animate-spin" />
+                    ) : (
+                      <Check className="h-3 w-3" />
+                    )}
                   </div>
                   <div className="flex-1">
                     <span className="text-xs leading-relaxed line-through text-muted-foreground">
