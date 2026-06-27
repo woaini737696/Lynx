@@ -87,3 +87,13 @@ desktop-build/
 desktop-junction/
 # 桌面端打包产物（22MB+ 二进制，不入版本控制）
 /desktop/dist/
+
+# 原生桌面壳构建产物与临时文件
+/dist/
+/import_table.txt
+/lynx-logos/
+/nsis-*.exe
+/release/
+/test-hello/
+/vs_buildtools.exe
+.git-commit-msg.txt
