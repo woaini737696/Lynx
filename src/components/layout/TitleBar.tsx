@@ -50,17 +50,14 @@ export function TitleBar() {
 
   return (
     <div className="glass-bar flex h-9 w-full shrink-0 select-none items-center justify-between px-2">
-      {/* 左侧：Lynx 品牌标识 */}
+      {/* 左侧：Lynx 品牌标识（黑底白色猞猁高清 logo） */}
       <div className="flex items-center gap-2 pl-1">
-        <div
-          className="flex h-5 w-5 items-center justify-center rounded-[6px] text-[11px] font-bold text-white shadow-sm"
-          style={{
-            background: "linear-gradient(135deg, #f97316, #ea580c)",
-          }}
-          aria-hidden
-        >
-          X
-        </div>
+        <img
+          src="/lynx-logo-black.png"
+          alt="Lynx"
+          className="h-5 w-5 rounded-[6px] object-cover shadow-sm"
+          draggable={false}
+        />
         <span className="text-xs font-medium text-foreground/70">Lynx</span>
       </div>
 
