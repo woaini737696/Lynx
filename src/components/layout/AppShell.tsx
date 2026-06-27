@@ -4,6 +4,8 @@ import { useEffect, useState } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { Sidebar } from "./Sidebar";
 import { CaptureBar } from "./CaptureBar";
+import { UserProfileFloat } from "./UserProfileFloat";
+import { TitleBar } from "./TitleBar";
 
 function ConvergeReminder() {
   const router = useRouter();
@@ -75,6 +77,7 @@ function ConvergeReminder() {
 export function AppShell({ children }: { children: React.ReactNode }) {
   return (
     <div className="flex h-screen flex-col overflow-hidden bg-background">
+      <TitleBar />
       <CaptureBar />
       {/* 顶部 header 栏已移除 — 侧边栏直接延伸到内容区顶部 */}
       <div className="flex flex-1 overflow-hidden">
@@ -84,6 +87,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           {children}
         </main>
       </div>
+      <UserProfileFloat />
       <ConvergeReminder />
     </div>
   );

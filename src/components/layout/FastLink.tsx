@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { useRef, useCallback } from "react";
 import { cn } from "@/lib/utils";
 
 interface FastLinkProps {
@@ -15,8 +16,9 @@ interface FastLinkProps {
 
 /**
  * 快速导航链接
- * - 默认开启 prefetch，鼠标悬停时进一步预热路由
- * - 配合 RouteProgress 提供即时响应的桌面应用体验
+ * - prefetch 预加载路由 chunk
+ * - 鼠标悬停时再次预热
+ * - pointer down 阶段即开始导航，比 click 提前约 80~120ms
  */
 export function FastLink({
   href,
@@ -27,6 +29,32 @@ export function FastLink({
   ariaLabel,
 }: FastLinkProps) {
   const router = useRouter();
+  const navigatedRef = useRef(false);
+
+  const warmup = useCallback(() => {
+    try {
+      router.prefetch(href);
+    } catch {
+      // ignore
+    }
+  }, [router, href]);
+
+  const navigate = useCallback(
+    (e?: React.MouseEvent | React.PointerEvent) => {
+      // 保留中键/新标签页行为
+      if (e && (e.ctrlKey || e.metaKey || e.button !== 0)) return;
+      if (navigatedRef.current) return;
+      navigatedRef.current = true;
+      e?.preventDefault?.();
+      onClick?.();
+      router.push(href);
+      // 重置标记，允许返回后再次点击
+      setTimeout(() => {
+        navigatedRef.current = false;
+      }, 200);
+    },
+    [href, onClick, router]
+  );
 
   return (
     <Link
@@ -35,20 +63,9 @@ export function FastLink({
       title={title}
       aria-label={ariaLabel}
       className={cn(className)}
-      onMouseEnter={() => {
-        try {
-          router.prefetch(href);
-        } catch {
-          // ignore
-        }
-      }}
-      onClick={(e) => {
-        if (onClick) {
-          e.preventDefault();
-          onClick();
-          router.push(href);
-        }
-      }}
+      onMouseEnter={warmup}
+      onPointerDown={navigate}
+      onClick={navigate}
     >
       {children}
     </Link>
