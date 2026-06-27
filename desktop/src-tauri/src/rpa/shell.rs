@@ -13,8 +13,7 @@ use tauri::AppHandle;
 ///
 /// 安全策略：
 /// 1. 紧急停止检查（EMERGENCY_STOP=true 时拒绝执行）
-/// 2. 按 auth_mode 决定是否弹窗审批
-/// 3. Shell 始终为 L3 高危操作，approve 模式下必弹窗
+/// 2. 统一走 auth::check_permission_by_level 授权（L3 高危操作）
 pub async fn execute(
     command: &str,
     cwd: Option<&str>,
@@ -22,44 +21,28 @@ pub async fn execute(
     state: Arc<AppState>,
     app: AppHandle,
 ) -> Result<Value, String> {
-    // 1. 紧急停止检查
     if EMERGENCY_STOP.load(Ordering::SeqCst) {
         return Err("紧急停止已触发，所有命令执行已暂停".to_string());
     }
 
-    // 2. Shell 是 L3 高危操作：approve 模式必弹窗；once 已会话授权则免；free 直接执行
-    let need_approve = match auth_mode {
-        "approve" => true,
-        "once" => {
-            // 一次性授权：检查是否已授权过
-            // 简化实现：一旦切到 once 模式即视为已授权
-            false
-        }
-        "free" => false,
-        _ => true,
-    };
+    let approved = auth::check_permission_by_level(
+        "L3",
+        "执行系统命令",
+        auth_mode,
+        &app,
+        command,
+    ).await;
 
-    if need_approve {
-        let approved = auth::request_approval(
-            &app,
-            "Shell 命令执行",
-            command,
-            "L3",
-        ).await;
-
-        if !approved {
-            return Err("用户拒绝执行该命令".to_string());
-        }
+    if !approved {
+        return Err("用户拒绝执行该命令".to_string());
     }
 
-    // 3. 选择 shell
     let (shell, flag) = if cfg!(target_os = "windows") {
         ("cmd", "/C")
     } else {
         ("bash", "-c")
     };
 
-    // 4. 执行命令
     let mut cmd = tokio::process::Command::new(shell);
     cmd.arg(flag).arg(command);
     cmd.kill_on_drop(true);
@@ -68,7 +51,6 @@ pub async fn execute(
         cmd.current_dir(dir);
     }
 
-    // 5. 执行并收集输出（带超时 60s）
     let output = tokio::time::timeout(
         std::time::Duration::from_secs(60),
         cmd.output(),
@@ -83,7 +65,6 @@ pub async fn execute(
 
     log::info!("Shell 执行完成: {} (exit={})", command, exit_code);
 
-    // 6. 检查紧急停止（执行过程中可能被触发）
     if EMERGENCY_STOP.load(Ordering::SeqCst) {
         return Err("执行过程中触发紧急停止，已中断".to_string());
     }

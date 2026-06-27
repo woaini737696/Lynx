@@ -132,9 +132,24 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    // ============ 文件名安全校验：禁止路径遍历字符 ============
+    const originalName = file.name;
+    if (
+      originalName.includes("/") ||
+      originalName.includes("\\") ||
+      originalName.includes("..") ||
+      originalName.startsWith(".") ||
+      originalName.includes("\0")
+    ) {
+      return NextResponse.json(
+        { error: "文件名包含非法字符" },
+        { status: 400 }
+      );
+    }
+
     // ============ 生成文件名：时间戳-随机串-原始名 ============
-    const ext = path.extname(file.name).toLowerCase();
-    const baseName = path.basename(file.name, ext).slice(0, 50);
+    const ext = path.extname(originalName).toLowerCase();
+    const baseName = path.basename(originalName, ext).slice(0, 50);
     const safeName = `${Date.now()}-${randomString()}-${baseName}${ext}`;
 
     // ============ 确保上传目录存在 ============
