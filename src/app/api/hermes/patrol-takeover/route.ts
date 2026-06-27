@@ -6,7 +6,7 @@ import { getLogger } from "@/lib/logger";
 const logger = getLogger("hermes-patrol-takeover");
 
 // POST /api/hermes/patrol-takeover - Hermes Cron 接管 AI 巡检
-// 将 LynnHub 的 PatrolRule 转换为 Hermes Cron 任务
+// 将 Lynx 的 PatrolRule 转换为 Hermes Cron 任务
 // Hermes 会按照 cron 表达式自动执行巡检，并主动汇报结果
 export async function POST(req: NextRequest) {
   const auth = await requireAuth();

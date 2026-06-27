@@ -5,7 +5,7 @@ import { getLogger } from "@/lib/logger";
 
 const logger = getLogger("hermes-api");
 
-// POST /api/hermes/skills/export - 导出 LynnHub Skill 到 Hermes skills 目录
+// POST /api/hermes/skills/export - 导出 Lynx Skill 到 Hermes skills 目录
 // body: { skillId: string }
 export async function POST(req: NextRequest) {
   const auth = await requireAuth();

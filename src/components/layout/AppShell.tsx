@@ -48,7 +48,7 @@ function getPageTitle(pathname: string): string {
       return PAGE_TITLE_MAP[key];
     }
   }
-  return "LynnHub";
+  return "Lynx";
 }
 
 function ConvergeReminder() {

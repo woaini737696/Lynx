@@ -72,12 +72,19 @@ cp .env.example .env
 npx prisma db push
 npx prisma generate
 
-# 注入默认巡检规则
-npx tsx prisma/seed-patrol-rules.ts
+# 初始化默认数据（按顺序执行）
+npx tsx prisma/seed.ts          # 创建默认管理员账号
+npx tsx prisma/seed-roles.ts    # 初始化角色权限（admin/editor/viewer）
+npx tsx prisma/seed-skills.ts   # 注入 60 个预置技能（12 岗位）
+npx tsx prisma/seed-patrol-rules.ts  # 注入默认巡检规则
 
 # 启动开发服务器（端口 5176）
 npm run dev
 ```
+
+### 默认账号
+- **管理员账号**：`admin` / `admin123`
+- 首次登录后请立即修改密码（设置 → 个人资料）
 
 ### 桌面端开发
 ```bash
@@ -89,6 +96,13 @@ npm run dev      # 启动 Tauri 桌面端（自动拉起 Web 端 5176）
 ### 访问
 - Web 端：http://localhost:5176
 - MySQL：localhost:3306
+
+### 部署指南
+生产环境部署请参考项目内部署脚本和配置，阿里云服务器部署流程：
+1. 本地 `npm run build` 构建
+2. 使用 PM2 托管 Next.js 服务
+3. 配置 Nginx 反向代理
+4. 配置环境变量（生产环境必须重新生成 `AUTH_SECRET`）
 
 ## 项目结构
 
@@ -135,14 +149,29 @@ scripts/                    # 测试和维护脚本
 |------|------|--------|
 | `DATABASE_URL` | MySQL 连接字符串 | - |
 | `AUTH_SECRET` | next-auth JWT 签名密钥 | - |
+| `NEXTAUTH_URL` | NextAuth 回调 URL | `http://localhost:5176` |
 | `DEEPSEEK_API_KEY` | DeepSeek API Key | - |
+| `DEEPSEEK_BASE_URL` | DeepSeek Base URL | `https://api.deepseek.com/v1` |
+| `DEEPSEEK_MODEL` | DeepSeek 模型名 | `deepseek-chat` |
 | `MIMO_API_KEY` | 小米 MiMo API Key | - |
+| `MIMO_BASE_URL` | MiMo Base URL | `https://api.xiaomimimo.com/v1` |
+| `MIMO_MODEL` | MiMo 模型名 | `mimo-v2.5` |
+| `DEFAULT_LLM_PROVIDER` | 默认 LLM 提供商 | `deepseek` |
 | `EMBEDDING_API_KEY` | 向量模型 Key（不填降级 TF-IDF） | - |
+| `EMBEDDING_BASE_URL` | Embedding Base URL | `https://api.siliconflow.cn/v1` |
+| `EMBEDDING_MODEL` | Embedding 模型名 | `BAAI/bge-m3` |
+| `ASR_API_KEY` / `ASR_BASE_URL` / `ASR_MODEL` | 语音识别配置 | - |
+| `TTS_API_KEY` / `TTS_BASE_URL` / `TTS_MODEL` | 语音合成配置 | - |
+| `VISION_API_KEY` / `VISION_BASE_URL` / `VISION_MODEL` | 视觉多模态配置 | - |
 | `LARK_APP_ID` / `LARK_APP_SECRET` | 飞书应用凭证 | - |
-| `VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` | Web Push 密钥对 | - |
+| `LARK_WEBHOOK_TOKEN` | 飞书 Webhook 验证 Token | - |
+| `VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` / `VAPID_SUBJECT` | Web Push 密钥对 | - |
+| `SENTRY_DSN` | Sentry 错误监控（可选） | - |
 | `TASK_DROPPED_RETENTION_DAYS` | 软删除任务清理天数 | 30 |
+| `WS_PORT` | WebSocket 网关端口 | 3001 |
+| `DESKTOP_LATEST_VERSION` | 桌面端最新版本号 | - |
 | `DESKTOP_DOWNLOAD_URL` | 桌面端更新包下载地址 | - |
-| `DESKTOP_LATEST_VERSION` | 桌面端最新版本号（覆盖 package.json） | - |
+| `DESKTOP_SIGNATURE` | 桌面端更新签名 | - |
 
 > 未配置的 AI Key 不会导致崩溃，对应功能会自动降级或禁用。
 

@@ -32,24 +32,27 @@ model User {
   // ===== 权限缓存版本号（角色变更时递增，用于多实例缓存失效）=====
   permissionVersion Int @default(0)
 
-  ideas         Idea[]
-  conversations Conversation[]
-  tasks         Task[]
-  memories      Memory[]
-  cognitions    Cognition[]
-  dailyFocuses  DailyFocus[]
-  skills        Skill[]
-  skillReviews  SkillReview[]
-  chatSessions  ChatSession[]
-  flows         Flow[]
-  flowExecutions FlowExecution[]
+  ideas             Idea[]
+  conversations     Conversation[]
+  tasks             Task[]
+  memories          Memory[]
+  cognitions        Cognition[]
+  dailyFocuses      DailyFocus[]
+  skills            Skill[]
+  skillReviews      SkillReview[]
+  chatSessions      ChatSession[]
+  flows             Flow[]
+  flowExecutions    FlowExecution[]
   pushSubscriptions PushSubscription[]
-  patrolRules PatrolRule[]
-  hermesConfig HermesConfig?
-  hermesReports  HermesReport[]
-  skillFavorites SkillFavorite[]
-  skillExecutions SkillExecution[]
-  taskPatterns  TaskPattern[]
+  patrolRules       PatrolRule[]
+  hermesConfig      HermesConfig?
+  hermesReports     HermesReport[]
+  skillFavorites    SkillFavorite[]
+  skillExecutions   SkillExecution[]
+  taskPatterns      TaskPattern[]
+  larkTasks         LarkTask[]
+  larkTaskComments  LarkTaskComment[]
+  larkWebhookEvents LarkWebhookEvent[]
 }
 
 // 角色权限配置
@@ -68,30 +71,30 @@ model Role {
 // 任务模式学习：记录用户执行过的任务模式，用于自动执行同类任务
 // 当用户手动完成一个任务后，系统学习任务模式；下次类似任务出现时可以自动执行
 model TaskPattern {
-  id          String   @id @default(cuid())
-  userId      String
+  id                String    @id @default(cuid())
+  userId            String
   // 任务类型关键词（从任务内容提取，如"创建灵感"、"完成看板任务"等）
-  patternKey  String   @db.VarChar(200)
+  patternKey        String    @db.VarChar(200)
   // 任务描述模板（含参数占位符，如"创建灵感：{content}"）
-  taskTemplate String  @db.Text
+  taskTemplate      String    @db.Text
   // 执行步骤（JSON 数组，记录用户执行过的操作序列）
-  steps       Json     @default("[]")
+  steps             Json      @default("[]")
   // 执行该模式所需的 Hermes prompt
-  hermesPrompt String  @db.LongText
+  hermesPrompt      String    @db.LongText
   // 匹配关键词（JSON 数组，用于检测新任务是否匹配此模式）
-  matchKeywords Json   @default("[]")
+  matchKeywords     Json      @default("[]")
   // 执行次数（用户手动执行 + 自动执行）
-  executionCount Int   @default(1)
+  executionCount    Int       @default(1)
   // 自动执行次数
-  autoExecutedCount Int @default(0)
+  autoExecutedCount Int       @default(0)
   // 是否启用自动执行
-  autoExecute Boolean  @default(false)
+  autoExecute       Boolean   @default(false)
   // 最后一次执行时间
-  lastExecutedAt DateTime?
+  lastExecutedAt    DateTime?
   // 最后一次自动执行的结果（成功/失败）
-  lastAutoResult String? @db.VarChar(20)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  lastAutoResult    String?   @db.VarChar(20)
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -101,17 +104,17 @@ model TaskPattern {
 
 // 灵感 - 闪电输入源头
 model Idea {
-  id        String   @id @default(cuid())
-  content   String   @db.Text
-  source    String   @default("lightning") // lightning | conversation
-  status    String   @default("inbox") // inbox | board | graveyard
-  tags      Json     @default("[]")
-  attachments Json   @default("[]") // 附件数组 [{type:"image"|"file", name, url, size}]
-  userId    String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id          String   @id @default(cuid())
+  content     String   @db.Text
+  source      String   @default("lightning") // lightning | conversation
+  status      String   @default("inbox") // inbox | board | graveyard
+  tags        Json     @default("[]")
+  attachments Json     @default("[]") // 附件数组 [{type:"image"|"file", name, url, size}]
+  userId      String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
-  user       User?        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user       User?       @relation(fields: [userId], references: [id], onDelete: Cascade)
   tasks      Task[]
   memories   Memory[]
   graveyard  Graveyard?
@@ -120,12 +123,13 @@ model Idea {
   @@index([status])
   @@index([createdAt])
   @@index([userId])
+  @@index([userId, status, createdAt])
 }
 
 // 对话资产 - Kimi/Claude/Codex 捕获
 model Conversation {
   id          String   @id @default(cuid())
-  source      String   // kimi | claude | codex | gpt
+  source      String // kimi | claude | codex | gpt
   title       String
   rawContent  String   @db.LongText
   conclusions Json     @default("[]")
@@ -137,9 +141,9 @@ model Conversation {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  user        User?         @relation(fields: [userId], references: [id], onDelete: Cascade)
-  memories    Memory[]
-  cognitions  Cognition[]
+  user       User?       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  memories   Memory[]
+  cognitions Cognition[]
 
   @@index([source])
   @@index([capturedAt])
@@ -150,7 +154,7 @@ model Conversation {
 model Task {
   id        String   @id @default(cuid())
   content   String   @db.Text
-  column    String   // northstar | campaign | task
+  column    String // northstar | campaign | task
   position  Int      @default(0)
   status    String   @default("active") // active | done | dropped
   sourceId  String?
@@ -168,24 +172,25 @@ model Task {
   @@index([userId])
   @@index([createdAt])
   @@index([status, updatedAt])
+  @@index([userId, column, status])
 }
 
 // 记忆节点 - 图谱
 model Memory {
-  id              String   @id @default(cuid())
-  type            String   // idea | conversation | cognition
-  ideaId          String?
-  conversationId  String?
-  cognitionId     String?
-  content         String   @db.Text
+  id             String   @id @default(cuid())
+  type           String // idea | conversation | cognition
+  ideaId         String?
+  conversationId String?
+  cognitionId    String?
+  content        String   @db.Text
   // 独立标签字段：用户自定义的显示标签，PATCH 时仅更新此字段，不再覆盖源实体内容
-  label           String?  @db.VarChar(500)
-  embedding       Bytes?   @db.LongBlob
-  connections     Json     @default("[]") // [memoryId, ...]
-  strength        Float    @default(1.0)
-  userId          String?
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  label          String?  @db.VarChar(500)
+  embedding      Bytes?   @db.LongBlob
+  connections    Json     @default("[]") // [memoryId, ...]
+  strength       Float    @default(1.0)
+  userId         String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 
   idea         Idea?         @relation(fields: [ideaId], references: [id], onDelete: SetNull)
   conversation Conversation? @relation(fields: [conversationId], references: [id], onDelete: SetNull)
@@ -199,18 +204,19 @@ model Memory {
   @@index([ideaId])
   @@index([conversationId])
   @@index([cognitionId])
+  @@index([userId, createdAt])
 }
 
 // 灵感墓地
 model Graveyard {
-  id               String    @id @default(cuid())
-  originalIdeaId   String    @unique
-  reason           String    @db.Text
-  reviveCondition  String    @db.Text
-  abandonedAt      DateTime  @default(now())
-  revivedAt        DateTime?
-  createdAt        DateTime  @default(now())
-  updatedAt        DateTime  @updatedAt
+  id              String    @id @default(cuid())
+  originalIdeaId  String    @unique
+  reason          String    @db.Text
+  reviveCondition String    @db.Text
+  abandonedAt     DateTime  @default(now())
+  revivedAt       DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
 
   idea Idea @relation(fields: [originalIdeaId], references: [id], onDelete: Cascade)
 
@@ -219,16 +225,16 @@ model Graveyard {
 
 // 认知库
 model Cognition {
-  id            String   @id @default(cuid())
-  type          String   // method | experience | prompt
-  content       String   @db.Text
-  source        String   @default("manual") // conversation | idea | manual
-  ideaId        String?
+  id             String   @id @default(cuid())
+  type           String // method | experience | prompt
+  content        String   @db.Text
+  source         String   @default("manual") // conversation | idea | manual
+  ideaId         String?
   conversationId String?
-  tags          Json     @default("[]")
-  userId        String?
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  tags           Json     @default("[]")
+  userId         String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 
   idea         Idea?         @relation(fields: [ideaId], references: [id], onDelete: SetNull)
   conversation Conversation? @relation(fields: [conversationId], references: [id], onDelete: SetNull)
@@ -261,11 +267,11 @@ model DailyFocus {
 }
 
 model DailyFocusItem {
-  id           String  @id @default(cuid())
+  id           String   @id @default(cuid())
   dailyFocusId String
   taskId       String
-  position     Int     @default(0)
-  completed    Boolean @default(false)
+  position     Int      @default(0)
+  completed    Boolean  @default(false)
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
@@ -275,63 +281,64 @@ model DailyFocusItem {
 
 // Skill - 可复用技能模板
 model Skill {
-  id          String   @id @default(cuid())
-  name        String
-  description String   @db.Text
-  category    String   @default("general") // general | finance | report | review | knowledge | meeting | product | custom
-  content     String   @db.LongText        // Markdown 正文（含步骤、提示词模板）
-  parameters  Json     @default("[]")      // 参数定义数组
-  promptTemplate String @db.LongText       // AI 提示词模板（用 {{param}} 占位）
-  source      String   @default("manual")  // manual | imported | ai-generated | marketplace
-  tags        Json     @default("[]")
-  usageCount  Int      @default(0)
-  userId      String?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id             String   @id @default(cuid())
+  name           String
+  description    String   @db.Text
+  category       String   @default("general") // general | finance | report | review | knowledge | meeting | product | custom
+  content        String   @db.LongText // Markdown 正文（含步骤、提示词模板）
+  parameters     Json     @default("[]") // 参数定义数组
+  promptTemplate String   @db.LongText // AI 提示词模板（用 {{param}} 占位）
+  source         String   @default("manual") // manual | imported | ai-generated | marketplace
+  tags           Json     @default("[]")
+  usageCount     Int      @default(0)
+  userId         String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 
   // 公共广场字段
-  isPublic       Boolean   @default(false)  // 是否发布到公共广场
-  publicId       String?   @unique          // 广场全局唯一标识（发布时生成）
-  publishedAt    DateTime?                  // 发布时间
-  downloadCount  Int       @default(0)      // 从广场加载次数
-  ratingAvg      Float     @default(0)      // 广场评分平均（冗余，定期更新）
+  isPublic      Boolean   @default(false) // 是否发布到公共广场
+  publicId      String?   @unique // 广场全局唯一标识（发布时生成）
+  publishedAt   DateTime? // 发布时间
+  downloadCount Int       @default(0) // 从广场加载次数
+  ratingAvg     Float     @default(0) // 广场评分平均（冗余，定期更新）
 
-  user    User?          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user     User?          @relation(fields: [userId], references: [id], onDelete: Cascade)
   versions SkillVersion[]
 
   @@index([category])
   @@index([source])
   @@index([userId])
   @@index([isPublic])
+  @@index([userId, category])
 }
 
 // Skill 版本历史
 model SkillVersion {
-  id          String   @id @default(cuid())
-  skillId     String
-  version     Int      // 版本号，从 1 递增
-  name        String
-  description String   @db.Text
-  category    String
-  content     String   @db.LongText
-  parameters  Json     @default("[]")
-  promptTemplate String @db.LongText
-  tags        Json     @default("[]")
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id             String   @id @default(cuid())
+  skillId        String
+  version        Int // 版本号，从 1 递增
+  name           String
+  description    String   @db.Text
+  category       String
+  content        String   @db.LongText
+  parameters     Json     @default("[]")
+  promptTemplate String   @db.LongText
+  tags           Json     @default("[]")
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 
   skill Skill @relation(fields: [skillId], references: [id], onDelete: Cascade)
 
-  @@index([skillId])
   @@unique([skillId, version])
+  @@index([skillId])
 }
 
 // Skill 评分/评论
 model SkillReview {
   id        String   @id @default(cuid())
-  skillId   String                         // 本地 Skill ID（兼容旧数据）
-  publicId  String?                        // 公共广场技能标识（跨用户聚合评论用）
-  rating    Int      // 1-5 星
+  skillId   String // 本地 Skill ID（兼容旧数据）
+  publicId  String? // 公共广场技能标识（跨用户聚合评论用）
+  rating    Int // 1-5 星
   comment   String   @db.Text
   author    String   @default("匿名用户")
   userId    String?
@@ -348,43 +355,47 @@ model SkillReview {
 
 // 飞书任务（数据库持久化缓存）
 model LarkTask {
-  guid        String   @id
-  summary     String   @db.Text
-  description String   @db.LongText
-  larkCreatedAt DateTime?
-  larkUpdatedAt DateTime?
-  dueAt       DateTime?
-  dueIsAllDay Boolean  @default(false)
-  startAt     DateTime?
-  startIsAllDay Boolean @default(false)
-  url         String   @default("")
-  completed   Boolean  @default(false)
-  completedAt DateTime?
-  status      String   @default("incomplete")
-  priority    Int      @default(0)
-  assignees   Json     @default("[]")
-  collaborators Json  @default("[]")
-  followers   Json     @default("[]")
-  creator     Json?
-  tasklist    Json?
-  members     Json     @default("[]")
-  repeatRule  String   @db.Text
-  location    Json?
-  origin      Json?
-  shortcuts   Json     @default("[]")
-  reminders   Json     @default("[]")
-  attachments Json     @default("[]")
-  customCompleteRule String @db.Text
-  customCompleted Boolean @default(false)
-  originPlugin Json?
-  commentCount Int     @default(0)
-  followerCount Int    @default(0)
-  subtaskCount Int     @default(0)
-  parentTaskGuid String? @db.VarChar(64)
-  syncedAt    DateTime @default(now())
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  guid               String    @id
+  summary            String    @db.Text
+  description        String    @db.LongText
+  larkCreatedAt      DateTime?
+  larkUpdatedAt      DateTime?
+  dueAt              DateTime?
+  dueIsAllDay        Boolean   @default(false)
+  startAt            DateTime?
+  startIsAllDay      Boolean   @default(false)
+  url                String    @default("")
+  completed          Boolean   @default(false)
+  completedAt        DateTime?
+  status             String    @default("incomplete")
+  priority           Int       @default(0)
+  assignees          Json      @default("[]")
+  collaborators      Json      @default("[]")
+  followers          Json      @default("[]")
+  creator            Json?
+  tasklist           Json?
+  members            Json      @default("[]")
+  repeatRule         String    @db.Text
+  location           Json?
+  origin             Json?
+  shortcuts          Json      @default("[]")
+  reminders          Json      @default("[]")
+  attachments        Json      @default("[]")
+  customCompleteRule String    @db.Text
+  customCompleted    Boolean   @default(false)
+  originPlugin       Json?
+  commentCount       Int       @default(0)
+  followerCount      Int       @default(0)
+  subtaskCount       Int       @default(0)
+  parentTaskGuid     String?   @db.VarChar(64)
+  syncedAt           DateTime  @default(now())
+  userId             String?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
 
+  user User? @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
   @@index([completed])
   @@index([status])
   @@index([dueAt])
@@ -394,16 +405,20 @@ model LarkTask {
 
 // 飞书任务评论（数据库持久化，替代本地文件存储）
 model LarkTaskComment {
-  id        String   @id @default(cuid())
-  taskGuid  String   @db.VarChar(64)
-  content   String   @db.Text
-  creatorId String?  @db.VarChar(64)
-  creatorName String? @db.VarChar(100)
-  source    String   @default("local") // local | lark
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id          String   @id @default(cuid())
+  taskGuid    String   @db.VarChar(64)
+  content     String   @db.Text
+  creatorId   String?  @db.VarChar(64)
+  creatorName String?  @db.VarChar(100)
+  source      String   @default("local") // local | lark
+  userId      String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  user User? @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([taskGuid])
+  @@index([userId])
   @@index([createdAt])
 }
 
@@ -416,140 +431,142 @@ model LarkWebhookEvent {
   summary   String?  @db.Text
   raw       Json?
   processed Boolean  @default(false)
+  userId    String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  user User? @relation(fields: [userId], references: [id], onDelete: Cascade)
+
   @@index([eventType])
   @@index([taskGuid])
+  @@index([userId])
   @@index([createdAt])
 }
 
 // AI 助理设置
 model AISetting {
-  id              String   @id @default(cuid())
-  assistantName   String   @default("Lynn")
+  id               String    @id @default("default")
+  assistantName    String    @default("Lynn")
   // 自定义头像 URL（为空则使用默认 Bot 图标）
-  avatarUrl       String?  @db.VarChar(500)
+  avatarUrl        String?   @db.VarChar(500)
   // 默认 Emoji 头像（无 URL 时使用，移动端/Web端同步）
-  assistantAvatar String   @default("🤖") @db.VarChar(16)
+  assistantAvatar  String    @default("🤖") @db.VarChar(16)
   // 聊天风格描述（如"幽默、简洁、用emoji"），注入 system prompt
-  personaStyle    String?  @db.Text
+  personaStyle     String?   @db.Text
   // 蒸馏的真人聊天风格（从聊天记录提取的风格特征）
-  distilledStyle  String?  @db.LongText
+  distilledStyle   String?   @db.LongText
   // 风格强度（0.0-1.0，控制蒸馏风格对 AI 回复的影响程度，默认 0.7）
-  styleStrength   Float    @default(0.7)
+  styleStrength    Float     @default(0.7)
   // 音色复刻：克隆后的 voice_id（MiMo TTS VoiceClone 返回）
-  clonedVoiceId   String?  @db.VarChar(255)
-  clonedVoiceName String?  @db.VarChar(100)
-  clonedAt        DateTime?
+  clonedVoiceId    String?   @db.VarChar(255)
+  clonedVoiceName  String?   @db.VarChar(100)
+  clonedAt         DateTime?
   // 默认 TTS 音色（未复刻时使用 mimo_default）
-  defaultVoice    String   @default("mimo_default")
+  defaultVoice     String    @default("mimo_default")
   // 是否开启语音自动播报（AI回复后自动朗读）
-  autoSpeak       Boolean  @default(false)
+  autoSpeak        Boolean   @default(false)
   // 是否开启全双工语音对话模式
-  voiceMode       Boolean  @default(false)
+  voiceMode        Boolean   @default(false)
   // 飞书通知：是否启用紧急通知
-  feishuNotify    Boolean  @default(false)
+  feishuNotify     Boolean   @default(false)
   // Hermes 接管模式：开启后 AI 助理由 Hermes Agent 驱动（持久化记忆 + 持续学习 + 自动成长）
-  hermesTakeover  Boolean  @default(true)
+  hermesTakeover   Boolean   @default(true)
   // Hermes 主动汇报：开启后 Hermes Cron 定时分析用户数据并推送汇报（模式 C：持续工作/主动汇报/跨平台响应）
-  hermesAutoReport Boolean @default(true)
+  hermesAutoReport Boolean   @default(true)
   // Hermes 主动汇报 cron 表达式（默认每天 9:00）
-  hermesReportCron String  @default("0 9 * * *") @db.VarChar(64)
-  updatedAt       DateTime @updatedAt
+  hermesReportCron String    @default("0 9 * * *") @db.VarChar(64)
+  updatedAt        DateTime  @updatedAt
 
   // LLM Provider 配置（数据库存储，优先级高于环境变量）
   // 留空时回退到 .env 中的 DEEPSEEK_API_KEY / MIMO_API_KEY 等
-  defaultProvider String?  @db.VarChar(32) // deepseek | mimo | openai
+  defaultProvider  String? @db.VarChar(32) // deepseek | mimo | openai
   // DeepSeek
-  deepseekApiKey  String?  @db.VarChar(255)
-  deepseekBaseUrl String?  @db.VarChar(255)
-  deepseekModel   String?  @db.VarChar(64)
+  deepseekApiKey   String? @db.VarChar(255)
+  deepseekBaseUrl  String? @db.VarChar(255)
+  deepseekModel    String? @db.VarChar(64)
   // MiMo
-  mimoApiKey      String?  @db.VarChar(255)
-  mimoBaseUrl     String?  @db.VarChar(255)
-  mimoModel       String?  @db.VarChar(64)
+  mimoApiKey       String? @db.VarChar(255)
+  mimoBaseUrl      String? @db.VarChar(255)
+  mimoModel        String? @db.VarChar(64)
   // Embedding
-  embeddingApiKey String?  @db.VarChar(255)
+  embeddingApiKey  String? @db.VarChar(255)
   embeddingBaseUrl String? @db.VarChar(255)
-  embeddingModel  String?  @db.VarChar(64)
+  embeddingModel   String? @db.VarChar(64)
 
   // 飞书自定义机器人 Webhook 配置（从 localStorage 迁移到数据库持久化）
   larkWebhookUrl   String? @db.VarChar(500)
   larkWebhookToken String? @db.VarChar(255)
-
-  @@unique([id])
 }
 
 // 职业 AI 工作空间（按 12 岗位差异化配置）
 // 由 admin 角色统一管理；用户登录后按其 Role.profession 自动加载对应工作空间
 model ProfessionWorkspace {
-  id            String   @id @default(cuid())
+  id          String  @id @default(cuid())
   // 职业 key（唯一），如 pm / designer / frontend / backend / data / operations / marketing / hr / finance / project / creator / founder
-  profession    String   @unique @db.VarChar(64)
+  profession  String  @unique @db.VarChar(64)
   // 职业显示名
-  displayName   String   @db.VarChar(100)
+  displayName String  @db.VarChar(100)
   // 职业描述（用于 system prompt 注入）
-  description   String?  @db.Text
+  description String? @db.Text
   // 职业图标（emoji，如 📊）
-  icon          String   @default("💼") @db.VarChar(16)
+  icon        String  @default("💼") @db.VarChar(16)
   // 颜色主题 key（orange/cognition/campaign/graveyard/northstar）
-  accentColor   String   @default("orange") @db.VarChar(32)
+  accentColor String  @default("orange") @db.VarChar(32)
 
   // ============ 4 个定制维度 ============
 
   // 1) 快捷技能可见集（JSON 数组：[{key,label,description,icon,message}]）
   // 留空/null = 显示全部 QUICK_COMMANDS
-  quickCommands Json     @default("[]")
+  quickCommands Json @default("[]")
 
   // 2) System Prompt 模板（追加到 AI_ASSISTANT_SYSTEM_PROMPT 之后）
   // 留空/null = 不追加，使用默认系统提示词
-  systemPrompt  String?  @db.LongText
+  systemPrompt String? @db.LongText
 
   // 3) 默认 LLM Provider + Model + 推理模式
   // 留空/null = 使用全局默认（.env DEFAULT_LLM_PROVIDER）
-  defaultProvider     String?  @db.VarChar(32) // deepseek | mimo | openai
-  defaultModel        String?  @db.VarChar(64)
+  defaultProvider      String? @db.VarChar(32) // deepseek | mimo | openai
+  defaultModel         String? @db.VarChar(64)
   defaultReasoningMode String? @db.VarChar(32) // standard | thinking | fast
 
   // 3.1) 允许使用的 AI 大模型列表（JSON 字符串数组：["deepseek","mimo"]）
   // 留空/null = 不限制（用户可使用所有已配置的 provider）
   // 非空 = 仅允许用户使用列表中的 provider（用户自配 Key 时也受此限制）
-  allowedProviders    Json     @default("[]")
+  allowedProviders Json @default("[]")
 
   // 4) 可见 AI 工具白名单（JSON 字符串数组：["searchIdeas","createTask", ...]）
   // 留空/null = 全部工具可用；非空则只允许调用白名单内的工具
-  allowedTools  Json     @default("[]")
+  allowedTools Json @default("[]")
 
   // 是否启用（false 时该职业不应用工作空间，行为同未配置）
-  enabled       Boolean  @default(true)
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  enabled   Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 // AI 巡检规则（可配置）
 model PatrolRule {
-  id            String   @id @default(cuid())
-  name          String   @db.VarChar(200)
-  description   String   @db.Text
+  id             String    @id @default(cuid())
+  name           String    @db.VarChar(200)
+  description    String    @db.Text
   // 巡检对象：inbox | board | graveyard | all
-  scope         String   @default("graveyard")
+  scope          String    @default("graveyard")
   // 触发时间：HH:mm 格式（如 "10:00"），或 "manual" 表示仅手动
-  triggerTime   String   @default("10:00") @db.VarChar(8)
+  triggerTime    String    @default("10:00") @db.VarChar(8)
   // 巡检提示词（AI 用此 prompt 分析数据）
-  prompt        String   @db.LongText
+  prompt         String    @db.LongText
   // 匹配阈值（embedding 相似度阈值，0-1）
-  threshold     Float    @default(0.75)
+  threshold      Float     @default(0.75)
   // 通知渠道 JSON：["toast", "notification", "push", "feishu"]
-  notifyChannels Json    @default("[\"toast\",\"notification\"]")
+  notifyChannels Json      @default("[\"toast\",\"notification\"]")
   // 是否启用
-  enabled       Boolean  @default(true)
-  lastRunAt     DateTime?
-  userId        String?
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  enabled        Boolean   @default(true)
+  lastRunAt      DateTime?
+  userId         String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
 
-  user User? @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user User?       @relation(fields: [userId], references: [id], onDelete: Cascade)
   logs PatrolLog[]
 
   @@index([scope])
@@ -560,22 +577,22 @@ model PatrolRule {
 
 // AI 巡检执行日志
 model PatrolLog {
-  id          String   @id @default(cuid())
-  ruleId      String
-  ruleName    String   @db.VarChar(200)
-  scope       String   @db.VarChar(32)
-  success     Boolean
+  id         String    @id @default(cuid())
+  ruleId     String
+  ruleName   String    @db.VarChar(200)
+  scope      String    @db.VarChar(32)
+  success    Boolean
   // 巡检结果 JSON：[{itemId, content, matched, reason, suggestion}]
-  results     Json     @default("[]")
+  results    Json      @default("[]")
   // 命中数
-  hitCount    Int      @default(0)
+  hitCount   Int       @default(0)
   // 耗时（毫秒）
-  durationMs  Int      @default(0)
-  error       String?  @db.Text
-  startedAt   DateTime @default(now())
-  finishedAt  DateTime?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  durationMs Int       @default(0)
+  error      String?   @db.Text
+  startedAt  DateTime  @default(now())
+  finishedAt DateTime?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
 
   rule PatrolRule @relation(fields: [ruleId], references: [id], onDelete: Cascade)
 
@@ -590,7 +607,7 @@ model EmbeddingCache {
   textHash  String   @unique @db.VarChar(64) // SHA-256 hex
   embedding Bytes    @db.LongBlob
   provider  String   @default("tfidf") // ai | tfidf
-  dim       Int      // 向量维度
+  dim       Int // 向量维度
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -614,46 +631,48 @@ model ChatSession {
   @@index([pinned])
   @@index([updatedAt])
   @@index([userId])
+  @@index([userId, updatedAt])
 }
 
 // AI 助理对话消息
 model ChatMessage {
-  id        String   @id @default(cuid())
-  sessionId String   @db.VarChar(64)
-  role      String   @db.VarChar(16) // user | assistant | system
-  content   String   @db.LongText
-  images    Json?    // 图片 URL 数组（多模态）
-  provider  String?  @db.VarChar(32) // 生成该消息的 provider
-  model     String?  @db.VarChar(64)
-  tokens    Int?     // 消耗的 token 数
-  durationMs Int?    // 生成耗时（毫秒）
+  id             String   @id @default(cuid())
+  sessionId      String   @db.VarChar(64)
+  role           String   @db.VarChar(16) // user | assistant | system
+  content        String   @db.LongText
+  images         Json? // 图片 URL 数组（多模态）
+  provider       String?  @db.VarChar(32) // 生成该消息的 provider
+  model          String?  @db.VarChar(64)
+  tokens         Int? // 消耗的 token 数
+  durationMs     Int? // 生成耗时（毫秒）
   // 用户标注反馈：good=好回复 | bad=不满意的回复（用于 HermesAgent 自主学习纠正）
-  feedback       String? @db.VarChar(8)
-  feedbackReason String? @db.VarChar(8)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  feedback       String?  @db.VarChar(8)
+  feedbackReason String?  @db.VarChar(8)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 
   session ChatSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
 
   @@index([sessionId])
   @@index([createdAt])
+  @@index([sessionId, createdAt])
 }
 
 // AI 工作流（从 .ai-flows.json 迁移到 MySQL）
 model Flow {
-  id          String   @id @default(cuid())
-  name        String   @db.VarChar(200)
-  description String   @db.Text
-  nodes       Json     // FlowNode[]
-  edges       Json     @default("[]") // FlowEdge[]
-  enabled     Boolean  @default(true)
+  id          String    @id @default(cuid())
+  name        String    @db.VarChar(200)
+  description String    @db.Text
+  nodes       Json // FlowNode[]
+  edges       Json      @default("[]") // FlowEdge[]
+  enabled     Boolean   @default(true)
   lastRun     DateTime?
   userId      String?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
 
-  user        User?            @relation(fields: [userId], references: [id], onDelete: Cascade)
-  executions  FlowExecution[]
+  user       User?           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  executions FlowExecution[]
 
   @@index([userId])
   @@index([enabled])
@@ -661,21 +680,21 @@ model Flow {
 
 // 工作流执行历史
 model FlowExecution {
-  id              String   @id @default(cuid())
+  id              String    @id @default(cuid())
   flowId          String
-  flowName        String   @db.VarChar(200)
+  flowName        String    @db.VarChar(200)
   success         Boolean
-  startedAt       DateTime @default(now())
+  startedAt       DateTime  @default(now())
   finishedAt      DateTime?
-  totalDurationMs Int      @default(0)
-  finalOutput     String?  @db.LongText
-  nodeResults     Json     // 节点执行结果数组
-  error           String?  @db.Text
+  totalDurationMs Int       @default(0)
+  finalOutput     String?   @db.LongText
+  nodeResults     Json // 节点执行结果数组
+  error           String?   @db.Text
   userId          String?
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
 
-  flow Flow @relation(fields: [flowId], references: [id], onDelete: Cascade)
+  flow Flow  @relation(fields: [flowId], references: [id], onDelete: Cascade)
   user User? @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([flowId])
@@ -687,7 +706,7 @@ model FlowExecution {
 model PushSubscription {
   id        String   @id @default(cuid())
   endpoint  String   @unique
-  keys      Json     // { p256dh, auth }
+  keys      Json // { p256dh, auth }
   userId    String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -700,28 +719,28 @@ model PushSubscription {
 // Hermes Agent 配置（每用户唯一）
 // 用于一键部署本地 Hermes Agent，让用户通过 Agent 操控自己的电脑
 model HermesConfig {
-  id            String   @id @default(cuid())
-  userId        String   @unique
+  id            String    @id @default(cuid())
+  userId        String    @unique
   // 是否启用 Hermes 集成
-  enabled       Boolean  @default(false)
+  enabled       Boolean   @default(false)
   // Hermes Agent Dashboard 端点，默认 http://localhost:9119
-  endpoint      String   @default("http://localhost:9119") @db.VarChar(255)
+  endpoint      String    @default("http://localhost:9119") @db.VarChar(255)
   // API Key（如 Hermes 启用了鉴权）
-  apiKey        String?  @db.VarChar(255)
+  apiKey        String?   @db.VarChar(255)
   // 是否随系统自动启动
-  autoStart     Boolean  @default(false)
+  autoStart     Boolean   @default(false)
   // 启用的能力集合：["computer_use", "shell", "mcp", "skills_hub"]
-  capabilities  Json     @default("[\"computer_use\",\"shell\",\"skills_hub\"]")
+  capabilities  Json      @default("[\"computer_use\",\"shell\",\"skills_hub\"]")
   // 安装时间（pip install hermes-agent 成功后写入）
   installedAt   DateTime?
   // 安装状态：not_installed | installing | installed | running | error
-  status        String   @default("not_installed") @db.VarChar(32)
+  status        String    @default("not_installed") @db.VarChar(32)
   // 最近一次状态检查时间
   lastCheckedAt DateTime?
   // 安装/运行错误信息（status=error 时）
-  lastError     String?  @db.Text
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  lastError     String?   @db.Text
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -784,26 +803,26 @@ model SkillFavorite {
 
 // 技能执行历史（记录用户通过助理/工作流调用技能的执行记录）
 model SkillExecution {
-  id          String   @id @default(cuid())
-  userId      String
+  id         String   @id @default(cuid())
+  userId     String
   // 技能 ID（本地 Skill 表或 Hermes Skills Hub 的技能 ID）
-  skillId     String   @db.VarChar(100)
-  skillName   String   @db.VarChar(200)
+  skillId    String   @db.VarChar(100)
+  skillName  String   @db.VarChar(200)
   // 来源：local | hermes
-  source      String   @default("local") @db.VarChar(16)
+  source     String   @default("local") @db.VarChar(16)
   // 调用来源：assistant | flow
-  trigger     String   @default("assistant") @db.VarChar(16)
+  trigger    String   @default("assistant") @db.VarChar(16)
   // 调用参数 JSON
-  parameters  Json     @default("{}")
+  parameters Json     @default("{}")
   // 执行结果（完整输出）
-  result      String   @db.LongText
-  success     Boolean  @default(true)
+  result     String   @db.LongText
+  success    Boolean  @default(true)
   // 执行耗时（毫秒）
-  durationMs  Int      @default(0)
+  durationMs Int      @default(0)
   // 错误信息（success=false 时）
-  error       String?  @db.Text
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  error      String?  @db.Text
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -842,27 +861,28 @@ model PcSession {
 
 // 远程指令：安卓端/Web端发往 PC 端的指令记录
 model RemoteCommand {
-  id            String   @id @default(cuid())
-  commandId     String   @unique @db.VarChar(100)
-  userId        String
+  id             String    @id @default(cuid())
+  commandId      String    @unique @db.VarChar(100)
+  userId         String
   // 指令内容（自然语言）
-  command       String   @db.Text
+  command        String    @db.Text
   // 目标设备 ID（多 PC 时指定，空则广播）
-  targetDeviceId String? @db.VarChar(100)
+  targetDeviceId String?   @db.VarChar(100)
   // 来源端：web | android | desktop
-  source        String   @default("web") @db.VarChar(16)
+  source         String    @default("web") @db.VarChar(16)
   // 执行状态：pending | executing | completed | failed | timeout
-  status        String   @default("pending") @db.VarChar(16)
+  status         String    @default("pending") @db.VarChar(16)
   // 路由类型：cloud | local:browser | local:desktop | local:file | local:shell | hybrid
-  route         String?  @db.VarChar(32)
+  route          String?   @db.VarChar(32)
   // 执行结果 JSON
-  result        Json?
+  result         Json?
   // 错误信息
-  error         String?  @db.Text
+  error          String?   @db.Text
   // 执行耗时（毫秒）
-  durationMs    Int      @default(0)
-  createdAt     DateTime @default(now())
-  completedAt   DateTime?
+  durationMs     Int       @default(0)
+  createdAt      DateTime  @default(now())
+  completedAt    DateTime?
+  updatedAt      DateTime  @updatedAt
 
   @@index([userId, status])
   @@index([createdAt])
@@ -872,30 +892,31 @@ model RemoteCommand {
 // Agent 操作审计日志：所有本地操作均记录（L2/L3 必记，L1 可选）
 // 用于事后追溯、安全审计、行为分析
 model AgentAuditLog {
-  id          String   @id @default(cuid())
-  userId      String
+  id         String   @id @default(cuid())
+  userId     String
   // 操作类型：browser_open | browser_extract | desktop_open_app | desktop_screenshot
   //         | file_read | file_write | file_list | shell_exec | cloud_api
-  action      String   @db.VarChar(64)
+  action     String   @db.VarChar(64)
   // 权限等级：L1 | L2 | L3
-  level       String   @db.VarChar(8)
+  level      String   @db.VarChar(8)
   // 操作详情（命令、路径、参数等）
-  detail      String   @db.Text
+  detail     String   @db.Text
   // 授权模式：approve | once | free
-  authMode    String   @db.VarChar(16)
+  authMode   String   @db.VarChar(16)
   // 是否经过用户审批
-  approved    Boolean  @default(false)
+  approved   Boolean  @default(false)
   // 执行结果：success | failed | denied | timeout
-  result      String   @db.VarChar(16)
+  result     String   @db.VarChar(16)
   // 来源端：web | android | desktop
-  source      String   @default("desktop") @db.VarChar(16)
+  source     String   @default("desktop") @db.VarChar(16)
   // 来源设备名
-  deviceName  String?  @db.VarChar(100)
+  deviceName String?  @db.VarChar(100)
   // 耗时（毫秒）
-  durationMs  Int      @default(0)
+  durationMs Int      @default(0)
   // 错误信息
-  error       String?  @db.Text
-  createdAt   DateTime @default(now())
+  error      String?  @db.Text
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
 
   @@index([userId, createdAt])
   @@index([action])

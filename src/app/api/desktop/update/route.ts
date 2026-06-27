@@ -23,7 +23,7 @@
 //     "platforms": {
 //       "windows-x86_64": {
 //         "signature": "",
-//         "url": "https://gitee.com/.../LynnHub_1.0.1_x64-setup.exe"
+//         "url": "https://gitee.com/.../Lynx_1.0.1_x64-setup.exe"
 //       }
 //     }
 //   }
@@ -83,7 +83,7 @@ export async function GET(req: NextRequest) {
     const downloadUrl = process.env.DESKTOP_DOWNLOAD_URL || "";
     const signature = process.env.DESKTOP_SIGNATURE || "";
     const releaseNotes =
-      process.env.DESKTOP_RELEASE_NOTES || "LynnHub 桌面端更新";
+      process.env.DESKTOP_RELEASE_NOTES || "Lynx 桌面端更新";
 
     logger.info({ currentVersion, target, latestVersion }, "检查桌面端更新");
 

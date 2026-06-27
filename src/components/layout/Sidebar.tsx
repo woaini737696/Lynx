@@ -213,9 +213,9 @@ export function Sidebar() {
             )}
           >
             <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-primary text-sm font-bold text-primary-foreground shadow-sm">
-              L
+              X
             </div>
-            <span className="text-sm font-semibold tracking-tight">LynnHub</span>
+            <span className="text-sm font-semibold tracking-tight">Lynx</span>
           </Link>
 
           <button

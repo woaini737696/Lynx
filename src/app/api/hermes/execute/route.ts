@@ -73,7 +73,7 @@ export async function POST(req: NextRequest) {
       },
     });
 
-    // 任务成功后自动同步 /learn 生成的 skills 到 LynnHub（异步，不阻塞响应）
+    // 任务成功后自动同步 /learn 生成的 skills 到 Lynx（异步，不阻塞响应）
     if (result.success) {
       syncLearnedSkills(auth.user.id).catch((e) => {
         logger.warn({ err: e }, "同步 Hermes learned skills 失败（非阻塞）");

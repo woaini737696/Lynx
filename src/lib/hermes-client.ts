@@ -457,7 +457,7 @@ export async function executeHermesTask(
   if (errLower.includes("no final response") || errLower.includes("no final")) {
     friendlyError =
       "Hermes 未产生最终响应——通常是因为 LLM 模型未配置。\n" +
-      "请点击「一键配置模型」按钮（会自动复用 LynnHub 的 DeepSeek API Key），配置后重试。";
+      "请点击「一键配置模型」按钮（会自动复用 Lynx 的 DeepSeek API Key），配置后重试。";
   } else if (errLower.includes("timeout") || errLower.includes("etimedout")) {
     friendlyError = `任务执行超时（${timeoutMs / 1000}秒）。可在执行时增加 timeout 参数。`;
   } else if (errLower.includes("not found") || errLower.includes("enoent")) {
@@ -608,7 +608,7 @@ function getHermesConfigPath(): string {
 }
 
 /**
- * 自动配置 Hermes 的 LLM 模型（复用 LynnHub 的 DeepSeek / MiMo API Key）
+ * 自动配置 Hermes 的 LLM 模型（复用 Lynx 的 DeepSeek / MiMo API Key）
  *
  * 根因修复：Hermes 安装后默认未配置任何 LLM provider/model，
  * 执行 `-z` 任务时会因 "no model" 产生 "no final response was produced"。
@@ -689,7 +689,7 @@ export async function configureHermesModel(
       const providerName = actualProvider === "deepseek" ? "DeepSeek" : "MiMo";
       return {
         success: false,
-        error: `未找到 ${providerName} API Key。请在 LynnHub 根目录 .env 设置 ${envPrefix}_API_KEY，或在 AI 助理设置中配置 ${providerName} 密钥。`,
+        error: `未找到 ${providerName} API Key。请在 Lynx 根目录 .env 设置 ${envPrefix}_API_KEY，或在 AI 助理设置中配置 ${providerName} 密钥。`,
       };
     }
 
@@ -1083,16 +1083,16 @@ export async function stopHermesAgent(port: number = 9119): Promise<{
   }
 }
 
-// ============ /learn 回写：Hermes 自动学习成果同步到 LynnHub ============
+// ============ /learn 回写：Hermes 自动学习成果同步到 Lynx ============
 
 /**
- * 扫描用户 profile/skills/ 目录，将 Hermes /learn 自动生成的 skill 回写到 LynnHub Skill 表
+ * 扫描用户 profile/skills/ 目录，将 Hermes /learn 自动生成的 skill 回写到 Lynx Skill 表
  *
  * Hermes 执行 `--learn` 后，会在 profile/skills/ 下生成 YAML/MD 格式的 skill 文件。
  * 本函数：
  * 1. 扫描 profile/skills/ 目录
  * 2. 解析每个 skill 文件（YAML front matter + MD 正文）
- * 3. 与 LynnHub Skill 表比对（按 name + userId 去重）
+ * 3. 与 Lynx Skill 表比对（按 name + userId 去重）
  * 4. 新增的 skill 写入数据库，source = "hermes-learned"
  *
  * @returns 新增的 skill 数量 + 详情
@@ -1134,7 +1134,7 @@ export async function syncLearnedSkills(userId: string): Promise<{
         });
         if (existing) continue;
 
-        // 写入 LynnHub Skill 表
+        // 写入 Lynx Skill 表
         const skill = await prisma.skill.create({
           data: {
             name: parsed.name,
@@ -1243,10 +1243,10 @@ export async function listLearnedSkills(userId: string): Promise<{
   }
 }
 
-// ============ Skills 双向同步：LynnHub ↔ Hermes skills 目录 ============
+// ============ Skills 双向同步：Lynx ↔ Hermes skills 目录 ============
 
 /**
- * 导出 LynnHub Skill 到 Hermes skills 目录（LynnHub → Hermes）
+ * 导出 Lynx Skill 到 Hermes skills 目录（Lynx → Hermes）
  *
  * 将 Skill 写为 YAML front matter + Markdown 格式，
  * 放入 profile/skills/<skill-name>.md
@@ -1302,7 +1302,7 @@ export async function exportSkillToHermes(
 }
 
 /**
- * 从 Hermes skills 目录导入 skill 到 LynnHub（Hermes → LynnHub）
+ * 从 Hermes skills 目录导入 skill 到 Lynx（Hermes → Lynx）
  */
 export async function importSkillFromHermes(
   fileName: string,
@@ -1355,7 +1355,7 @@ export async function importSkillFromHermes(
  * 路径：~/.lynnhub/hermes-profiles/<userId>/hermes/skills/
  *
  * 这些是 YAML front matter + Markdown 文件，Hermes 可直接加载使用，
- * 让 Agent 一上线就具备 LynnHub 核心操作能力（任务管理、灵感捕获、记忆搜索等）。
+ * 让 Agent 一上线就具备 Lynx 核心操作能力（任务管理、灵感捕获、记忆搜索等）。
  *
  * 已存在的同名文件会被覆盖（保持最新）。
  */
@@ -1369,10 +1369,10 @@ const DEFAULT_SKILLS: Array<{
 }> = [
   {
     fileName: "lynnhub-overview.md",
-    name: "LynnHub 概览",
-    description: "LynnHub 系统结构总览：灵感、任务、记忆、认知、技能五大模块",
+    name: "Lynx 概览",
+    description: "Lynx 系统结构总览：灵感、任务、记忆、认知、技能五大模块",
     tags: ["lynnhub", "概览"],
-    prompt: `你是 LynnHub 系统的智能助手。LynnHub 由五大模块组成：
+    prompt: `你是 Lynx 系统的智能助手。Lynx 由五大模块组成：
 1. 灵感（Ideas）：捕获、归类、孵化想法
 2. 任务（Tasks）：创建、跟踪、完成任务
 3. 记忆（Memory）：持久化存储跨会话上下文
@@ -1380,9 +1380,9 @@ const DEFAULT_SKILLS: Array<{
 5. 技能（Skills）：可复用的提示词模板与自动化能力
 
 当用户询问系统功能时，按此结构介绍；当用户需求不明确时，先判断属于哪个模块再行动。`,
-    body: `# LynnHub 概览
+    body: `# Lynx 概览
 
-LynnHub 是一个个人智能中台，融合「灵感管理 + 任务执行 + 持久化记忆 + AI 巡检」。
+Lynx 是一个个人智能中台，融合「灵感管理 + 任务执行 + 持久化记忆 + AI 巡检」。
 
 ## 五大模块
 
@@ -1408,7 +1408,7 @@ LynnHub 是一个个人智能中台，融合「灵感管理 + 任务执行 + 持
 
 ### 5. 技能（Skills）
 - 提示词模板库
-- 双向同步 LynnHub ↔ Hermes skills 目录
+- 双向同步 Lynx ↔ Hermes skills 目录
 - /learn 自动生成新技能
 
 ## 典型工作流
@@ -1426,7 +1426,7 @@ LynnHub 是一个个人智能中台，融合「灵感管理 + 任务执行 + 持
 3. 完成任务：标记完成并记录完成备注
 4. 拆分任务：复杂任务拆为子任务
 
-任务数据通过 LynnHub API（/api/tasks）管理，返回 JSON。`,
+任务数据通过 Lynx API（/api/tasks）管理，返回 JSON。`,
     body: `# 任务管理技能
 
 ## 创建任务
@@ -1590,7 +1590,7 @@ LynnHub 是一个个人智能中台，融合「灵感管理 + 任务执行 + 持
 4. 命中阈值（默认 0.75）的记录写入巡检日志
 5. 按配置的 notifyChannels 推送通知
 
-巡检是 LynnHub 的"主动认知"能力，让系统自驱发现问题。`,
+巡检是 Lynx 的"主动认知"能力，让系统自驱发现问题。`,
     body: `# 巡检检查技能
 
 ## 巡检规则
@@ -1864,7 +1864,7 @@ export async function getUserProfileStatus(userId: string): Promise<{
  *
  * 模式 C 核心能力：持久化记忆 + 跨会话上下文
  * - 从 Hermes profile 搜索相关记忆（FTS5 全文搜索）
- * - 从 LynnHub 数据库获取看板/灵感摘要
+ * - 从 Lynx 数据库获取看板/灵感摘要
  * - 将上下文注入 prompt，让 Hermes 能引用之前的对话和任务
  */
 export async function buildAssistantPrompt(
@@ -1887,7 +1887,7 @@ export async function buildAssistantPrompt(
     // 记忆搜索失败不阻塞
   }
 
-  // 2. 注入 LynnHub 看板摘要（让 Hermes 知道用户当前的任务状态）
+  // 2. 注入 Lynx 看板摘要（让 Hermes 知道用户当前的任务状态）
   try {
     const [activeTasks, recentIdeas] = await Promise.all([
       prisma.task.count({ where: { userId, status: "active" } }),
@@ -1913,7 +1913,7 @@ export async function buildAssistantPrompt(
 
   // 5. 行为指令
   parts.push(`## 行为要求
-- 你是 LynnHub 的 AI 超级助理，由 Hermes Agent 驱动，拥有持久化记忆和持续学习能力
+- 你是 Lynx 的 AI 超级助理，由 Hermes Agent 驱动，拥有持久化记忆和持续学习能力
 - 基于你之前的记忆和上下文回应用户，能引用之前的对话内容
 - 如果需要操作系统、执行命令、访问数据，直接使用你的工具能力完成
 - 任务完成后会自动学习（--learn），将新技能保存到你的 profile
@@ -2244,7 +2244,7 @@ ${dataSummary}
 /**
  * Hermes Cron 接管 AI 巡检
  *
- * 将 LynnHub 的 PatrolRule 转换为 Hermes Cron 任务
+ * 将 Lynx 的 PatrolRule 转换为 Hermes Cron 任务
  * Hermes 会按照 cron 表达式自动执行巡检，并主动汇报结果
  */
 export async function takeoverPatrolWithHermes(
@@ -2386,10 +2386,10 @@ ${truncatedOutput}`;
   };
 }
 
-// ============ LynnHub ↔ Hermes 记忆双向同步 ============
+// ============ Lynx ↔ Hermes 记忆双向同步 ============
 
 /**
- * 将 Hermes profile/memory/ 目录下的记忆文件同步到 LynnHub Memory 表（Hermes → LynnHub）
+ * 将 Hermes profile/memory/ 目录下的记忆文件同步到 Lynx Memory 表（Hermes → Lynx）
  *
  * 读取 ~/.lynnhub/hermes-profiles/<userId>/hermes/memory/ 下的所有文本文件，
  * 为每个文件创建一条 Memory 记录（type: "hermes"），并生成 embedding。
@@ -2397,7 +2397,7 @@ ${truncatedOutput}`;
  *
  * @returns { success, synced, skipped }
  */
-export async function syncHermesMemoryToLynnHub(userId: string): Promise<{
+export async function syncHermesMemoryToLynx(userId: string): Promise<{
   success: boolean;
   synced: number;
   skipped: number;
@@ -2483,7 +2483,7 @@ export async function syncHermesMemoryToLynnHub(userId: string): Promise<{
       );
     }
 
-    logger.info({ userId, synced, skipped }, "Hermes 记忆同步到 LynnHub 完成");
+    logger.info({ userId, synced, skipped }, "Hermes 记忆同步到 Lynx 完成");
     return { success: true, synced, skipped };
   } catch (e) {
     return { success: false, synced: 0, skipped: 0, error: (e as Error).message };
@@ -2491,11 +2491,11 @@ export async function syncHermesMemoryToLynnHub(userId: string): Promise<{
 }
 
 /**
- * 将 LynnHub Memory 表中的记忆导出到 Hermes profile/memory/ 目录（LynnHub → Hermes）
+ * 将 Lynx Memory 表中的记忆导出到 Hermes profile/memory/ 目录（Lynx → Hermes）
  *
  * 读取所有 type 为 idea/conversation/cognition 的 Memory 记录，
  * 为每条记录写入一个文本文件 lynnhub-{type}-{id}.txt 到 Hermes memory 目录。
- * 这让 Hermes Agent 在执行任务时能访问 LynnHub 的记忆。
+ * 这让 Hermes Agent 在执行任务时能访问 Lynx 的记忆。
  *
  * @returns { success, exported }
  */
@@ -2531,11 +2531,11 @@ export async function exportMemoryToHermes(userId: string): Promise<{
         fs.writeFileSync(filePath, m.content, "utf-8");
         exported++;
       } catch (e) {
-        logger.warn({ err: e, fileName }, "写入 LynnHub 记忆到 Hermes 失败，跳过");
+        logger.warn({ err: e, fileName }, "写入 Lynx 记忆到 Hermes 失败，跳过");
       }
     }
 
-    logger.info({ userId, exported }, "LynnHub 记忆导出到 Hermes 完成");
+    logger.info({ userId, exported }, "Lynx 记忆导出到 Hermes 完成");
     return { success: true, exported };
   } catch (e) {
     return { success: false, exported: 0, error: (e as Error).message };

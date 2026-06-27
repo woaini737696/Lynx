@@ -5,6 +5,23 @@
 
 ---
 
+## 迭代索引（最新 10 个）
+
+| 迭代 | 日期 | 任务概要 |
+|------|------|----------|
+| [迭代 43](#迭代-43---2026-06-27) | 2026-06-27 | 完成全部 15 项需求优化与提升建议 |
+| [迭代 42](#迭代-42---2026-06-27) | 2026-06-27 | 全维度代码扫描 + 自动修复 50+ 项 |
+| [迭代 41](#迭代-41---2026-06-27) | 2026-06-27 | 删除接口 + 全局 Loading + 记忆图谱批量管理 + SSE 流式技能生成 |
+| [迭代 40](#迭代-40---2026-06-27) | 2026-06-27 | 端到端验证 + 权限系统深化 + AI 响应速度优化 |
+| [迭代 39](#迭代-39---2026-06-27) | 2026-06-27 | AI 大模型响应速度深度优化 + 权限系统完善 |
+| [迭代 38](#迭代-38---2026-06-27) | 2026-06-27 | 桌面端完整实现 + 词元统计增强 + 系统性能深度优化 |
+| [迭代 37](#迭代-37---2026-06-27) | 2026-06-27 | AI 助理体验全面优化 + 词元统计页面 |
+| [迭代 36](#迭代-36---2026-06-26) | 2026-06-26 | 角色管理 CRUD + 用户管理打通 + 职业工作空间 |
+| [迭代 35](#迭代-35---2026-06-26) | 2026-06-26 | 角色管理按职位分配 + 职业定制 AI 工作空间 |
+| [迭代 34](#迭代-34---2026-06-26) | 2026-06-26 | C 盘数据迁移 + 磁盘使用规范 |
+
+---
+
 ## 迭代 43 - 2026-06-27
 
 ### 任务概要
@@ -492,7 +509,7 @@ AI 大模型响应速度深度优化（全链路流式输出）+ 系统性能优
 ## 迭代 38 - 2026-06-27
 
 ### 任务概要
-桌面端完整实现：Tauri 2.x 桌面端骨架 + HermesAgent 本地化 + 三档授权模式 + 多端协同远程操控 + 安全加固 + 自测验证。
+桌面端完整实现 + 词元统计增强 + 系统性能深度优化 + MySQL 启动规范：Tauri 2.x 桌面端骨架 + HermesAgent 本地化 + 三档授权模式 + 多端协同远程操控 + 词元（Token）显示修复与统计增强（用户切换/排行榜/用户级 AI Key/职业权限）+ 系统性能深度优化 + MySQL 启动规范补充。
 
 ### 完成内容
 
@@ -556,45 +573,23 @@ AI 大模型响应速度深度优化（全链路流式输出）+ 系统性能优
 #### 10. 规范文档更新
 - `DEVELOPMENT_SPEC.md`：新增 §9 桌面端规范（9.1-9.7：架构/HermesAgent本地化/三档授权/多端协同/安全操作/自动更新/开发流程）
 
-### 自测结果
-- **TypeScript 编译**：`npx tsc --noEmit` 对 `src/` 目录零错误 ✓
-- **MySQL 检查**：端口 3306 可达 ✓
-- **Dev server 启动**：`npx next dev -p 5176` → Ready in 2.4s ✓
-- **HTTP 探测**：
-  - `http://localhost:5176/api/health` → 200 ✓
-  - `http://localhost:5176/login` → 200 ✓
-  - `http://localhost:5176/settings/remote-control` → 200（39KB 内容）✓
-- **已知非致命问题**：pino/thread-stream worker.js 偶发模块缺失（日志线程，不影响主服务）
-
-### Commit hash
-6b6fdd0d（已推送至 Gitee origin/master）
-
----
-
-## 迭代 38 - 2026-06-27
-
-### 任务概要
-MySQL 启动规范补充 + start-mysql.ps1 编码修复 + 词元（Token）显示修复与重命名 + 词元统计增强（用户切换/排行榜/用户级 AI Key/职业权限）+ 系统性能深度优化。
-
-### 完成内容
-
-#### 1. 补充 §1.7 规范：dev server 启动前必须确认 MySQL 已运行
+#### 11. 补充 §1.7 规范：dev server 启动前必须确认 MySQL 已运行
 - `DEVELOPMENT_SPEC.md` §1.7 新增 MySQL 启动前置检查（端口 3306 探测 + 失败时禁止启动 dev server）
 - 新增 `.next` 缓存清理步骤（避免 worker.js 模块缺失导致启动失败）
 - 新增 `/login` 探测验证步骤
 
-#### 2. 修复 start-mysql.ps1 中文编码问题
+#### 12. 修复 start-mysql.ps1 中文编码问题
 - PowerShell 脚本中 `Write-Host` 输出中文乱码 → 全部改为英文输出
 - 脚本逻辑保持不变：检测 MySQL 服务 → 启动 `mysqld --datadir=D:/LynnHub/mysql_data --port=3306`
 
-#### 3. 修复 AI 助理词元（Token）显示为 0 的问题
+#### 13. 修复 AI 助理词元（Token）显示为 0 的问题
 - **根因**：Provider（特别是 MiMo）流式响应不返回 `usage` 字段
 - **修复**：`src/lib/ai-provider.ts` 新增 `estimateTokens(text)` 函数（中文 1.5 字/token，英文 0.75 词/token）
 - **修复**：新增 `ensureUsage(usage, messages, output)` fallback 估算函数
 - `chatStream` 在 `[DONE]` 事件中调用 `ensureUsage` 确保始终返回非零 token 数
 - 全局将 "Token" 改名为 "词元"（`AssistantChat.tsx`、`ai/assistant/page.tsx`、`token-stats` 页面/API）
 
-#### 4. 词元统计功能增强
+#### 14. 词元统计功能增强
 - **管理员用户切换**：`/api/admin/token-stats` 新增 `userId` 查询参数，支持按用户过滤
 - **词元排行榜**：新增 `byUser` 聚合（groupBy sessionId → 映射用户 → 按 tokens 排序），前端新增排行榜弹窗（金/银/铜排名样式）
 - **用户级 AI Key 配置**：
@@ -611,7 +606,7 @@ MySQL 启动规范补充 + start-mysql.ps1 编码修复 + 词元（Token）显�
   - 职业工作空间页面新增 allowedProviders 选择 UI（DeepSeek/MiMo 切换按钮）
   - `getLLMConfigForUser` 读取用户职业的 `allowedProviders` 限制
 
-#### 5. 系统性能深度优化
+#### 15. 系统性能深度优化
 - **数据库索引优化**（`prisma/schema.prisma`）：
   - `Task`: 新增 `@@index([column, status, position])` 复合索引 + `@@index([createdAt])`
   - `Memory`: 新增 `@@index([createdAt])` + `@@index([strength])` + `@@index([ideaId])` + `@@index([conversationId])` + `@@index([cognitionId])`
@@ -630,36 +625,55 @@ MySQL 启动规范补充 + start-mysql.ps1 编码修复 + 词元（Token）显�
 - **客户端 N+1 fetch 修复**：
   - `board/page.tsx`：认知入库串行 for 循环 fetch → `Promise.all` 并行
 
-### 验证结果
-- ✅ MySQL 3306 端口可达
-- ✅ dev server 在 5176 端口启动成功（`npx next dev -p 5176`）
-- ✅ `/login` 返回 200
-- ✅ `/api/auth/session` 返回 200
-- ✅ `/api/admin/token-stats`、`/api/admin/profession-workspaces`、`/api/tasks`、`/api/cognitions` 返回 307（未认证重定向，符合预期）
-- ✅ `npx tsc --noEmit` src/ 目录无 TypeScript 错误
-- ✅ `npx prisma db push` 成功同步 schema
-- ⚠️ worker.js MODULE_NOT_FOUND 是已知的 thread-stream logger 非致命问题，不影响功能
+### 自测结果
+- **TypeScript 编译**：`npx tsc --noEmit` 对 `src/` 目录零错误 ✓
+- **MySQL 检查**：端口 3306 可达 ✓
+- **Dev server 启动**：`npx next dev -p 5176` → Ready in 2.4s ✓
+- **HTTP 探测**：
+  - `http://localhost:5176/api/health` → 200 ✓
+  - `http://localhost:5176/login` → 200 ✓
+  - `http://localhost:5176/settings/remote-control` → 200（39KB 内容）✓
+  - `/api/admin/token-stats`、`/api/admin/profession-workspaces`、`/api/tasks`、`/api/cognitions` 返回 307（未认证重定向，符合预期）✓
+- **prisma db push**：成功同步 schema（User/ProfessionWorkspace 新字段 + 索引优化）✓
+- **已知非致命问题**：pino/thread-stream worker.js 偶发模块缺失（日志线程，不影响主服务）
 
 ### 文件变更清单
-- `DEVELOPMENT_SPEC.md` - §1.7 新增 MySQL 启动前置检查
+- `DEVELOPMENT_SPEC.md` - §9 桌面端规范 + §1.7 MySQL 启动前置检查
 - `scripts/start-mysql.ps1` - 中文输出改英文
-- `prisma/schema.prisma` - User/ProfessionWorkspace 新字段 + 索引优化
+- `prisma/schema.prisma` - User/ProfessionWorkspace 新字段 + 索引优化 + PcSession/RemoteCommand/AgentAuditLog 表
 - `src/lib/db.ts` - 连接池配置
 - `src/lib/ai-provider.ts` - estimateTokens + ensureUsage + getLLMConfigForUser
-- `src/app/api/ai/chat/route.ts` - 并行查询 + 用户级 Key 集成
-- `src/app/api/cognitions/route.ts` - createMany 批量化
-- `src/app/api/tasks/route.ts` - take 上限
+- `src/lib/ws-gateway.ts` - WS 网关服务
+- `src/lib/desktop-client.ts` - 桌面端桥接客户端
+- `src/components/layout/DesktopBridge.tsx` - 全局桥接组件
+- `src/components/settings/DesktopHermesSection.tsx` - HermesAgent 桌面端专属区域
+- `src/components/settings/UserAIKeyConfig.tsx` - 用户级 AI Key 配置
+- `src/components/ui/Modal.tsx` - 通用 Modal 组件
+- `src/app/settings/remote-control/page.tsx` - 远程操控页面
+- `src/app/api/pc-sessions/route.ts` - PC 在线状态管理
+- `src/app/api/hermes/remote-command/route.ts` - 远程指令下发
+- `src/app/api/desktop/update/route.ts` - Tauri Updater 端点
+- `src/app/api/agent-audit/route.ts` - Agent 审计日志
+- `src/app/api/user/ai-keys/route.ts` - 用户级 Key API
 - `src/app/api/admin/profession-workspaces/route.ts` - allowedProviders 字段
 - `src/app/api/admin/token-stats/route.ts` - 用户过滤 + 排行榜
-- `src/app/api/user/ai-keys/route.ts` - 新建用户级 Key API
+- `src/app/api/cognitions/route.ts` - createMany 批量化
+- `src/app/api/tasks/route.ts` - take 上限
+- `src/app/api/ai/chat/route.ts` - 并行查询 + 用户级 Key 集成 + 类型错误修复
+- `src/app/ai/assistant/page.tsx` - 三档授权模式切换器 + Token 改名词元
+- `src/components/ai/AssistantChat.tsx` - Token 改名词元
 - `src/app/admin/token-stats/page.tsx` - 用户切换 + 排行榜 UI
 - `src/app/admin/profession-workspaces/page.tsx` - allowedProviders UI
-- `src/app/settings/page.tsx` - 集成 UserAIKeyConfig
-- `src/components/settings/UserAIKeyConfig.tsx` - 新建组件
-- `src/components/ai/AssistantChat.tsx` - Token 改名词元
-- `src/app/ai/assistant/page.tsx` - Token 改名词元
+- `src/app/settings/page.tsx` - 集成 DesktopHermesSection + UserAIKeyConfig
 - `src/app/board/page.tsx` - 认知入库并行化
+- `src/lib/help-content.ts` - 新增 remote-control 使用说明
+- `src/components/layout/Sidebar.tsx` - 新增远程操控导航
 - `next.config.mjs` - 构建优化
+- desktop/src-tauri/ - Rust 端核心模块（hermes/rpa/auth/installer/ws_client）
+- scripts/start-ws-gateway.js - WS 网关启动脚本
+
+### Commit hash
+6b6fdd0d（已推送至 Gitee origin/master）
 
 ---
 

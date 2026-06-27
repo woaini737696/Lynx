@@ -5,6 +5,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOn
+import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.jsonObject
@@ -31,7 +32,7 @@ class VoiceApiClient @Inject constructor(
 ) {
 
     /** ASR 语音识别 */
-    suspend fun recognizeSpeech(wavData: ByteArray): String {
+    suspend fun recognizeSpeech(wavData: ByteArray): String = withContext(Dispatchers.IO) {
         val baseUrl = userPreferences.getBaseUrl()
         val token = userPreferences.getToken()
 
@@ -55,7 +56,7 @@ class VoiceApiClient @Inject constructor(
             throw Exception("ASR 失败: ${response.code}")
         }
 
-        return try {
+        return@withContext try {
             val obj = json.parseToJsonElement(body).jsonObject
             obj["text"]?.jsonPrimitive?.contentOrNull ?: ""
         } catch (_: Exception) {

@@ -15,6 +15,10 @@ private val Context.dataStore: DataStore<Preferences> by preferencesDataStore(na
 
 /**
  * 用户偏好存储：Token、用户信息、主题、后端地址
+ *
+ * TODO: 安全改进 - Token 当前以明文形式存储在 DataStore Preferences 中
+ * 后续应集成 EncryptedSharedPreferences 或 Jetpack Security 进行加密存储
+ * 参考: https://developer.android.com/topic/security/data
  */
 class UserPreferences(private val context: Context) {
 

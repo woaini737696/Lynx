@@ -311,20 +311,34 @@ async fn navigate_to_url(app: tauri::AppHandle, url: String) -> Result<(), Strin
 }
 
 /// 检查本地服务器是否在线（TCP 连接检测）
+/// 注意：SocketAddr::parse 不接受 "localhost" 主机名，只接受 IP 地址。
+/// 因此先把 "localhost" 解析为 127.0.0.1，再调用 connect_timeout。
 #[tauri::command]
 async fn check_local_server(host: String, port: u16) -> Result<bool, String> {
     let addr = format!("{}:{}", host, port);
     log::info!("检测本地服务器: {}", addr);
 
-    // 使用 std::net::TcpStream 检测端口是否可连接
     let result = tokio::task::spawn_blocking(move || {
         use std::net::TcpStream;
         use std::time::Duration;
-        match addr.parse() {
+
+        // 把 localhost 解析为 127.0.0.1（SocketAddr::parse 不支持主机名）
+        let host_ip = if host == "localhost" || host == "127.0.0.1" {
+            "127.0.0.1"
+        } else {
+            host.as_str()
+        };
+        let socket_addr_str = format!("{}:{}", host_ip, port);
+        match socket_addr_str.parse() {
             Ok(socket_addr) => {
-                TcpStream::connect_timeout(&socket_addr, Duration::from_secs(2)).is_ok()
+                let ok = TcpStream::connect_timeout(&socket_addr, Duration::from_secs(2)).is_ok();
+                log::info!("TCP 连接 {} 结果: {}", socket_addr_str, ok);
+                ok
             }
-            Err(_) => false,
+            Err(e) => {
+                log::error!("解析地址失败 {}: {}", socket_addr_str, e);
+                false
+            }
         }
     })
     .await

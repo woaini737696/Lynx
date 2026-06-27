@@ -66,7 +66,7 @@ export async function POST(req: NextRequest) {
     }
 
     // 发送测试消息（飞书自定义机器人消息格式）
-    const text = message || "✅ LynnHub 飞书机器人测试消息：连接成功！";
+    const text = message || "✅ Lynx 飞书机器人测试消息：连接成功！";
     const payload: Record<string, unknown> = {
       msg_type: "text",
       content: { text },

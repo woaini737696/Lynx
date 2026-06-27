@@ -3,7 +3,6 @@ package com.lynnhub.app.di
 import com.lynnhub.app.data.remote.ApiService
 import com.lynnhub.app.data.remote.interceptor.AuthInterceptor
 import com.lynnhub.app.data.remote.interceptor.DynamicBaseUrlInterceptor
-import com.lynnhub.app.data.local.UserPreferences
 import com.lynnhub.app.util.Constants
 import dagger.Module
 import dagger.Provides
@@ -37,15 +36,19 @@ object NetworkModule {
     @Provides
     @Singleton
     fun provideOkHttpClient(
-        userPreferences: UserPreferences,
+        authInterceptor: AuthInterceptor,
         dynamicBaseUrlInterceptor: DynamicBaseUrlInterceptor
     ): OkHttpClient {
         val logging = HttpLoggingInterceptor().apply {
-            level = HttpLoggingInterceptor.Level.BODY
+            level = if (BuildConfig.DEBUG) {
+                HttpLoggingInterceptor.Level.BODY
+            } else {
+                HttpLoggingInterceptor.Level.NONE
+            }
         }
         return OkHttpClient.Builder()
             .addInterceptor(dynamicBaseUrlInterceptor)
-            .addInterceptor(AuthInterceptor(userPreferences))
+            .addInterceptor(authInterceptor)
             .addInterceptor(logging)
             .connectTimeout(30, TimeUnit.SECONDS)
             .readTimeout(60, TimeUnit.SECONDS)

@@ -1163,7 +1163,7 @@ async function executeSendNotification(
   args: { title?: string; body?: string },
   user: AuthUser
 ) {
-  const title = String(args.title || "LynnHub 通知").trim();
+  const title = String(args.title || "Lynx 通知").trim();
   const body = String(args.body || "").trim();
   if (!body) {
     return { error: "通知内容不能为空" };

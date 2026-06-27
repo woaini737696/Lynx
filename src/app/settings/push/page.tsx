@@ -292,7 +292,7 @@ export default function PushSettingsPage() {
     }
     setDesktopTesting(true);
     try {
-      new Notification("LynnHub 桌面测试通知", {
+      new Notification("Lynx 桌面测试通知", {
         body: `这是一条桌面通知测试 · ${new Date().toLocaleString("zh-CN")}`,
         icon: "/favicon.ico",
         tag: "lynnhub-desktop-test",
