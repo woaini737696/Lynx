@@ -25,6 +25,7 @@ import {
 } from "lucide-react";
 import { PageHeader, Card, Button, LoadingState } from "@/components/layout/PageHeader";
 import { HelpButton } from "@/components/layout/HelpButton";
+import { HELP_CONTENT } from "@/lib/help-content";
 import { toast } from "@/components/ui/toast";
 import { UserAIKeyConfig } from "@/components/settings/UserAIKeyConfig";
 import { DesktopHermesSection } from "@/components/settings/DesktopHermesSection";
@@ -631,6 +632,8 @@ function HermesConfigSection() {
   const [starting, setStarting] = useState(false);
   const [testing, setTesting] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [showHermesHelp, setShowHermesHelp] = useState(false);
+  const [openingDashboard, setOpeningDashboard] = useState(false);
 
   // 编辑态
   const [endpoint, setEndpoint] = useState("http://localhost:9119");
@@ -839,6 +842,44 @@ function HermesConfigSection() {
     }
   };
 
+  // 打开 Dashboard：先确保服务已启动，再在新标签页打开 endpoint
+  // 解决"点开无法访问"问题：服务可能未运行或刚启动未就绪
+  const handleOpenDashboard = async () => {
+    const installed = status?.installed;
+    const running = status?.config?.status === "running";
+    if (!installed) {
+      toast("请先安装 Lynx Agent", "error");
+      return;
+    }
+    setOpeningDashboard(true);
+    try {
+      const port = endpoint.match(/:(\d+)$/)?.[1] || "9119";
+      // 若服务未运行，先启动
+      if (!running) {
+        const startRes = await fetch("/api/hermes/install", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action: "start", port: parseInt(port, 10) }),
+        });
+        const startData = await startRes.json();
+        if (!startRes.ok || !startData.success) {
+          toast("Dashboard 启动失败：" + (startData.error || "未知错误"), "error");
+          return;
+        }
+        toast("Dashboard 已启动，正在打开...", "success");
+        await loadStatus();
+        // 等待 1.5 秒让 HTTP 服务完全就绪
+        await new Promise((r) => setTimeout(r, 1500));
+      }
+      // 在新标签页打开 Dashboard
+      window.open(endpoint, "_blank", "noopener,noreferrer");
+    } catch (e: any) {
+      toast("打开 Dashboard 失败：" + e.message, "error");
+    } finally {
+      setOpeningDashboard(false);
+    }
+  };
+
   const handleTest = async () => {
     setTesting(true);
     try {
@@ -918,31 +959,36 @@ function HermesConfigSection() {
         <div className="mb-1 flex items-center justify-between">
           <div className="font-medium text-foreground">🤖 Lynx Agent 是什么？</div>
           <div className="flex items-center gap-2">
-            <a
-              href="/docs/hermes-usage-guide.md"
-              target="_blank"
-              rel="noopener noreferrer"
+            <button
+              type="button"
+              onClick={() => setShowHermesHelp(true)}
               className="inline-flex items-center gap-1 text-[11px] text-northstar hover:underline"
               title="查看完整使用说明"
             >
               <BookOpen className="h-3 w-3" /> 使用说明
-            </a>
-            {isRunning && (
-              <a
-                href={endpoint}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-1 text-[11px] text-campaign hover:underline"
-                title="在新标签打开 Hermes Dashboard"
-              >
-                <ExternalLink className="h-3 w-3" /> 打开 Dashboard
-              </a>
-            )}
+            </button>
+            <button
+              type="button"
+              onClick={handleOpenDashboard}
+              disabled={openingDashboard}
+              className="inline-flex items-center gap-1 text-[11px] text-campaign hover:underline disabled:opacity-50"
+              title={isInstalled ? "确保 Dashboard 服务已启动并在新标签页打开" : "请先安装 Lynx Agent"}
+            >
+              {openingDashboard ? (
+                <><Loader2 className="h-3 w-3 animate-spin" /> 启动中...</>
+              ) : (
+                <><ExternalLink className="h-3 w-3" /> 打开 Dashboard</>
+              )}
+            </button>
           </div>
         </div>
-        开源本地 AI 代理框架，安装后可让 AI 助理直接操控你的电脑（桌面控制、Shell 命令、Skills Hub 672+ 技能），
-        实现「AI 自动化工作流」。所有操作在本地执行，数据不出本机。
+        基于 Hermes Agent 技术深度定制开发，让 AI 助理升级为 Lynx 超级助理，可以直接操控你的电脑（桌面控制、Shell 命令、系统级 CLI、浏览器控制、应用控制），并且拥有自主学习能力（你重复做 2 次的工作，Lynx 超级助理会自主学习并打包成技能 Skill），自我成长能力（你每次的对话和操作，Lynx 超级助理会自动提取关键记忆，保证永远不会失忆），实现「AI 自动化工作流」，无需学习开箱即用。所有操作都在本地执行，数据不出本机，保证你的隐私。
       </div>
+
+      {/* 使用说明弹窗 */}
+      {showHermesHelp && (
+        <HermesHelpModal onClose={() => setShowHermesHelp(false)} />
+      )}
 
       {/* 安装状态 */}
       <div className="mb-4 space-y-2">
@@ -1261,5 +1307,95 @@ function HermesConfigSection() {
         </div>
       </div>
     </Section>
+  );
+}
+
+// ============ Lynx Agent 使用说明弹窗 ============
+
+function HermesHelpModal({ onClose }: { onClose: () => void }) {
+  const content = HELP_CONTENT["hermes-agent"];
+  if (!content) return null;
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+      onClick={onClose}
+    >
+      <div
+        className="max-h-[85vh] w-full max-w-2xl overflow-y-auto rounded-2xl bg-white shadow-2xl dark:bg-slate-900"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* 头部 */}
+        <div className="sticky top-0 flex items-center justify-between border-b border-slate-100 bg-white px-6 py-4 dark:border-slate-800 dark:bg-slate-900">
+          <h2 className="flex items-center gap-2 text-lg font-bold text-slate-900 dark:text-slate-100">
+            <BookOpen className="h-5 w-5 text-northstar" />
+            Lynx Agent 使用说明
+          </h2>
+          <button
+            onClick={onClose}
+            className="rounded-lg p-1 text-slate-400 transition hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-slate-800"
+          >
+            <XCircle className="h-5 w-5" />
+          </button>
+        </div>
+
+        {/* 内容 */}
+        <div className="space-y-5 px-6 py-5 text-slate-600 dark:text-slate-300">
+          <section>
+            <h3 className="mb-1.5 flex items-center gap-1.5 text-sm font-semibold text-red-600">
+              <span className="flex h-5 w-5 items-center justify-center rounded-full bg-red-100 text-xs">!</span>
+              痛点
+            </h3>
+            <p className="text-sm leading-relaxed">{content.painPoint}</p>
+          </section>
+
+          <section>
+            <h3 className="mb-1.5 flex items-center gap-1.5 text-sm font-semibold text-amber-600">
+              <span className="flex h-5 w-5 items-center justify-center rounded-full bg-amber-100 text-xs">?</span>
+              需求
+            </h3>
+            <p className="text-sm leading-relaxed">{content.need}</p>
+          </section>
+
+          <section>
+            <h3 className="mb-1.5 flex items-center gap-1.5 text-sm font-semibold text-blue-600">
+              <span className="flex h-5 w-5 items-center justify-center rounded-full bg-blue-100 text-xs">✓</span>
+              解决方案
+            </h3>
+            <p className="text-sm leading-relaxed">{content.solution}</p>
+          </section>
+
+          <section>
+            <h3 className="mb-1.5 flex items-center gap-1.5 text-sm font-semibold text-green-600">
+              <span className="flex h-5 w-5 items-center justify-center rounded-full bg-green-100 text-xs">→</span>
+              使用方法
+            </h3>
+            <ol className="space-y-2">
+              {content.usage.map((step, i) => (
+                <li key={i} className="flex gap-2.5 text-sm leading-relaxed">
+                  <span className="flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full bg-green-100 text-xs font-medium text-green-700">
+                    {i + 1}
+                  </span>
+                  <span>{step}</span>
+                </li>
+              ))}
+            </ol>
+          </section>
+        </div>
+
+        {/* 底部 */}
+        <div className="sticky bottom-0 border-t border-slate-100 bg-white px-6 py-3 dark:border-slate-800 dark:bg-slate-900">
+          <div className="mb-2 text-[10px] text-slate-400">
+            版本 v{content.version} · 更新于 {content.updatedAt}
+          </div>
+          <button
+            onClick={onClose}
+            className="w-full rounded-lg bg-slate-900 py-2 text-sm font-medium text-white transition hover:bg-slate-800 dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-slate-200"
+          >
+            我知道了
+          </button>
+        </div>
+      </div>
+    </div>
   );
 }

@@ -6,6 +6,7 @@ import { cn } from "@/lib/utils";
 import { COGNITION_TYPES, type CognitionType } from "@/lib/utils";
 import { toast } from "@/components/ui/toast";
 import { PageHeader, Card, Button, Badge, Skeleton } from "@/components/layout/PageHeader";
+import { HelpButton } from "@/components/layout/HelpButton";
 import { EmptyState } from "@/components/layout/EmptyState";
 import { SearchInput, Pagination, useClientPagination } from "@/components/ui/ListControls";
 import { useAsyncLoading } from "@/lib/use-async-loading";
@@ -111,9 +112,12 @@ export default function CognitionPage() {
         title="认知库"
         subtitle="自动沉淀方法论、经验、提示词模板"
         action={
-          <Button onClick={() => setShowExtract(true)}>
-            <Sparkles className="h-3.5 w-3.5" /> AI 提取认知
-          </Button>
+          <div className="flex items-center gap-2">
+            <HelpButton contentKey="cognition" />
+            <Button onClick={() => setShowExtract(true)}>
+              <Sparkles className="h-3.5 w-3.5" /> AI 提取认知
+            </Button>
+          </div>
         }
       />
 

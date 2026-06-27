@@ -41,6 +41,7 @@ import {
   Badge,
   Skeleton,
 } from "@/components/layout/PageHeader";
+import { HelpButton } from "@/components/layout/HelpButton";
 import { EmptyState } from "@/components/layout/EmptyState";
 import { toast } from "@/components/ui/toast";
 import { Pagination, useClientPagination } from "@/components/ui/ListControls";

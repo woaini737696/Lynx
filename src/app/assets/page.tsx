@@ -6,6 +6,7 @@ import { cn } from "@/lib/utils";
 import { CONVERSATION_SOURCES, type ConversationSource } from "@/lib/utils";
 import { toast } from "@/components/ui/toast";
 import { PageHeader, Card, Button, Badge, Skeleton } from "@/components/layout/PageHeader";
+import { HelpButton } from "@/components/layout/HelpButton";
 import { EmptyState } from "@/components/layout/EmptyState";
 import { SearchInput, FilterSelect, Pagination, useClientPagination } from "@/components/ui/ListControls";
 import { useAsyncLoading } from "@/lib/use-async-loading";
@@ -368,9 +369,12 @@ export default function AssetsPage() {
         title="对话资产"
         subtitle="捕获 Kimi/Trae Solo/Claude/Codex/GPT 对话，或拖拽文件自动解析"
         action={
-          <Button onClick={() => setShowCapture(true)}>
-            <Plus className="h-3.5 w-3.5" /> 捕获对话
-          </Button>
+          <div className="flex items-center gap-2">
+            <HelpButton contentKey="assets" />
+            <Button onClick={() => setShowCapture(true)}>
+              <Plus className="h-3.5 w-3.5" /> 捕获对话
+            </Button>
+          </div>
         }
       />
 

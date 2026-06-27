@@ -4,6 +4,7 @@ import { useEffect, useState, useMemo } from "react";
 import { ArrowRight, Moon, Trash2, Sparkles } from "lucide-react";
 import { toast } from "@/components/ui/toast";
 import { PageHeader, Card, Button, LoadingState } from "@/components/layout/PageHeader";
+import { HelpButton } from "@/components/layout/HelpButton";
 import { EmptyState } from "@/components/layout/EmptyState";
 import { SearchInput, FilterSelect, Pagination, useClientPagination } from "@/components/ui/ListControls";
 
@@ -138,7 +139,10 @@ export default function ConvergePage() {
 
   return (
     <div className="p-4 sm:p-8">
-      <div className="mb-6 rounded-3xl border border-northstar/20 bg-gradient-to-br from-northstar/10 to-transparent p-5 text-center sm:p-8">
+      <div className="relative mb-6 rounded-3xl border border-northstar/20 bg-gradient-to-br from-northstar/10 to-transparent p-5 text-center sm:p-8">
+        <div className="absolute right-4 top-4">
+          <HelpButton contentKey="converge" />
+        </div>
         <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-northstar/10 text-northstar">
           <Moon className="h-6 w-6" />
         </div>

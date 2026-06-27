@@ -10,6 +10,8 @@ export async function register(): Promise<void> {
   const { initializeDefaultFlows } = await import("./src/lib/flow-store");
   const { runSyncAsync } = await import("./src/lib/lark-sync");
   const { processFeedbackReports } = await import("./src/lib/hermes-learner");
+  const { detectHermesInstall, startHermesAgent } = await import("./src/lib/hermes-client");
+  const { prisma } = await import("./src/lib/db");
 
   // 初始化默认工作流（如果数据库为空，从 .ai-flows.json 迁移或创建默认数据）
   await initializeDefaultFlows();
@@ -73,4 +75,93 @@ export async function register(): Promise<void> {
     setInterval(syncLarkTasksTick, LARK_SYNC_INTERVAL);
   }, 30 * 1000);
   console.log("[instrumentation] 飞书任务定时同步已注册（每 5 分钟）");
+
+  // ===== Hermes Dashboard 自动启动（端口 9119）=====
+  // 用户期望：项目服务启动时连带启动 Hermes Dashboard，保证 /settings 中"打开 Dashboard"可访问
+  // 启动条件：
+  //   1. hermes-agent 已安装（pip 包检测）
+  //   2. 端口 9119 未被占用（避免重复启动）
+  //   3. 至少有一个用户的 HermesConfig.autoStart = true（尊重用户意愿，未开启则不自动启动）
+  // 失败不阻塞主服务，仅记录日志
+  const HERMES_DASHBOARD_PORT = 9119;
+  async function autoStartHermesDashboard() {
+    try {
+      // 1. 检测 hermes-agent 是否已安装
+      const detect = await detectHermesInstall();
+      if (!detect.installed) {
+        console.log("[instrumentation] Hermes Agent 未安装，跳过 Dashboard 自动启动");
+        return;
+      }
+
+      // 2. 检测端口 9119 是否已被占用（已占用说明 Dashboard 已在运行）
+      const isPortInUse = await checkPortInUse(HERMES_DASHBOARD_PORT);
+      if (isPortInUse) {
+        console.log(`[instrumentation] Hermes Dashboard 端口 ${HERMES_DASHBOARD_PORT} 已被占用，跳过自动启动`);
+        return;
+      }
+
+      // 3. 检测是否有用户开启了 autoStart
+      const autoStartUser = await prisma.hermesConfig.findFirst({
+        where: { autoStart: true },
+        select: { userId: true },
+      });
+      if (!autoStartUser) {
+        console.log("[instrumentation] 无用户开启 Hermes autoStart，跳过 Dashboard 自动启动");
+        return;
+      }
+
+      // 4. 启动 Hermes Dashboard
+      console.log(`[instrumentation] 自动启动 Hermes Dashboard（端口 ${HERMES_DASHBOARD_PORT}）...`);
+      const result = await startHermesAgent(HERMES_DASHBOARD_PORT);
+      if (result.success) {
+        console.log(`[instrumentation] Hermes Dashboard 已启动（PID ${result.pid}，端口 ${HERMES_DASHBOARD_PORT}）`);
+        // 同步更新所有开启 autoStart 的用户配置状态
+        await prisma.hermesConfig.updateMany({
+          where: { autoStart: true },
+          data: {
+            status: "running",
+            endpoint: `http://localhost:${HERMES_DASHBOARD_PORT}`,
+            lastCheckedAt: new Date(),
+            lastError: null,
+          },
+        });
+      } else {
+        console.warn(`[instrumentation] Hermes Dashboard 自动启动失败：${result.error}`);
+        // 记录错误到所有开启 autoStart 的用户配置
+        await prisma.hermesConfig.updateMany({
+          where: { autoStart: true },
+          data: {
+            status: "error",
+            lastCheckedAt: new Date(),
+            lastError: result.error || "自动启动失败",
+          },
+        });
+      }
+    } catch (e) {
+      console.error("[instrumentation] Hermes Dashboard 自动启动异常:", e);
+    }
+  }
+
+  // 端口检测函数：尝试 connect 端口，能连上说明被占用
+  async function checkPortInUse(port: number): Promise<boolean> {
+    try {
+      const net = await import("net");
+      return new Promise((resolve) => {
+        const tester = net.createServer();
+        tester.once("error", () => resolve(true)); // 端口被占用
+        tester.once("listening", () => {
+          tester.close(() => resolve(false)); // 端口空闲
+        });
+        tester.listen(port);
+      });
+    } catch {
+      return false;
+    }
+  }
+
+  // 启动后延迟 15 秒执行（在飞书同步之前，确保 Dashboard 尽早可用）
+  setTimeout(() => {
+    autoStartHermesDashboard();
+  }, 15 * 1000);
+  console.log("[instrumentation] Hermes Dashboard 自动启动已注册（延迟 15 秒执行）");
 }
