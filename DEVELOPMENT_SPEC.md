@@ -259,6 +259,10 @@
 - **后端 endpoint 切换**：开发期 `frontendDist` 指向 `localhost:5176`，生产部署后切换为 `https://app.lynnhub.com`，实现「先本地跑通再部署云端」的独立安装产品形态
 - **cargo 命令执行**：必须在 `desktop/src-tauri/` 目录下执行 cargo 命令（`.cargo/config.toml` 在该目录，配置了 ASCII `target-dir = D:/cargo-target`，从项目根执行会导致中文路径「工作空间」触发 MinGW dlltool 失败）
 - **工具链**：使用 MSVC 工具链构建发布版（GNU 工具链构建的 exe 导入表不匹配会崩溃）
+- **打包命令**：在 `desktop/` 目录执行 `npm run tauri build`，产物输出到 `D:\cargo-target\release\bundle\msi\Lynx_1.2.0_x64_en-US.msi`，需手动复制到 `desktop/dist/`（已加入 `.gitignore`，22MB+ 二进制不入版本控制）
+- **WiX/NSIS 工具链下载**：tauri 内置从 `github.com` 下载 WiX/NSIS 在国内会卡死，必须用 `gh-proxy.com` 镜像手动下载到 `%LOCALAPPDATA%\tauri\WixTools314/` 和 `%LOCALAPPDATA%\tauri\NSIS/`，tauri 检测到缓存已存在会自动跳过下载
+- **light.exe ICE 验证报错可忽略**：WiX 3.14 在某些 Windows 环境下 `light.exe` 会报 `LGHT0217` ICE 验证错误（script engine 注册问题），但 MSI 产物已完整生成在 `bundle/msi/` 目录，可直接使用；tauri 因此报 `failed to run light.exe` 但实际产物已生成
+- **NSIS exe 打包沙箱限制**：TRAE 沙箱会拦截 `D:\cargo-target\release\*.d` 写入导致 `tauri build --bundles nsis` 失败（`os error 5 拒绝访问`），如需 NSIS exe 需在 TRAE 外部终端执行；MSI 是 Windows 标准安装包已满足双击安装需求
 
 ## 10. 环境变量规范（强制）
 
