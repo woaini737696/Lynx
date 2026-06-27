@@ -1,5 +1,4 @@
 import type { Metadata, Viewport } from "next";
-import { Suspense } from "react";
 import "./globals.css";
 import { AppShell } from "@/components/layout/AppShell";
 import { LightningInput } from "@/components/lightning/LightningInput";
@@ -13,7 +12,6 @@ import { PWARegister } from "@/components/layout/PWARegister";
 import { AssistantGlobalEntry } from "@/components/ai/AssistantGlobalEntry";
 import { DesktopBridge } from "@/components/layout/DesktopBridge";
 import { DesktopBehavior } from "@/components/layout/DesktopBehavior";
-import { RouteProgress } from "@/components/layout/RouteProgress";
 import { RoutePreloader } from "@/components/layout/RoutePreloader";
 import { SWRProvider } from "@/components/providers/SWRProvider";
 
@@ -56,9 +54,6 @@ export default function RootLayout({
               <SuppressDevErrors />
               <DesktopBridge />
               <DesktopBehavior />
-              <Suspense fallback={null}>
-                <RouteProgress />
-              </Suspense>
               <RoutePreloader />
               <AppShell>{children}</AppShell>
               <LightningInput />

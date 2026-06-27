@@ -138,10 +138,10 @@ export function ReminderManager() {
 
   return (
     <>
-      {/* 浮动提醒图标 */}
+      {/* 浮动提醒图标：右下角悬浮按钮上方 */}
       <button
         onClick={() => setShowPanel(true)}
-        className="fixed bottom-5 left-5 z-50 flex h-10 w-10 items-center justify-center rounded-full border border-border bg-card shadow-lg transition-all hover:shadow-xl hover:-translate-y-0.5"
+        className="fixed bottom-[118px] right-8 z-50 flex h-10 w-10 items-center justify-center rounded-full glass-card shadow-lg transition-all hover:shadow-xl hover:-translate-y-0.5"
         aria-label="灵感助理提醒"
       >
         <Bell className={cn("h-4.5 w-4.5", reviveSuggestions.length > 0 ? "text-cognition animate-pulse" : "text-muted-foreground")} />
@@ -155,7 +155,7 @@ export function ReminderManager() {
       {/* 提醒面板 */}
       {showPanel && (
         <div
-          className="fixed inset-0 z-[90] flex items-end justify-start p-4 bg-black/30 backdrop-blur-sm"
+          className="fixed inset-0 z-[90] flex items-end justify-end p-4 bg-black/30 backdrop-blur-sm"
           onClick={() => setShowPanel(false)}
         >
           <div
