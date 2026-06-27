@@ -48,30 +48,7 @@ pub async fn take_screenshot() -> Result<String, String> {
         .unwrap_or(0);
     let file_path = format!("{}/screenshot_{}.png", save_dir, timestamp);
 
-    // 优先使用 xcap 截图
-    #[cfg(target_os = "windows")]
-    {
-        match xcap::Monitor::all() {
-            Ok(monitors) => {
-                if let Some(monitor) = monitors.first() {
-                    match monitor.capture_image() {
-                        Ok(image) => {
-                            image.save(&file_path).map_err(|e| format!("保存截图失败: {}", e))?;
-                            log::info!("截图已保存: {}", file_path);
-                            return Ok(file_path);
-                        }
-                        Err(e) => return Err(format!("截图失败(xcap): {}", e)),
-                    }
-                }
-                return Err("未找到显示器".to_string());
-            }
-            Err(e) => {
-                log::warn!("xcap 不可用: {}, 尝试降级方案", e);
-            }
-        }
-    }
-
-    // 降级：使用 PowerShell 截图命令（Windows）
+    // 使用 PowerShell 截图命令（Windows）
     #[cfg(target_os = "windows")]
     {
         let ps_script = format!(
@@ -87,27 +64,32 @@ pub async fn take_screenshot() -> Result<String, String> {
             .map_err(|e| format!("PowerShell 截图失败: {}", e))?;
 
         if status.success() && std::path::Path::new(&file_path).exists() {
-            log::info!("截图已保存(PowerShell): {}", file_path);
+            log::info!("截图已保存: {}", file_path);
             return Ok(file_path);
         }
     }
 
-    Err("截图失败：所有方案均不可用".to_string())
+    Err("截图失败：当前平台不支持".to_string())
 }
 
-/// 模拟键盘输入（使用 enigo）
+/// 模拟键盘输入（使用 enigo 0.2 API）
 pub fn type_text(text: &str) -> Result<(), String> {
-    use enigo::{Enigo, KeyboardControllable};
-    let mut enigo = Enigo::new().map_err(|e| format!("初始化 enigo 失败: {}", e))?;
-    enigo.key_sequence(text);
+    use enigo::{Enigo, Keyboard, Settings};
+    let mut enigo = Enigo::new(&Settings::default())
+        .map_err(|e| format!("Enigo初始化失败: {}", e))?;
+    enigo.text(text)
+        .map_err(|e| format!("键盘输入失败: {}", e))?;
     Ok(())
 }
 
-/// 模拟鼠标点击（使用 enigo）
+/// 模拟鼠标点击（使用 enigo 0.2 API）
 pub fn mouse_click(x: i32, y: i32) -> Result<(), String> {
-    use enigo::{Enigo, MouseControllable};
-    let mut enigo = Enigo::new().map_err(|e| format!("初始化 enigo 失败: {}", e))?;
-    enigo.mouse_move_to(x, y);
-    enigo.mouse_click(enigo::MouseButton::Left);
+    use enigo::{Enigo, Mouse, Button, Coordinate, Direction, Settings};
+    let mut enigo = Enigo::new(&Settings::default())
+        .map_err(|e| format!("Enigo初始化失败: {}", e))?;
+    enigo.move_mouse(x, y, Coordinate::Abs)
+        .map_err(|e| format!("鼠标移动失败: {}", e))?;
+    enigo.button(Button::Left, Direction::Click)
+        .map_err(|e| format!("鼠标点击失败: {}", e))?;
     Ok(())
 }

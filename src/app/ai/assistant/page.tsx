@@ -34,6 +34,9 @@ import {
   Sparkles,
   Bot,
   Headphones,
+  ThumbsUp,
+  ThumbsDown,
+  Flag,
 } from "lucide-react";
 import { Button } from "@/components/layout/PageHeader";
 import { HelpButton } from "@/components/layout/HelpButton";
@@ -124,6 +127,10 @@ interface Message {
   hermesMode?: boolean;
   /** 标记 Hermes 失败后回退到 LLM 模式生成 */
   hermesFallback?: boolean;
+  /** 用户对 AI 回复的标注：good=好回复 | bad=不满意（用于 HermesAgent 学习纠正） */
+  feedback?: "good" | "bad" | null;
+  /** 不满意标注的原因 */
+  feedbackReason?: string | null;
 }
 
 interface AISettings {
@@ -342,6 +349,17 @@ function renderInline(text: string): React.ReactNode {
   return parts;
 }
 
+/** 判断消息是否已持久化到数据库（可标注）。
+ *  数据库消息 id 为 cuid（以 'c' 开头），本地临时 id 形如 'a-...'、'msg-...' 或 'welcome'。 */
+function isPersistedMessage(msgId: string): boolean {
+  return (
+    !!msgId &&
+    msgId !== "welcome" &&
+    !msgId.startsWith("a-") &&
+    !msgId.startsWith("msg-")
+  );
+}
+
 /** 生成工具调用结果的简短摘要（用于卡片标题） */
 function summarizeToolResult(result: any): string {
   if (!result) return "无结果";
@@ -499,6 +517,14 @@ export default function AIAssistantPage() {
   // 工具调用卡片展开状态（按消息 ID 记录）
   const [expandedTools, setExpandedTools] = useState<Set<string>>(new Set());
 
+  // ===== 消息标注（feedback）状态 =====
+  // 当前正在输入不满意原因的消息 ID（null 表示未展开）
+  const [annotatingMsgId, setAnnotatingMsgId] = useState<string | null>(null);
+  // 不满意原因输入文本
+  const [annotationReason, setAnnotationReason] = useState("");
+  // 正在提交标注的消息 ID（用于禁用按钮）
+  const [submittingFeedback, setSubmittingFeedback] = useState<string | null>(null);
+
   // 技能选择面板相关状态
   const [showSkillPanel, setShowSkillPanel] = useState(false);
   const [skills, setSkills] = useState<Skill[]>([]);
@@ -530,6 +556,70 @@ export default function AIAssistantPage() {
       return next;
     });
   }, []);
+
+  /**
+   * 提交消息标注到后端，更新本地状态。
+   * - feedback="good"：标记为好回复
+   * - feedback="bad"：标记为不满意，附带 reason（写入 HermesReport 用于 HermesAgent 学习）
+   * - feedback=null：取消已有标注
+   * 仅对已持久化（DB 中存在）的消息可调用。
+   */
+  const handleFeedback = useCallback(
+    async (
+      msgId: string,
+      feedback: "good" | "bad" | null,
+      reason?: string
+    ) => {
+      // 欢迎消息等非持久化消息不允许标注
+      if (!isPersistedMessage(msgId)) {
+        toast("该消息尚未持久化，暂不可标注", "info");
+        return;
+      }
+      setSubmittingFeedback(msgId);
+      try {
+        const res = await fetch(`/api/ai/chat/messages/${msgId}/feedback`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            feedback,
+            reason: feedback === "bad" ? reason || undefined : undefined,
+          }),
+        });
+        const data = await res.json();
+        if (res.ok) {
+          // 更新本地消息的标注状态
+          setMessages((prev) =>
+            prev.map((m) =>
+              m.id === msgId
+                ? {
+                    ...m,
+                    feedback,
+                    feedbackReason: feedback === "bad" ? reason || null : null,
+                  }
+                : m
+            )
+          );
+          if (feedback === "good") {
+            toast("感谢反馈，已标记为有帮助", "success");
+          } else if (feedback === "bad") {
+            toast("已记录，将帮助 AI 改进", "success");
+          } else {
+            toast("已取消标注", "info");
+          }
+          // 关闭原因输入框
+          setAnnotatingMsgId(null);
+          setAnnotationReason("");
+        } else {
+          toast(data.error || "标注失败", "error");
+        }
+      } catch (e) {
+        toast("网络错误：" + (e as Error).message, "error");
+      } finally {
+        setSubmittingFeedback(null);
+      }
+    },
+    []
+  );
 
   useEffect(() => {
     fetch("/api/ai/models")
@@ -626,6 +716,9 @@ export default function AIAssistantPage() {
           provider: m.provider,
           model: m.model,
           images: m.images || undefined,
+          // 加载已持久化的标注状态（feedback API 写入）
+          feedback: m.feedback === "good" || m.feedback === "bad" ? m.feedback : null,
+          feedbackReason: typeof m.feedbackReason === "string" ? m.feedbackReason : null,
         }));
         // 若会话为空，添加欢迎消息
         if (loadedMessages.length === 0) {
@@ -1386,7 +1479,19 @@ export default function AIAssistantPage() {
             model: aiModel,
             tokens: aiUsage?.total_tokens,
           }),
-        }).catch(() => {});
+        })
+          .then((r) => r.json())
+          .then((data) => {
+            // 用 DB 真实 id 替换本地临时 id，使消息标注按钮可用
+            if (data.message?.id) {
+              setMessages((prev) =>
+                prev.map((m) =>
+                  m.id === aiMsgId ? { ...m, id: data.message.id } : m
+                )
+              );
+            }
+          })
+          .catch(() => {});
         // 刷新会话列表（标题可能已自动更新）
         fetchSessions();
       }
@@ -1682,7 +1787,19 @@ export default function AIAssistantPage() {
             provider: modelConfig.provider,
             model: modelConfig.model,
           }),
-        }).catch(() => {});
+        })
+          .then((r) => r.json())
+          .then((data) => {
+            // 用 DB 真实 id 替换本地临时 id，使消息标注按钮可用
+            if (data.message?.id) {
+              setMessages((prev) =>
+                prev.map((m) =>
+                  m.id === aiMsgId ? { ...m, id: data.message.id } : m
+                )
+              );
+            }
+          })
+          .catch(() => {});
         fetchSessions();
       }
     } catch (e) {
@@ -2089,7 +2206,19 @@ export default function AIAssistantPage() {
             role: "assistant",
             content: newMsg.content,
           }),
-        }).catch(() => {});
+        })
+          .then((r) => r.json())
+          .then((data) => {
+            // 用 DB 真实 id 替换本地临时 id，使消息标注按钮可用
+            if (data.message?.id) {
+              setMessages((prev) =>
+                prev.map((m) =>
+                  m.id === newMsg.id ? { ...m, id: data.message.id } : m
+                )
+              );
+            }
+          })
+          .catch(() => {});
       }
       setShowSkillPanel(false);
       setSelectedSkill(null);
@@ -2524,6 +2653,153 @@ export default function AIAssistantPage() {
                     </button>
                   </div>
                 )}
+
+                {/* 消息标注（feedback）：thumbs up / thumbs down + 原因输入 */}
+                {msg.role === "assistant" && !msg.error && !msg.streaming && (
+                  <div className="mt-1 ml-1 flex flex-wrap items-center gap-1">
+                    <button
+                      type="button"
+                      onClick={() =>
+                        handleFeedback(
+                          msg.id,
+                          msg.feedback === "good" ? null : "good"
+                        )
+                      }
+                      disabled={
+                        submittingFeedback === msg.id ||
+                        !isPersistedMessage(msg.id)
+                      }
+                      title={
+                        isPersistedMessage(msg.id)
+                          ? msg.feedback === "good"
+                            ? "取消标注"
+                            : "好回复"
+                          : "消息尚未持久化，暂不可标注"
+                      }
+                      className={cn(
+                        "inline-flex h-6 w-6 items-center justify-center rounded-md transition-colors disabled:cursor-not-allowed disabled:opacity-40",
+                        msg.feedback === "good"
+                          ? "bg-task/15 text-task"
+                          : "text-muted-foreground/60 hover:bg-muted hover:text-foreground"
+                      )}
+                    >
+                      {submittingFeedback === msg.id &&
+                      msg.feedback !== "good" ? (
+                        <Loader2 className="h-3 w-3 animate-spin" />
+                      ) : (
+                        <ThumbsUp className="h-3 w-3" />
+                      )}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (!isPersistedMessage(msg.id)) {
+                          toast("消息尚未持久化，暂不可标注", "info");
+                          return;
+                        }
+                        if (msg.feedback === "bad") {
+                          // 已标注为 bad：点击取消
+                          handleFeedback(msg.id, null);
+                        } else {
+                          // 展开 reason 输入框
+                          setAnnotatingMsgId(msg.id);
+                          setAnnotationReason(msg.feedbackReason || "");
+                        }
+                      }}
+                      disabled={submittingFeedback === msg.id}
+                      title={
+                        isPersistedMessage(msg.id)
+                          ? msg.feedback === "bad"
+                            ? "取消标注"
+                            : "不满意，标注原因"
+                          : "消息尚未持久化，暂不可标注"
+                      }
+                      className={cn(
+                        "inline-flex h-6 w-6 items-center justify-center rounded-md transition-colors disabled:cursor-not-allowed disabled:opacity-40",
+                        msg.feedback === "bad"
+                          ? "bg-graveyard/15 text-graveyard"
+                          : "text-muted-foreground/60 hover:bg-muted hover:text-foreground"
+                      )}
+                    >
+                      {submittingFeedback === msg.id &&
+                      msg.feedback !== "bad" ? (
+                        <Loader2 className="h-3 w-3 animate-spin" />
+                      ) : (
+                        <ThumbsDown className="h-3 w-3" />
+                      )}
+                    </button>
+                    {msg.feedback && (
+                      <span
+                        className={cn(
+                          "text-[10px]",
+                          msg.feedback === "good"
+                            ? "text-task/80"
+                            : "text-graveyard/80"
+                        )}
+                      >
+                        {msg.feedback === "good" ? "已标注：有帮助" : "已标注：待改进"}
+                      </span>
+                    )}
+                  </div>
+                )}
+
+                {/* 不满意原因输入框（点击 thumbs down 后展开） */}
+                {annotatingMsgId === msg.id && msg.role === "assistant" && (
+                  <div className="mt-2 ml-1 max-w-[85%] rounded-xl border border-graveyard/30 bg-graveyard/5 p-2.5">
+                    <div className="mb-1.5 flex items-center gap-1 text-[10px] font-medium text-graveyard">
+                      <Flag className="h-3 w-3" />
+                      <span>请说明不满意的原因（将用于帮助 AI 改进）</span>
+                    </div>
+                    <textarea
+                      value={annotationReason}
+                      onChange={(e) => setAnnotationReason(e.target.value)}
+                      placeholder="如：回答不相关、信息有误、缺少关键内容、格式混乱..."
+                      rows={2}
+                      className="w-full resize-y rounded-lg border border-border bg-background px-2 py-1.5 text-[11px] leading-relaxed text-foreground placeholder:text-muted-foreground/60 focus:border-graveyard/40 focus:outline-none focus:ring-2 focus:ring-graveyard/20"
+                    />
+                    <div className="mt-1.5 flex items-center justify-end gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setAnnotatingMsgId(null);
+                          setAnnotationReason("");
+                        }}
+                        disabled={submittingFeedback === msg.id}
+                        className="rounded-md px-2 py-1 text-[10px] text-muted-foreground transition-colors hover:bg-muted disabled:opacity-50"
+                      >
+                        取消
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          handleFeedback(msg.id, "bad", annotationReason)
+                        }
+                        disabled={
+                          submittingFeedback === msg.id ||
+                          !annotationReason.trim()
+                        }
+                        className="inline-flex items-center gap-1 rounded-md bg-graveyard/90 px-2 py-1 text-[10px] font-medium text-white transition-colors hover:bg-graveyard disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        {submittingFeedback === msg.id ? (
+                          <Loader2 className="h-3 w-3 animate-spin" />
+                        ) : (
+                          <Flag className="h-3 w-3" />
+                        )}
+                        提交标注
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {/* 已提交的不满意原因显示（非编辑状态） */}
+                {msg.role === "assistant" &&
+                  msg.feedback === "bad" &&
+                  msg.feedbackReason &&
+                  annotatingMsgId !== msg.id && (
+                    <div className="mt-1 ml-1 max-w-[85%] rounded-md bg-graveyard/5 px-2 py-1 text-[10px] text-graveyard/80">
+                      原因：{msg.feedbackReason}
+                    </div>
+                  )}
               </div>
             </div>
           ))}

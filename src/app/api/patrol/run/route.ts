@@ -267,7 +267,19 @@ ${itemsText}
     });
 
     // 5. 根据 notifyChannels 发送通知（toast 不需要后端发）
-    const channels = (rule.notifyChannels as string[]) || [];
+    // 兼容 JSON 字段被存为字符串的情况（防御性处理）
+    const rawChannels = rule.notifyChannels;
+    let channels: string[] = [];
+    if (Array.isArray(rawChannels)) {
+      channels = rawChannels as string[];
+    } else if (typeof rawChannels === "string") {
+      try {
+        const parsed = JSON.parse(rawChannels);
+        channels = Array.isArray(parsed) ? parsed : [];
+      } catch {
+        channels = [];
+      }
+    }
     const notifyChannels = channels.filter(
       (ch) => ch !== "toast" && ch !== "notification"
     );

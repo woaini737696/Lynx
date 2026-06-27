@@ -9,11 +9,11 @@
 // 6. 全程通过事件向前端报告进度
 
 use serde_json::json;
-use tauri::{AppHandle, Manager};
+use tauri::{AppHandle, Manager, Emitter};
 
 /// 安装进度事件
 fn emit_progress(app: &AppHandle, step: u8, total: u8, message: &str, percent: u32) {
-    let _ = app.emit_all("install-progress", json!({
+    let _ = app.emit("install-progress", json!({
         "step": step,
         "total": total,
         "message": message,
@@ -172,7 +172,7 @@ pub async fn install_ai_environment(app: AppHandle) -> Result<serde_json::Value,
     emit_progress(&app, 6, total_steps, if ready { "安装完成！" } else { "部分组件未就绪" }, 100);
 
     // 通知前端安装完成
-    let _ = app.emit_all("install-complete", json!({
+    let _ = app.emit("install-complete", json!({
         "success": ready,
         "status": final_check,
     }));

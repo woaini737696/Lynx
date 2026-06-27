@@ -534,6 +534,7 @@ model PatrolRule {
   @@index([scope])
   @@index([enabled])
   @@index([userId])
+  @@index([userId, createdAt])
 }
 
 // AI 巡检执行日志
@@ -603,6 +604,9 @@ model ChatMessage {
   model     String?  @db.VarChar(64)
   tokens    Int?     // 消耗的 token 数
   durationMs Int?    // 生成耗时（毫秒）
+  // 用户标注反馈：good=好回复 | bad=不满意的回复（用于 HermesAgent 自主学习纠正）
+  feedback       String? @db.VarChar(8)
+  feedbackReason String? @db.Text
   createdAt DateTime @default(now())
 
   session ChatSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)

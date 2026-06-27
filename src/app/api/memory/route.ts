@@ -8,6 +8,7 @@ import {
 } from "@/lib/embedding";
 import { hasAIEmbedding } from "@/lib/ai";
 import { requireAuth, buildUserFilter } from "@/lib/auth-utils";
+import { getMemoryCache, setMemoryCache, clearMemoryCache } from "@/lib/memory-cache";
 
 // 重建记忆图谱：从 Idea/Conversation/Cognition 同步到 Memory 表，生成 embedding，计算相似度连边
 export async function POST(req: NextRequest) {
@@ -188,6 +189,9 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    // 重建后清除该用户的记忆缓存
+    clearMemoryCache(user.id);
+
     return NextResponse.json({
       success: true,
       total: sources.length,
@@ -204,10 +208,18 @@ export async function POST(req: NextRequest) {
 }
 
 // 获取记忆图谱数据（节点 + 边）
+// 5 分钟内存缓存：避免每次全量查询节点+边，首次构建后复用
 export async function GET() {
   try {
     const { user, error } = await requireAuth();
     if (error) return error;
+
+    // 检查缓存
+    const cacheKey = user.id;
+    const cached = getMemoryCache(cacheKey);
+    if (cached) {
+      return NextResponse.json(cached);
+    }
 
     const memories = await prisma.memory.findMany({
       where: buildUserFilter(user),
@@ -259,7 +271,7 @@ export async function GET() {
       }
     }
 
-    return NextResponse.json({
+    const responseData = {
       nodes,
       edges,
       stats: {
@@ -268,7 +280,12 @@ export async function GET() {
         isolated: nodes.filter((n) => n.connections.length === 0).length,
         mode: hasAIEmbedding ? "ai-embedding" : "tfidf-fallback",
       },
-    });
+    };
+
+    // 写入缓存
+    setMemoryCache(cacheKey, responseData);
+
+    return NextResponse.json(responseData);
   } catch (e) {
     console.error("获取记忆图谱失败:", e);
     return NextResponse.json({ error: "服务器错误" }, { status: 500 });

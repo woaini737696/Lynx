@@ -8,7 +8,7 @@
 use crate::hermes::router::LocalAction;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
-use tauri::{AppHandle, Manager};
+use tauri::{AppHandle, Manager, Emitter, Listener};
 
 /// 静态变量：本次会话内 L2 是否已授权
 static L2_APPROVED_THIS_SESSION: AtomicBool = AtomicBool::new(false);
@@ -82,17 +82,16 @@ pub async fn request_approval(
 
     // 监听前端响应
     let app_handle = app.clone();
-    let _listener = app_handle.listen_global("approval-response", move |event| {
-        if let Some(payload) = event.payload() {
-            if let Ok(data) = serde_json::from_str::<serde_json::Value>(payload) {
-                if data.get("requestId") == Some(&serde_json::Value::String(request_id_clone.clone())) {
-                    let approved = data.get("approved")
-                        .and_then(|v| v.as_bool())
-                        .unwrap_or(false);
-                    if let Ok(mut guard) = tx_clone.lock() {
-                        if let Some(sender) = guard.take() {
-                            let _ = sender.send(approved);
-                        }
+    let _listener = app_handle.listen("approval-response", move |event| {
+        let payload = event.payload();
+        if let Ok(data) = serde_json::from_str::<serde_json::Value>(payload) {
+            if data.get("requestId") == Some(&serde_json::Value::String(request_id_clone.clone())) {
+                let approved = data.get("approved")
+                    .and_then(|v| v.as_bool())
+                    .unwrap_or(false);
+                if let Ok(mut guard) = tx_clone.lock() {
+                    if let Some(sender) = guard.take() {
+                        let _ = sender.send(approved);
                     }
                 }
             }
@@ -100,7 +99,7 @@ pub async fn request_approval(
     });
 
     // 发送审批请求事件给前端
-    let _ = app.emit_all("approval-request", serde_json::json!({
+    let _ = app.emit("approval-request", serde_json::json!({
         "requestId": request_id,
         "level": level,
         "action": action_desc,

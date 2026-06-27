@@ -9,7 +9,9 @@ pub mod ws_client;
 
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
-use tauri::{Manager, SystemTray, SystemTrayMenu, SystemTrayMenuItem, CustomMenuItem};
+use tauri::{Manager, Emitter, Listener};
+use tauri::menu::{Menu, MenuItem, PredefinedMenuItem};
+use tauri::tray::TrayIconBuilder;
 use tauri_plugin_shell::ShellExt;
 use std::thread;
 
@@ -304,18 +306,6 @@ pub fn run() {
 
     log::info!("LynnHub 桌面端启动中...");
 
-    // 系统托盘菜单
-    let quit_item = CustomMenuItem::new("quit", "退出 LynnHub");
-    let emergency_item = CustomMenuItem::new("emergency", "🛑 紧急停止");
-    let show_item = CustomMenuItem::new("show", "显示主窗口");
-    let tray_menu = SystemTrayMenu::new()
-        .add_item(show_item)
-        .add_item(emergency_item)
-        .add_native_item(tauri::SystemTrayMenuItem::Separator)
-        .add_item(quit_item);
-
-    let system_tray = SystemTray::new().with_menu(tray_menu).with_tooltip("LynnHub HermesAgent");
-
     let app_state = Arc::new(AppState::default());
 
     tauri::Builder::default()
@@ -323,48 +313,9 @@ pub fn run() {
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_dialog::init())
-        .plugin(tauri_plugin_updater::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_http::init())
-        .system_tray(system_tray)
-        .on_system_tray_event(|app, event| {
-            match event {
-                tauri::SystemTrayEvent::MenuItemClick { id, .. } => {
-                    match id.as_str() {
-                        "quit" => {
-                            log::info!("用户通过托盘退出");
-                            app.exit(0);
-                        }
-                        "emergency" => {
-                            EMERGENCY_STOP.store(true, Ordering::SeqCst);
-                            log::warn!("托盘触发紧急停止");
-                            // 5秒后重置
-                            let app_clone = app.clone();
-                            thread::spawn(move || {
-                                thread::sleep(std::time::Duration::from_secs(5));
-                                EMERGENCY_STOP.store(false, Ordering::SeqCst);
-                                let _ = app_clone.emit_all("emergency-reset", ());
-                            });
-                            let _ = app.emit_all("emergency-stop", ());
-                        }
-                        "show" => {
-                            if let Some(window) = app.get_window("main") {
-                                let _ = window.show();
-                                let _ = window.set_focus();
-                            }
-                        }
-                        _ => {}
-                    }
-                }
-                tauri::SystemTrayEvent::DoubleClick { .. } => {
-                    if let Some(window) = app.get_window("main") {
-                        let _ = window.show();
-                        let _ = window.set_focus();
-                    }
-                }
-                _ => {}
-            }
-        })
         .on_window_event(|window, event| {
             if let tauri::WindowEvent::CloseRequested { api, .. } = event {
                 // 关闭按钮最小化到托盘而非退出
@@ -399,13 +350,63 @@ pub fn run() {
         ])
         .setup(|app| {
             log::info!("LynnHub 桌面端启动完成");
-            // 启动时自动检查更新（异步）
+
+            // ============ 系统托盘（Tauri 2.x API） ============
             let app_handle = app.handle().clone();
+            let quit_item = MenuItem::with_id(&app_handle, "quit", "退出 LynnHub", true, None::<&str>)?;
+            let emergency_item = MenuItem::with_id(&app_handle, "emergency", "🛑 紧急停止", true, None::<&str>)?;
+            let show_item = MenuItem::with_id(&app_handle, "show", "显示主窗口", true, None::<&str>)?;
+            let separator = PredefinedMenuItem::separator(&app_handle)?;
+
+            let tray_menu = Menu::with_items(&app_handle, &[&show_item, &emergency_item, &separator, &quit_item])?;
+
+            let _tray = TrayIconBuilder::with_id("main-tray")
+                .menu(&tray_menu)
+                .tooltip("LynnHub HermesAgent")
+                .icon(app.default_window_icon().cloned().unwrap())
+                .on_menu_event(|app, event| {
+                    match event.id().as_ref() {
+                        "quit" => {
+                            log::info!("用户通过托盘退出");
+                            app.exit(0);
+                        }
+                        "emergency" => {
+                            EMERGENCY_STOP.store(true, Ordering::SeqCst);
+                            log::warn!("托盘触发紧急停止");
+                            let app_clone = app.clone();
+                            thread::spawn(move || {
+                                thread::sleep(std::time::Duration::from_secs(5));
+                                EMERGENCY_STOP.store(false, Ordering::SeqCst);
+                                let _ = app_clone.emit("emergency-reset", ());
+                            });
+                            let _ = app.emit("emergency-stop", ());
+                        }
+                        "show" => {
+                            if let Some(window) = app.get_webview_window("main") {
+                                let _ = window.show();
+                                let _ = window.set_focus();
+                            }
+                        }
+                        _ => {}
+                    }
+                })
+                .on_tray_icon_event(|tray, event| {
+                    if let tauri::tray::TrayIconEvent::DoubleClick { .. } = event {
+                        let app = tray.app_handle();
+                        if let Some(window) = app.get_webview_window("main") {
+                            let _ = window.show();
+                            let _ = window.set_focus();
+                        }
+                    }
+                })
+                .build(app)?;
+
+            // 启动时自动检查更新（异步）
+            let app_handle2 = app.handle().clone();
             thread::spawn(move || {
                 thread::sleep(std::time::Duration::from_secs(5));
                 log::info!("开始检查更新...");
-                // 更新检查在 frontend 通过 tauri-plugin-updater 触发
-                let _ = app_handle.emit_all("app-started", ());
+                let _ = app_handle2.emit("app-started", ());
             });
             Ok(())
         })

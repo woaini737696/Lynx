@@ -2004,15 +2004,27 @@ function AIGenerateModal({
     null
   );
   const [saving, setSaving] = useState(false);
+  // SSE 流式状态：thinking 状态提示 / delta 累积文本 / 错误信息 / 降级原因
+  const [streamThinking, setStreamThinking] = useState("");
+  const [streamDelta, setStreamDelta] = useState("");
+  const [streamError, setStreamError] = useState("");
+  const [fallbackReason, setFallbackReason] = useState("");
 
   const handleGenerate = async () => {
     if (!workLog.trim() && conversation.length === 0) {
       toast("请先输入工作记录", "error");
       return;
     }
+    // 重置流式状态，进入流式面板
     setGenerating(true);
+    setStreamThinking("");
+    setStreamDelta("");
+    setStreamError("");
+    setFallbackReason("");
+    setGeneratedSkill(null);
+
     try {
-      const res = await fetch("/api/skills/generate", {
+      const resp = await fetch("/api/skills/generate/stream", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -2023,22 +2035,69 @@ function AIGenerateModal({
           })),
         }),
       });
-      const data = await res.json();
-      if (res.ok) {
-        setGeneratedSkill(data.skill);
-        if (data.fallback) {
-          // 降级模式：展示明确的降级原因
-          toast(data.fallbackReason || "AI 调用失败，已降级为简单分类", "info");
-        } else if (data.mock) {
-          toast("AI_API_KEY 未配置，已用 Mock 逻辑生成", "info");
-        } else {
-          toast("已生成技能", "success");
+
+      if (!resp.ok) {
+        const errData = await resp.json().catch(() => null);
+        throw new Error(errData?.error || `请求失败（${resp.status}）`);
+      }
+
+      const reader = resp.body?.getReader();
+      if (!reader) throw new Error("无法读取流式响应");
+      const decoder = new TextDecoder("utf-8");
+      let buffer = "";
+      // delta 文本累积变量：避免每个 SSE 事件都触发 setState 拼接
+      let deltaText = "";
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split("\n");
+        buffer = lines.pop() || "";
+        for (const line of lines) {
+          const trimmed = line.trim();
+          if (!trimmed || !trimmed.startsWith("data:")) continue;
+          const payload = trimmed.slice(5).trim();
+          if (!payload || payload === "[DONE]") continue;
+          try {
+            const obj = JSON.parse(payload);
+            if (obj.type === "thinking") {
+              // 状态提示（正在分析... / 正在解析...）
+              setStreamThinking(obj.content || "");
+            } else if (obj.type === "delta" && typeof obj.content === "string") {
+              // AI 输出片段：追加到打字机文本
+              deltaText += obj.content;
+              setStreamDelta(deltaText);
+            } else if (obj.type === "done") {
+              // 生成完成：切换到预览界面
+              if (obj.skill) {
+                setGeneratedSkill(obj.skill);
+              }
+              if (obj.fallback) {
+                setFallbackReason(
+                  obj.fallbackReason || "AI 调用失败，已降级为简单分类"
+                );
+                toast(
+                  obj.fallbackReason || "AI 调用失败，已降级为简单分类",
+                  "info"
+                );
+              } else {
+                toast("已生成技能", "success");
+              }
+            } else if (obj.type === "error") {
+              const errMsg = obj.error || "生成失败";
+              setStreamError(errMsg);
+              toast(errMsg, "error");
+            }
+          } catch {
+            // 忽略单行 SSE 解析错误
+          }
         }
-      } else {
-        toast(data.error || "生成失败", "error");
       }
     } catch (e) {
-      toast("网络错误：" + (e as Error).message, "error");
+      const msg = (e as Error).message || "网络错误";
+      setStreamError(msg);
+      toast(msg, "error");
     } finally {
       setGenerating(false);
     }
@@ -2100,7 +2159,101 @@ function AIGenerateModal({
           </button>
         </div>
 
-        {!generatedSkill ? (
+        {/* 流式输出面板：生成中或失败时显示，覆盖表单与预览 */}
+        {!generatedSkill && (generating || streamError) ? (
+          <div className="space-y-3">
+            {/* 状态条：thinking 提示 / 错误提示 / 完成提示 */}
+            <div
+              className={cn(
+                "flex items-center gap-2 rounded-xl border p-3 text-xs",
+                streamError
+                  ? "border-graveyard/30 bg-graveyard/5 text-graveyard"
+                  : generating
+                    ? "border-cognition/30 bg-cognition/5 text-cognition"
+                    : "border-task/30 bg-task/5 text-task"
+              )}
+            >
+              {generating ? (
+                <>
+                  <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin" />
+                  <span className="flex-1 truncate">
+                    {streamThinking || "正在生成..."}
+                  </span>
+                </>
+              ) : streamError ? (
+                <>
+                  <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+                  <span className="flex-1">生成失败：{streamError}</span>
+                </>
+              ) : (
+                <>
+                  <Check className="h-3.5 w-3.5 shrink-0" />
+                  <span className="flex-1">生成完成</span>
+                </>
+              )}
+            </div>
+
+            {/* 降级提示：fallback 时显示原因 */}
+            {fallbackReason && !streamError && (
+              <div className="flex items-start gap-2 rounded-xl border border-yellow-500/30 bg-yellow-500/5 p-2.5 text-[11px] text-yellow-700 dark:text-yellow-400">
+                <AlertTriangle className="mt-0.5 h-3 w-3 shrink-0" />
+                <span className="flex-1">{fallbackReason}</span>
+              </div>
+            )}
+
+            {/* AI 输出文本（打字机效果，delta 实时追加）*/}
+            <div className="rounded-xl border border-border bg-muted/20 p-3">
+              <div className="mb-1.5 flex items-center justify-between">
+                <span className="text-[10px] font-medium text-muted-foreground">
+                  AI 输出
+                </span>
+                {generating && (
+                  <span className="inline-flex items-center gap-1 text-[10px] text-muted-foreground">
+                    <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-cognition" />
+                    实时生成中
+                  </span>
+                )}
+              </div>
+              <pre className="max-h-72 overflow-y-auto whitespace-pre-wrap break-words font-mono text-[11px] leading-relaxed text-foreground">
+                {streamDelta || (generating ? "等待 AI 响应..." : "")}
+                {generating && (
+                  <span className="ml-0.5 inline-block animate-pulse text-cognition">
+                    ▋
+                  </span>
+                )}
+              </pre>
+            </div>
+
+            {/* 错误时提供返回/重试 */}
+            {streamError && !generating && (
+              <div className="flex items-center justify-end gap-2 border-t border-border/60 pt-3">
+                <Button
+                  variant="ghost"
+                  onClick={() => {
+                    setStreamError("");
+                    setStreamThinking("");
+                    setStreamDelta("");
+                    setFallbackReason("");
+                  }}
+                >
+                  返回表单
+                </Button>
+                <Button onClick={handleGenerate}>
+                  <Sparkles className="h-3.5 w-3.5" /> 重试
+                </Button>
+              </div>
+            )}
+
+            {/* 生成中可取消（关闭弹窗）*/}
+            {generating && (
+              <div className="flex items-center justify-end border-t border-border/60 pt-3">
+                <span className="text-[10px] text-muted-foreground">
+                  生成过程中关闭弹窗将中断当前请求
+                </span>
+              </div>
+            )}
+          </div>
+        ) : !generatedSkill ? (
           <div className="space-y-4">
             {/* 工作记录输入 */}
             <div>
@@ -2190,7 +2343,14 @@ function AIGenerateModal({
             saving={saving}
             onRegenerate={handleGenerate}
             onSave={handleSave}
-            onCancel={() => setGeneratedSkill(null)}
+            onCancel={() => {
+              // 重新生成：清空所有流式状态，回到表单
+              setGeneratedSkill(null);
+              setStreamDelta("");
+              setStreamThinking("");
+              setStreamError("");
+              setFallbackReason("");
+            }}
           />
         )}
       </div>

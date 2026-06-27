@@ -151,15 +151,54 @@ export async function GET(req: NextRequest) {
       );
     }
 
-    await Promise.all(tasks);
+    // 单类型导出：直接返回 JSON（数据量小，无需流式）
+    if (typesToExport.length === 1) {
+      await Promise.all(tasks);
+      return NextResponse.json({
+        exportedAt: new Date().toISOString(),
+        version: "1.0",
+        data,
+      });
+    }
 
-    const payload = {
-      exportedAt: new Date().toISOString(),
-      version: "1.0",
-      data,
-    };
+    // 全量导出（type=all）：流式 JSON 响应，避免大数据量内存溢出
+    // 格式：{"exportedAt":"...","version":"1.0","data":{<逐块写入>}}
+    const encoder = new TextEncoder();
+    const stream = new ReadableStream({
+      async start(controller) {
+        // 写入 JSON 头部
+        controller.enqueue(
+          encoder.encode(
+            `{"exportedAt":"${new Date().toISOString()}","version":"1.0","data":{`
+          )
+        );
 
-    return NextResponse.json(payload);
+        const typeKeys: string[] = typesToExport;
+        for (let i = 0; i < typeKeys.length; i++) {
+          const key = typeKeys[i];
+          // 等待该类型查询完成
+          await tasks[i];
+          // 写入 "key":<json>
+          const prefix = i > 0 ? "," : "";
+          const chunk = `${prefix}${JSON.stringify(key)}:${JSON.stringify(data[key] ?? null)}`;
+          controller.enqueue(encoder.encode(chunk));
+          // 释放内存：导出后删除引用
+          delete data[key];
+        }
+
+        // 写入 JSON 尾部
+        controller.enqueue(encoder.encode("}}"));
+        controller.close();
+      },
+    });
+
+    return new NextResponse(stream, {
+      headers: {
+        "Content-Type": "application/json",
+        "Transfer-Encoding": "chunked",
+        "Content-Disposition": `attachment; filename="lynnhub-export-${Date.now()}.json"`,
+      },
+    });
   } catch (e) {
     logger.error({ err: e }, "数据备份导出失败");
     return NextResponse.json({ error: "服务器错误" }, { status: 500 });

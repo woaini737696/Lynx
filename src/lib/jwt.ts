@@ -3,11 +3,17 @@
 
 import crypto from "crypto";
 
-const SECRET = process.env.AUTH_SECRET;
-
-// 生产环境强制要求 AUTH_SECRET（与 auth.ts 保持一致）
-if (!SECRET && process.env.NODE_ENV === "production") {
-  throw new Error("AUTH_SECRET 环境变量未配置，请运行 `openssl rand -base64 32` 生成并配置到 .env");
+// 动态读取 SECRET：避免模块加载时 process.env 尚未填充导致 SECRET 为 undefined
+// （Next.js dev server 中 .env 由 dotenv 在运行时注入，模块顶层常量可能读取过早）
+function getSecret(): string {
+  const s = process.env.AUTH_SECRET;
+  if (!s) {
+    if (process.env.NODE_ENV === "production") {
+      throw new Error("AUTH_SECRET 环境变量未配置，请运行 `openssl rand -base64 32` 生成并配置到 .env");
+    }
+    return "";
+  }
+  return s;
 }
 
 function base64url(input: Buffer | string): string {
@@ -15,7 +21,7 @@ function base64url(input: Buffer | string): string {
 }
 
 function hmacSign(data: string): string {
-  return crypto.createHmac("sha256", SECRET as string).update(data).digest("base64url");
+  return crypto.createHmac("sha256", getSecret()).update(data).digest("base64url");
 }
 
 export interface JwtPayload {
@@ -39,7 +45,11 @@ export async function signToken(payload: JwtPayload): Promise<string> {
 
 /** 校验 JWT 签名与过期时间，失败返回 null */
 export async function verifyToken(token: string): Promise<JwtPayload | null> {
-  if (!SECRET) return null;
+  const secret = getSecret();
+  if (!secret) {
+    console.error("[jwt] verifyToken: SECRET 为空");
+    return null;
+  }
   const parts = token.split(".");
   if (parts.length !== 3) return null;
   const [headerB64, bodyB64, signature] = parts;
@@ -49,7 +59,10 @@ export async function verifyToken(token: string): Promise<JwtPayload | null> {
   // 定时安全比较，防止时序攻击
   const a = Buffer.from(signature);
   const b = Buffer.from(expectedSig);
-  if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) return null;
+  if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) {
+    console.error("[jwt] verifyToken: 签名不匹配", { expected: expectedSig.slice(0, 10), actual: signature.slice(0, 10), secretLen: secret.length });
+    return null;
+  }
 
   try {
     const body = JSON.parse(Buffer.from(bodyB64, "base64url").toString()) as JwtPayload;

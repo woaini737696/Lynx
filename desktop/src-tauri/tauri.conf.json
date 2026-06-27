@@ -6,10 +6,11 @@
   "build": {
     "beforeDevCommand": "npm run frontend:dev",
     "devUrl": "http://localhost:5176",
-    "beforeBuildCommand": "npm run frontend:build",
+    "beforeBuildCommand": "",
     "frontendDist": "../out"
   },
   "app": {
+    "withGlobalTauri": true,
     "windows": [
       {
         "title": "LynnHub 桌面端",
@@ -20,10 +21,7 @@
         "resizable": true,
         "fullscreen": false,
         "decorations": true,
-        "transparent": false,
-        "icon": [
-          "icons/icon.ico"
-        ]
+        "transparent": false
       }
     ],
     "security": {
@@ -41,14 +39,9 @@
     "active": true,
     "targets": ["msi", "nsis"],
     "icon": [
-      "icons/icon.ico"
-    ],
-    "resources": [
-      "resources/*",
-      "sidecar/*"
-    ],
-    "externalBin": [
-      "binaries/hermes-agent"
+      "icons/icon.ico",
+      "icons/icon.png",
+      "icons/icon.icns"
     ],
     "copyright": "© 2026 LynnHub",
     "category": "Productivity",
@@ -64,15 +57,6 @@
       ],
       "pubkey": "",
       "dialog": true
-    },
-    "shell": {
-      "scope": [
-        {
-          "name": "open-browser",
-          "cmd": "open",
-          "args": true
-        }
-      ]
     }
   }
 }

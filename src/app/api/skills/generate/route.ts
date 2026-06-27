@@ -3,8 +3,8 @@ import { chat, type LLMProvider } from "@/lib/ai-provider";
 import type { SkillParameter } from "@/lib/skill-parser";
 import { requirePermission } from "@/lib/auth-utils";
 
-// AI 生成 Skill 的系统提示词
-const SKILL_GENERATE_PROMPT = `你是一个技能提取专家。用户会提供一段工作记录（可能附带与 AI 的对话历史），你的任务是：
+// AI 生成 Skill 的系统提示词（导出供 stream 端点复用）
+export const SKILL_GENERATE_PROMPT = `你是一个技能提取专家。用户会提供一段工作记录（可能附带与 AI 的对话历史），你的任务是：
 
 1. 分析工作记录，识别其中可复用的工作模式/流程
 2. 将其抽象为一个参数化的 Skill（技能模板），使其能在类似场景下重复使用

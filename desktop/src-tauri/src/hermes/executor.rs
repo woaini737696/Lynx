@@ -17,7 +17,7 @@ pub async fn execute_cloud(
     steps.push(ExecutionStep {
         action: "调用云端 AI 助理 API".to_string(),
         result: format!("POST {}/api/ai/chat", cloud_endpoint),
-        timestamp: super::router::route_command("").to_string().chars().take(0).collect(),
+        timestamp: "".to_string(),
     });
 
     let client = reqwest::Client::new();

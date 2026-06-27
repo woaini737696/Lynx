@@ -12,7 +12,7 @@ use serde_json::json;
 use std::sync::Arc;
 use std::sync::atomic::Ordering;
 use std::time::Duration;
-use tauri::{AppHandle, Manager};
+use tauri::{AppHandle, Manager, Emitter};
 use tokio_tungstenite::tungstenite::Message;
 
 /// 启动 WS 客户端，连接云端状态中心
@@ -59,7 +59,7 @@ async fn connect_and_serve(ws_url: &str, token: &str, app: &AppHandle) -> Result
 
     let state = app.state::<Arc<AppState>>();
     state.ws_connected.store(true, Ordering::SeqCst);
-    let _ = app.emit_all("ws-connected", ());
+    let _ = app.emit("ws-connected", ());
 
     let (mut write, mut read) = ws_stream.split();
     use futures_util::SinkExt;
@@ -71,7 +71,7 @@ async fn connect_and_serve(ws_url: &str, token: &str, app: &AppHandle) -> Result
         "agentVersion": env!("CARGO_PKG_VERSION"),
         "deviceName": get_device_name(),
         "capabilities": ["browser", "desktop", "file", "shell"],
-        "authMode": state.auth_mode.lock().map_err(|e| e.to_string())?,
+        "authMode": state.auth_mode.lock().map_err(|e| e.to_string())?.clone(),
     });
     write.send(Message::Text(register_msg.to_string()))
         .await
@@ -84,7 +84,7 @@ async fn connect_and_serve(ws_url: &str, token: &str, app: &AppHandle) -> Result
         loop {
             interval.tick().await;
             // 心跳通过 app 事件触发，实际发送由主循环处理
-            let _ = app_clone.emit_all("ws-heartbeat", ());
+            let _ = app_clone.emit("ws-heartbeat", ());
         }
     });
 
@@ -113,7 +113,7 @@ async fn connect_and_serve(ws_url: &str, token: &str, app: &AppHandle) -> Result
 
     heartbeat_task.abort();
     state.ws_connected.store(false, Ordering::SeqCst);
-    let _ = app.emit_all("ws-disconnected", ());
+    let _ = app.emit("ws-disconnected", ());
 
     Ok(())
 }
@@ -132,7 +132,7 @@ async fn handle_cloud_message(text: &str, _token: &str, app: &AppHandle) -> Resu
             let command = msg.get("command").and_then(|v| v.as_str()).unwrap_or("").to_string();
 
             log::info!("收到远程指令: {} (id={})", command, command_id);
-            let _ = app.emit_all("remote-command-received", json!({
+            let _ = app.emit("remote-command-received", json!({
                 "commandId": command_id,
                 "command": command,
             }));
@@ -143,7 +143,7 @@ async fn handle_cloud_message(text: &str, _token: &str, app: &AppHandle) -> Resu
             let auth_mode = state.auth_mode.lock().map_err(|e| e.to_string())?.clone();
 
             // 流式回传进度（通过事件给前端展示）
-            let _ = app.emit_all("command-progress", json!({
+            let _ = app.emit("command-progress", json!({
                 "commandId": command_id,
                 "step": "开始执行",
                 "percent": 0,
@@ -159,14 +159,14 @@ async fn handle_cloud_message(text: &str, _token: &str, app: &AppHandle) -> Resu
             ).await;
 
             // 最终结果回传给云端（由前端通过 REST API 转发）
-            let _ = app.emit_all("command-complete", json!({
+            let _ = app.emit("command-complete", json!({
                 "commandId": command_id,
                 "result": result,
             }));
         }
         "ping" => {
             // 心跳响应
-            let _ = app.emit_all("ws-ping", ());
+            let _ = app.emit("ws-ping", ());
         }
         _ => {
             log::debug!("未识别的消息类型: {}", msg_type);
@@ -182,7 +182,7 @@ fn get_device_name() -> String {
     let user = env::var("USERNAME").or_else(|_| env::var("USER")).unwrap_or_default();
     let hostname = hostname::get()
         .map(|h| h.to_string_lossy().to_string())
-        .unwrap_or_else(|_| "unknown".to_string());
+        .unwrap_or_else(|| "unknown".to_string());
     format!("{}-{}", user, hostname)
 }
 
