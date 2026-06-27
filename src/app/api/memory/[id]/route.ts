@@ -66,7 +66,7 @@ export async function DELETE(
   }
 }
 
-// 更新记忆标签：同步更新源实体（Idea.content / Conversation.title / Cognition.content）与 Memory.content
+// 更新记忆标签：仅更新 Memory.label 独立字段，不再覆盖源实体（Idea.content / Conversation.title / Cognition.content）
 export async function PATCH(
   req: NextRequest,
   { params }: { params: { id: string } }
@@ -94,30 +94,12 @@ export async function PATCH(
       return NextResponse.json({ error: "无权修改他人的记忆" }, { status: 403 });
     }
 
-    const trimmed = label.trim();
+    const trimmed = label.trim().slice(0, 500);
 
-    // 同步更新源实体，使标签在重建后仍然保持
-    if (memory.ideaId) {
-      await prisma.idea.update({
-        where: { id: memory.ideaId },
-        data: { content: trimmed },
-      });
-    } else if (memory.conversationId) {
-      await prisma.conversation.update({
-        where: { id: memory.conversationId },
-        data: { title: trimmed },
-      });
-    } else if (memory.cognitionId) {
-      await prisma.cognition.update({
-        where: { id: memory.cognitionId },
-        data: { content: trimmed },
-      });
-    }
-
-    // 同步 Memory.content，保持缓存一致
+    // 仅更新 Memory.label 独立字段，不再覆盖源实体内容（避免破坏 Idea.content / Conversation.title / Cognition.content）
     await prisma.memory.update({
       where: { id },
-      data: { content: trimmed },
+      data: { label: trimmed },
     });
 
     // 清除缓存

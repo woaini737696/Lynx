@@ -2,6 +2,7 @@
 // App 端通过 Authorization: Bearer <token> 访问 /api/*，由 route handler 的 requireAuth 校验
 import { auth } from "@/auth";
 import { NextResponse } from "next/server";
+import { unauthorized } from "@/lib/api-response";
 
 const publicRoutes = ["/login", "/api/auth"];
 const publicPatterns = [
@@ -32,16 +33,10 @@ export default auth((req) => {
 
   // 未登录处理
   if (!req.auth) {
-    // API 路由（/api/*）：返回 JSON 401，不重定向到登录页
+    // API 路由（/api/*）：返回统一信封 JSON 401，不重定向到登录页
     // API 客户端（fetch/axios）期望 JSON 错误响应，而非 HTML 重定向
     if (pathname.startsWith("/api/")) {
-      return new NextResponse(
-        JSON.stringify({ error: "未登录", code: "UNAUTHORIZED" }),
-        {
-          status: 401,
-          headers: { "Content-Type": "application/json" },
-        }
-      );
+      return unauthorized("未登录");
     }
 
     // RSC 预取请求（带 _rsc 查询参数或 RSC 头）：返回 401 而非重定向

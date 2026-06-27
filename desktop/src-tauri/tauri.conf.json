@@ -51,7 +51,7 @@
   },
   "plugins": {
     "updater": {
-      "active": false,
+      "active": true,
       "endpoints": [
         "https://app.lynnhub.com/api/desktop/update"
       ],

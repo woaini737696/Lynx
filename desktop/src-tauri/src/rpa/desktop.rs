@@ -1,6 +1,8 @@
 // 桌面应用 RPA 操作（启动应用、截图、模拟键鼠）
 // 集成 enigo（键鼠模拟）+ screenshots（截图）
 
+use tauri::Manager;
+
 /// 启动本地应用
 pub async fn open_app(app_name: &str) -> Result<(), String> {
     let (cmd, args) = match app_name.to_lowercase().as_str() {
@@ -31,29 +33,30 @@ pub async fn open_app(app_name: &str) -> Result<(), String> {
     }
 }
 
-/// 截屏：保存到 D:\LynnHub\user-data\screenshots\
-pub async fn take_screenshot() -> Result<String, String> {
-    let save_dir = if cfg!(target_os = "windows") {
-        "D:\\LynnHub\\user-data\\screenshots"
-    } else {
-        "./user-data/screenshots"
-    };
+/// 截屏：保存到 app_data_dir()/screenshots/（跨平台，替代硬编码 D:\LynnHub）
+pub async fn take_screenshot(app_handle: &tauri::AppHandle) -> Result<String, String> {
+    let app_data = app_handle
+        .path()
+        .app_data_dir()
+        .unwrap_or_else(|_| std::path::PathBuf::from("user-data"));
+    let save_dir = app_data.join("screenshots");
 
     // 确保目录存在
-    let _ = std::fs::create_dir_all(save_dir);
+    let _ = std::fs::create_dir_all(&save_dir);
 
     let timestamp = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .map(|d| d.as_millis())
         .unwrap_or(0);
-    let file_path = format!("{}/screenshot_{}.png", save_dir, timestamp);
+    let file_path = save_dir.join(format!("screenshot_{}.png", timestamp));
+    let file_path_str = file_path.to_string_lossy().to_string();
 
     // 使用 PowerShell 截图命令（Windows）
     #[cfg(target_os = "windows")]
     {
         let ps_script = format!(
             r#"Add-Type -AssemblyName System.Windows.Forms; Add-Type -AssemblyName System.Drawing; $bounds = [System.Windows.Forms.SystemInformation]::VirtualScreen; $bmp = New-Object System.Drawing.Bitmap($bounds.Width, $bounds.Height); $g = [System.Drawing.Graphics]::FromImage($bmp); $g.CopyFromScreen($bounds.Location, [System.Drawing.Point]::Empty, $bounds.Size); $bmp.Save('{}'); $g.Dispose(); $bmp.Dispose()"#,
-            file_path.replace('\\', "\\\\")
+            file_path_str.replace('\\', "\\\\")
         );
 
         let status = tokio::process::Command::new("powershell")
@@ -63,9 +66,9 @@ pub async fn take_screenshot() -> Result<String, String> {
             .await
             .map_err(|e| format!("PowerShell 截图失败: {}", e))?;
 
-        if status.success() && std::path::Path::new(&file_path).exists() {
-            log::info!("截图已保存: {}", file_path);
-            return Ok(file_path);
+        if status.success() && file_path.exists() {
+            log::info!("截图已保存: {}", file_path_str);
+            return Ok(file_path_str);
         }
     }
 

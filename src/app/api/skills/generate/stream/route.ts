@@ -13,15 +13,49 @@ const logger = getLogger("skills-generate-stream-api");
 //   delta     - AI 输出的文本片段
 //   done      - 生成完成，含解析后的 skill 对象
 //   error     - 错误
+// 每个事件带递增 id 字段，支持 Last-Event-ID 断连检测
 export async function POST(req: NextRequest) {
   const auth = await requirePermission("skill:generate");
   if (auth.error) return auth.error;
 
+  // 断连恢复检测：若请求头含 Last-Event-ID，说明是断连重连
+  // 技能生成是无状态的，无法从中间状态恢复，返回错误提示重新生成
+  const lastEventId = req.headers.get("Last-Event-ID");
+  if (lastEventId) {
+    const encoder = new TextEncoder();
+    const retryStream = new ReadableStream({
+      start(controller) {
+        controller.enqueue(
+          encoder.encode(
+            `data: ${JSON.stringify({
+              type: "error",
+              error: "生成已中断，请重新生成",
+              reconnect: true,
+            })}\n\n`
+          )
+        );
+        controller.close();
+      },
+    });
+    return new Response(retryStream, {
+      headers: {
+        "Content-Type": "text/event-stream",
+        "Cache-Control": "no-cache",
+        Connection: "keep-alive",
+      },
+    });
+  }
+
   const encoder = new TextEncoder();
   const stream = new ReadableStream({
     async start(controller) {
+      // 递增事件 ID：供前端 Last-Event-ID 断连检测
+      let eventId = 0;
       const send = (obj: unknown) => {
-        controller.enqueue(encoder.encode(`data: ${JSON.stringify(obj)}\n\n`));
+        eventId++;
+        controller.enqueue(
+          encoder.encode(`id: ${eventId}\ndata: ${JSON.stringify(obj)}\n\n`)
+        );
       };
 
       try {

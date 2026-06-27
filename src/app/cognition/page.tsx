@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { BookOpen, Brain, Plus, Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { COGNITION_TYPES, type CognitionType } from "@/lib/utils";
@@ -9,6 +9,8 @@ import { PageHeader, Card, Button, Badge, Skeleton } from "@/components/layout/P
 import { EmptyState } from "@/components/layout/EmptyState";
 import { SearchInput, Pagination, useClientPagination } from "@/components/ui/ListControls";
 import { useAsyncLoading } from "@/lib/use-async-loading";
+import { useCognitions } from "@/lib/use-api";
+import { AnimatedList } from "@/components/ui/AnimatedList";
 
 interface Cognition {
   id: string;
@@ -19,9 +21,10 @@ interface Cognition {
 }
 
 export default function CognitionPage() {
-  const [cognitions, setCognitions] = useState<Cognition[]>([]);
+  const { data, error, isLoading, mutate } = useCognitions();
+  const cognitions: Cognition[] = data?.cognitions || [];
+  const loading = isLoading && !data;
   const [filter, setFilter] = useState<CognitionType | "all">("all");
-  const [loading, setLoading] = useState(true);
   const [showExtract, setShowExtract] = useState(false);
   const [extractContent, setExtractContent] = useState("");
   const [extracting, setExtracting] = useState(false);
@@ -29,30 +32,10 @@ export default function CognitionPage() {
   // 全局异步加载反馈：耗时超过 800ms 的操作会显示 overlay
   const { run: runAsync } = useAsyncLoading();
 
-  useEffect(() => {
-    let mounted = true;
-    const load = async () => {
-      setLoading(true);
-      try {
-        const res = await fetch("/api/cognitions");
-        if (!mounted) return;
-        if (res.ok) {
-          const data = await res.json();
-          setCognitions(data.cognitions || []);
-        }
-      } catch (e) {
-        if (!mounted) return;
-        console.error(e);
-        toast("加载认知库失败", "error");
-      } finally {
-        if (mounted) setLoading(false);
-      }
-    };
-    load();
-    return () => {
-      mounted = false;
-    };
-  }, []);
+  // SWR 加载失败提示（仅首次加载失败时）
+  if (error && !data) {
+    toast("加载认知库失败", "error");
+  }
 
   const handleExtract = async () => {
     if (!extractContent.trim()) {
@@ -68,7 +51,7 @@ export default function CognitionPage() {
       }));
       if (res.ok) {
         const data = await res.json();
-        await loadCognitions();
+        await mutate();
         setShowExtract(false);
         setExtractContent("");
         toast(`提取完成，新增 ${data.count} 条认知`, "success");
@@ -80,18 +63,6 @@ export default function CognitionPage() {
       toast("网络错误", "error");
     }
     setExtracting(false);
-  };
-
-  const loadCognitions = async () => {
-    try {
-      const res = await fetch("/api/cognitions");
-      if (res.ok) {
-        const data = await res.json();
-        setCognitions(data.cognitions || []);
-      }
-    } catch {
-      // ignore
-    }
   };
 
   const filtered = useMemo(() => {
@@ -214,17 +185,21 @@ export default function CognitionPage() {
         />
       ) : (
         <>
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            {paginated.map((c) => (
-              <Card key={c.id} className="flex flex-col" hover>
+          <AnimatedList
+            items={paginated}
+            keyExtractor={(c) => c.id}
+            className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3"
+          >
+            {(c: Cognition) => (
+              <Card className="flex flex-col" hover>
                 <div className="mb-3 flex items-center justify-between">
                   <Badge color={c.type as any}>{COGNITION_TYPES[c.type].label}</Badge>
                   <span className="text-[10px] text-muted-foreground">{formatTime(c.createdAt)}</span>
                 </div>
                 <p className="flex-1 whitespace-pre-wrap text-sm leading-relaxed">{c.content}</p>
               </Card>
-            ))}
-          </div>
+            )}
+          </AnimatedList>
           <div className="mt-5">
             <Pagination
               page={page}

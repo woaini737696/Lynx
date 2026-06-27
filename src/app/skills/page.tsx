@@ -2058,6 +2058,8 @@ function AIGenerateModal({
   const [streamDelta, setStreamDelta] = useState("");
   const [streamError, setStreamError] = useState("");
   const [fallbackReason, setFallbackReason] = useState("");
+  // 网络断连提示：连接中断时显示"重新生成"按钮
+  const [reconnectPrompt, setReconnectPrompt] = useState(false);
   // SSE 流式请求的 AbortController，用于关闭弹窗时中断生成
   const abortControllerRef = useRef<AbortController | null>(null);
 
@@ -2081,6 +2083,7 @@ function AIGenerateModal({
     setStreamDelta("");
     setStreamError("");
     setFallbackReason("");
+    setReconnectPrompt(false);
     setGeneratedSkill(null);
 
     // 创建 AbortController 以便中途取消
@@ -2152,6 +2155,10 @@ function AIGenerateModal({
             } else if (obj.type === "error") {
               const errMsg = obj.error || "生成失败";
               setStreamError(errMsg);
+              // 服务端通过 Last-Event-ID 检测到断连重连，提示用户重新生成
+              if (obj.reconnect === true) {
+                setReconnectPrompt(true);
+              }
               toast(errMsg, "error");
             }
           } catch {
@@ -2164,9 +2171,20 @@ function AIGenerateModal({
       if ((e as Error).name === "AbortError") {
         return;
       }
-      const msg = (e as Error).message || "网络错误";
+      const err = e as Error;
+      const msg = err.message || "网络错误";
       setStreamError(msg);
-      toast(msg, "error");
+      // 网络中断检测：fetch 抛出 TypeError 或 reader.read() 失败
+      // 常见错误信息："Failed to fetch" / "network error" / "The stream was aborted"
+      const isNetworkError =
+        err.name === "TypeError" ||
+        /failed to fetch|network|aborted|connection|断开|中断/i.test(msg);
+      if (isNetworkError) {
+        setReconnectPrompt(true);
+        toast("连接中断，请重新生成", "error");
+      } else {
+        toast(msg, "error");
+      }
     } finally {
       setGenerating(false);
       abortControllerRef.current = null;
@@ -2294,6 +2312,19 @@ function AIGenerateModal({
               </pre>
             </div>
 
+            {/* 网络断连提示：连接中断时显示"重新生成"按钮 */}
+            {reconnectPrompt && !generating && (
+              <div className="flex items-center justify-between gap-2 rounded-xl border border-orange-500/30 bg-orange-500/5 p-2.5">
+                <span className="flex items-center gap-1.5 text-[11px] text-orange-700 dark:text-orange-400">
+                  <AlertTriangle className="h-3 w-3 shrink-0" />
+                  连接中断，是否重新生成？
+                </span>
+                <Button size="sm" onClick={handleGenerate}>
+                  <Sparkles className="h-3.5 w-3.5" /> 重新生成
+                </Button>
+              </div>
+            )}
+
             {/* 错误时提供返回/重试 */}
             {streamError && !generating && (
               <div className="flex items-center justify-end gap-2 border-t border-border/60 pt-3">
@@ -2304,6 +2335,7 @@ function AIGenerateModal({
                     setStreamThinking("");
                     setStreamDelta("");
                     setFallbackReason("");
+                    setReconnectPrompt(false);
                   }}
                 >
                   返回表单

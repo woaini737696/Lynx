@@ -19,6 +19,7 @@ import {
 } from "@/lib/ai-assistant-tools";
 import { executeTool } from "../assistant/tool-executor";
 import { executeAssistantViaHermes, learnTaskPattern } from "@/lib/hermes-client";
+import { getFeedbackContext } from "@/lib/hermes-learner";
 
 // ============ 关键词意图检测（Fallback）============
 // 当 AI 没有输出 action 块时，用关键词匹配检测用户意图
@@ -141,6 +142,53 @@ function detectIntent(text: string): { tool: string; args: Record<string, any> }
   return null;
 }
 
+// ============ 服务端自动持久化 assistant 消息（幂等）============
+// 流式输出结束后调用：将 assistant 回复写入 ChatMessage 表
+// 幂等处理：若会话最新一条 assistant 消息内容相同，则复用其 id，避免前端重复 POST 导致重复写入
+async function persistAssistantMessageSafely(opts: {
+  sessionId?: string;
+  content: string;
+  provider?: string;
+  model?: string;
+  tokens?: number;
+}): Promise<string | null> {
+  const { sessionId, content, provider, model, tokens } = opts;
+  if (!sessionId || !content) return null;
+  try {
+    // 幂等检查：取该会话最新一条消息，若同样为 assistant 且 content 完全相同，则复用
+    const latest = await prisma.chatMessage.findFirst({
+      where: { sessionId },
+      orderBy: { createdAt: "desc" },
+      select: { id: true, role: true, content: true },
+    });
+    if (latest && latest.role === "assistant" && latest.content === content) {
+      return latest.id;
+    }
+    const created = await prisma.chatMessage.create({
+      data: {
+        sessionId,
+        role: "assistant",
+        content,
+        provider: provider || null,
+        model: model || null,
+        tokens: tokens ?? null,
+      },
+      select: { id: true },
+    });
+    // 更新会话 updatedAt（触发列表排序刷新）
+    await prisma.chatSession.update({
+      where: { id: sessionId },
+      data: { updatedAt: new Date() },
+    }).catch(() => {
+      // 会话更新失败不影响主流程
+    });
+    return created.id;
+  } catch (e) {
+    // 持久化失败不阻塞流式响应（已通过 done 事件返回内容给前端）
+    return null;
+  }
+}
+
 // POST /api/ai/chat
 // Request: { messages, provider?, model?, reasoningMode?, temperature?, maxTokens?, stream? }
 // - messages 中 content 可为字符串或多模态数组 [{ type: "text", text }, { type: "image_url", image_url: { url } }]
@@ -167,6 +215,10 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    // ============ 统一鉴权：所有模式都需要登录 ============
+    const authResult = await requireAuth();
+    if (authResult.error) return authResult.error;
+
     const body = await req.json().catch(() => null);
     if (!body || typeof body !== "object") {
       return NextResponse.json(
@@ -184,6 +236,7 @@ export async function POST(req: NextRequest) {
       maxTokens,
       stream,
       assistantMode,
+      sessionId,
     } = body as {
       messages?: unknown;
       provider?: string;
@@ -193,6 +246,7 @@ export async function POST(req: NextRequest) {
       maxTokens?: number;
       stream?: boolean;
       assistantMode?: boolean;
+      sessionId?: string;
     };
 
     // 校验 messages
@@ -323,10 +377,7 @@ export async function POST(req: NextRequest) {
     //
     // 支持 stream=true：将第二轮 LLM 回复流式输出，并推送阶段事件（thinking/tool/replying）
     if (assistantMode === true) {
-      // 工具执行需要登录用户
-      const auth = await requireAuth();
-      if (auth.error) return auth.error;
-      const user = auth.user;
+      const user = authResult.user!;
 
       // ============ 加载职业工作空间（system prompt + 工具白名单）============
       // 用户登录后按 Role.profession 自动加载 admin 在 /admin/profession-workspaces 配置的内容
@@ -428,7 +479,7 @@ export async function POST(req: NextRequest) {
               if (stream === true) {
                 const encoder = new TextEncoder();
                 const streamBody = new ReadableStream<Uint8Array>({
-                  start(controller) {
+                  async start(controller) {
                     const send = (obj: unknown) => controller.enqueue(encoder.encode(`data: ${JSON.stringify(obj)}\n\n`));
                     try {
                       send({ type: "meta", provider: "hermes", model: "hermes-agent", hermesMode: true });
@@ -439,11 +490,19 @@ export async function POST(req: NextRequest) {
                           send({ type: "delta", content: chunk });
                         }
                       }
+                      // 服务端自动持久化 assistant 消息（幂等），返回 messageId 供前端去重
+                      const hermesMessageId = await persistAssistantMessageSafely({
+                        sessionId,
+                        content: hermesResult.output || "",
+                        provider: "hermes",
+                        model: "hermes-agent",
+                      });
                       send({
                         type: "done",
                         usage: { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 },
                         toolCalled: null,
                         hermesMode: true,
+                        ...(hermesMessageId ? { messageId: hermesMessageId, sessionId } : {}),
                         ...(hermesFallback ? { hermesFallback: true } : {}),
                       });
                     } finally {
@@ -506,6 +565,12 @@ export async function POST(req: NextRequest) {
       }
       // 替换助理名称
       finalSystemPrompt = finalSystemPrompt.replace(/LynnHub 的 AI 助理/g, `${assistantName}（LynnHub AI 助理）`);
+
+      // 注入用户历史反馈（bad case）到 system prompt，让 AI 避免重复类似错误
+      const feedbackCtx = await getFeedbackContext();
+      if (feedbackCtx) {
+        finalSystemPrompt = finalSystemPrompt + feedbackCtx;
+      }
 
       // 注入职业 system prompt 追加（按 Role.profession 加载 admin 配置的工作空间）
       if (professionSystemPrompt) {
@@ -618,10 +683,19 @@ export async function POST(req: NextRequest) {
                 if (userTextForLearn.trim()) {
                   learnTaskPattern(user.id, userTextForLearn, firstContent).catch(() => {});
                 }
+                // 服务端自动持久化 assistant 消息（幂等），返回 messageId 供前端去重
+                const noActionMessageId = await persistAssistantMessageSafely({
+                  sessionId,
+                  content: finalContent,
+                  provider: firstProvider,
+                  model: firstModel,
+                  tokens: firstUsage?.total_tokens,
+                });
                 send({
                   type: "done",
                   usage: firstUsage,
                   toolCalled: null,
+                  ...(noActionMessageId ? { messageId: noActionMessageId, sessionId } : {}),
                   ...(hermesFallback ? { hermesFallback: true } : {}),
                 });
                 return;
@@ -631,6 +705,14 @@ export async function POST(req: NextRequest) {
               if (Array.isArray(allowedTools) && allowedTools.length > 0 && !allowedTools.includes(action.tool)) {
                 const blockedContent = `你的岗位工作空间未授权使用工具「${action.tool}」。当前岗位可用工具：${allowedTools.join("、")}`;
                 send({ type: "delta", content: blockedContent });
+                // 服务端自动持久化 assistant 消息（幂等），返回 messageId 供前端去重
+                const blockedMessageId = await persistAssistantMessageSafely({
+                  sessionId,
+                  content: blockedContent,
+                  provider: firstProvider,
+                  model: firstModel,
+                  tokens: firstUsage?.total_tokens,
+                });
                 send({
                   type: "done",
                   usage: firstUsage,
@@ -639,6 +721,7 @@ export async function POST(req: NextRequest) {
                     args: action.args,
                     result: { error: `工具未授权`, allowedTools },
                   },
+                  ...(blockedMessageId ? { messageId: blockedMessageId, sessionId } : {}),
                   ...(hermesFallback ? { hermesFallback: true } : {}),
                 });
                 return;
@@ -691,6 +774,14 @@ ${toolResultStr}
                   if (userTextForLearn.trim()) {
                     learnTaskPattern(user.id, userTextForLearn, secondContent).catch(() => {});
                   }
+                  // 服务端自动持久化 assistant 消息（幂等），返回 messageId 供前端去重
+                  const secondMessageId = await persistAssistantMessageSafely({
+                    sessionId,
+                    content: secondContent,
+                    provider: firstProvider,
+                    model: firstModel,
+                    tokens: (firstUsage?.total_tokens || 0) + (secondUsage?.total_tokens || 0),
+                  });
                   send({
                     type: "done",
                     usage: {
@@ -701,6 +792,7 @@ ${toolResultStr}
                     provider: firstProvider,
                     model: firstModel,
                     toolCalled: { tool: action.tool, args: action.args, result: toolResult },
+                    ...(secondMessageId ? { messageId: secondMessageId, sessionId } : {}),
                     ...(hermesFallback ? { hermesFallback: true } : {}),
                   });
                   return;

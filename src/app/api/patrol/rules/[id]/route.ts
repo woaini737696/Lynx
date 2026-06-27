@@ -3,6 +3,7 @@ import { prisma } from "@/lib/db";
 import { requireAuth } from "@/lib/auth-utils";
 import { validateString, validateEnum } from "@/lib/validate";
 import { Prisma } from "@prisma/client";
+import { schedulePatrolRule, cancelPatrolRule } from "@/lib/patrol-scheduler";
 
 // 巡检对象枚举
 const PATROL_SCOPES = ["inbox", "board", "graveyard", "all"] as const;
@@ -95,6 +96,16 @@ export async function PATCH(
     }
 
     const rule = await prisma.patrolRule.update({ where: { id }, data });
+
+    // triggerTime 或 enabled 变更时，重新注册/取消 cron job
+    if (body?.triggerTime !== undefined || body?.enabled !== undefined) {
+      if (rule.enabled) {
+        schedulePatrolRule(rule.id, rule.triggerTime);
+      } else {
+        cancelPatrolRule(rule.id);
+      }
+    }
+
     return NextResponse.json({ rule, success: true });
   } catch (e) {
     console.error("更新巡检规则失败:", e);
@@ -124,6 +135,10 @@ export async function DELETE(
 
     // 关联的 PatrolLog 通过 onDelete: Cascade 自动删除
     await prisma.patrolRule.delete({ where: { id } });
+
+    // 取消该规则对应的 cron job
+    cancelPatrolRule(id);
+
     return NextResponse.json({ success: true });
   } catch (e) {
     console.error("删除巡检规则失败:", e);

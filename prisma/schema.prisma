@@ -29,6 +29,9 @@ model User {
   userMimoApiKey     String? @db.VarChar(255)
   userAiProvider     String? @db.VarChar(32) // deepseek | mimo（用户默认 provider）
 
+  // ===== 权限缓存版本号（角色变更时递增，用于多实例缓存失效）=====
+  permissionVersion Int @default(0)
+
   ideas         Idea[]
   conversations Conversation[]
   tasks         Task[]
@@ -108,7 +111,7 @@ model Idea {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  user       User?        @relation(fields: [userId], references: [id])
+  user       User?        @relation(fields: [userId], references: [id], onDelete: Cascade)
   tasks      Task[]
   memories   Memory[]
   graveyard  Graveyard?
@@ -133,7 +136,7 @@ model Conversation {
   userId      String?
   createdAt   DateTime @default(now())
 
-  user        User?         @relation(fields: [userId], references: [id])
+  user        User?         @relation(fields: [userId], references: [id], onDelete: Cascade)
   memories    Memory[]
   cognitions  Cognition[]
 
@@ -154,8 +157,8 @@ model Task {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  idea Idea? @relation(fields: [sourceId], references: [id])
-  user User? @relation(fields: [userId], references: [id])
+  idea Idea? @relation(fields: [sourceId], references: [id], onDelete: SetNull)
+  user User? @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   dailyFocusItems DailyFocusItem[]
 
@@ -174,16 +177,18 @@ model Memory {
   conversationId  String?
   cognitionId     String?
   content         String   @db.Text
+  // 独立标签字段：用户自定义的显示标签，PATCH 时仅更新此字段，不再覆盖源实体内容
+  label           String?  @db.VarChar(500)
   embedding       Bytes?   @db.LongBlob
   connections     Json     @default("[]") // [memoryId, ...]
   strength        Float    @default(1.0)
   userId          String?
   createdAt       DateTime @default(now())
 
-  idea         Idea?         @relation(fields: [ideaId], references: [id])
-  conversation Conversation? @relation(fields: [conversationId], references: [id])
-  cognition    Cognition?    @relation(fields: [cognitionId], references: [id])
-  user         User?         @relation(fields: [userId], references: [id])
+  idea         Idea?         @relation(fields: [ideaId], references: [id], onDelete: SetNull)
+  conversation Conversation? @relation(fields: [conversationId], references: [id], onDelete: SetNull)
+  cognition    Cognition?    @relation(fields: [cognitionId], references: [id], onDelete: SetNull)
+  user         User?         @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([type])
   @@index([userId])
@@ -203,7 +208,7 @@ model Graveyard {
   abandonedAt      DateTime  @default(now())
   revivedAt        DateTime?
 
-  idea Idea @relation(fields: [originalIdeaId], references: [id])
+  idea Idea @relation(fields: [originalIdeaId], references: [id], onDelete: Cascade)
 
   @@index([revivedAt])
 }
@@ -220,10 +225,10 @@ model Cognition {
   userId        String?
   createdAt     DateTime @default(now())
 
-  idea         Idea?         @relation(fields: [ideaId], references: [id])
-  conversation Conversation? @relation(fields: [conversationId], references: [id])
+  idea         Idea?         @relation(fields: [ideaId], references: [id], onDelete: SetNull)
+  conversation Conversation? @relation(fields: [conversationId], references: [id], onDelete: SetNull)
   memories     Memory[]
-  user         User?         @relation(fields: [userId], references: [id])
+  user         User?         @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([type])
   @@index([userId])
@@ -241,7 +246,7 @@ model DailyFocus {
   status      String   @default("pending") // pending | completed
   userId      String?
 
-  user  User?            @relation(fields: [userId], references: [id])
+  user  User?            @relation(fields: [userId], references: [id], onDelete: Cascade)
   items DailyFocusItem[]
 
   @@index([date])
@@ -256,7 +261,7 @@ model DailyFocusItem {
   completed    Boolean @default(false)
 
   dailyFocus DailyFocus @relation(fields: [dailyFocusId], references: [id], onDelete: Cascade)
-  task       Task       @relation(fields: [taskId], references: [id])
+  task       Task       @relation(fields: [taskId], references: [id], onDelete: Cascade)
 }
 
 // Skill - 可复用技能模板
@@ -282,7 +287,7 @@ model Skill {
   downloadCount  Int       @default(0)      // 从广场加载次数
   ratingAvg      Float     @default(0)      // 广场评分平均（冗余，定期更新）
 
-  user    User?          @relation(fields: [userId], references: [id])
+  user    User?          @relation(fields: [userId], references: [id], onDelete: Cascade)
   versions SkillVersion[]
 
   @@index([category])
@@ -322,7 +327,7 @@ model SkillReview {
   userId    String?
   createdAt DateTime @default(now())
 
-  user User? @relation(fields: [userId], references: [id])
+  user User? @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([skillId])
   @@index([publicId])
@@ -529,7 +534,7 @@ model PatrolRule {
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
-  user User? @relation(fields: [userId], references: [id])
+  user User? @relation(fields: [userId], references: [id], onDelete: Cascade)
   logs PatrolLog[]
 
   @@index([scope])
@@ -586,7 +591,7 @@ model ChatSession {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  user     User?         @relation(fields: [userId], references: [id])
+  user     User?         @relation(fields: [userId], references: [id], onDelete: Cascade)
   messages ChatMessage[]
 
   @@index([pinned])
@@ -629,7 +634,7 @@ model Flow {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  user        User?            @relation(fields: [userId], references: [id])
+  user        User?            @relation(fields: [userId], references: [id], onDelete: Cascade)
   executions  FlowExecution[]
 
   @@index([userId])
@@ -651,7 +656,7 @@ model FlowExecution {
   userId          String?
 
   flow Flow @relation(fields: [flowId], references: [id], onDelete: Cascade)
-  user User? @relation(fields: [userId], references: [id])
+  user User? @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([flowId])
   @@index([startedAt])
@@ -666,7 +671,7 @@ model PushSubscription {
   userId    String?
   createdAt DateTime @default(now())
 
-  user User? @relation(fields: [userId], references: [id])
+  user User? @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
 }

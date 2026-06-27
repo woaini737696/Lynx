@@ -175,7 +175,14 @@ export async function PUT(req: NextRequest) {
       },
     });
 
-    // 角色权限/属性变更，清除全部权限缓存（影响该角色下所有用户）
+    // 角色权限/属性变更：递增该角色下所有用户的 permissionVersion
+    // 使多实例部署中所有实例的权限缓存自动失效（缓存键含 permissionVersion）
+    await prisma.user.updateMany({
+      where: { role: name },
+      data: { permissionVersion: { increment: 1 } },
+    });
+
+    // 同时清除本实例的权限缓存（立即生效，无需等待 TTL）
     clearPermissionCache();
 
     return NextResponse.json({ role: updated, success: true });

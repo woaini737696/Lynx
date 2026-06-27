@@ -7,6 +7,7 @@ import { PageHeader, Card, Button, Badge, Skeleton } from "@/components/layout/P
 import { HelpButton } from "@/components/layout/HelpButton";
 import { EmptyState } from "@/components/layout/EmptyState";
 import { Modal } from "@/components/ui/Modal";
+import { AnimatedList } from "@/components/ui/AnimatedList";
 import { cn } from "@/lib/utils";
 import { SearchInput, FilterSelect, Pagination, useClientPagination } from "@/components/ui/ListControls";
 import type { ReviveSuggestion } from "@/lib/reminder-scheduler";
@@ -602,11 +603,12 @@ export default function InboxPage() {
               </>
             )}
           </div>
-          {paginated.map((idea, i) => {
+          <AnimatedList items={paginated} keyExtractor={(idea: Idea) => idea.id}>
+            {(idea: Idea, i: number) => {
             const isExpanding = expanding === idea.id;
             const isSelected = selectedIds.has(idea.id);
             return (
-              <Card key={idea.id} className={`p-0 overflow-hidden ${isSelected ? "ring-2 ring-northstar/40" : ""}`} hover>
+              <Card className={`p-0 overflow-hidden ${isSelected ? "ring-2 ring-northstar/40" : ""}`} hover>
                 <div className="flex items-center gap-3 p-3 sm:gap-4 sm:p-4">
                   {multiSelectMode && (
                     <button
@@ -739,7 +741,8 @@ export default function InboxPage() {
                 </div>
               </Card>
             );
-          })}
+            }}
+          </AnimatedList>
           {filtered.length === 0 && (
             <div className="rounded-xl border border-dashed border-border bg-muted/30 px-4 py-12 text-center text-sm text-muted-foreground">
               没有匹配的灵感

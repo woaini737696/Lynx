@@ -37,13 +37,17 @@ pub async fn open_url(url: &str) -> Result<(), String> {
 }
 
 /// 导航到 URL 并提取页面数据
-/// 复用项目根目录下已安装的 agent-browser CLI（npm-global）
+/// 复用 agent-browser CLI：优先用 AGENT_BROWSER_PATH 环境变量，其次 PATH 查找，最后回退 "agent-browser"
 pub async fn navigate_and_extract(url: &str, selector: Option<&str>) -> Result<serde_json::Value, String> {
-    // 优先调用 agent-browser CLI
-    let agent_browser_path = if cfg!(target_os = "windows") {
-        "D:\\LynnHub\\npm-global\\agent-browser.cmd"
+    // 解析 agent-browser 可执行文件路径（跨平台，替代硬编码 D:\LynnHub\npm-global）
+    let agent_browser_path: String = if let Ok(p) = std::env::var("AGENT_BROWSER_PATH") {
+        if !p.is_empty() {
+            p
+        } else {
+            resolve_agent_browser()
+        }
     } else {
-        "agent-browser"
+        resolve_agent_browser()
     };
 
     let mut args = vec!["--url".to_string(), url.to_string(), "--extract".to_string()];
@@ -52,7 +56,7 @@ pub async fn navigate_and_extract(url: &str, selector: Option<&str>) -> Result<s
         args.push(s.to_string());
     }
 
-    let output = tokio::process::Command::new(agent_browser_path)
+    let output = tokio::process::Command::new(&agent_browser_path)
         .args(&args)
         .output()
         .await;
@@ -95,3 +99,17 @@ pub async fn navigate_and_extract(url: &str, selector: Option<&str>) -> Result<s
         }
     }
 }
+
+/// 跨平台解析 agent-browser 可执行文件路径
+/// 1. 通过 `which` crate 在 PATH 中查找（Windows 会自动匹配 .cmd/.exe/.bat）
+/// 2. 找不到则回退为 "agent-browser"，交给系统 shell 解析（仍可能命中 PATH）
+fn resolve_agent_browser() -> String {
+    match which::which("agent-browser") {
+        Ok(p) => p.to_string_lossy().to_string(),
+        Err(_) => {
+            log::debug!("which 未在 PATH 中找到 agent-browser，回退为直接调用");
+            "agent-browser".to_string()
+        }
+    }
+}
+
