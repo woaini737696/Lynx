@@ -29,7 +29,7 @@ sealed class BottomTab(
         Icons.Outlined.Dashboard
     )
 
-    data object Chat : BottomTab(
+    data object Hermes : BottomTab(
         "hermes",
         "Hermes",
         Icons.Filled.SmartToy,
@@ -54,7 +54,7 @@ sealed class BottomTab(
 val bottomTabs = listOf(
     BottomTab.Focus,
     BottomTab.Board,
-    BottomTab.Chat,
+    BottomTab.Hermes,
     BottomTab.Tasks,
     BottomTab.Settings
 )

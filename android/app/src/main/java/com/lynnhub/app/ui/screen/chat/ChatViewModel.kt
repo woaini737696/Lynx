@@ -1,5 +1,6 @@
 package com.lynnhub.app.ui.screen.chat
 
+import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.lynnhub.app.data.local.UserPreferences
@@ -74,7 +75,9 @@ class ChatViewModel @Inject constructor(
                 if (_uiState.value.currentSessionId == null && response.sessions.isNotEmpty()) {
                     selectSession(response.sessions.first().id)
                 }
-            } catch (_: Exception) { }
+            } catch (e: Exception) {
+                Log.w("ChatViewModel", "loadSessions failed", e)
+            }
         }
     }
 
@@ -92,7 +95,9 @@ class ChatViewModel @Inject constructor(
                     )
                 }
                 _uiState.value = _uiState.value.copy(messages = messages)
-            } catch (_: Exception) { }
+            } catch (e: Exception) {
+                Log.w("ChatViewModel", "selectSession failed: $sessionId", e)
+            }
         }
     }
 
@@ -101,14 +106,16 @@ class ChatViewModel @Inject constructor(
             try {
                 val session = apiService.createChatSession(
                     ChatCreateSessionRequest(title = "新对话", provider = "deepseek")
-                )
+                ).session
                 _uiState.value = _uiState.value.copy(
                     sessions = listOf(session) + _uiState.value.sessions,
                     currentSessionId = session.id,
                     messages = emptyList(),
                     showSessionList = false
                 )
-            } catch (_: Exception) { }
+            } catch (e: Exception) {
+                Log.w("ChatViewModel", "createNewSession failed", e)
+            }
         }
     }
 
@@ -125,7 +132,9 @@ class ChatViewModel @Inject constructor(
                         _uiState.value = _uiState.value.copy(currentSessionId = null, messages = emptyList())
                     }
                 }
-            } catch (_: Exception) { }
+            } catch (e: Exception) {
+                Log.w("ChatViewModel", "deleteSession failed: $sessionId", e)
+            }
         }
     }
 
@@ -198,9 +207,11 @@ class ChatViewModel @Inject constructor(
     private fun loadAiSettings() {
         viewModelScope.launch {
             try {
-                val settings = apiService.getAiSettings()
+                val settings = apiService.getAiSettings().settings
                 _uiState.value = _uiState.value.copy(aiSettings = settings)
-            } catch (_: Exception) { }
+            } catch (e: Exception) {
+                Log.w("ChatViewModel", "loadAiSettings failed", e)
+            }
         }
     }
 }

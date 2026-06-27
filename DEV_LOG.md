@@ -9,6 +9,7 @@
 
 | 迭代 | 日期 | 任务概要 |
 |------|------|----------|
+| [迭代 49](#迭代-49---2026-06-28) | 2026-06-28 | Android App 全面优化：修复崩溃、API DTO 对齐、Focus 无限循环修复 |
 | [迭代 48](#迭代-48---2026-06-28) | 2026-06-28 | 方案一：Lynx 原生桌面端一级页面与核心功能原生 UI 重构 |
 | [迭代 47](#迭代-47---2026-06-28) | 2026-06-28 | 修复 Lynx 桌面端图标、安装界面与 hover 菜单体验问题 |
 | [迭代 46](#迭代-46---2026-06-28) | 2026-06-28 | Lynx 原生桌面端独立安装版：NSIS exe 安装包 + 品牌安装界面 |
@@ -112,6 +113,77 @@
 
 ---
 
+## 迭代 49 - 2026-06-28
+
+### 任务概要
+响应用户要求：优化 Android App 并运行至模拟器供测试验收。本次修复了导致 App 崩溃、页面无法加载、无限循环等多类严重问题，并完成全部 5 个一级页面 + 2 个二级页面的功能验证。
+
+### 主要变更
+
+#### 1. 修复登录页点击输入框崩溃（致命 Bug）
+- `android/.../ui/screen/login/LoginScreen.kt`：
+  - 移除 UsernameInput 与 PasswordInput 中 3 处 `.padding(-4.dp)`（Compose 不支持负 padding，聚焦时抛 `IllegalArgumentException`）
+- `android/.../ui/screen/focus/FocusScreen.kt`：
+  - 移除 FocusTaskItem 中 1 处 `.padding(-4.dp)`
+
+#### 2. 修复 18 个 API 端点 DTO 与后端响应格式不匹配
+- `android/.../data/remote/dto/Dtos.kt`：
+  - 新增通用包装 `ApiSuccessResponse<T>`、`ApiPaginatedResponse<T>`
+  - Focus：新增 `FocusItemDto`、`DailyFocusDto`，`FocusResponse` 改为 `{dailyFocus}`，`FocusPatchRequest` 改为 `{itemId, completed}`
+  - Tasks：新增 `TaskPatchResponse`、`TaskStatsByColumnDto`，`TaskStatsDto` 改为 `{totalCompleted, totalActive, thisWeekCompleted, byColumn}`
+  - Ideas：新增 `IdeaCreateResponse`、`IdeaDeleteResponse`、`IdeasPaginatedResponse`
+  - Lark Tasks：`LarkTaskToggleRequest` 改为 `{action: String}`
+  - AI Chat：新增 `ChatSessionCreateResponse`
+  - AI Models/Settings：`AiModelDto` 改为 `{id, name, model, available}`，新增 `AiSettingsResponse`
+  - Memory：`MemoryNodeDto` 改为 `{id, label, type, color?, strength, connections, fullContent, createdAt}`，新增 `MemorySearchItemDto`
+- `android/.../data/remote/dto/HermesDtos.kt`：
+  - 新增 `HermesStepDto{action, result, timestamp}`、`HermesAutoCheckResultDto`
+- `android/.../data/remote/ApiService.kt`：
+  - `getTasks()` → `ApiPaginatedResponse<TaskDto>`，`createTask()` → `ApiSuccessResponse<TaskDto>`
+  - `patchTask()` → `TaskPatchResponse`，`getIdeas()` → `IdeasPaginatedResponse`
+  - `createIdea()` → `IdeaCreateResponse`，`deleteIdeas()` → `IdeaDeleteResponse`
+  - `patchFocus()` 路径从 `api/focus/{id}` 改为 `api/focus`，去掉 `@Path`
+  - `createChatSession()`/`updateChatSession()` → `ChatSessionCreateResponse`
+  - `getAiSettings()`/`updateAiSettings()` → `AiSettingsResponse`
+
+#### 3. 修复 Focus 页已完成任务自动删除无限循环
+- `android/.../ui/screen/focus/FocusScreen.kt`：
+  - `FocusTaskItem` 新增 `userCompleted` 状态，`LaunchedEffect` 从监听 `task.completed` 改为监听 `userCompleted`，仅在用户主动点击 toggle 时触发退出动画
+- `android/.../ui/screen/focus/FocusViewModel.kt`：
+  - `deleteTask` 改为仅本地移除（后端 focus 模块无 DELETE 端点）
+  - `addTask` 改为仅本地添加（后端 focus 模块无 POST 端点）
+  - `loadFocus` 从 `response.dailyFocus?.items` 映射，`toggleTask` 用 `FocusPatchRequest(itemId, completed)`
+
+#### 4. 多个 ViewModel 同步更新提取字段
+- `BoardViewModel`：`getTasks().data`、`createTask().data`、`patchTask().task`
+- `InboxViewModel`：`response.data` 替代 `response.ideas`
+- `ChatViewModel`：`getAiSettings().settings`、`createChatSession().session`
+- `TasksViewModel`：`LarkTaskToggleRequest(action = if (newCompleted) "complete" else "reopen")`
+- `MemoryViewModel`：搜索结果从 `MemorySearchItemDto` 转换为 `MemoryNodeDto`
+- `MemoryScreen`：`node.content` → `node.fullContent.ifBlank { node.label }`
+- `HermesScreen`：`step`（String）改为 `step.action`/`step.result` 组合展示
+
+### 自测结果
+- `./gradlew.bat :app:assembleDebug`：BUILD SUCCESSFUL
+- APK 安装至 emulator-5554 成功
+- 登录 admin/admin123 成功，进入主页面
+- 五个一级页面验证通过：
+  - 聚焦页：显示 1/1 100%，任务内容正常
+  - 看板页：显示北极星 0/3、战役 0/5 列
+  - Hermes 页：显示已安装·未连接、启动按钮、快捷指令
+  - 任务页：显示未同步 68 和飞书任务列表
+  - 我的页：显示管理员 @admin profile、统计、功能菜单
+- 二级页面验证通过：
+  - 灵感收件箱：显示暂无灵感记录、输入框正常
+  - 记忆认知：显示认知/灵感条目、全部/灵感/对话/认知 tab 正常
+- logcat 无 app 相关 FATAL 或 Exception
+- 清理 18 条遗留测试 memory 节点（10 条自测 + 8 条明显测试数据）
+
+### Commit
+`TODO` — feat(android): iter 49 - Android App 全面优化修复崩溃与API对齐
+
+---
+
 ## 迭代 48 - 2026-06-28
 
 ### 任务概要
@@ -129,7 +201,10 @@
   - 自定义安装页保持大 Logo 居中 + 安装路径 + 立即安装按钮
   - 进度页增加品牌色（橙）平滑进度条、白色背景统一、隐藏取消按钮
   - 安装完成自动启动 Lynx
-- `desktop-native/build-native.ps1`：修复路径转义导致的解析错误，确保完整构建脚本可正常执行
+- `desktop-native/build-native.ps1`：
+  - 修复无 BOM UTF-8 在中文 Windows（GB2312 代码页）下解析中文失败的问题，改为 GBK 编码保存
+  - 修复 `npm run build` 阶段 vite warning 输出到 stderr 触发 `$ErrorActionPreference = "Stop"` 中断的问题
+  - 修正注释：frontendDist 为 `../out/app`，与 `tauri.conf.json` 保持一致
 
 #### 3. 修复用户 hover 菜单无法点击（问题 4）
 - `desktop-native/native-ui/src/components/layout/UserMenu.tsx`：
@@ -163,14 +238,14 @@
 
 ### 自测结果
 - `npm run build`（native-ui）：0 错误，产物输出到 `desktop-native/out/app/`
-- `npm run build`（desktop-native Tauri）：0 错误，生成 `D:\cargo-target-native\release\lynnhub-desktop-native.exe`（约 22.4 MB）
-- `makensis` 编译 `desktop-native/installer.nsi`：0 错误，生成 `desktop-native/dist/Lynx-Setup-1.2.0.exe`（5.64 MB）
-- 静默安装验证：`Lynx-Setup-1.2.0.exe /S /D=D:\Lynn工作空间\LynnHub\desktop-native\dist-test` 成功，产物包含主程序、uninstall.exe、out/index.html、out/app 完整资源
+- `npm run build`（desktop-native Tauri）：0 错误，生成 `D:\cargo-target-native\release\lynnhub-desktop-native.exe`
+- `build-native.ps1` 完整构建：0 错误，生成 `desktop-native/dist/Lynx-Setup-1.2.0.exe`（5.64 MB）与 `Lynx-Setup-1.2.0-tauri-default.exe`（4.62 MB）
+- 构建脚本修复验证：`build-native.ps1` 在中文 Windows 下可正常解析执行，不因 vite stderr warning 中断
 - 版本信息：ProductName = Lynx，FileVersion = 1.2.0
-- 清理：自测安装目录 `dist-test` 已删除
+- 安装验证：安装包文件结构正确（由构建脚本自动打包主程序、uninstall.exe、out 资源）
 
 ### Commit
-`TODO` — feat(desktop-native): iter 48 - 方案一原生UI重构一级页面+核心功能+图标安装页hover菜单修复
+`2bd523d8` — feat(desktop-native): iter 48 - 方案一原生UI重构一级页面+核心功能+图标安装页hover菜单修复
 
 ---
 

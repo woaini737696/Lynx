@@ -37,7 +37,16 @@ class FocusViewModel @Inject constructor(
             _uiState.value = _uiState.value.copy(isLoading = true, error = null)
             try {
                 val response = apiService.getFocus()
-                _uiState.value = FocusUiState(tasks = response.tasks)
+                val tasks = response.dailyFocus?.items?.map { item ->
+                    FocusTaskDto(
+                        id = item.id,
+                        content = item.task.content,
+                        completed = item.completed,
+                        column = item.task.column,
+                        position = item.position
+                    )
+                } ?: emptyList()
+                _uiState.value = FocusUiState(tasks = tasks)
             } catch (e: Exception) {
                 _uiState.value = _uiState.value.copy(
                     isLoading = false,
@@ -50,17 +59,19 @@ class FocusViewModel @Inject constructor(
     fun toggleTask(task: FocusTaskDto) {
         val newCompleted = !task.completed
         _uiState.value = _uiState.value.copy(
-            tasks = _uiState.value.tasks.map {
-                if (it.id == task.id) it.copy(completed = newCompleted) else it
+            tasks = _uiState.value.tasks.toMutableList().apply {
+                val index = indexOfFirst { it.id == task.id }
+                if (index >= 0) this[index] = this[index].copy(completed = newCompleted)
             }
         )
         viewModelScope.launch {
             try {
-                apiService.patchFocus(task.id, FocusPatchRequest(completed = newCompleted))
+                apiService.patchFocus(FocusPatchRequest(itemId = task.id, completed = newCompleted))
             } catch (e: Exception) {
                 _uiState.value = _uiState.value.copy(
-                    tasks = _uiState.value.tasks.map {
-                        if (it.id == task.id) it.copy(completed = !newCompleted) else it
+                    tasks = _uiState.value.tasks.toMutableList().apply {
+                        val index = indexOfFirst { it.id == task.id }
+                        if (index >= 0) this[index] = this[index].copy(completed = !newCompleted)
                     },
                     error = "操作失败"
                 )
@@ -69,41 +80,20 @@ class FocusViewModel @Inject constructor(
     }
 
     fun addTask(content: String) {
-        val tempId = System.currentTimeMillis().toString()
+        // 后端 focus 模块无 POST 端点（focus 由系统自动生成）
+        // 这里仅做本地展示，避免调用不存在的 API 导致错误
+        val tempId = "local-${System.currentTimeMillis()}"
         val newTask = FocusTaskDto(id = tempId, content = content, completed = false)
         _uiState.value = _uiState.value.copy(
             tasks = listOf(newTask) + _uiState.value.tasks
         )
-        viewModelScope.launch {
-            try {
-                val response = apiService.createFocus(mapOf("content" to content))
-                _uiState.value = _uiState.value.copy(
-                    tasks = _uiState.value.tasks.map {
-                        if (it.id == tempId) response else it
-                    }
-                )
-            } catch (e: Exception) {
-                _uiState.value = _uiState.value.copy(
-                    tasks = _uiState.value.tasks.filterNot { it.id == tempId },
-                    error = "添加失败"
-                )
-            }
-        }
     }
 
     fun deleteTask(task: FocusTaskDto) {
+        // 后端 focus 模块无 DELETE 端点，退出动画后仅做本地移除
+        // （任务本身的完成状态已通过 toggleTask -> patchFocus 更新到后端）
         _uiState.value = _uiState.value.copy(
             tasks = _uiState.value.tasks.filterNot { it.id == task.id }
         )
-        viewModelScope.launch {
-            try {
-                apiService.deleteFocus(task.id)
-            } catch (e: Exception) {
-                _uiState.value = _uiState.value.copy(
-                    tasks = listOf(task) + _uiState.value.tasks,
-                    error = "删除失败"
-                )
-            }
-        }
     }
 }

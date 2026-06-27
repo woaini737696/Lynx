@@ -60,7 +60,7 @@ fun AppNavigation(
         ) {
             composable(BottomTab.Focus.route) { FocusScreen() }
             composable(BottomTab.Board.route) { BoardScreen() }
-            composable(BottomTab.Chat.route) { com.lynnhub.app.ui.screen.hermes.HermesScreen() }
+            composable(BottomTab.Hermes.route) { com.lynnhub.app.ui.screen.hermes.HermesScreen() }
             composable(BottomTab.Tasks.route) { TasksScreen() }
             composable(BottomTab.Settings.route) {
                 SettingsScreen(
@@ -69,8 +69,8 @@ fun AppNavigation(
                     onNavigateToMemory = { navController.navigate("memory") }
                 )
             }
-            composable("inbox") { InboxScreen() }
-            composable("memory") { MemoryScreen() }
+            composable("inbox") { InboxScreen(onBack = { navController.popBackStack() }) }
+            composable("memory") { MemoryScreen(onBack = { navController.popBackStack() }) }
         }
     }
 }
@@ -95,7 +95,7 @@ private fun BottomNavBar(navController: NavHostController) {
         ) {
             bottomTabs.forEach { tab ->
                 val isSelected = currentRoute == tab.route
-                val isCenter = tab is BottomTab.Chat
+                val isCenter = tab is BottomTab.Hermes
 
                 Column(
                     horizontalAlignment = Alignment.CenterHorizontally,

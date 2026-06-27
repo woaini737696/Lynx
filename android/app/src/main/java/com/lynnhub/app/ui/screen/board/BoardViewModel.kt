@@ -1,5 +1,6 @@
 package com.lynnhub.app.ui.screen.board
 
+import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.lynnhub.app.data.remote.ApiService
@@ -38,9 +39,18 @@ data class BoardUiState(
     val showEditDialog: Boolean = false,
     val editingTask: TaskDto? = null
 ) {
+    /**
+     * 预分桶：按 column 分组并按 position 排序，每个 UiState 实例只计算一次。
+     * 避免每次 tasksForColumn() 调用都重新 filter + sort。
+     */
+    private val activeTasksByColumn: Map<String, List<TaskDto>> by lazy {
+        tasks.filter { it.status == "active" }
+            .groupBy { it.column }
+            .mapValues { (_, list) -> list.sortedBy { it.position } }
+    }
+
     fun tasksForColumn(column: String): List<TaskDto> =
-        tasks.filter { it.column == column && it.status == "active" }
-            .sortedBy { it.position }
+        activeTasksByColumn[column] ?: emptyList()
 
     fun activeCount(column: String): Int = tasksForColumn(column).size
 
@@ -64,7 +74,7 @@ class BoardViewModel @Inject constructor(
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(isLoading = true, error = null)
             try {
-                val tasks = apiService.getTasks()
+                val tasks = apiService.getTasks().data
                 _uiState.value = _uiState.value.copy(tasks = tasks, isLoading = false)
             } catch (e: Exception) {
                 _uiState.value = _uiState.value.copy(
@@ -98,7 +108,8 @@ class BoardViewModel @Inject constructor(
     fun addTask(content: String, column: String) {
         viewModelScope.launch {
             try {
-                val newTask = apiService.createTask(TaskCreateRequest(content = content, column = column))
+                val newTask = apiService.createTask(TaskCreateRequest(content = content, column = column)).data
+                    ?: return@launch
                 _uiState.value = _uiState.value.copy(
                     tasks = _uiState.value.tasks + newTask,
                     showAddDialog = false
@@ -112,7 +123,7 @@ class BoardViewModel @Inject constructor(
     fun updateTask(id: String, content: String) {
         viewModelScope.launch {
             try {
-                val updated = apiService.patchTask(id, TaskPatchRequest(content = content))
+                val updated = apiService.patchTask(id, TaskPatchRequest(content = content)).task
                 _uiState.value = _uiState.value.copy(
                     tasks = _uiState.value.tasks.map { if (it.id == id) updated else it },
                     showEditDialog = false,
@@ -173,7 +184,9 @@ class BoardViewModel @Inject constructor(
                 columnTasks.forEachIndexed { index, t ->
                     apiService.patchTask(t.id, TaskPatchRequest(position = index))
                 }
-            } catch (_: Exception) { }
+            } catch (e: Exception) {
+                Log.w("BoardViewModel", "moveTask sync failed", e)
+            }
         }
     }
 

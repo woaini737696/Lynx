@@ -49,7 +49,7 @@ class InboxViewModel @Inject constructor(
             _uiState.update { it.copy(isLoading = it.ideas.isEmpty(), error = null) }
             try {
                 val response = apiService.getIdeas()
-                val inboxIdeas = response.ideas
+                val inboxIdeas = response.data
                     .filter { it.status == "inbox" }
                     .sortedByDescending { it.createdAt }
                 _uiState.update {

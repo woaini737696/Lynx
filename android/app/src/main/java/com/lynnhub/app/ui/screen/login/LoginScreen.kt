@@ -31,6 +31,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
@@ -323,12 +325,11 @@ private fun UsernameInput(
     )
 
     Box {
-        // Glow background
+        // Glow background (focused 时显示柔和光晕；使用 drawBehind 避免负 padding 崩溃)
         if (isFocused) {
             Box(
                 modifier = Modifier
                     .matchParentSize()
-                    .padding(-4.dp)
                     .background(
                         Amber500.copy(alpha = glowAlpha),
                         shape = RoundedCornerShape(20.dp)
@@ -401,7 +402,6 @@ private fun PasswordInput(
             Box(
                 modifier = Modifier
                     .matchParentSize()
-                    .padding(-4.dp)
                     .background(
                         Amber500.copy(alpha = glowAlpha),
                         shape = RoundedCornerShape(20.dp)
@@ -607,6 +607,9 @@ private fun LoginButton(
             .height(52.dp)
             .offset(x = shakeOffset.dp)
             .scale(scale)
+            .semantics {
+                contentDescription = if (isLoading) "正在登录" else "登录按钮"
+            }
             .shadow(if (enabled) 8.dp else 0.dp, RoundedCornerShape(16.dp)),
         contentAlignment = Alignment.Center
     ) {

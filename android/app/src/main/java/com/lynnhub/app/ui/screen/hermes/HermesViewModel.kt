@@ -1,5 +1,6 @@
 package com.lynnhub.app.ui.screen.hermes
 
+import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.lynnhub.app.data.remote.ApiService
@@ -240,7 +241,9 @@ class HermesViewModel @Inject constructor(
             try {
                 val resp = apiService.getHermesPatterns()
                 _uiState.value = _uiState.value.copy(patterns = resp.patterns)
-            } catch (_: Exception) {}
+            } catch (e: Exception) {
+                Log.w("HermesViewModel", "loadPatterns failed", e)
+            }
         }
     }
 
@@ -275,7 +278,9 @@ class HermesViewModel @Inject constructor(
             try {
                 val resp = apiService.getHermesReports()
                 _uiState.value = _uiState.value.copy(reports = resp.reports)
-            } catch (_: Exception) {}
+            } catch (e: Exception) {
+                Log.w("HermesViewModel", "loadReports failed", e)
+            }
         }
     }
 
@@ -319,7 +324,9 @@ class HermesViewModel @Inject constructor(
             try {
                 val resp = apiService.getHermesProfile()
                 _uiState.value = _uiState.value.copy(profile = resp)
-            } catch (_: Exception) {}
+            } catch (e: Exception) {
+                Log.w("HermesViewModel", "loadProfile failed", e)
+            }
         }
     }
 }

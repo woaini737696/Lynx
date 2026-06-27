@@ -47,7 +47,7 @@ class DynamicBaseUrlInterceptor : Interceptor {
         var normalized = url.trim()
         if (normalized.isEmpty()) return Constants.DEFAULT_BASE_URL
         if (!normalized.startsWith("http://") && !normalized.startsWith("https://")) {
-            normalized = "http://$normalized"
+            normalized = "https://$normalized"
         }
         if (!normalized.endsWith("/")) normalized = "$normalized/"
         return normalized

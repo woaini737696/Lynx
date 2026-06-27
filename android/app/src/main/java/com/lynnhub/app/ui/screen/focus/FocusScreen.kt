@@ -31,6 +31,8 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextDecoration
@@ -39,10 +41,12 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.lynnhub.app.data.remote.dto.FocusTaskDto
+import com.lynnhub.app.ui.component.ErrorState
 import com.lynnhub.app.ui.theme.Amber500
 import com.lynnhub.app.ui.theme.Orange500
-import java.text.SimpleDateFormat
-import java.util.*
+import java.time.LocalDate
+import java.time.format.DateTimeFormatter
+import java.util.Locale
 
 @Composable
 fun FocusScreen(
@@ -52,12 +56,12 @@ fun FocusScreen(
     var newTaskText by remember { mutableStateOf("") }
     val focusManager = LocalFocusManager.current
 
-    // Format date: "周五 · 6月26日"
-    val dateFormat = remember { SimpleDateFormat("EEEE", Locale.CHINESE) }
-    val monthDayFormat = remember { SimpleDateFormat("M月d日", Locale.CHINESE) }
-    val today = remember { Date() }
+    // Format date: "周五 · 6月26日" - 使用 java.time（线程安全）
+    val dayOfWeekFormat = remember { DateTimeFormatter.ofPattern("EEEE", Locale.CHINESE) }
+    val monthDayFormat = remember { DateTimeFormatter.ofPattern("M月d日", Locale.CHINESE) }
+    val today = remember { LocalDate.now() }
     val friendlyDate = remember {
-        "${dateFormat.format(today)} · ${monthDayFormat.format(today)}"
+        "${today.format(dayOfWeekFormat)} · ${today.format(monthDayFormat)}"
     }
 
     // Animate page entry
@@ -112,6 +116,13 @@ fun FocusScreen(
                         CircularProgressIndicator(color = Amber500)
                     }
                 }
+                uiState.error != null && uiState.tasks.isEmpty() -> {
+                    val errorMsg = uiState.error
+                    ErrorState(
+                        message = errorMsg ?: "加载失败",
+                        onRetry = { viewModel.loadFocus() }
+                    )
+                }
                 uiState.tasks.isEmpty() -> {
                     EmptyFocus()
                 }
@@ -128,10 +139,13 @@ fun FocusScreen(
                             items = uiState.tasks,
                             key = { it.id }
                         ) { task ->
+                            // memoize lambda，避免每次重组都创建新实例导致 FocusTaskItem 重组
+                            val onToggle = remember(task) { { viewModel.toggleTask(task) } }
+                            val onDelete = remember(task) { { viewModel.deleteTask(task) } }
                             FocusTaskItem(
                                 task = task,
-                                onToggle = { viewModel.toggleTask(task) },
-                                onDelete = { viewModel.deleteTask(task) }
+                                onToggle = onToggle,
+                                onDelete = onDelete
                             )
                         }
                     }
@@ -224,6 +238,8 @@ private fun FocusTaskItem(
     onDelete: () -> Unit
 ) {
     var isExiting by remember { mutableStateOf(false) }
+    // 记录用户是否主动完成了该任务（用于区分初始加载 vs 用户操作）
+    var userCompleted by remember(task.id) { mutableStateOf(false) }
     val exitOffset by animateFloatAsState(
         targetValue = if (isExiting) 1f else 0f,
         animationSpec = tween(durationMillis = 300),
@@ -276,9 +292,9 @@ private fun FocusTaskItem(
     val interactionSource = remember { MutableInteractionSource() }
     val isPressed by interactionSource.collectIsPressedAsState()
 
-    // Check if should trigger exit animation
-    LaunchedEffect(task.completed) {
-        if (task.completed) {
+    // 仅在用户主动将任务标记为完成时触发退出动画（避免初始加载时已完成任务被误删）
+    LaunchedEffect(userCompleted) {
+        if (userCompleted && task.completed) {
             kotlinx.coroutines.delay(600)
             isExiting = true
         }
@@ -304,10 +320,20 @@ private fun FocusTaskItem(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
+                .semantics {
+                    contentDescription = if (task.completed)
+                        "已完成的任务：${task.content}，点击重新激活"
+                    else
+                        "未完成的任务：${task.content}，点击标记完成"
+                }
                 .clickable(
                     interactionSource = interactionSource,
                     indication = null
-                ) { onToggle() }
+                ) {
+                    // 仅当从"未完成"切换到"完成"时标记用户主动完成，触发退出动画
+                    if (!task.completed) userCompleted = true
+                    onToggle()
+                }
                 .padding(horizontal = 16.dp, vertical = 14.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
@@ -352,6 +378,7 @@ private fun FocusTaskItem(
                                 .background(
                                     Color.Transparent
                                 )
+                                .semantics { contentDescription = "未完成" }
                                 .border(
                                     width = 2.dp,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.3f),
@@ -426,7 +453,6 @@ private fun FocusBottomBar(
                     Box(
                         modifier = Modifier
                             .matchParentSize()
-                            .padding(-4.dp)
                             .background(
                                 Amber500.copy(alpha = 0.15f),
                                 shape = RoundedCornerShape(20.dp)

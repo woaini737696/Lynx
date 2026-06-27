@@ -27,27 +27,24 @@ interface ApiService {
     @POST("api/focus")
     suspend fun createFocus(@Body body: Map<String, String>): FocusTaskDto
 
-    @PATCH("api/focus/{id}")
-    suspend fun patchFocus(
-        @Path("id") id: String,
-        @Body body: FocusPatchRequest
-    ): SuccessResponse
+    @PATCH("api/focus")
+    suspend fun patchFocus(@Body body: FocusPatchRequest): SuccessResponse
 
     @DELETE("api/focus/{id}")
     suspend fun deleteFocus(@Path("id") id: String): SuccessResponse
 
     // ============ Tasks (看板) ============
     @GET("api/tasks")
-    suspend fun getTasks(): List<TaskDto>
+    suspend fun getTasks(): ApiPaginatedResponse<TaskDto>
 
     @POST("api/tasks")
-    suspend fun createTask(@Body body: TaskCreateRequest): TaskDto
+    suspend fun createTask(@Body body: TaskCreateRequest): ApiSuccessResponse<TaskDto>
 
     @PATCH("api/tasks/{id}")
     suspend fun patchTask(
         @Path("id") id: String,
         @Body body: TaskPatchRequest
-    ): TaskDto
+    ): TaskPatchResponse
 
     @DELETE("api/tasks/{id}")
     suspend fun deleteTask(@Path("id") id: String): SuccessResponse
@@ -57,10 +54,10 @@ interface ApiService {
 
     // ============ Ideas (灵感) ============
     @GET("api/ideas")
-    suspend fun getIdeas(): IdeasResponse
+    suspend fun getIdeas(): IdeasPaginatedResponse
 
     @POST("api/ideas")
-    suspend fun createIdea(@Body body: IdeaCreateRequest): SuccessResponse
+    suspend fun createIdea(@Body body: IdeaCreateRequest): IdeaCreateResponse
 
     @PATCH("api/ideas/{id}")
     suspend fun patchIdea(
@@ -69,7 +66,7 @@ interface ApiService {
     ): SuccessResponse
 
     @HTTP(method = "DELETE", path = "api/ideas", hasBody = true)
-    suspend fun deleteIdeas(@Body body: IdeaDeleteRequest): SuccessResponse
+    suspend fun deleteIdeas(@Body body: IdeaDeleteRequest): IdeaDeleteResponse
 
     // ============ Lark Tasks (飞书任务) ============
     @GET("api/lark-tasks")
@@ -102,13 +99,13 @@ interface ApiService {
     suspend fun getChatSessions(): ChatSessionsResponse
 
     @POST("api/ai/chat/sessions")
-    suspend fun createChatSession(@Body body: ChatCreateSessionRequest): ChatSessionDto
+    suspend fun createChatSession(@Body body: ChatCreateSessionRequest): ChatSessionCreateResponse
 
     @PUT("api/ai/chat/sessions/{id}")
     suspend fun updateChatSession(
         @Path("id") id: String,
         @Body body: ChatCreateSessionRequest
-    ): ChatSessionDto
+    ): ChatSessionCreateResponse
 
     @DELETE("api/ai/chat/sessions/{id}")
     suspend fun deleteChatSession(@Path("id") id: String): SuccessResponse
@@ -124,10 +121,10 @@ interface ApiService {
 
     // ============ AI Settings ============
     @GET("api/ai/settings")
-    suspend fun getAiSettings(): AiSettingsDto
+    suspend fun getAiSettings(): AiSettingsResponse
 
     @PUT("api/ai/settings")
-    suspend fun updateAiSettings(@Body body: AiSettingsDto): SuccessResponse
+    suspend fun updateAiSettings(@Body body: AiSettingsDto): AiSettingsResponse
 
     // ============ Memory ============
     @GET("api/memory")

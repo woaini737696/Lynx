@@ -1,5 +1,6 @@
 package com.lynnhub.app.di
 
+import com.lynnhub.app.BuildConfig
 import com.lynnhub.app.data.remote.ApiService
 import com.lynnhub.app.data.remote.interceptor.AuthInterceptor
 import com.lynnhub.app.data.remote.interceptor.DynamicBaseUrlInterceptor

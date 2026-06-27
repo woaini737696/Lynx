@@ -62,10 +62,17 @@ data class HermesExecuteRequest(
 )
 
 @Serializable
+data class HermesStepDto(
+    val action: String = "",
+    val result: String = "",
+    val timestamp: String = ""
+)
+
+@Serializable
 data class HermesExecuteResponse(
     val success: Boolean = false,
     val output: String = "",
-    val steps: List<String>? = null,
+    val steps: List<HermesStepDto>? = null,
     val screenshots: List<String>? = null,
     val durationMs: Long? = null,
     val error: String? = null
@@ -130,12 +137,20 @@ data class HermesPatternAutoCheckRequest(
 )
 
 @Serializable
+data class HermesAutoCheckResultDto(
+    val success: Boolean = false,
+    val output: String = "",
+    val error: String? = null,
+    val durationMs: Long? = null
+)
+
+@Serializable
 data class HermesPatternAutoCheckResponse(
     val matched: Boolean = false,
     val score: Double = 0.0,
     val patternId: String? = null,
     val executed: Boolean = false,
-    val result: String? = null
+    val result: HermesAutoCheckResultDto? = null
 )
 
 // ============ Hermes Reports ============
