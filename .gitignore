@@ -85,3 +85,5 @@ _to_delete_/
 cargo-target/
 desktop-build/
 desktop-junction/
+# 桌面端打包产物（22MB+ 二进制，不入版本控制）
+/desktop/dist/

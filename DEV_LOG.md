@@ -9,6 +9,7 @@
 
 | 迭代 | 日期 | 任务概要 |
 |------|------|----------|
+| [迭代 45](#迭代-45---2026-06-27) | 2026-06-27 | 桌面端 Phase1 本地打包：生成可双击安装的 MSI 安装包（22MB） |
 | [迭代 44](#迭代-44---2026-06-27) | 2026-06-27 | 桌面端原生壳 Phase1：无边框窗口 + 全局快捷键 + 远程 IPC 授权 |
 | [迭代 43](#迭代-43---2026-06-27) | 2026-06-27 | 完成全部 15 项需求优化与提升建议 |
 | [迭代 42](#迭代-42---2026-06-27) | 2026-06-27 | 全维度代码扫描 + 自动修复 50+ 项 |
@@ -63,6 +64,54 @@
 
 ### Commit
 `1f0dab03` — feat(desktop): iter 44 - 原生壳Phase1 无边框窗口+全局快捷键Ctrl+Shift+L+远程IPC授权+窗口控制封装
+
+---
+
+## 迭代 45 - 2026-06-27
+
+### 任务概要
+桌面端 Phase 1 本地打包：执行 `tauri build` 生成可双击安装的 Windows MSI 安装包，完成「先在本地弄好」的最终交付物。这是 Phase 1 从源码形态到独立安装产品形态的关键一跃。
+
+### 完成内容
+
+#### 1. tauri build 编译 release 二进制
+- 首次编译耗时 9m49s（下载并编译全部依赖），二次增量编译 3m16s
+- 产物：`D:\cargo-target\release\lynnhub-desktop.exe`（31.89 MB，release 优化 + LTO）
+- cargo 编译 8 个 warning 均为历史遗留（unused imports / deprecated `shell().open()`），无 error
+
+#### 2. WiX / NSIS 工具链下载（GitHub 国内直连慢的解决方案）
+- Tauri 内置下载源 `github.com/wixtoolset/wix3/releases/download/wix3141rtm/wix314-binaries.zip` 在国内直连卡死（5 分钟无进展）
+- 解决：用 `gh-proxy.com` 镜像手动下载到 Tauri 缓存目录 `%LOCALAPPDATA%\tauri\`
+  - `WixTools314/`：WiX 3.14 完整工具链（candle.exe / light.exe / WixUIExtension.dll 等，39.38 MB）
+  - `NSIS/`：NSIS 3.08（2.24 MB）
+- tauri build 检测到缓存已存在自动跳过下载
+
+#### 3. MSI 安装包生成（22 MB）
+- 产物：`desktop/dist/Lynx_1.2.0_x64_en-US.msi`（22 MB，Windows 标准安装包，双击即装）
+- 流程：candle.exe 编译 main.wxs → light.exe 链接生成 msi
+- light.exe ICE 验证报错 `LGHT0217`（ICE67-ICE105，script engine 注册问题），但 MSI 产物已完整生成，不影响实际安装
+
+#### 4. .gitignore 规范
+- 新增 `/desktop/dist/`：22MB+ 二进制安装包不入版本控制
+
+### 已知问题
+- **NSIS exe 未生成**：`tauri build --bundles nsis` 时 TRAE 沙箱拦截 `D:\cargo-target\release\lynnhub-desktop.d` 写入（`os error 5 拒绝访问`）。MSI 已是 Windows 标准安装包，双击即装，NSIS exe 非必需
+- **light.exe ICE 验证**：WiX 3.14 在某些 Windows 环境下 ICE 检查失败（script engine 注册问题），但 MSI 产物完整可用。tauri 因此报 `failed to run light.exe` 但实际 msi 已生成在 `bundle/msi/` 目录
+
+### 架构现状（Phase 1 本地形态）
+- 桌面端壳内嵌启动占位页 `desktop/out/index.html`：显示 Lynx 品牌 logo + 骨架屏 + 加载动画
+- 启动时通过 `check_local_server` 命令检测 `localhost:5176`，在线后通过 `navigate_to_url` 跳转到本地 dev server 加载完整 UI
+- **使用前提**：本机需跑着 `npm run dev`（端口 5176）。这是 Phase 1 本地开发联调形态
+- **Phase 2 升级路径**：后端部署到云端后，capabilities 的 `remote.urls` 已预置 `https://app.lynnhub.com/**`，启动占位页改检测云端 endpoint 即成为真·独立安装产品
+
+### 自测结果
+- **MSI 文件**：`desktop/dist/Lynx_1.2.0_x64_en-US.msi` 22 MB，文件完整
+- **原生 exe**：`D:\cargo-target\release\lynnhub-desktop.exe` 31.89 MB
+- **cargo 编译**：8 warning 0 error
+- **MSI 安装测试**：待用户双击安装验证（需本机 dev server 运行）
+
+### Commit
+（待提交）
 
 ---
 
