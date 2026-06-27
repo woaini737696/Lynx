@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { BookOpen, Brain, Plus, Sparkles } from "lucide-react";
+import { BookOpen, Brain, Plus, Sparkles, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { COGNITION_TYPES, type CognitionType } from "@/lib/utils";
 import { toast } from "@/components/ui/toast";
@@ -11,6 +11,7 @@ import { SearchInput, Pagination, useClientPagination } from "@/components/ui/Li
 import { useAsyncLoading } from "@/lib/use-async-loading";
 import { useCognitions } from "@/lib/use-api";
 import { AnimatedList } from "@/components/ui/AnimatedList";
+import { openContextMenu } from "@/components/ui/ContextMenu";
 
 interface Cognition {
   id: string;
@@ -63,6 +64,22 @@ export default function CognitionPage() {
       toast("网络错误", "error");
     }
     setExtracting(false);
+  };
+
+  const handleDeleteCognition = async (id: string) => {
+    if (!confirm("确定删除这条认知？")) return;
+    try {
+      const res = await fetch(`/api/cognitions/${id}`, { method: "DELETE" });
+      if (res.ok) {
+        await mutate();
+        toast("已删除认知", "success");
+      } else {
+        toast("删除失败", "error");
+      }
+    } catch (err) {
+      console.error("删除失败:", err);
+      toast("删除失败", "error");
+    }
   };
 
   const filtered = useMemo(() => {
@@ -191,7 +208,13 @@ export default function CognitionPage() {
             className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3"
           >
             {(c: Cognition) => (
-              <Card className="flex flex-col" hover>
+              <Card
+                className="flex flex-col"
+                hover
+                onContextMenu={(e) => openContextMenu(e, [
+                  { label: "删除", icon: <Trash2 className="h-3.5 w-3.5" />, danger: true, onClick: () => handleDeleteCognition(c.id) },
+                ])}
+              >
                 <div className="mb-3 flex items-center justify-between">
                   <Badge color={c.type as any}>{COGNITION_TYPES[c.type].label}</Badge>
                   <span className="text-[10px] text-muted-foreground">{formatTime(c.createdAt)}</span>

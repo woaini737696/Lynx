@@ -1,6 +1,6 @@
 "use client";
 
-import { Bot } from "lucide-react";
+import { Sparkles } from "lucide-react";
 
 export interface AssistantFloatingButtonProps {
   /** 当前抽屉是否打开（用于按钮态展示） */
@@ -10,8 +10,9 @@ export interface AssistantFloatingButtonProps {
 }
 
 /**
- * AI 助理全局悬浮入口按钮
- * - 固定右下角，圆形橙色主题
+ * Lynx AI 超级助理全局悬浮入口按钮
+ * - 固定右下角，圆形品牌蓝主题
+ * - 显示 X 图标（Lynx 品牌标识）
  * - hover 时展示 "Alt+J" 快捷键提示
  * - 点击调用 onToggle
  *
@@ -26,17 +27,18 @@ export function AssistantFloatingButton({ open, onToggle }: AssistantFloatingBut
         aria-hidden="true"
         className="pointer-events-none translate-y-1 rounded-md border border-border bg-popover px-2 py-1 text-xs font-medium text-popover-foreground opacity-0 shadow-md transition-all duration-200 group-hover:translate-y-0 group-hover:opacity-100"
       >
-        Alt + J
+        Lynx AI · Alt + J
       </div>
 
       <button
         type="button"
         onClick={onToggle}
-        aria-label={open ? "收起 AI 助理" : "打开 AI 助理"}
+        aria-label={open ? "收起 Lynx AI 超级助理" : "打开 Lynx AI 超级助理"}
         aria-pressed={open}
         className="flex h-14 w-14 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg transition-transform duration-200 hover:scale-105 active:scale-95 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
       >
-        <Bot className="h-6 w-6" />
+        {/* Lynx 品牌 X 图标 */}
+        <span className="text-lg font-bold">X</span>
       </button>
     </div>
   );

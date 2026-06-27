@@ -36,16 +36,19 @@ export function Card({
   hover = false,
   style,
   onClick,
+  onContextMenu,
 }: {
   children: React.ReactNode;
   className?: string;
   hover?: boolean;
   style?: React.CSSProperties;
   onClick?: React.MouseEventHandler<HTMLDivElement>;
+  onContextMenu?: React.MouseEventHandler<HTMLDivElement>;
 }) {
   return (
     <div
       onClick={onClick}
+      onContextMenu={onContextMenu}
       className={cn(
         "rounded-xl border border-border bg-card p-5 sm:p-6",
         "shadow-[0_1px_2px_hsl(0_0%_0%/0.04),0_2px_8px_-2px_hsl(0_0%_0%/0.06)]",

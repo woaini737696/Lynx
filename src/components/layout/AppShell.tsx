@@ -120,11 +120,12 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   return (
     <div className="flex h-screen flex-col overflow-hidden bg-background">
       <CaptureBar />
-      {/* 顶部 header 栏 */}
-      <header className="flex h-14 shrink-0 items-center justify-between border-b border-border bg-background px-4">
+      {/* 顶部 header 栏（桌面端：纯白、隐藏 logo；Web 端：保留 logo） */}
+      <header className="desktop-header-clean flex h-14 shrink-0 items-center justify-between border-b border-border bg-background px-4">
         <div className="flex items-center gap-2">
-          <span className="flex h-6 w-6 items-center justify-center rounded-lg bg-primary text-xs font-bold text-primary-foreground">
-            L
+          {/* 桌面端隐藏 logo（Kimi 风格），Web 端显示 */}
+          <span className="desktop-hide-logo flex h-6 w-6 items-center justify-center rounded-lg bg-primary text-xs font-bold text-primary-foreground">
+            X
           </span>
           <span className="text-sm font-medium text-foreground">{pageTitle}</span>
         </div>

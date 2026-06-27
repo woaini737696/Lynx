@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useRef, useCallback, useMemo } from "react";
-import { ArrowRight, Trash2, InboxIcon, Bot, Send, X, Sparkles, Check, Settings, Bell, AlertCircle, FileText, CheckSquare, Square } from "lucide-react";
+import { ArrowRight, Trash2, InboxIcon, Bot, Send, X, Sparkles, Check, Settings, Bell, AlertCircle, FileText, CheckSquare, Square, Skull } from "lucide-react";
 import { toast } from "@/components/ui/toast";
 import { PageHeader, Card, Button, Badge, Skeleton } from "@/components/layout/PageHeader";
 import { HelpButton } from "@/components/layout/HelpButton";
@@ -11,6 +11,7 @@ import { AnimatedList } from "@/components/ui/AnimatedList";
 import { cn } from "@/lib/utils";
 import { SearchInput, FilterSelect, Pagination, useClientPagination } from "@/components/ui/ListControls";
 import type { ReviveSuggestion } from "@/lib/reminder-scheduler";
+import { openContextMenu } from "@/components/ui/ContextMenu";
 
 /** 附件结构（与 Idea.attachments 字段一致） */
 interface Attachment {
@@ -238,6 +239,27 @@ export default function InboxPage() {
     }
     setBatchDeleting(false);
     setConfirmBatchDelete(false);
+  };
+
+  // 单条删除（真删除，复用批量删除的 DELETE 接口）
+  const handleDelete = async (idea: Idea) => {
+    if (!confirm("确定删除这条灵感？此操作不可恢复。")) return;
+    try {
+      const res = await fetch("/api/ideas", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ids: [idea.id] }),
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setIdeas((prev) => prev.filter((i) => i.id !== idea.id));
+        toast("已删除灵感", "success");
+      } else {
+        toast(data.error || "删除失败", "error");
+      }
+    } catch {
+      toast("删除失败", "error");
+    }
   };
 
   // 进入/退出多选模式
@@ -608,7 +630,17 @@ export default function InboxPage() {
             const isExpanding = expanding === idea.id;
             const isSelected = selectedIds.has(idea.id);
             return (
-              <Card className={`p-0 overflow-hidden ${isSelected ? "ring-2 ring-northstar/40" : ""}`} hover>
+              <Card
+                className={`p-0 overflow-hidden ${isSelected ? "ring-2 ring-northstar/40" : ""}`}
+                hover
+                onContextMenu={(e) => openContextMenu(e, [
+                  { label: "与 AI 讨论", icon: <Bot className="h-3.5 w-3.5" />, onClick: () => openChat(idea) },
+                  { label: "拖入看板", icon: <ArrowRight className="h-3.5 w-3.5" />, onClick: () => setExpanding(idea.id) },
+                  { separator: true },
+                  { label: "送入墓地", icon: <Skull className="h-3.5 w-3.5" />, onClick: () => setAbandoning(idea) },
+                  { label: "删除", icon: <Trash2 className="h-3.5 w-3.5" />, danger: true, onClick: () => handleDelete(idea) },
+                ])}
+              >
                 <div className="flex items-center gap-3 p-3 sm:gap-4 sm:p-4">
                   {multiSelectMode && (
                     <button

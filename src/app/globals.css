@@ -4,66 +4,68 @@
 
 @layer base {
   :root {
-    /* 浅色主题 — 高级感橙黑灰搭配 */
-    --background: 0 0% 99%;
-    --foreground: 0 0% 12%;
+    /* 浅色主题 — 黑白灰极简 + 深海宇宙蓝主色调 */
+    --background: 0 0% 100%;
+    --foreground: 222 47% 11%;
     --card: 0 0% 100%;
-    --card-foreground: 0 0% 12%;
+    --card-foreground: 222 47% 11%;
     --popover: 0 0% 100%;
-    --popover-foreground: 0 0% 12%;
-    --primary: 24 95% 53%;
+    --popover-foreground: 222 47% 11%;
+    /* 主色：品牌蓝 #0F62FE → HSL(217, 99%, 53%) */
+    --primary: 217 99% 53%;
     --primary-foreground: 0 0% 100%;
-    --primary-soft: 24 95% 96%;
-    --secondary: 0 0% 96%;
-    --secondary-foreground: 0 0% 12%;
-    --muted: 0 0% 95%;
-    --muted-foreground: 0 0% 45%;
-    --accent: 24 95% 96%;
-    --accent-foreground: 24 95% 45%;
-    --destructive: 0 72% 51%;
+    --primary-soft: 217 99% 96%;
+    --secondary: 220 14% 96%;
+    --secondary-foreground: 222 47% 11%;
+    --muted: 220 14% 96%;
+    --muted-foreground: 220 9% 46%;
+    /* 强调色：科技青 #00B8D4 → HSL(189, 100%, 42%) */
+    --accent: 189 100% 42%;
+    --accent-foreground: 0 0% 100%;
+    --destructive: 0 84% 60%;
     --destructive-foreground: 0 0% 100%;
-    --border: 0 0% 90%;
-    --input: 0 0% 90%;
-    --ring: 24 95% 53%;
+    --border: 220 13% 91%;
+    --input: 220 13% 91%;
+    --ring: 217 99% 53%;
     --radius: 0.75rem;
 
-    /* Lynx 语义色 - 浅色 */
-    --northstar: 24 95% 53%;
-    --campaign: 0 0% 45%;
+    /* Lynx 语义色 - 浅色（保留业务语义，统一蓝色调） */
+    --northstar: 217 99% 53%;
+    --campaign: 189 100% 42%;
     --task: 142 50% 45%;
     --graveyard: 0 72% 51%;
-    --cognition: 0 0% 40%;
+    --cognition: 222 47% 30%;
   }
 
   .dark {
-    /* 深色主题 — 高级感橙黑灰搭配 */
-    --background: 0 0% 7%;
-    --foreground: 0 0% 95%;
-    --card: 0 0% 10%;
-    --card-foreground: 0 0% 95%;
-    --popover: 0 0% 10%;
-    --popover-foreground: 0 0% 95%;
-    --primary: 24 95% 58%;
-    --primary-foreground: 0 0% 7%;
-    --primary-soft: 24 30% 16%;
-    --secondary: 0 0% 14%;
-    --secondary-foreground: 0 0% 95%;
-    --muted: 0 0% 14%;
-    --muted-foreground: 0 0% 60%;
-    --accent: 24 30% 16%;
-    --accent-foreground: 24 95% 65%;
-    --destructive: 0 62% 50%;
+    /* 深色主题 — 深海宇宙蓝基底 #030816 → HSL(222, 78%, 5%) */
+    --background: 222 47% 8%;
+    --foreground: 210 20% 92%;
+    --card: 222 40% 11%;
+    --card-foreground: 210 20% 92%;
+    --popover: 222 40% 11%;
+    --popover-foreground: 210 20% 92%;
+    --primary: 217 99% 60%;
+    --primary-foreground: 222 47% 8%;
+    --primary-soft: 217 40% 18%;
+    --secondary: 222 30% 16%;
+    --secondary-foreground: 210 20% 92%;
+    --muted: 222 30% 16%;
+    --muted-foreground: 217 15% 55%;
+    --accent: 189 100% 50%;
+    --accent-foreground: 222 47% 8%;
+    --destructive: 0 72% 55%;
     --destructive-foreground: 0 0% 100%;
-    --border: 0 0% 18%;
-    --input: 0 0% 18%;
-    --ring: 24 95% 58%;
+    --border: 222 25% 20%;
+    --input: 222 25% 20%;
+    --ring: 217 99% 60%;
 
     /* Lynx 语义色 - 深色 */
-    --northstar: 24 95% 62%;
-    --campaign: 0 0% 65%;
+    --northstar: 217 99% 65%;
+    --campaign: 189 100% 55%;
     --task: 142 50% 55%;
     --graveyard: 0 72% 60%;
-    --cognition: 0 0% 70%;
+    --cognition: 210 20% 75%;
   }
 }
 
@@ -77,7 +79,6 @@
   body {
     @apply bg-background text-foreground antialiased;
     font-feature-settings: "rlig" 1, "calt" 1;
-    /* 豆包风格：圆润字体栈，优先使用系统圆体 */
     font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei",
       "Helvetica Neue", "Segoe UI", system-ui, sans-serif;
   }
@@ -86,7 +87,7 @@
   }
 }
 
-/* 豆包设计风格：自定义滚动条（更柔和） */
+/* 自定义滚动条（更柔和） */
 ::-webkit-scrollbar {
   width: 6px;
   height: 6px;
@@ -103,7 +104,7 @@
 }
 
 @layer components {
-  /* 高级感：实色主按钮（橙色），非渐变 */
+  /* 主按钮（品牌蓝） */
   .btn-doubao {
     @apply relative overflow-hidden rounded-xl bg-primary text-primary-foreground shadow-sm transition-all;
   }
@@ -114,7 +115,7 @@
     @apply scale-[0.98];
   }
 
-  /* 高级感：柔和卡片阴影（中性灰调） */
+  /* 柔和卡片阴影 */
   .card-doubao {
     @apply rounded-xl border border-border bg-card;
     box-shadow:
@@ -127,7 +128,7 @@
       0 6px 20px -4px hsl(0 0% 0% / 0.08);
   }
 
-  /* 高级感：聚焦输入框 */
+  /* 聚焦输入框 */
   .input-doubao {
     @apply rounded-xl border border-border bg-card transition-all;
   }
@@ -135,6 +136,63 @@
     @apply border-primary;
     box-shadow: 0 0 0 3px hsl(var(--primary) / 0.1);
   }
+
+  /* 液态玻璃质感卡片（桌面端增强） */
+  .glass-card {
+    @apply rounded-xl border border-border/60 bg-card/80 backdrop-blur-xl;
+    box-shadow:
+      0 1px 3px hsl(0 0% 0% / 0.03),
+      0 4px 16px -4px hsl(0 0% 0% / 0.05);
+  }
+  .glass-card:hover {
+    box-shadow:
+      0 2px 8px hsl(0 0% 0% / 0.05),
+      0 8px 24px -6px hsl(0 0% 0% / 0.08);
+  }
+}
+
+/* ============ 桌面端专属样式（Tauri 环境） ============ */
+/* 通过 [data-desktop="1"] 标识桌面端，仅桌面端生效 */
+
+/* 桌面端：隐藏顶部 header 的 logo 和产品名（Kimi 风格） */
+html[data-desktop="1"] .desktop-hide-logo {
+  display: none !important;
+}
+
+/* 桌面端：顶部 header 纯白无边框 */
+html[data-desktop="1"] .desktop-header-clean {
+  background: hsl(var(--background)) !important;
+  border-bottom: 1px solid hsl(var(--border) / 0.5) !important;
+}
+
+/* 桌面端：侧边栏延伸到顶部（无缝衔接） */
+html[data-desktop="1"] .desktop-sidebar-full {
+  height: 100vh !important;
+  top: 0 !important;
+}
+
+/* 桌面端：液态玻璃卡片增强 */
+html[data-desktop="1"] .glass-card {
+  background: hsl(var(--card) / 0.7);
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+}
+
+/* 桌面端：禁用文本选择（原生应用感，输入框除外） */
+html[data-desktop="1"] body {
+  -webkit-user-select: none;
+  user-select: none;
+}
+html[data-desktop="1"] input,
+html[data-desktop="1"] textarea,
+html[data-desktop="1"] [contenteditable="true"] {
+  -webkit-user-select: text;
+  user-select: text;
+}
+
+/* 桌面端：平滑滚动 */
+html[data-desktop="1"] {
+  scroll-behavior: smooth;
 }
 
 /* 力导向图谱节点动画 */
