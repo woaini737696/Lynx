@@ -58,9 +58,11 @@ function LoginForm() {
     <div className="w-full max-w-sm">
       {/* Logo 和标题 */}
       <div className="mb-8 flex flex-col items-center gap-3">
-        <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-primary text-2xl font-bold text-primary-foreground shadow-lg">
-          X
-        </div>
+        <img
+          src="/lynx-logo-black.png"
+          alt="Lynx"
+          className="h-16 w-16 rounded-2xl shadow-lg"
+        />
         <div className="text-center">
           <h1 className="text-xl font-semibold tracking-tight text-foreground">
             Lynx
