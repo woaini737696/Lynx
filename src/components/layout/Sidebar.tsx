@@ -34,9 +34,13 @@ import {
   Briefcase,
   Coins,
   Monitor,
+  LogOut,
+  Loader2,
+  Settings2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "@/components/ui/toast";
+import { useRouter } from "next/navigation";
 
 type NavItem = {
   href: string;
@@ -52,7 +56,7 @@ type NavGroup = {
   icon: React.ElementType;
   color: string;
   items: NavItem[];
-  requiredRole?: "admin"; // 仅 admin 可见整个分组
+  requiredRole?: "admin";
 };
 
 const NAV_GROUPS: NavGroup[] = [
@@ -137,6 +141,115 @@ function findActiveGroup(pathname: string) {
   return NAV_GROUPS.find((g) => g.items.some((i) => !i.disabled && i.href === pathname))?.id || null;
 }
 
+/* ============ 侧边栏底部用户区域 ============ */
+function SidebarUserProfile() {
+  const router = useRouter();
+  const [user, setUser] = useState<{ name?: string | null; displayName?: string; avatarUrl?: string } | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [signingOut, setSigningOut] = useState(false);
+
+  useEffect(() => {
+    fetch("/api/auth/session")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((s) => {
+        if (s?.user) setUser(s.user);
+      })
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, []);
+
+  const handleSignOut = async () => {
+    if (signingOut) return;
+    setSigningOut(true);
+    try {
+      const csrfRes = await fetch("/api/auth/csrf");
+      const { csrfToken } = await csrfRes.json();
+      await fetch("/api/auth/signout", {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: new URLSearchParams({ csrfToken, callbackUrl: "/login" }),
+      });
+    } catch {
+      // ignore
+    } finally {
+      setSigningOut(false);
+      setMenuOpen(false);
+      router.push("/login");
+      router.refresh();
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="flex h-12 items-center justify-center">
+        <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+  if (!user) return null;
+
+  const displayName = user.displayName || user.name || "用户";
+  const initial = displayName.charAt(0).toUpperCase();
+  const hasAvatar = !!user.avatarUrl;
+
+  return (
+    <div
+      className="relative"
+      onMouseEnter={() => setMenuOpen(true)}
+      onMouseLeave={() => setMenuOpen(false)}
+    >
+      <button
+        type="button"
+        className="flex w-full items-center gap-3 rounded-xl px-2.5 py-2.5 transition-all hover:bg-muted/60"
+        aria-label="用户菜单"
+        aria-expanded={menuOpen}
+      >
+        {hasAvatar ? (
+          <img
+            src={user.avatarUrl}
+            alt={displayName}
+            className="h-8 w-8 rounded-full object-cover ring-2 ring-border/60"
+          />
+        ) : (
+          <span className="flex h-8 w-8 items-center justify-center rounded-full bg-primary text-xs font-bold text-primary-foreground ring-2 ring-border/60">
+            {initial}
+          </span>
+        )}
+        <span className="flex-1 truncate text-left text-sm font-medium text-foreground">
+          {displayName}
+        </span>
+      </button>
+
+      {/* 悬浮菜单 */}
+      {menuOpen && (
+        <div className="absolute bottom-full left-0 right-0 z-50 mb-1 overflow-hidden rounded-xl border border-border/60 bg-popover/95 shadow-xl backdrop-blur-xl">
+          <button
+            onClick={() => { setMenuOpen(false); router.push("/settings/profile"); }}
+            className="flex w-full items-center gap-2.5 px-3 py-2.5 text-sm text-foreground transition-colors hover:bg-primary/8 hover:text-primary"
+          >
+            <Settings2 className="h-4 w-4 text-muted-foreground" />
+            个人资料设置
+          </button>
+          <div className="h-px bg-border/60" />
+          <button
+            onClick={handleSignOut}
+            disabled={signingOut}
+            className="flex w-full items-center gap-2.5 px-3 py-2.5 text-sm text-graveyard transition-colors hover:bg-graveyard/5 disabled:opacity-50"
+          >
+            {signingOut ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <LogOut className="h-4 w-4" />
+            )}
+            退出登录
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function Sidebar() {
   const pathname = usePathname();
   const [collapsed, setCollapsed] = useState(false);
@@ -144,7 +257,6 @@ export function Sidebar() {
   const [openPopover, setOpenPopover] = useState<string | null>(null);
   const [userRole, setUserRole] = useState<string | null>(null);
 
-  // 获取当前用户角色用于过滤管理菜单
   useEffect(() => {
     fetch("/api/auth/session")
       .then((r) => r.ok ? r.json() : null)
@@ -189,7 +301,7 @@ export function Sidebar() {
       {/* 移动端菜单按钮 */}
       <button
         onClick={() => setMobileOpen(true)}
-        className="fixed left-4 top-3.5 z-30 flex h-9 w-9 items-center justify-center rounded-xl border border-border bg-card text-foreground shadow-sm transition-colors hover:bg-muted lg:hidden"
+        className="fixed left-4 top-3.5 z-30 flex h-9 w-9 items-center justify-center rounded-xl border border-border bg-card/80 text-foreground shadow-sm backdrop-blur-xl transition-colors hover:bg-muted lg:hidden"
         aria-label="打开菜单"
       >
         <PanelLeft className="h-4 w-4" />
@@ -198,24 +310,24 @@ export function Sidebar() {
       <aside
         className={cn(
           "desktop-sidebar-full fixed left-0 top-0 z-50 flex h-screen flex-col border-r border-border bg-card transition-all duration-300 ease-in-out lg:sticky lg:top-0 lg:h-full",
-          collapsed ? "w-[72px] px-2" : "w-[210px] px-3",
+          collapsed ? "w-[72px] px-2" : "w-[230px] px-3",
           mobileOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
         )}
       >
-        {/* Logo 区域（桌面端隐藏，让侧边栏内容延伸到顶部） */}
-        <div className="desktop-hide-logo flex h-14 items-center justify-between border-b border-border/60 px-1">
+        {/* Logo 区域 — 仅在展开时显示 */}
+        <div className="flex h-14 items-center justify-between border-b border-border/60 px-1">
           <Link
             href="/"
             prefetch={false}
             className={cn(
-              "flex items-center gap-2 transition-opacity",
+              "flex items-center gap-2.5 transition-opacity",
               collapsed ? "opacity-0" : "opacity-100"
             )}
           >
-            <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-primary text-sm font-bold text-primary-foreground shadow-sm">
+            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary text-base font-bold text-primary-foreground shadow-md">
               X
             </div>
-            <span className="text-sm font-semibold tracking-tight">Lynx</span>
+            <span className="text-base font-bold tracking-tight">Lynx</span>
           </Link>
 
           <button
@@ -237,8 +349,8 @@ export function Sidebar() {
           </button>
         </div>
 
-        {/* 分组导航 */}
-        <nav className="flex-1 space-y-4 overflow-y-auto py-4">
+        {/* 分组导航 — 放大图标和文字 */}
+        <nav className="flex-1 space-y-5 overflow-y-auto py-5">
           {visibleGroups.map((group) => {
             const GroupIcon = group.icon;
             const isGroupActive = group.id === activeGroupId;
@@ -247,14 +359,14 @@ export function Sidebar() {
 
             return (
               <div key={group.id}>
-                {/* 组标题 */}
+                {/* 组标题 — 放大 */}
                 {collapsed ? (
                   <div className="relative">
                     <button
                       onClick={() => setOpenPopover(openPopover === group.id ? null : group.id)}
                       onMouseEnter={() => setOpenPopover(group.id)}
                       className={cn(
-                        "group flex w-full items-center justify-center rounded-xl px-2 py-2 transition-all",
+                        "group flex w-full items-center justify-center rounded-xl px-2 py-2.5 transition-all",
                         hasActiveItem
                           ? "bg-primary/10 text-primary"
                           : "text-muted-foreground hover:bg-muted hover:text-foreground"
@@ -262,11 +374,11 @@ export function Sidebar() {
                       aria-label={group.label}
                     >
                       {hasActiveItem && (
-                        <span className="absolute left-0 top-1/2 h-5 w-1 -translate-y-1/2 rounded-r-full bg-primary" />
+                        <span className="absolute left-0 top-1/2 h-6 w-1 -translate-y-1/2 rounded-r-full bg-primary" />
                       )}
                       <GroupIcon
                         className={cn(
-                          "h-[18px] w-[18px] shrink-0 transition-colors",
+                          "h-5 w-5 shrink-0 transition-colors",
                           hasActiveItem ? group.color : "text-muted-foreground group-hover:text-foreground"
                         )}
                       />
@@ -274,10 +386,10 @@ export function Sidebar() {
 
                     {openPopover === group.id && (
                       <div
-                        className="absolute left-full top-0 z-50 ml-2 w-40 rounded-xl border border-border bg-card p-2 shadow-lg"
+                        className="absolute left-full top-0 z-50 ml-2 w-44 rounded-xl border border-border/60 bg-popover/95 p-2 shadow-xl backdrop-blur-xl"
                         onMouseLeave={() => setOpenPopover(null)}
                       >
-                        <div className="mb-1 px-2 py-1 text-[10px] font-semibold text-muted-foreground">
+                        <div className="mb-1.5 px-2 py-1 text-xs font-semibold text-muted-foreground">
                           {group.label}
                         </div>
                         <div className="space-y-0.5">
@@ -301,7 +413,7 @@ export function Sidebar() {
                   <button
                     onClick={() => toggleGroup(group.id)}
                     className={cn(
-                      "group flex w-full items-center gap-2 rounded-xl px-2.5 py-2 text-xs font-semibold transition-all",
+                      "group flex w-full items-center gap-2.5 rounded-xl px-2.5 py-2.5 text-sm font-semibold transition-all",
                       hasActiveItem
                         ? "bg-primary/10 text-primary"
                         : "text-foreground/80 hover:bg-muted hover:text-foreground"
@@ -309,23 +421,23 @@ export function Sidebar() {
                   >
                     <GroupIcon
                       className={cn(
-                        "h-[16px] w-[16px] shrink-0 transition-colors",
+                        "h-[18px] w-[18px] shrink-0 transition-colors",
                         hasActiveItem ? group.color : "text-muted-foreground group-hover:text-foreground"
                       )}
                     />
                     <span className="flex-1 text-left">{group.label}</span>
                     <ChevronDown
                       className={cn(
-                        "h-3.5 w-3.5 text-muted-foreground transition-transform duration-200",
+                        "h-4 w-4 text-muted-foreground transition-transform duration-200",
                         !isExpanded && "-rotate-90"
                       )}
                     />
                   </button>
                 )}
 
-                {/* 组内项目（展开状态） */}
+                {/* 组内项目 — 放大 */}
                 {!collapsed && isExpanded && (
-                  <div className="mt-1 space-y-0.5 pl-2">
+                  <div className="mt-1.5 space-y-0.5 pl-2.5">
                     {group.items.map((item) => (
                       <NavLinkOrButton
                         key={item.href}
@@ -344,14 +456,9 @@ export function Sidebar() {
           })}
         </nav>
 
-        {/* 底部提示 */}
-        <div
-          className={cn(
-            "border-t border-border/60 py-3 text-[10px] text-muted-foreground/60 transition-opacity",
-            collapsed ? "px-1 text-center opacity-0" : "px-2 opacity-100"
-          )}
-        >
-          按 Ctrl+J 捕获灵感
+        {/* 底部：用户头像昵称（固定位置 + 悬浮展示） */}
+        <div className="border-t border-border/60 py-3">
+          <SidebarUserProfile />
         </div>
       </aside>
     </>
@@ -376,28 +483,28 @@ function NavLinkOrButton({
       <Icon
         className={cn(
           "shrink-0 transition-colors",
-          compact ? "h-4 w-4" : "h-[18px] w-[18px]",
+          compact ? "h-[18px] w-[18px]" : "h-[18px] w-[18px]",
           isActive ? item.color : "text-muted-foreground group-hover:text-foreground"
         )}
       />
       <span
         className={cn(
           "flex-1 truncate transition-colors",
-          compact ? "text-xs" : "text-sm",
+          compact ? "text-sm" : "text-sm",
           item.disabled && "text-muted-foreground/60"
         )}
       >
         {item.label}
       </span>
       {item.disabled && (
-        <span className="ml-auto rounded bg-muted px-1 py-0 text-[9px] text-muted-foreground">待上线</span>
+        <span className="ml-auto rounded bg-muted px-1.5 py-0 text-[10px] text-muted-foreground">待上线</span>
       )}
     </>
   );
 
   const className = cn(
-    "group relative flex w-full items-center gap-2.5 rounded-xl px-2.5 py-2 transition-all",
-    compact ? "px-2 py-1.5" : "",
+    "group relative flex w-full items-center gap-3 rounded-xl px-2.5 py-2.5 transition-all",
+    compact ? "px-2 py-2" : "",
     isActive
       ? "bg-primary/10 font-medium text-primary"
       : "text-muted-foreground hover:bg-muted hover:text-foreground",

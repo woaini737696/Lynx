@@ -4,52 +4,6 @@ import { useEffect, useState } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { Sidebar } from "./Sidebar";
 import { CaptureBar } from "./CaptureBar";
-import { Button } from "./PageHeader";
-import { UserMenu } from "./UserMenu";
-
-// 路径 → 标题映射（顶部 header 栏显示）
-const PAGE_TITLE_MAP: Record<string, string> = {
-  "/": "今日聚焦",
-  "/board": "决策看板",
-  "/inbox": "收件箱",
-  "/converge": "灵感收敛",
-  "/graveyard": "灵感墓地",
-  "/assets": "对话资产",
-  "/cognition": "认知库",
-  "/memory": "记忆图谱",
-  "/ai/workspace": "AI 工作空间",
-  "/ai/flows": "AI 工作流",
-  "/ai/assistant": "AI 专属助理",
-  "/skills": "技能管理",
-  "/skills/market": "Skill 市场",
-  "/ai/lark-tasks": "飞书任务",
-  "/settings": "设置",
-  "/settings/patrol": "AI 巡检",
-  "/settings/lark-bot": "飞书机器人",
-  "/settings/push": "通知设置",
-  "/settings/users": "用户管理",
-  "/settings/profile": "个人资料",
-  "/settings/diagnostics": "性能监控",
-  "/settings/backup": "数据备份",
-  "/dev-log": "开发日志",
-  "/admin/users": "用户管理",
-  "/admin/roles": "角色管理",
-  "/admin/profession-workspaces": "职业工作空间",
-  "/admin/token-stats": "词元统计",
-};
-
-function getPageTitle(pathname: string): string {
-  // 精确匹配优先
-  if (PAGE_TITLE_MAP[pathname]) return PAGE_TITLE_MAP[pathname];
-  // 前缀匹配（处理动态路由，如 /skills/market/xxx）
-  const sorted = Object.keys(PAGE_TITLE_MAP).sort((a, b) => b.length - a.length);
-  for (const key of sorted) {
-    if (pathname === key || pathname.startsWith(key + "/")) {
-      return PAGE_TITLE_MAP[key];
-    }
-  }
-  return "Lynx";
-}
 
 function ConvergeReminder() {
   const router = useRouter();
@@ -88,25 +42,30 @@ function ConvergeReminder() {
   if (!mounted || !visible) return null;
 
   return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 p-4 backdrop-blur-md">
-      <div className="w-[90vw] max-w-[420px] rounded-3xl border border-northstar/30 bg-card p-6 text-center shadow-2xl sm:p-8">
-        <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-northstar/10 text-3xl mx-auto">
+    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 p-4 backdrop-blur-xl">
+      <div className="glass-card w-[90vw] max-w-[420px] rounded-3xl border border-northstar/20 p-6 text-center shadow-2xl sm:p-8">
+        <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-northstar/10 text-3xl">
           🌙
         </div>
         <h2 className="text-lg font-semibold text-northstar">灵感收敛时间</h2>
         <p className="mt-2 text-sm text-muted-foreground">23:00-06:00 必须清空 Inbox</p>
         <p className="mt-1 text-xs text-muted-foreground/60">{remaining} 秒后自动跳转</p>
         <div className="mt-6 flex justify-center gap-3">
-          <Button onClick={() => router.push("/converge")}>立即收敛</Button>
-          <Button
-            variant="outline"
+          <button
+            onClick={() => router.push("/converge")}
+            className="btn-doubao rounded-xl px-4 py-2 text-sm font-medium"
+          >
+            立即收敛
+          </button>
+          <button
             onClick={() => {
               sessionStorage.setItem("convergeDismissed", "1");
               setVisible(false);
             }}
+            className="rounded-xl border border-border bg-muted/60 px-4 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
           >
             稍后提醒
-          </Button>
+          </button>
         </div>
       </div>
     </div>
@@ -114,23 +73,10 @@ function ConvergeReminder() {
 }
 
 export function AppShell({ children }: { children: React.ReactNode }) {
-  const pathname = usePathname();
-  const pageTitle = getPageTitle(pathname);
-
   return (
     <div className="flex h-screen flex-col overflow-hidden bg-background">
       <CaptureBar />
-      {/* 顶部 header 栏（桌面端：纯白、隐藏 logo；Web 端：保留 logo） */}
-      <header className="desktop-header-clean flex h-14 shrink-0 items-center justify-between border-b border-border bg-background px-4">
-        <div className="flex items-center gap-2">
-          {/* 桌面端隐藏 logo（Kimi 风格），Web 端显示 */}
-          <span className="desktop-hide-logo flex h-6 w-6 items-center justify-center rounded-lg bg-primary text-xs font-bold text-primary-foreground">
-            X
-          </span>
-          <span className="text-sm font-medium text-foreground">{pageTitle}</span>
-        </div>
-        <UserMenu />
-      </header>
+      {/* 顶部 header 栏已移除 — 侧边栏直接延伸到内容区顶部 */}
       <div className="flex flex-1 overflow-hidden">
         <Sidebar />
         <main className="relative flex-1 overflow-y-auto overflow-x-hidden bg-background">

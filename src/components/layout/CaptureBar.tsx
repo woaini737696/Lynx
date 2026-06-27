@@ -34,44 +34,66 @@ export function CaptureBar() {
   }, []);
 
   return (
-    <header className="sticky top-0 z-20 flex h-14 shrink-0 items-center justify-between border-b border-border bg-card/85 px-4 backdrop-blur-xl lg:px-6">
-      <div className="flex items-center gap-3 pl-10 lg:pl-0">
+    <header className="glass-bar sticky top-0 z-20 flex h-14 shrink-0 items-center justify-between px-4 lg:px-6">
+      {/* 左侧：Lynx Logo + 产品名（放大展示） */}
+      <div className="flex items-center gap-3">
         <Link
           href="/"
           prefetch={false}
-          className="flex h-8 w-8 items-center justify-center rounded-xl bg-primary text-sm font-bold text-primary-foreground shadow-sm lg:hidden"
+          className="flex items-center gap-3 transition-opacity hover:opacity-80"
         >
-          L
+          {/* 大 Logo X */}
+          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary text-base font-bold text-primary-foreground shadow-md">
+            X
+          </div>
+          {/* 产品名（放大） */}
+          <span className="hidden text-lg font-bold tracking-tight text-foreground lg:block">
+            Lynx
+          </span>
         </Link>
-        <div className="hidden items-center gap-2 text-sm text-muted-foreground lg:flex">
-          <Sparkles className="h-3.5 w-3.5 text-primary" />
-          <span>闪电输入</span>
-          <kbd className="rounded-lg border border-border bg-muted px-1.5 py-0.5 text-[10px]">
-            Ctrl+J
-          </kbd>
-        </div>
       </div>
 
+      {/* 右侧：搜索 + Inbox + 捕获灵感 + 闪电输入 + 主题切换 */}
       <div className="flex items-center gap-2 sm:gap-3">
+        {/* 搜索 */}
         <button
           onClick={() => window.dispatchEvent(new Event("lynnhub:open-command-palette"))}
-          className="group flex items-center gap-1.5 rounded-xl border border-border bg-muted/60 px-2.5 py-2 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+          className="glass-btn group flex items-center gap-1.5 rounded-xl px-2.5 py-2 text-xs text-muted-foreground transition-all hover:text-foreground"
           aria-label="全局搜索"
         >
           <Search className="h-3.5 w-3.5" />
           <span className="hidden sm:inline">搜索</span>
-          <kbd className="ml-1 hidden rounded border border-border bg-background px-1 text-[10px] lg:inline">
+          <kbd className="ml-1 hidden rounded border border-border/60 bg-muted/60 px-1 text-[10px] lg:inline">
             <Command className="inline h-2.5 w-2.5" />K
           </kbd>
         </button>
+
+        {/* Inbox */}
         <LinkBadge href="/inbox" count={count} icon={<Inbox className="h-3.5 w-3.5" />} label="Inbox" />
+
+        {/* 捕获灵感 */}
         <button
           onClick={open}
-          className="group flex items-center gap-1.5 rounded-xl bg-primary px-3 py-2 text-xs font-medium text-primary-foreground shadow-sm transition-all hover:opacity-90 active:scale-[0.97]"
+          className="group flex items-center gap-1.5 rounded-xl bg-primary px-3 py-2 text-xs font-medium text-primary-foreground shadow-md transition-all hover:brightness-105 active:scale-[0.97]"
         >
           <Zap className="h-3.5 w-3.5 transition-transform group-hover:scale-110" />
           <span className="hidden sm:inline">捕获灵感</span>
         </button>
+
+        {/* 闪电输入（移到右侧） */}
+        <button
+          onClick={open}
+          className="glass-btn group hidden items-center gap-1.5 rounded-xl px-2.5 py-2 text-xs text-muted-foreground transition-all hover:text-foreground lg:flex"
+          aria-label="闪电输入"
+        >
+          <Sparkles className="h-3.5 w-3.5 text-primary transition-transform group-hover:scale-110" />
+          <span>闪电输入</span>
+          <kbd className="rounded border border-border/60 bg-muted/60 px-1 py-0.5 text-[10px]">
+            Ctrl+J
+          </kbd>
+        </button>
+
+        {/* 主题切换 */}
         <div className="hidden sm:block">
           <ThemeToggle variant="segmented" />
         </div>
@@ -99,7 +121,7 @@ function LinkBadge({
       href={href}
       prefetch={false}
       className={cn(
-        "flex items-center gap-1.5 rounded-xl border border-border bg-muted/60 px-2.5 py-2 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground",
+        "glass-btn flex items-center gap-1.5 rounded-xl px-2.5 py-2 text-xs text-muted-foreground transition-all hover:text-foreground",
         count > 0 && "pr-2"
       )}
     >
