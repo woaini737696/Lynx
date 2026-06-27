@@ -21,7 +21,7 @@ import { HelpButton } from "@/components/layout/HelpButton";
 import { EmptyState } from "@/components/layout/EmptyState";
 import { Pagination, useClientPagination } from "@/components/ui/ListControls";
 import { cn } from "@/lib/utils";
-import { fetcher } from "@/lib/swr-config";
+import { fetcher } from "@/components/providers/SWRProvider";
 
 interface GraveyardItem {
   id: string;
