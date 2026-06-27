@@ -139,7 +139,7 @@ model Conversation {
   capturedAt  DateTime @default(now())
   userId      String?
   createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  updatedAt   DateTime? @updatedAt
 
   user       User?       @relation(fields: [userId], references: [id], onDelete: Cascade)
   memories   Memory[]
@@ -190,7 +190,7 @@ model Memory {
   strength       Float    @default(1.0)
   userId         String?
   createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  updatedAt      DateTime? @updatedAt
 
   idea         Idea?         @relation(fields: [ideaId], references: [id], onDelete: SetNull)
   conversation Conversation? @relation(fields: [conversationId], references: [id], onDelete: SetNull)
@@ -215,8 +215,8 @@ model Graveyard {
   reviveCondition String    @db.Text
   abandonedAt     DateTime  @default(now())
   revivedAt       DateTime?
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
+  createdAt       DateTime? @default(now())
+  updatedAt       DateTime? @updatedAt
 
   idea Idea @relation(fields: [originalIdeaId], references: [id], onDelete: Cascade)
 
@@ -234,7 +234,7 @@ model Cognition {
   tags           Json     @default("[]")
   userId         String?
   createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  updatedAt      DateTime? @updatedAt
 
   idea         Idea?         @relation(fields: [ideaId], references: [id], onDelete: SetNull)
   conversation Conversation? @relation(fields: [conversationId], references: [id], onDelete: SetNull)
@@ -257,7 +257,7 @@ model DailyFocus {
   status      String   @default("pending") // pending | completed
   userId      String?
   createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  updatedAt   DateTime? @updatedAt
 
   user  User?            @relation(fields: [userId], references: [id], onDelete: Cascade)
   items DailyFocusItem[]
@@ -273,7 +273,7 @@ model DailyFocusItem {
   position     Int      @default(0)
   completed    Boolean  @default(false)
   createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  updatedAt    DateTime? @updatedAt
 
   dailyFocus DailyFocus @relation(fields: [dailyFocusId], references: [id], onDelete: Cascade)
   task       Task       @relation(fields: [taskId], references: [id], onDelete: Cascade)
@@ -325,7 +325,7 @@ model SkillVersion {
   promptTemplate String   @db.LongText
   tags           Json     @default("[]")
   createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  updatedAt      DateTime? @updatedAt
 
   skill Skill @relation(fields: [skillId], references: [id], onDelete: Cascade)
 
@@ -343,7 +343,7 @@ model SkillReview {
   author    String   @default("匿名用户")
   userId    String?
   createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  updatedAt DateTime? @updatedAt
 
   user User? @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -390,8 +390,8 @@ model LarkTask {
   parentTaskGuid     String?   @db.VarChar(64)
   syncedAt           DateTime  @default(now())
   userId             String?
-  createdAt          DateTime  @default(now())
-  updatedAt          DateTime  @updatedAt
+  createdAt          DateTime? @default(now())
+  updatedAt          DateTime? @updatedAt
 
   user User? @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -413,7 +413,7 @@ model LarkTaskComment {
   source      String   @default("local") // local | lark
   userId      String?
   createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  updatedAt   DateTime? @updatedAt
 
   user User? @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -433,7 +433,7 @@ model LarkWebhookEvent {
   processed Boolean  @default(false)
   userId    String?
   createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  updatedAt DateTime? @updatedAt
 
   user User? @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -592,7 +592,7 @@ model PatrolLog {
   startedAt  DateTime  @default(now())
   finishedAt DateTime?
   createdAt  DateTime  @default(now())
-  updatedAt  DateTime  @updatedAt
+  updatedAt  DateTime? @updatedAt
 
   rule PatrolRule @relation(fields: [ruleId], references: [id], onDelete: Cascade)
 
@@ -649,7 +649,7 @@ model ChatMessage {
   feedback       String?  @db.VarChar(8)
   feedbackReason String?  @db.VarChar(8)
   createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  updatedAt      DateTime? @updatedAt
 
   session ChatSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
 
@@ -692,7 +692,7 @@ model FlowExecution {
   error           String?   @db.Text
   userId          String?
   createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
+  updatedAt       DateTime? @updatedAt
 
   flow Flow  @relation(fields: [flowId], references: [id], onDelete: Cascade)
   user User? @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -709,7 +709,7 @@ model PushSubscription {
   keys      Json // { p256dh, auth }
   userId    String?
   createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  updatedAt DateTime? @updatedAt
 
   user User? @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -771,7 +771,7 @@ model HermesReport {
   // 错误信息
   error       String?  @db.Text
   createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  updatedAt   DateTime? @updatedAt
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -792,7 +792,7 @@ model SkillFavorite {
   // 冗余存储技能分类
   category  String   @default("general") @db.VarChar(64)
   createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  updatedAt DateTime? @updatedAt
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -822,7 +822,7 @@ model SkillExecution {
   // 错误信息（success=false 时）
   error      String?  @db.Text
   createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  updatedAt  DateTime? @updatedAt
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -882,7 +882,7 @@ model RemoteCommand {
   durationMs     Int       @default(0)
   createdAt      DateTime  @default(now())
   completedAt    DateTime?
-  updatedAt      DateTime  @updatedAt
+  updatedAt      DateTime? @updatedAt
 
   @@index([userId, status])
   @@index([createdAt])
@@ -916,7 +916,7 @@ model AgentAuditLog {
   // 错误信息
   error      String?  @db.Text
   createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  updatedAt  DateTime? @updatedAt
 
   @@index([userId, createdAt])
   @@index([action])

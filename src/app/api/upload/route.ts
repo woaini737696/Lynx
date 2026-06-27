@@ -30,6 +30,96 @@ const MAX_FILE_SIZE = 10 * 1024 * 1024;
 // 上传目录（public/uploads/）
 const UPLOAD_DIR = path.join(process.cwd(), "public", "uploads");
 
+// ============ 文件头魔数签名（用于校验文件实际内容） ============
+const MAGIC_NUMBERS: Record<string, number[]> = {
+  jpeg: [0xff, 0xd8, 0xff],
+  png: [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a],
+  gif: [0x47, 0x49, 0x46, 0x38], // GIF8
+  webp_riff: [0x52, 0x49, 0x46, 0x46], // RIFF
+  pdf: [0x25, 0x50, 0x44, 0x46], // %PDF
+  zip: [0x50, 0x4b, 0x03, 0x04], // PK.. (docx 等 OOXML 格式)
+  ole2: [0xd0, 0xcf, 0x11, 0xe0, 0xa1, 0xb1, 0x1a, 0xe1], // DOC 等旧 Office 格式
+};
+
+/** 检查 buffer 是否以指定魔数开头 */
+function checkMagicNumber(buffer: Buffer, signature: number[], offset = 0): boolean {
+  if (buffer.length < signature.length + offset) return false;
+  for (let i = 0; i < signature.length; i++) {
+    if (buffer[offset + i] !== signature[i]) return false;
+  }
+  return true;
+}
+
+/**
+ * 校验文件实际内容（魔数）与扩展名是否匹配
+ * @param buffer 文件内容 Buffer
+ * @param ext 文件扩展名（含点，小写）
+ * @returns 校验通过返回 true，否则返回 false
+ */
+function validateFileContent(buffer: Buffer, ext: string): boolean {
+  const lowerExt = ext.toLowerCase();
+  switch (lowerExt) {
+    case ".jpg":
+    case ".jpeg":
+      return checkMagicNumber(buffer, MAGIC_NUMBERS.jpeg);
+    case ".png":
+      return checkMagicNumber(buffer, MAGIC_NUMBERS.png);
+    case ".gif":
+      return checkMagicNumber(buffer, MAGIC_NUMBERS.gif);
+    case ".webp":
+      // WebP: RIFF at offset 0, WEBP at offset 8
+      return (
+        checkMagicNumber(buffer, MAGIC_NUMBERS.webp_riff) &&
+        buffer.length >= 12 &&
+        buffer[8] === 0x57 && // W
+        buffer[9] === 0x45 && // E
+        buffer[10] === 0x42 && // B
+        buffer[11] === 0x50 // P
+      );
+    case ".pdf":
+      return checkMagicNumber(buffer, MAGIC_NUMBERS.pdf);
+    case ".docx":
+      // OOXML 格式（docx/xlsx/pptx）本质是 ZIP
+      return checkMagicNumber(buffer, MAGIC_NUMBERS.zip);
+    case ".doc":
+      return checkMagicNumber(buffer, MAGIC_NUMBERS.ole2);
+    case ".txt":
+    case ".md":
+      // 文本文件：前 1KB 不含 null 字节（二进制文件的典型特征）
+      {
+        const checkLen = Math.min(buffer.length, 1024);
+        for (let i = 0; i < checkLen; i++) {
+          if (buffer[i] === 0) return false;
+        }
+        return true;
+      }
+    default:
+      return false;
+  }
+}
+
+/**
+ * 校验图片实际尺寸（可选，当 sharp 可用时执行）
+ * sharp 是 Next.js 生产环境的可选依赖，开发环境可能未安装
+ */
+async function validateImageDimensions(buffer: Buffer, ext: string): Promise<boolean> {
+  try {
+    // 动态导入 sharp，未安装时跳过尺寸校验（魔数校验已在前面完成）
+    // @ts-expect-error - sharp 是可选依赖，可能未安装
+    const sharp = (await import("sharp")).default;
+    const metadata = await sharp(buffer).metadata();
+    // 校验图片有合理的宽高（非 0、非负）
+    if (metadata.width && metadata.height) {
+      return metadata.width > 0 && metadata.height > 0;
+    }
+    return true; // 无法获取尺寸时放行（魔数校验已通过）
+  } catch {
+    // sharp 不可用或解析失败，跳过尺寸校验
+    // 魔数校验已在前一步完成，此处仅是额外校验
+    return true;
+  }
+}
+
 /** 生成随机字符串（用于文件名防冲突） */
 function randomString(len = 6): string {
   const chars = "abcdefghijklmnopqrstuvwxyz0123456789";
@@ -163,11 +253,31 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // ============ 写入文件 ============
+    // ============ 写入文件（含内容校验） ============
     const filePath = path.join(UPLOAD_DIR, safeName);
     try {
       const arrayBuffer = await file.arrayBuffer();
       const buffer = Buffer.from(arrayBuffer);
+
+      // 校验文件实际内容（魔数），防止伪装扩展名的恶意文件
+      if (!validateFileContent(buffer, ext)) {
+        return NextResponse.json(
+          { error: "文件内容与扩展名不匹配（魔数校验失败）" },
+          { status: 400 }
+        );
+      }
+
+      // 图片文件额外校验实际尺寸（sharp 可用时执行）
+      if (isImage) {
+        const dimValid = await validateImageDimensions(buffer, ext);
+        if (!dimValid) {
+          return NextResponse.json(
+            { error: "图片文件损坏或尺寸无效" },
+            { status: 400 }
+          );
+        }
+      }
+
       await fs.writeFile(filePath, buffer);
     } catch (e) {
       logger.error({ err: e }, "写入上传文件失败");

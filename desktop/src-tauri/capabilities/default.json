@@ -30,14 +30,75 @@
     "core:image:default",
     "core:tray:default",
     "core:menu:default",
-    "shell:allow-open",
+    {
+      "identifier": "shell:allow-open",
+      "allow": [
+        { "url": "http://localhost:5176/**" },
+        { "url": "http://127.0.0.1:5176/**" },
+        { "url": "https://app.lynnhub.com/**" },
+        { "url": "https://**" },
+        { "url": "mailto:**" }
+      ]
+    },
     "shell:default",
-    "fs:default",
-    "fs:allow-read-text-file",
-    "fs:allow-write-text-file",
-    "fs:allow-read-dir",
-    "fs:allow-mkdir",
-    "fs:allow-exists",
+    {
+      "identifier": "fs:default",
+      "allow": [
+        { "path": "$APPDATA/LynnHub/user-data/**" },
+        { "path": "$APPLOCALDATA/LynnHub/user-data/**" },
+        { "path": "$HOME/Library/Application Support/LynnHub/user-data/**" },
+        { "path": "$HOME/.local/share/LynnHub/user-data/**" },
+        { "path": "$RESOURCE/**" }
+      ]
+    },
+    {
+      "identifier": "fs:allow-read-text-file",
+      "allow": [
+        { "path": "$APPDATA/LynnHub/user-data/**" },
+        { "path": "$APPLOCALDATA/LynnHub/user-data/**" },
+        { "path": "$HOME/Library/Application Support/LynnHub/user-data/**" },
+        { "path": "$HOME/.local/share/LynnHub/user-data/**" },
+        { "path": "$RESOURCE/**" }
+      ]
+    },
+    {
+      "identifier": "fs:allow-write-text-file",
+      "allow": [
+        { "path": "$APPDATA/LynnHub/user-data/**" },
+        { "path": "$APPLOCALDATA/LynnHub/user-data/**" },
+        { "path": "$HOME/Library/Application Support/LynnHub/user-data/**" },
+        { "path": "$HOME/.local/share/LynnHub/user-data/**" }
+      ]
+    },
+    {
+      "identifier": "fs:allow-read-dir",
+      "allow": [
+        { "path": "$APPDATA/LynnHub/user-data/**" },
+        { "path": "$APPLOCALDATA/LynnHub/user-data/**" },
+        { "path": "$HOME/Library/Application Support/LynnHub/user-data/**" },
+        { "path": "$HOME/.local/share/LynnHub/user-data/**" },
+        { "path": "$RESOURCE/**" }
+      ]
+    },
+    {
+      "identifier": "fs:allow-mkdir",
+      "allow": [
+        { "path": "$APPDATA/LynnHub/user-data/**" },
+        { "path": "$APPLOCALDATA/LynnHub/user-data/**" },
+        { "path": "$HOME/Library/Application Support/LynnHub/user-data/**" },
+        { "path": "$HOME/.local/share/LynnHub/user-data/**" }
+      ]
+    },
+    {
+      "identifier": "fs:allow-exists",
+      "allow": [
+        { "path": "$APPDATA/LynnHub/user-data/**" },
+        { "path": "$APPLOCALDATA/LynnHub/user-data/**" },
+        { "path": "$HOME/Library/Application Support/LynnHub/user-data/**" },
+        { "path": "$HOME/.local/share/LynnHub/user-data/**" },
+        { "path": "$RESOURCE/**" }
+      ]
+    },
     "dialog:default",
     "dialog:allow-open",
     "dialog:allow-save",
@@ -52,10 +113,38 @@
     "process:allow-restart",
     "process:allow-exit",
     "http:default",
-    "http:allow-fetch",
-    "http:allow-fetch-cancel",
-    "http:allow-fetch-read-body",
-    "http:allow-fetch-send",
+    {
+      "identifier": "http:allow-fetch",
+      "allow": [
+        { "url": "http://localhost:5176/**" },
+        { "url": "http://127.0.0.1:5176/**" },
+        { "url": "https://app.lynnhub.com/**" }
+      ]
+    },
+    {
+      "identifier": "http:allow-fetch-cancel",
+      "allow": [
+        { "url": "http://localhost:5176/**" },
+        { "url": "http://127.0.0.1:5176/**" },
+        { "url": "https://app.lynnhub.com/**" }
+      ]
+    },
+    {
+      "identifier": "http:allow-fetch-read-body",
+      "allow": [
+        { "url": "http://localhost:5176/**" },
+        { "url": "http://127.0.0.1:5176/**" },
+        { "url": "https://app.lynnhub.com/**" }
+      ]
+    },
+    {
+      "identifier": "http:allow-fetch-send",
+      "allow": [
+        { "url": "http://localhost:5176/**" },
+        { "url": "http://127.0.0.1:5176/**" },
+        { "url": "https://app.lynnhub.com/**" }
+      ]
+    },
     "global-shortcut:default"
   ]
 }

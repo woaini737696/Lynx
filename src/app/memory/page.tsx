@@ -35,6 +35,7 @@ import { HelpButton } from "@/components/layout/HelpButton";
 import { Pagination, useClientPagination } from "@/components/ui/ListControls";
 import { openContextMenu } from "@/components/ui/ContextMenu";
 import { cn } from "@/lib/utils";
+import { RetryState } from "@/components/ui/RetryState";
 
 type GraphNode = {
   id: string;
@@ -235,6 +236,7 @@ export default function MemoryPage() {
   const [edges, setEdges] = useState<GraphEdge[]>([]);
   const [stats, setStats] = useState({ total: 0, edges: 0, isolated: 0, mode: "tfidf-fallback" });
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [rebuilding, setRebuilding] = useState(false);
   const [syncingHermes, setSyncingHermes] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -295,6 +297,7 @@ export default function MemoryPage() {
   // ---- 数据加载 ----
   const load = useCallback(async () => {
     setLoading(true);
+    setLoadError(null);
     try {
       const res = await fetch("/api/memory");
       if (!res.ok) throw new Error("加载失败");
@@ -303,6 +306,7 @@ export default function MemoryPage() {
       setEdges(data.edges || []);
       setStats((prev) => data.stats || prev);
     } catch {
+      setLoadError("加载记忆图谱失败，请重试");
       toast("加载图谱失败", "error");
     } finally {
       setLoading(false);
@@ -321,7 +325,10 @@ export default function MemoryPage() {
         setEdges(data.edges || []);
         setStats((prev) => data.stats || prev);
       } catch {
-        if (mounted) toast("加载图谱失败", "error");
+        if (mounted) {
+          setLoadError("加载记忆图谱失败，请重试");
+          toast("加载图谱失败", "error");
+        }
       } finally {
         if (mounted) setLoading(false);
       }
@@ -1340,7 +1347,14 @@ export default function MemoryPage() {
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
         {/* 左侧 3D 图谱（占 2/3 宽度） */}
         <Card className="col-span-1 overflow-x-auto p-0 lg:col-span-2">
-          {loading ? (
+          {loadError && !loading ? (
+            <div className="flex h-[540px] items-center justify-center">
+              <RetryState
+                message={loadError}
+                onRetry={() => void load()}
+              />
+            </div>
+          ) : loading ? (
             <div className="flex h-[540px] flex-col items-center justify-center gap-3">
               <Skeleton className="h-64 w-64 rounded-full" />
               <span className="text-xs text-muted-foreground">正在构建 3D 记忆图谱...</span>

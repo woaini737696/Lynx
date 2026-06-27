@@ -80,19 +80,31 @@ export async function GET(req: NextRequest) {
     const userFilter = buildUserFilter(auth.user);
     const results: SearchResult[] = [];
 
-    // 并行查询各类型
+    // 分页修复：各类型不单独 skip/take，而是统一拉取 offset+limit 条候选，
+    // 合并后按 createdAt 降序排列，再统一 slice [offset, offset+limit)。
+    // 这样分页基于全局排序，而非各类型独立分页后再拼接。
+    const fetchTake = offset + limit;
+
+    // 并行查询各类型 + 统计总数
     const tasks: Promise<void>[] = [];
+    const counts: Record<SearchType, number> = {
+      idea: 0, task: 0, cognition: 0, memory: 0, skill: 0,
+    };
 
     if (requestedTypes.includes("idea")) {
       tasks.push(
         (async () => {
-          const items = await prisma.idea.findMany({
-            where: { ...userFilter, content: { contains: q } },
-            take: limit,
-            skip: offset,
-            orderBy: { createdAt: "desc" },
-            select: { id: true, content: true, createdAt: true },
-          });
+          const where = { ...userFilter, content: { contains: q } };
+          const [items, count] = await Promise.all([
+            prisma.idea.findMany({
+              where,
+              take: fetchTake,
+              orderBy: { createdAt: "desc" },
+              select: { id: true, content: true, createdAt: true },
+            }),
+            prisma.idea.count({ where }),
+          ]);
+          counts.idea = count;
           for (const it of items) {
             results.push({
               id: it.id,
@@ -109,13 +121,17 @@ export async function GET(req: NextRequest) {
     if (requestedTypes.includes("task")) {
       tasks.push(
         (async () => {
-          const items = await prisma.task.findMany({
-            where: { ...userFilter, content: { contains: q } },
-            take: limit,
-            skip: offset,
-            orderBy: { createdAt: "desc" },
-            select: { id: true, content: true, createdAt: true },
-          });
+          const where = { ...userFilter, content: { contains: q } };
+          const [items, count] = await Promise.all([
+            prisma.task.findMany({
+              where,
+              take: fetchTake,
+              orderBy: { createdAt: "desc" },
+              select: { id: true, content: true, createdAt: true },
+            }),
+            prisma.task.count({ where }),
+          ]);
+          counts.task = count;
           for (const it of items) {
             results.push({
               id: it.id,
@@ -132,13 +148,17 @@ export async function GET(req: NextRequest) {
     if (requestedTypes.includes("cognition")) {
       tasks.push(
         (async () => {
-          const items = await prisma.cognition.findMany({
-            where: { ...userFilter, content: { contains: q } },
-            take: limit,
-            skip: offset,
-            orderBy: { createdAt: "desc" },
-            select: { id: true, content: true, type: true, createdAt: true },
-          });
+          const where = { ...userFilter, content: { contains: q } };
+          const [items, count] = await Promise.all([
+            prisma.cognition.findMany({
+              where,
+              take: fetchTake,
+              orderBy: { createdAt: "desc" },
+              select: { id: true, content: true, type: true, createdAt: true },
+            }),
+            prisma.cognition.count({ where }),
+          ]);
+          counts.cognition = count;
           for (const it of items) {
             results.push({
               id: it.id,
@@ -155,13 +175,17 @@ export async function GET(req: NextRequest) {
     if (requestedTypes.includes("memory")) {
       tasks.push(
         (async () => {
-          const items = await prisma.memory.findMany({
-            where: { ...userFilter, content: { contains: q } },
-            take: limit,
-            skip: offset,
-            orderBy: { createdAt: "desc" },
-            select: { id: true, content: true, type: true, createdAt: true },
-          });
+          const where = { ...userFilter, content: { contains: q } };
+          const [items, count] = await Promise.all([
+            prisma.memory.findMany({
+              where,
+              take: fetchTake,
+              orderBy: { createdAt: "desc" },
+              select: { id: true, content: true, type: true, createdAt: true },
+            }),
+            prisma.memory.count({ where }),
+          ]);
+          counts.memory = count;
           for (const it of items) {
             results.push({
               id: it.id,
@@ -179,26 +203,30 @@ export async function GET(req: NextRequest) {
       tasks.push(
         (async () => {
           // Skill 搜索 name / description / content 三个字段
-          const items = await prisma.skill.findMany({
-            where: {
-              ...userFilter,
-              OR: [
-                { name: { contains: q } },
-                { description: { contains: q } },
-                { content: { contains: q } },
-              ],
-            },
-            take: limit,
-            skip: offset,
-            orderBy: { createdAt: "desc" },
-            select: {
-              id: true,
-              name: true,
-              description: true,
-              content: true,
-              createdAt: true,
-            },
-          });
+          const where = {
+            ...userFilter,
+            OR: [
+              { name: { contains: q } },
+              { description: { contains: q } },
+              { content: { contains: q } },
+            ],
+          };
+          const [items, count] = await Promise.all([
+            prisma.skill.findMany({
+              where,
+              take: fetchTake,
+              orderBy: { createdAt: "desc" },
+              select: {
+                id: true,
+                name: true,
+                description: true,
+                content: true,
+                createdAt: true,
+              },
+            }),
+            prisma.skill.count({ where }),
+          ]);
+          counts.skill = count;
           for (const it of items) {
             // 优先从命中的字段生成摘要
             let snippet = makeSnippet(it.name, q);
@@ -222,13 +250,16 @@ export async function GET(req: NextRequest) {
 
     await Promise.all(tasks);
 
-    // 合并后按 createdAt 降序排列，再截取 limit 条
+    // 合并后按 createdAt 降序排列，再统一分页
     results.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
-    const paged = results.slice(0, limit);
+    const total = Object.values(counts).reduce((sum, c) => sum + c, 0);
+    const paged = results.slice(offset, offset + limit);
+    const hasMore = offset + paged.length < total;
 
     return NextResponse.json({
       results: paged,
-      total: results.length,
+      total,
+      hasMore,
       q,
       limit,
       offset,

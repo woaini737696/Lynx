@@ -1,8 +1,15 @@
 // 基于内存的滑动窗口 Rate Limiter
-// 单进程内存存储，部署阶段可换 Redis（如 @upstash/ratelimit）
+//
+// ⚠️ 限制说明：
+// 本实现使用单进程内存存储，仅适用于单实例部署（如开发环境、单容器）。
+// 在多实例/多副本部署（如 Kubernetes 多 Pod、Serverless 多实例）时，
+// 每个实例有独立的限流计数器，实际限流阈值会被放大 N 倍（N = 实例数）。
+//
+// 生产环境多实例部署时，请实现 RateLimitAdapter 接口并切换到 Redis 后端
+// （如 @upstash/ratelimit、redis-rate-limiter 等），见下方 adapter 扩展点。
 //
 // 使用方式：
-//   const { success, remaining, resetAt } = await rateLimit(`login:${ip}`, 10, 60_000);
+//   const { success, remaining, resetAt } = rateLimit(`login:${ip}`, 10, 60_000);
 //   if (!success) return NextResponse.json({ error: "请求过于频繁" }, { status: 429 });
 
 type WindowEntry = {
@@ -36,9 +43,22 @@ export interface RateLimitResult {
   resetAt: number; // Unix ms，最早可再次请求的时间
 }
 
+// ============ Redis Adapter 扩展点 ============
+// 多实例部署时实现此接口，将 rateLimit 替换为 Redis 后端实现
+// 示例：
+//   export interface RateLimitAdapter {
+//     limit(key: string, limit: number, windowMs: number): Promise<RateLimitResult>;
+//   }
+//   // 使用 @upstash/ratelimit:
+//   // const adapter: RateLimitAdapter = new UpstashRatelimit(...);
+//   // export const rateLimit = adapter.limit;
+export interface RateLimitAdapter {
+  limit(key: string, limit: number, windowMs: number): Promise<RateLimitResult>;
+}
+
 /**
  * 滑动窗口 rate limit
- * @param key 限流键（建议包含 IP / userId / 接口名）
+ * @param key 限流键（建议使用 buildRateLimitKey 构建复合 key，包含 IP / userId / 接口名）
  * @param limit 窗口内允许的最大请求数
  * @param windowMs 窗口大小（毫秒）
  */
@@ -98,4 +118,22 @@ export function getClientKey(req: Request): string {
   const cf = headers.get("cf-connecting-ip");
   if (cf) return cf.trim();
   return "unknown";
+}
+
+/**
+ * 构建复合限流 key：基于 IP + 用户ID（可选）+ 接口名
+ * 这样同一用户在不同 IP 下的请求会被分别计数，同一 IP 下不同用户也会分别计数
+ *
+ * @param scope 接口/操作名（如 "login"、"upload"）
+ * @param ip 客户端 IP
+ * @param userId 用户ID（可选，未登录时仅用 IP）
+ * @returns 复合 key，如 "login:1.2.3.4:user-abc123" 或 "login:1.2.3.4:anon"
+ */
+export function buildRateLimitKey(
+  scope: string,
+  ip: string,
+  userId?: string | null
+): string {
+  const uid = userId || "anon";
+  return `${scope}:${ip}:${uid}`;
 }

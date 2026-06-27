@@ -66,6 +66,14 @@ export default function GlobalError({
             错误编号：{error.digest}
           </p>
         )}
+        {/* 开发环境显示详细错误堆栈，便于调试 */}
+        {process.env.NODE_ENV !== "production" && error.stack && (
+          <pre
+            className="mb-6 max-h-[40vh] w-full max-w-2xl overflow-auto rounded-xl border border-slate-200 bg-slate-50 p-4 text-left font-mono text-[11px] leading-relaxed text-slate-600 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300"
+          >
+            {error.stack}
+          </pre>
+        )}
         <div className="flex items-center gap-3">
           <button
             onClick={reset}
