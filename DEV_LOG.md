@@ -9,6 +9,7 @@
 
 | 迭代 | 日期 | 任务概要 |
 |------|------|----------|
+| [迭代 47](#迭代-47---2026-06-28) | 2026-06-28 | 修复 Lynx 桌面端图标、安装界面与 hover 菜单体验问题 |
 | [迭代 46](#迭代-46---2026-06-28) | 2026-06-28 | Lynx 原生桌面端独立安装版：NSIS exe 安装包 + 品牌安装界面 |
 | [迭代 45](#迭代-45---2026-06-27) | 2026-06-27 | 桌面端 Phase1 本地打包：生成可双击安装的 MSI 安装包（22MB） |
 | [迭代 44](#迭代-44---2026-06-27) | 2026-06-27 | 桌面端原生壳 Phase1：无边框窗口 + 全局快捷键 + 远程 IPC 授权 |
@@ -65,6 +66,48 @@
 
 ### Commit
 `1f0dab03` — feat(desktop): iter 44 - 原生壳Phase1 无边框窗口+全局快捷键Ctrl+Shift+L+远程IPC授权+窗口控制封装
+
+---
+
+## 迭代 47 - 2026-06-28
+
+### 任务概要
+响应用户要求：优先处理 Lynx 原生桌面端第 1、2、4 项体验问题——安装后图标/logo、安装界面风格、左下角个人信息 hover 菜单无法点击，为后续方案一（Tauri + 原生 UI 重构）扫清体验障碍。
+
+### 完成内容
+
+#### 1. 安装后只保留一个高清 Lynx 品牌图标（问题 1）
+- `src/components/layout/TitleBar.tsx`：移除左侧「橙色渐变 X + Lynx 文字」双元素，合并为单个 `/lynx-logo-black.png` 黑底白色猞猁高清 logo
+- 新增 `scripts/generate-desktop-native-assets.py`：从 `lynx-logos/lynx-logo-256.png` 生成安装包所需高清资源
+- 新增 `desktop-native/assets/installer-logo.bmp`：128×128 白色背景 logo，用于 NSIS 安装界面
+- 安装后仅创建桌面快捷方式，避免任务栏/开始菜单出现多余图标
+
+#### 2. NSIS 安装界面改为豆包风格单页流程（问题 2）
+- `desktop-native/installer.nsi`：重写为自定义单页安装界面
+  - 居中显示 Lynx 高清 logo
+  - 安装路径输入框 + 浏览按钮
+  - 「创建桌面快捷方式」复选框（默认勾选）
+  - 橙底白字「立即安装」按钮
+  - 隐藏 MUI 默认上一步/下一步/取消按钮
+  - 安装完成后自动启动主程序
+  - 静默安装时强制创建桌面快捷方式
+- `desktop-native/build-native.ps1`：构建流程中新增「生成安装包资源」步骤，自动调用资源生成脚本
+
+#### 3. 修复左下角个人信息 hover 菜单无法点击（问题 4）
+- `src/components/layout/UserProfileFloat.tsx`：新增 `closeTimerRef` 实现 180ms 延迟关闭；鼠标移入时清除定时器，移出时启动定时器
+- `src/components/layout/Sidebar.tsx`：移动端抽屉底部用户菜单同步实现同样的延迟关闭逻辑
+
+#### 4. 工程配置
+- `tsconfig.json`：include 新增 `desktop-native/dist-web/types/**/*.ts`，排除 `desktop` 但保留 `desktop-native` 类型支持
+
+### 自测结果
+- 构建产物：`desktop-native/dist/Lynx-Setup-1.2.0.exe` 可正常生成
+- 静默安装：`Lynx-Setup-1.2.0.exe /S /D=D:\Lynx-Test-Install` 成功，桌面仅创建一个快捷方式
+- 安装完成：主程序自动启动
+- hover 菜单：鼠标从头像平滑移向菜单时不再立即收回，可正常点击「个人资料设置」/「退出登录」
+
+### Commit
+`943100df` — feat(desktop-native): iter 47 - 修复安装包图标、安装界面与hover菜单
 
 ---
 
