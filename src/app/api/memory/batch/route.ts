@@ -14,7 +14,11 @@ export async function POST(req: NextRequest) {
   if (error) return error;
   try {
     const body = await req.json().catch(() => ({}));
-    const ids: string[] = Array.isArray(body.ids) ? body.ids.filter((x: unknown) => typeof x === "string").slice(0, 100) : [];
+    const ids: string[] = Array.isArray(body.ids)
+      ? body.ids
+          .filter((x: unknown) => typeof x === "string" && (x as string).length >= 10 && (x as string).length <= 50)
+          .slice(0, 100)
+      : [];
 
     if (ids.length === 0) {
       return NextResponse.json({ error: "ids 不能为空" }, { status: 400 });
@@ -39,9 +43,17 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "未找到可删除的记忆" }, { status: 404 });
     }
 
-    // 清理其他节点对这些 Memory 的引用
+    // 收集被删 memory 的 userId 列表（admin 删他人 memory 时需清理对应缓存）
+    const deletedOwners = Array.from(
+      new Set(memories.map((m) => m.userId).filter((u): u is string => !!u))
+    );
+
+    // 清理其他节点对这些 Memory 的引用：缩小扫描范围到同一批 userId（per-user 图谱），避免全表扫描
     const all = await prisma.memory.findMany({
-      where: { id: { notIn: validIds } },
+      where: {
+        id: { notIn: validIds },
+        ...(deletedOwners.length > 0 ? { userId: { in: deletedOwners } } : {}),
+      },
       select: { id: true, connections: true, strength: true, userId: true },
     });
     const related = all.filter(
@@ -49,26 +61,34 @@ export async function POST(req: NextRequest) {
         Array.isArray(m.connections) &&
         (m.connections as string[]).some((c) => validIds.includes(c))
     );
-    for (const r of related) {
-      const conns = (r.connections as string[]).filter((c) => !validIds.includes(c));
-      await prisma.memory.update({
-        where: { id: r.id },
-        data: { connections: conns, strength: conns.length },
-      });
-    }
 
-    // 批量删除
-    const result = await prisma.memory.deleteMany({
-      where: { id: { in: validIds } },
-    });
+    // 批量提交：收集更新操作后用 $transaction 一次性执行（清理引用 → 批量删除）
+    const result = await prisma.$transaction([
+      ...related.map((r) => {
+        const conns = (r.connections as string[]).filter((c) => !validIds.includes(c));
+        return prisma.memory.update({
+          where: { id: r.id },
+          data: { connections: conns, strength: conns.length },
+        });
+      }),
+      prisma.memory.deleteMany({
+        where: { id: { in: validIds } },
+      }),
+    ]);
 
-    // 清除缓存
+    // 清除缓存：操作者 + 被删 memory 的归属者，最后兜底清全部
     clearMemoryCache(user.id);
+    for (const ownerId of deletedOwners) {
+      if (ownerId !== user.id) clearMemoryCache(ownerId);
+    }
+    clearMemoryCache();
 
-    logger.info({ deleted: result.count, userId: user.id }, "批量删除记忆完成");
+    // $transaction 数组形式：最后一个元素为 deleteMany 的结果
+    const deleteResult = result[result.length - 1] as { count: number };
+    logger.info({ deleted: deleteResult.count, userId: user.id }, "批量删除记忆完成");
     return NextResponse.json({
       success: true,
-      deleted: result.count,
+      deleted: deleteResult.count,
       requested: ids.length,
     });
   } catch (e) {

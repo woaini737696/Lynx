@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { Key, Loader2, Save, Eye, EyeOff, CheckCircle2 } from "lucide-react";
 import { Card, Button, Badge } from "@/components/layout/PageHeader";
+import { Modal } from "@/components/ui/Modal";
 import { toast } from "@/components/ui/toast";
 
 /**
@@ -22,6 +23,8 @@ export function UserAIKeyConfig() {
   const [allowedProviders, setAllowedProviders] = useState<string[] | null>(null);
   const [hasDeepseek, setHasDeepseek] = useState(false);
   const [hasMimo, setHasMimo] = useState(false);
+  // 清除 Key 二次确认
+  const [confirmClear, setConfirmClear] = useState<"deepseek" | "mimo" | null>(null);
 
   useEffect(() => {
     void loadConfig();
@@ -74,10 +77,13 @@ export function UserAIKeyConfig() {
     }
   };
 
-  const handleClear = async (provider: "deepseek" | "mimo") => {
-    if (!confirm(`确定要清除${provider === "deepseek" ? "DeepSeek" : "MiMo"}的 API Key 吗？清除后将使用管理员配置的全局 Key。`)) {
-      return;
-    }
+  // 触发清除二次确认（用自定义 Modal 替代 confirm()）
+  const handleClear = (provider: "deepseek" | "mimo") => {
+    setConfirmClear(provider);
+  };
+
+  // 实际执行清除
+  const performClear = async (provider: "deepseek" | "mimo") => {
     setSaving(true);
     try {
       const body = provider === "deepseek"
@@ -90,6 +96,7 @@ export function UserAIKeyConfig() {
       });
       if (!res.ok) throw new Error("清除失败");
       toast(`${provider === "deepseek" ? "DeepSeek" : "MiMo"} Key 已清除`, "success");
+      setConfirmClear(null);
       void loadConfig();
     } catch (e) {
       toast("清除失败：" + (e as Error).message, "error");
@@ -112,6 +119,7 @@ export function UserAIKeyConfig() {
   const isProviderAllowed = (p: string) => !allowedProviders || allowedProviders.includes(p);
 
   return (
+    <>
     <Card className="mb-5">
       <div className="border-b border-border px-4 py-3">
         <div className="flex items-center gap-2">
@@ -247,5 +255,41 @@ export function UserAIKeyConfig() {
         </div>
       </div>
     </Card>
+
+    {/* 清除 Key 二次确认弹窗（替代 confirm()） */}
+    <Modal
+      open={confirmClear !== null}
+      onClose={() => setConfirmClear(null)}
+      title="确认清除 Key"
+      size="sm"
+    >
+      {confirmClear && (
+        <>
+          <p className="text-sm text-muted-foreground">
+            确定要清除{confirmClear === "deepseek" ? "DeepSeek" : "MiMo"}的 API Key 吗？清除后将使用管理员配置的全局 Key。
+          </p>
+          <div className="mt-4 flex justify-end gap-2">
+            <Button size="sm" variant="ghost" onClick={() => setConfirmClear(null)}>
+              取消
+            </Button>
+            <Button
+              size="sm"
+              variant="danger"
+              disabled={saving}
+              onClick={() => performClear(confirmClear)}
+            >
+              {saving ? (
+                <>
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" /> 清除中...
+                </>
+              ) : (
+                "确认清除"
+              )}
+            </Button>
+          </div>
+        </>
+      )}
+    </Modal>
+    </>
   );
 }

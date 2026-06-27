@@ -3,7 +3,8 @@
 import { useEffect, useState, useMemo } from "react";
 import { ArrowRight, Moon, Trash2, Sparkles } from "lucide-react";
 import { toast } from "@/components/ui/toast";
-import { PageHeader, EmptyState, Card, Button, LoadingState } from "@/components/layout/PageHeader";
+import { PageHeader, Card, Button, LoadingState } from "@/components/layout/PageHeader";
+import { EmptyState } from "@/components/layout/EmptyState";
 import { SearchInput, FilterSelect, Pagination, useClientPagination } from "@/components/ui/ListControls";
 
 interface Idea {
@@ -168,7 +169,7 @@ export default function ConvergePage() {
         <LoadingState title="灵感收敛" />
       ) : ideas.length === 0 ? (
         <EmptyState
-          icon={<Sparkles className="h-8 w-8 text-northstar" />}
+          icon={Sparkles}
           title="收敛完成"
           description="Inbox 已清空，灵感各有归处"
         />

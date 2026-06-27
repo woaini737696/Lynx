@@ -9,6 +9,16 @@ import { getLogger } from "@/lib/logger";
 
 const logger = getLogger("conversations-api");
 
+// 合法的对话来源（含文件类型，保持与现有逻辑兼容）
+const VALID_CONVERSATION_SOURCES = new Set([
+  "kimi",
+  "claude",
+  "codex",
+  "gpt",
+  "file-pdf",
+  "file-image",
+]);
+
 // 不进行 AI 提取的文件类型（无有效文本内容）
 const NO_EXTRACT_SOURCES = new Set(["file-image"]);
 
@@ -69,14 +79,35 @@ export async function POST(req: NextRequest) {
     const fileData = body.fileData as string | undefined;
     const filename = body.filename as string | undefined;
 
+    // 校验 source：必须为非空字符串，已知类型有特殊处理，允许自定义来源
+    if (typeof source !== "string" || source.trim().length === 0) {
+      return NextResponse.json(
+        { error: "source 必须为非空字符串" },
+        { status: 400 }
+      );
+    }
+    // 校验 title（可选，提供时必须为非空字符串）
+    if (title !== undefined && title !== null && (typeof title !== "string" || title.trim().length === 0)) {
+      return NextResponse.json({ error: "title 必须为非空字符串" }, { status: 400 });
+    }
+    // 校验 rawContent（必须为字符串）
+    if (rawContent !== undefined && rawContent !== null && typeof rawContent !== "string") {
+      return NextResponse.json({ error: "rawContent 必须为字符串" }, { status: 400 });
+    }
+    // 校验 filename（提供时必须为字符串）
+    if (filename !== undefined && filename !== null && typeof filename !== "string") {
+      return NextResponse.json({ error: "filename 必须为字符串" }, { status: 400 });
+    }
+    // 校验 fileData 大小（base64 字符串长度上限 10MB）
+    if (fileData && (typeof fileData !== "string" || fileData.length > 10 * 1024 * 1024)) {
+      return NextResponse.json({ error: "文件不能超过 10MB" }, { status: 400 });
+    }
+
     if (!rawContent && !fileData) {
       return NextResponse.json(
         { error: "source 和 rawContent（或 fileData）不能同时为空" },
         { status: 400 }
       );
-    }
-    if (!source) {
-      return NextResponse.json({ error: "source 不能为空" }, { status: 400 });
     }
 
     // PDF 处理：本地优先 + AI 视觉降级
@@ -141,13 +172,18 @@ export async function POST(req: NextRequest) {
       conversation.id,
       conversation.title,
       conversation.rawContent
-    ).catch(() => {});
-
-    return NextResponse.json({
-      conversation,
-      success: true,
-      pdfParseStatus,
+    ).catch((e) => {
+      logger.error({ err: e, conversationId: conversation.id }, "writeMemory 异步失败");
     });
+
+    return NextResponse.json(
+      {
+        conversation,
+        success: true,
+        pdfParseStatus,
+      },
+      { status: 201 }
+    );
   } catch (e) {
     logger.error({ err: e }, "捕获对话失败");
     return NextResponse.json({ error: "服务器错误" }, { status: 500 });

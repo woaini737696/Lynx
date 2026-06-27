@@ -47,6 +47,7 @@ import {
 } from "@/components/layout/PageHeader";
 import { HelpButton } from "@/components/layout/HelpButton";
 import { EmptyState } from "@/components/layout/EmptyState";
+import { Modal } from "@/components/ui/Modal";
 import { toast } from "@/components/ui/toast";
 import { cn } from "@/lib/utils";
 import { SearchInput, Pagination, useClientPagination } from "@/components/ui/ListControls";
@@ -335,6 +336,11 @@ export default function SkillsPage() {
   const [modal, setModal] = useState<ModalMode>(null);
   const [editingSkill, setEditingSkill] = useState<Skill | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
+  // 二次确认弹窗：删除 / 下架
+  const [confirmAction, setConfirmAction] = useState<{
+    type: "delete" | "unpublish";
+    skill: Skill;
+  } | null>(null);
 
   const fetchSkills = useCallback(async () => {
     setLoading(true);
@@ -408,8 +414,11 @@ export default function SkillsPage() {
     setEditingSkill(null);
   };
 
-  const handleDelete = async (skill: Skill) => {
-    if (!confirm(`确定删除「${skill.name}」？`)) return;
+  const handleDelete = (skill: Skill) => {
+    setConfirmAction({ type: "delete", skill });
+  };
+
+  const performDelete = async (skill: Skill) => {
     try {
       const res = await fetch(`/api/skills/${skill.id}`, {
         method: "DELETE",
@@ -455,8 +464,11 @@ export default function SkillsPage() {
     }
   };
 
-  const handleUnpublish = async (skill: Skill) => {
-    if (!confirm(`确定从广场下架「${skill.name}」？`)) return;
+  const handleUnpublish = (skill: Skill) => {
+    setConfirmAction({ type: "unpublish", skill });
+  };
+
+  const performUnpublish = async (skill: Skill) => {
     try {
       const res = await fetch(`/api/skills/${skill.id}/publish`, {
         method: "DELETE",
@@ -641,6 +653,43 @@ export default function SkillsPage() {
           }}
         />
       ) : null}
+
+      {/* 删除 / 下架二次确认弹窗 */}
+      <Modal
+        open={!!confirmAction}
+        onClose={() => setConfirmAction(null)}
+        title={confirmAction?.type === "delete" ? "确认删除" : "确认下架"}
+        size="sm"
+      >
+        {confirmAction && (
+          <>
+            <p className="text-sm text-muted-foreground">
+              {confirmAction.type === "delete"
+                ? `确定要删除「${confirmAction.skill.name}」吗？此操作不可撤销。`
+                : `确定从广场下架「${confirmAction.skill.name}」吗？`}
+            </p>
+            <div className="mt-4 flex justify-end gap-2">
+              <Button size="sm" variant="ghost" onClick={() => setConfirmAction(null)}>
+                取消
+              </Button>
+              <Button
+                size="sm"
+                variant="danger"
+                onClick={() => {
+                  if (confirmAction.type === "delete") {
+                    void performDelete(confirmAction.skill);
+                  } else {
+                    void performUnpublish(confirmAction.skill);
+                  }
+                  setConfirmAction(null);
+                }}
+              >
+                {confirmAction.type === "delete" ? "确认删除" : "确认下架"}
+              </Button>
+            </div>
+          </>
+        )}
+      </Modal>
     </div>
   );
 }
@@ -2009,6 +2058,17 @@ function AIGenerateModal({
   const [streamDelta, setStreamDelta] = useState("");
   const [streamError, setStreamError] = useState("");
   const [fallbackReason, setFallbackReason] = useState("");
+  // SSE 流式请求的 AbortController，用于关闭弹窗时中断生成
+  const abortControllerRef = useRef<AbortController | null>(null);
+
+  // 关闭弹窗：如果正在生成，先中断 SSE 流再关闭
+  const handleClose = () => {
+    if (generating && abortControllerRef.current) {
+      abortControllerRef.current.abort();
+      abortControllerRef.current = null;
+    }
+    onClose();
+  };
 
   const handleGenerate = async () => {
     if (!workLog.trim() && conversation.length === 0) {
@@ -2023,6 +2083,10 @@ function AIGenerateModal({
     setFallbackReason("");
     setGeneratedSkill(null);
 
+    // 创建 AbortController 以便中途取消
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
+
     try {
       const resp = await fetch("/api/skills/generate/stream", {
         method: "POST",
@@ -2034,6 +2098,7 @@ function AIGenerateModal({
             content: c.content,
           })),
         }),
+        signal: controller.signal,
       });
 
       if (!resp.ok) {
@@ -2095,11 +2160,16 @@ function AIGenerateModal({
         }
       }
     } catch (e) {
+      // 用户主动取消（关闭弹窗）时静默处理，不显示错误
+      if ((e as Error).name === "AbortError") {
+        return;
+      }
       const msg = (e as Error).message || "网络错误";
       setStreamError(msg);
       toast(msg, "error");
     } finally {
       setGenerating(false);
+      abortControllerRef.current = null;
     }
   };
 
@@ -2138,7 +2208,7 @@ function AIGenerateModal({
   return (
     <div
       className="fixed inset-0 z-50 flex items-start justify-center bg-black/50 p-4 pt-[6vh] backdrop-blur-sm animate-in fade-in duration-200"
-      onClick={onClose}
+      onClick={handleClose}
     >
       <div
         className="max-h-[88vh] w-full max-w-3xl overflow-y-auto rounded-3xl border border-border bg-card p-5 shadow-2xl transition-all animate-in zoom-in-95 duration-200 sm:p-6"
@@ -2151,7 +2221,7 @@ function AIGenerateModal({
             <h2 className="text-base font-semibold">AI 生成技能</h2>
           </div>
           <button
-            onClick={onClose}
+            onClick={handleClose}
             className="rounded-lg p-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
             aria-label="关闭"
           >

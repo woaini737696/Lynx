@@ -5,7 +5,8 @@ import { Check, Clock, Target, Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { BOARD_COLUMNS, type BoardColumn } from "@/lib/utils";
 import { toast } from "@/components/ui/toast";
-import { PageHeader, EmptyState, Card, Badge, Button, LoadingState } from "@/components/layout/PageHeader";
+import { PageHeader, Card, Badge, Button, LoadingState } from "@/components/layout/PageHeader";
+import { EmptyState } from "@/components/layout/EmptyState";
 import { HelpButton } from "@/components/layout/HelpButton";
 
 interface FocusItem {
@@ -139,7 +140,7 @@ export default function FocusPage() {
 
       {items.length === 0 ? (
         <EmptyState
-          icon={<Target className="h-8 w-8 text-northstar" />}
+          icon={Target}
           title="今日聚焦尚未生成"
           description="每天自动取前 3 个未完成任务，去决策看板添加任务吧"
         />

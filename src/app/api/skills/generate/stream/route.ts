@@ -1,8 +1,10 @@
 import { NextRequest } from "next/server";
 import { chatStream, type LLMProvider } from "@/lib/ai-provider";
-import type { SkillParameter } from "@/lib/skill-parser";
+import { type SkillParameter, SKILL_GENERATE_PROMPT } from "@/lib/skill-parser";
 import { requirePermission } from "@/lib/auth-utils";
-import { SKILL_GENERATE_PROMPT } from "../route";
+import { getLogger } from "@/lib/logger";
+
+const logger = getLogger("skills-generate-stream-api");
 
 // POST /api/skills/generate/stream - SSE 流式生成 Skill
 // 让前端实时看到 AI 生成过程，有即时反馈
@@ -28,6 +30,22 @@ export async function POST(req: NextRequest) {
           conversation?: Array<{ role: string; content: string }>;
           provider?: string;
         };
+        // 输入校验：workLog 必须为字符串（长度上限 10000），conversation 必须为数组
+        if (body.workLog !== undefined && body.workLog !== null && typeof body.workLog !== "string") {
+          send({ type: "error", error: "workLog 必须为字符串" });
+          controller.close();
+          return;
+        }
+        if (body.workLog && body.workLog.length > 10000) {
+          send({ type: "error", error: "workLog 不能超过 10000 字符" });
+          controller.close();
+          return;
+        }
+        if (body.conversation !== undefined && !Array.isArray(body.conversation)) {
+          send({ type: "error", error: "conversation 必须为数组" });
+          controller.close();
+          return;
+        }
         const workLog = body.workLog || "";
         const conversation = body.conversation || [];
 
@@ -137,7 +155,8 @@ ${conversationText || "(无)"}
 
         send({ type: "done", skill, fallback: false });
       } catch (e) {
-        send({ type: "error", error: (e as Error).message });
+        logger.error({ err: e }, "流式生成 Skill 失败");
+        send({ type: "error", error: "生成失败，请重试" });
       } finally {
         controller.close();
       }

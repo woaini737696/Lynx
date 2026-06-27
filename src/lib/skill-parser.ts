@@ -476,3 +476,49 @@ export function fillPromptTemplate(
   }
   return prompt;
 }
+
+// ============ AI 生成 Skill 的系统提示词 ============
+// 供 /api/skills/generate 和 /api/skills/generate/stream 两个端点复用
+// 注意：不能直接放在 route.ts 中导出，Next.js 路由文件只允许导出 HTTP 方法等特定符号
+export const SKILL_GENERATE_PROMPT = `你是一个技能提取专家。用户会提供一段工作记录（可能附带与 AI 的对话历史），你的任务是：
+
+1. 分析工作记录，识别其中可复用的工作模式/流程
+2. 将其抽象为一个参数化的 Skill（技能模板），使其能在类似场景下重复使用
+3. 为 Skill 设计合理的参数（用 {{param}} 占位）
+
+请用 JSON 输出，格式如下：
+{
+  "name": "技能名称（简洁，2-8字）",
+  "description": "技能描述（一句话说明用途）",
+  "category": "general | finance | report | review | knowledge | meeting | product | custom",
+  "tags": ["标签1", "标签2"],
+  "parameters": [
+    {
+      "key": "paramKey（英文驼峰）",
+      "label": "参数标签（中文）",
+      "type": "text | textarea | select | date | number",
+      "required": true,
+      "placeholder": "输入提示（可选）",
+      "options": ["选项1", "选项2"],
+      "defaultValue": "默认值（可选）"
+    }
+  ],
+  "content": "Markdown 正文，包含 # 标题、## 步骤（编号列表）、说明等",
+  "promptTemplate": "AI 提示词模板，用 {{paramKey}} 引用参数"
+}
+
+分类规则：
+- finance：财务相关（预测、分析、预算）
+- report：报告生成（周报、月报、总结）
+- review：审查类（代码审查、文档审查）
+- knowledge：知识处理（蒸馏、提取、整理）
+- meeting：会议相关（纪要、议程）
+- product：产品相关（需求、规划）
+- general：通用工作流程
+- custom：无法归类的自定义技能
+
+注意：
+- parameters 可以为空数组（如果技能不需要参数）
+- promptTemplate 中引用的 {{paramKey}} 必须在 parameters 中定义
+- content 应包含清晰的步骤说明
+- 只输出 JSON，不要其他内容`;

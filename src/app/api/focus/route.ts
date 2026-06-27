@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { requireAuth, buildUserFilter } from "@/lib/auth-utils";
+import { extractCognitionsForTask } from "@/lib/cognition-extract";
+import { getLogger } from "@/lib/logger";
+
+const logger = getLogger("focus-api");
 
 // 获取今日聚焦
 export async function GET() {
@@ -78,7 +82,7 @@ export async function GET() {
 
     return NextResponse.json({ dailyFocus });
   } catch (e) {
-    console.error("获取今日聚焦失败:", e);
+    logger.error({ err: e }, "获取今日聚焦失败");
     return NextResponse.json({ error: "服务器错误" }, { status: 500 });
   }
 }
@@ -109,10 +113,27 @@ export async function PATCH(req: NextRequest) {
     });
 
     // 即时同步对应 Task 的状态：完成→done，恢复→active
+    // 完成时需查询任务内容用于认知提取（与 tasks/[id] PATCH 行为保持一致）
+    const task = await prisma.task.findUnique({
+      where: { id: item.taskId },
+      include: { idea: { select: { content: true } } },
+    });
     await prisma.task.update({
       where: { id: item.taskId },
       data: { status: completed ? "done" : "active" },
     });
+
+    // 任务从未完成变为完成时，异步触发 AI 认知提取（不阻塞响应）
+    if (completed && task && task.status !== "done") {
+      extractCognitionsForTask(
+        task.id,
+        task.content,
+        task.idea?.content || "",
+        user.id
+      ).catch((e) => {
+        logger.error({ err: e, taskId: task.id }, "聚焦完成任务，异步认知提取失败");
+      });
+    }
 
     // 检查是否全部完成
     const updatedItem = await prisma.dailyFocusItem.findUnique({
@@ -132,7 +153,7 @@ export async function PATCH(req: NextRequest) {
 
     return NextResponse.json({ success: true, allDone });
   } catch (e) {
-    console.error("完成聚焦失败:", e);
+    logger.error({ err: e }, "完成聚焦失败");
     return NextResponse.json({ error: "服务器错误" }, { status: 500 });
   }
 }

@@ -2,6 +2,34 @@ import { NextRequest, NextResponse } from "next/server";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { requireAuth, buildUserFilter } from "@/lib/auth-utils";
+import { getLogger } from "@/lib/logger";
+
+const logger = getLogger("skills-api");
+
+// 合法的 Skill 分类（12 岗位新 key + 旧 key + 保留分类）
+const VALID_SKILL_CATEGORIES = new Set([
+  // 旧分类
+  "general",
+  "finance",
+  "report",
+  "review",
+  "knowledge",
+  "meeting",
+  "product",
+  "custom",
+  // 12 岗位新 key
+  "pm",
+  "designer",
+  "frontend",
+  "backend",
+  "data",
+  "operations",
+  "marketing",
+  "hr",
+  "project",
+  "creator",
+  "founder",
+]);
 
 // 12 岗位分类 key（新增）
 // pm | designer | frontend | backend | data | operations | marketing | hr | finance | project | creator | founder
@@ -31,11 +59,12 @@ export async function GET(req: NextRequest) {
     const skills = await prisma.skill.findMany({
       where,
       orderBy: [{ updatedAt: "desc" }],
+      take: 100,
     });
 
     return NextResponse.json({ skills });
   } catch (e) {
-    console.error("获取 Skill 列表失败:", e);
+    logger.error({ err: e }, "获取 Skill 列表失败");
     return NextResponse.json({ error: "服务器错误" }, { status: 500 });
   }
 }
@@ -58,12 +87,33 @@ export async function POST(req: NextRequest) {
       tags = [],
     } = body;
 
-    if (!name || !name.trim()) {
+    if (!name || typeof name !== "string" || !name.trim()) {
       return NextResponse.json({ error: "name 不能为空" }, { status: 400 });
     }
-    if (!description || !description.trim()) {
+    if (!description || typeof description !== "string" || !description.trim()) {
       return NextResponse.json(
         { error: "description 不能为空" },
+        { status: 400 }
+      );
+    }
+    // 校验 category 枚举
+    if (typeof category !== "string" || !VALID_SKILL_CATEGORIES.has(category)) {
+      return NextResponse.json(
+        { error: "category 不合法" },
+        { status: 400 }
+      );
+    }
+    // 校验 parameters 为数组（如果提供）
+    if (parameters !== undefined && parameters !== null && !Array.isArray(parameters)) {
+      return NextResponse.json(
+        { error: "parameters 必须为数组" },
+        { status: 400 }
+      );
+    }
+    // 校验 tags 为数组（如果提供）
+    if (tags !== undefined && tags !== null && !Array.isArray(tags)) {
+      return NextResponse.json(
+        { error: "tags 必须为数组" },
         { status: 400 }
       );
     }
@@ -82,11 +132,11 @@ export async function POST(req: NextRequest) {
       },
     });
 
-    return NextResponse.json({ skill, success: true });
+    return NextResponse.json({ skill, success: true }, { status: 201 });
   } catch (e) {
-    console.error("创建 Skill 失败:", e);
+    logger.error({ err: e }, "创建 Skill 失败");
     return NextResponse.json(
-      { error: "服务器错误：" + (e as Error).message },
+      { error: "服务器错误" },
       { status: 500 }
     );
   }

@@ -163,6 +163,7 @@ model Task {
   @@index([column, status, position])
   @@index([userId])
   @@index([createdAt])
+  @@index([status, updatedAt])
 }
 
 // 记忆节点 - 图谱

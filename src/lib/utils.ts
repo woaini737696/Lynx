@@ -5,6 +5,20 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
+// z-index 规范 tokens：统一各层级浮层/弹窗的堆叠顺序，供后续逐步替换硬编码值
+export const Z_INDEX = {
+  BASE: 0,
+  SIDEBAR: 30,
+  DROPDOWN: 40,
+  STICKY: 50,
+  POPOVER: 60,
+  MODAL: 70,
+  DRAWER: 80,
+  TOAST: 100,
+  OVERLAY: 120,
+  TOOLTIP: 9999,
+} as const;
+
 // 看板列配置
 export const BOARD_COLUMNS = {
   northstar: { label: "北极星", limit: 3, color: "#f6ad55", icon: "⭐" },

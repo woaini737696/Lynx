@@ -5,8 +5,10 @@ import { BookOpen, Brain, Plus, Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { COGNITION_TYPES, type CognitionType } from "@/lib/utils";
 import { toast } from "@/components/ui/toast";
-import { PageHeader, EmptyState, Card, Button, Badge, Skeleton } from "@/components/layout/PageHeader";
+import { PageHeader, Card, Button, Badge, Skeleton } from "@/components/layout/PageHeader";
+import { EmptyState } from "@/components/layout/EmptyState";
 import { SearchInput, Pagination, useClientPagination } from "@/components/ui/ListControls";
+import { useAsyncLoading } from "@/lib/use-async-loading";
 
 interface Cognition {
   id: string;
@@ -24,6 +26,8 @@ export default function CognitionPage() {
   const [extractContent, setExtractContent] = useState("");
   const [extracting, setExtracting] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  // 全局异步加载反馈：耗时超过 800ms 的操作会显示 overlay
+  const { run: runAsync } = useAsyncLoading();
 
   useEffect(() => {
     let mounted = true;
@@ -57,11 +61,11 @@ export default function CognitionPage() {
     }
     setExtracting(true);
     try {
-      const res = await fetch("/api/cognitions", {
+      const res = await runAsync("AI 提取认知", fetch("/api/cognitions", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ content: extractContent, source: "manual" }),
-      });
+      }));
       if (res.ok) {
         const data = await res.json();
         await loadCognitions();
@@ -193,7 +197,7 @@ export default function CognitionPage() {
         </div>
       ) : filtered.length === 0 ? (
         <EmptyState
-          icon={<BookOpen className="h-8 w-8 text-cognition" />}
+          icon={BookOpen}
           title={filter === "all" ? "暂无认知资产" : `暂无${COGNITION_TYPES[filter].label}类认知`}
           description={
             filter === "all"

@@ -12,8 +12,8 @@ export interface VersionedHelpContent {
 export const HELP_CONTENT: Record<string, VersionedHelpContent> = {
   // ============ AI 中心 ============
   "ai-assistant": {
-    version: "3.0",
-    updatedAt: "2026-06-25",
+    version: "3.1",
+    updatedAt: "2026-06-27",
     painPoint: "AI助理只能聊天，无法直接操作灵感、看板、记忆等功能，需要来回切换页面；技能调用体验差，无法收藏常用技能、查看执行历史，也无法操控本地电脑。普通AI助理没有记忆，每次对话都是全新的。",
     need: "需要一个能主动访问和操作所有功能的AI助理，对话即可完成创建、搜索、执行等操作；同时支持技能收藏/历史/Hermes Agent 打通，实现真正的AI自动化工作流。更需要持久化记忆、持续学习、自动成长的超级助理。",
     solution: "AI助理支持Function Calling，能调用21个工具覆盖灵感/看板/记忆/认知/技能/工作流/巡检/通知/Hermes全功能。Hermes Agent 接管模式（模式C）让AI助理拥有持久化记忆（跨会话保留）、/learn自动学习（任务完成后自动学习新技能）、主动汇报（定时分析数据并推送）、模型可切换（DeepSeek/MiMo）。技能面板四Tab结构，支持672+官方技能 + 6个预加载LynnHub技能。",
@@ -32,6 +32,7 @@ export const HELP_CONTENT: Record<string, VersionedHelpContent> = {
       "【主动汇报】设置中开启'主动汇报'，Hermes每天定时分析数据并推送汇报到浏览器",
       "【巡检接管】设置中点击'巡检接管'，将巡检规则迁移到Hermes Cron自动执行",
       "【全双工语音】语音通话中用户开口说话会自动打断AI播放，实现自然对话体验",
+      "AI 回复支持标注：点击 👍 表示满意，点击 👎 说明原因，系统将记录并优化回复质量",
     ],
   },
   "ai-workspace": {
@@ -66,8 +67,8 @@ export const HELP_CONTENT: Record<string, VersionedHelpContent> = {
     ],
   },
   "skills": {
-    version: "2.0",
-    updatedAt: "2026-06-25",
+    version: "2.1",
+    updatedAt: "2026-06-27",
     painPoint: "积累的优质prompt散落在各处，无法复用、无法参数化、无法版本管理。",
     need: "需要结构化管理AI技能（prompt模板），支持参数定义、一键执行、使用统计、版本管理。",
     solution: "技能管理提供CRUD+参数化+执行+统计+版本管理+富文本说明，支持导入导出。",
@@ -77,6 +78,7 @@ export const HELP_CONTENT: Record<string, VersionedHelpContent> = {
       "点击'执行'按钮，弹出参数填写框，AI真实调用",
       "支持JSON格式导入导出技能",
       "每个技能可查看执行历史",
+      "AI 技能生成支持 SSE 流式输出，实时显示生成过程",
     ],
   },
   "skills-market": {
@@ -108,14 +110,14 @@ export const HELP_CONTENT: Record<string, VersionedHelpContent> = {
     ],
   },
   "board": {
-    version: "2.0",
-    updatedAt: "2026-06-25",
+    version: "2.1",
+    updatedAt: "2026-06-27",
     painPoint: "任务管理缺乏决策视角，不知道什么该做、什么正在做、什么已完成。",
     need: "需要一个北极星驱动的决策看板，清晰展示任务流转和完成状态。",
     solution: "决策看板分三列（北极星→战役→任务），支持拖拽流转、完成时AI提取认知、统计概览。",
     usage: [
       "拖拽任务卡片在列之间流转",
-      "点击任务卡片完成按钮，AI自动提取认知（可确认/编辑/跳过）",
+      "任务完成时自动异步提取认知（不阻塞操作），提取结果写入认知库",
       "底部显示累计完成统计",
       "与今日聚焦双向同步状态",
     ],
@@ -170,8 +172,8 @@ export const HELP_CONTENT: Record<string, VersionedHelpContent> = {
     ],
   },
   "settings-patrol": {
-    version: "2.0",
-    updatedAt: "2026-06-25",
+    version: "2.1",
+    updatedAt: "2026-06-27",
     painPoint: "系统问题发现不及时，需要人工定期检查。",
     need: "需要可配置的AI巡检，自动检查灵感/看板/墓地等，主动发现问题。",
     solution: "AI巡检支持规则CRUD+AI对话配置+模板库+定时执行+结果可操作。",
@@ -181,6 +183,7 @@ export const HELP_CONTENT: Record<string, VersionedHelpContent> = {
       "模板库一键应用预置模板（每周回顾/停滞检测/墓地复活/每日总结）",
       "执行巡检后结果可操作（跳转到对应项目）",
       "查看巡检日志历史",
+      "系统预置 2 条默认巡检规则（灵感去重检查、Graveyard 复活检查），开箱即用",
     ],
   },
   "settings-push": {
@@ -294,6 +297,36 @@ export const HELP_CONTENT: Record<string, VersionedHelpContent> = {
       "PC 端 HermesAgent 收到后自动执行（根据授权模式可能弹窗审批）",
       "「指令历史」展示最近 20 条指令的状态（待执行/执行中/已完成/失败）和结果",
       "支持多 PC：可在设备列表中切换目标 PC",
+    ],
+  },
+  "conversations": {
+    version: "1.0",
+    updatedAt: "2026-06-27",
+    painPoint: "AI 对话内容散落在 Kimi/Claude/Codex 等各处，结论和待办难以提取沉淀，无法复用。",
+    need: "需要捕获对话内容并自动提取结论、待办、提示词，沉淀为可复用资产。",
+    solution: "捕获 Kimi/Claude/Codex 等对话内容，提取结论和待办；AI 提取认知默认关闭，可手动开启；对话内容同步到记忆图谱。",
+    usage: [
+      "上传对话文件或粘贴对话内容",
+      "系统自动提取结论、待办、提示词",
+      "AI 提取认知默认关闭，可手动开启",
+      "对话内容同步到记忆图谱",
+      "支持多种 AI 对话格式（Kimi/Claude/Codex/GPT）",
+      "useAI 参数默认 false，需前端显式开启才触发 AI 提取",
+    ],
+  },
+  "backup": {
+    version: "1.0",
+    updatedAt: "2026-06-27",
+    painPoint: "系统数据缺乏统一导出/导入入口，大数据量导出易内存溢出。",
+    need: "需要全量数据导出与导入能力，且大数据量导出时不溢出。",
+    solution: "导出全量数据，支持流式响应避免大数据量内存溢出；导出文件包含 exportedAt 时间戳和版本号。",
+    usage: [
+      "选择导出类型（灵感/任务/对话/认知/记忆/技能/工作流/全部）",
+      "单类型导出直接返回 JSON",
+      "全量导出使用流式响应，逐块写入避免内存溢出",
+      "导出文件包含 exportedAt 时间戳和版本号",
+      "建议定期全量备份",
+      "全量导出大数据量时使用流式模式",
     ],
   },
 };

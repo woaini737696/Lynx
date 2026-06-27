@@ -19,8 +19,8 @@ import {
   Button,
   Badge,
   LoadingState,
-  EmptyState,
 } from "@/components/layout/PageHeader";
+import { EmptyState } from "@/components/layout/EmptyState";
 import { HelpButton } from "@/components/layout/HelpButton";
 import { toast } from "@/components/ui/toast";
 import { cn } from "@/lib/utils";
@@ -494,7 +494,7 @@ function SkillMarketContent() {
         <LoadingState title="技能广场" />
       ) : skills.length === 0 ? (
         <EmptyState
-          icon={<Store className="h-7 w-7" />}
+          icon={Store}
           title="广场暂无技能"
           description="还没有社区分享的技能，稍后再来看看吧"
         />

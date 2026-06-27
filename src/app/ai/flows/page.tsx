@@ -43,6 +43,7 @@ import {
 } from "lucide-react";
 import { PageHeader, Card, Button, Badge } from "@/components/layout/PageHeader";
 import { HelpButton } from "@/components/layout/HelpButton";
+import { Modal } from "@/components/ui/Modal";
 import { cn } from "@/lib/utils";
 import { toast } from "@/components/ui/toast";
 
@@ -289,6 +290,8 @@ export default function AIFlowsPage() {
 
   // 模板面板显示
   const [showTemplates, setShowTemplates] = useState(false);
+  // 删除工作流二次确认
+  const [confirmDeleteFlow, setConfirmDeleteFlow] = useState<Flow | null>(null);
 
   // 从 /api/ai/flows 获取工作流列表
   const fetchFlows = useCallback(() => {
@@ -441,9 +444,13 @@ export default function AIFlowsPage() {
     }
   };
 
-  // 删除工作流
-  const deleteFlow = async (flow: Flow) => {
-    if (!confirm(`确定删除工作流「${flow.name}」？此操作不可撤销。`)) return;
+  // 删除工作流（触发二次确认，用自定义 Modal 替代 confirm()）
+  const deleteFlow = (flow: Flow) => {
+    setConfirmDeleteFlow(flow);
+  };
+
+  // 实际执行删除
+  const performDeleteFlow = async (flow: Flow) => {
     setFlows((prev) => prev.filter((f) => f.id !== flow.id));
     if (selectedFlow === flow.id) {
       setSelectedFlow(flows.find((f) => f.id !== flow.id)?.id || null);
@@ -451,9 +458,11 @@ export default function AIFlowsPage() {
     try {
       await fetch(`/api/ai/flows/${flow.id}`, { method: "DELETE" });
       toast("已删除工作流", "success");
+      setConfirmDeleteFlow(null);
     } catch {
       toast("删除失败，已回滚", "error");
       fetchFlows();
+      setConfirmDeleteFlow(null);
     }
   };
 
@@ -2260,6 +2269,34 @@ export default function AIFlowsPage() {
           </button>
         </div>
       )}
+
+      {/* 删除工作流二次确认弹窗（替代 confirm()） */}
+      <Modal
+        open={!!confirmDeleteFlow}
+        onClose={() => setConfirmDeleteFlow(null)}
+        title="确认删除"
+        size="sm"
+      >
+        {confirmDeleteFlow && (
+          <>
+            <p className="text-sm text-muted-foreground">
+              确定删除工作流「{confirmDeleteFlow.name}」？此操作不可撤销。
+            </p>
+            <div className="mt-4 flex justify-end gap-2">
+              <Button size="sm" variant="ghost" onClick={() => setConfirmDeleteFlow(null)}>
+                取消
+              </Button>
+              <Button
+                size="sm"
+                variant="danger"
+                onClick={() => performDeleteFlow(confirmDeleteFlow)}
+              >
+                确认删除
+              </Button>
+            </div>
+          </>
+        )}
+      </Modal>
     </div>
   );
 }

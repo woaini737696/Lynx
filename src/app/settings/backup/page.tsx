@@ -12,8 +12,10 @@ import {
   ShieldCheck,
 } from "lucide-react";
 import { PageHeader, Card, Button } from "@/components/layout/PageHeader";
+import { HelpButton } from "@/components/layout/HelpButton";
 import { toast } from "@/components/ui/toast";
 import { cn } from "@/lib/utils";
+import { useAsyncLoading } from "@/lib/use-async-loading";
 
 // 可导出的数据类型
 const TYPE_OPTIONS: Array<{ key: string; label: string }> = [
@@ -29,6 +31,7 @@ const TYPE_OPTIONS: Array<{ key: string; label: string }> = [
 type ImportStats = Record<string, number>;
 
 export default function BackupPage() {
+  const { run: runAsync } = useAsyncLoading();
   const [selectedTypes, setSelectedTypes] = useState<Set<string>>(
     new Set(TYPE_OPTIONS.map((t) => t.key))
   );
@@ -107,7 +110,7 @@ export default function BackupPage() {
       let payload: Record<string, unknown>;
 
       if (isAll) {
-        const res = await fetch("/api/backup/export?type=all");
+        const res = await runAsync("导出全部数据", fetch("/api/backup/export?type=all"));
         if (!res.ok) {
           const err = await res.json().catch(() => ({}));
           throw new Error(err.error || `导出失败（${res.status}）`);
@@ -117,7 +120,8 @@ export default function BackupPage() {
         // 按选中类型逐个请求并合并
         const data: Record<string, unknown> = {};
         for (const key of selectedTypes) {
-          const res = await fetch(`/api/backup/export?type=${key}`);
+          const label = TYPE_OPTIONS.find((t) => t.key === key)?.label || key;
+          const res = await runAsync(`导出${label}`, fetch(`/api/backup/export?type=${key}`));
           if (!res.ok) {
             const err = await res.json().catch(() => ({}));
             throw new Error(err.error || `导出 ${key} 失败（${res.status}）`);
@@ -195,11 +199,11 @@ export default function BackupPage() {
         (parsed as { data?: Record<string, unknown> })?.data ||
         (parsed as Record<string, unknown>);
 
-      const res = await fetch("/api/backup/import", {
+      const res = await runAsync("导入数据", fetch("/api/backup/import", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ data }),
-      });
+      }));
 
       const result = await res.json();
       if (!res.ok) {
@@ -228,6 +232,7 @@ export default function BackupPage() {
       <PageHeader
         title="数据备份"
         subtitle="导出 / 导入系统数据 · JSON 格式"
+        action={<HelpButton contentKey="backup" />}
       />
 
       {/* 导出区域 */}

@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import { PageHeader, Card, Button, LoadingState } from "@/components/layout/PageHeader";
 import { HelpButton } from "@/components/layout/HelpButton";
+import { Modal } from "@/components/ui/Modal";
 import { toast } from "@/components/ui/toast";
 
 type Workspace = {
@@ -152,8 +153,14 @@ export default function ProfessionWorkspacesPage() {
     }
   };
 
-  const handleReset = async (ws: Workspace) => {
-    if (!confirm(`确定要重置「${ws.displayName}」工作空间为默认配置吗？\n这将删除该岗位的自定义配置。`)) return;
+  // 重置工作空间二次确认状态（用自定义 Modal 替代 confirm()）
+  const [confirmReset, setConfirmReset] = useState<Workspace | null>(null);
+
+  const handleReset = (ws: Workspace) => {
+    setConfirmReset(ws);
+  };
+
+  const performReset = async (ws: Workspace) => {
     try {
       const res = await fetch(
         `/api/admin/profession-workspaces/${encodeURIComponent(ws.profession)}`,
@@ -165,6 +172,7 @@ export default function ProfessionWorkspacesPage() {
         return;
       }
       toast(`已重置为默认配置`, "success");
+      setConfirmReset(null);
       await load();
     } catch {
       toast("重置失败，请重试", "error");
@@ -240,6 +248,36 @@ export default function ProfessionWorkspacesPage() {
           />
         ))}
       </div>
+
+      {/* 重置工作空间二次确认弹窗（替代 confirm()） */}
+      <Modal
+        open={!!confirmReset}
+        onClose={() => setConfirmReset(null)}
+        title="确认重置"
+        size="sm"
+      >
+        {confirmReset && (
+          <>
+            <p className="text-sm text-muted-foreground">
+              确定要重置「{confirmReset.displayName}」工作空间为默认配置吗？
+              <br />
+              这将删除该岗位的自定义配置。
+            </p>
+            <div className="mt-4 flex justify-end gap-2">
+              <Button size="sm" variant="ghost" onClick={() => setConfirmReset(null)}>
+                取消
+              </Button>
+              <Button
+                size="sm"
+                variant="danger"
+                onClick={() => performReset(confirmReset)}
+              >
+                确认重置
+              </Button>
+            </div>
+          </>
+        )}
+      </Modal>
     </div>
   );
 }

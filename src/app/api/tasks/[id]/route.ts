@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { requireAuth, requirePermission } from "@/lib/auth-utils";
-import { chat } from "@/lib/ai-provider";
-import { COGNITION_EXTRACT_PROMPT } from "@/lib/ai";
+import { extractCognitionsForTask } from "@/lib/cognition-extract";
 import { getLogger } from "@/lib/logger";
 
 const logger = getLogger("tasks-api");
@@ -17,6 +16,9 @@ export async function PATCH(
     if (error) return error;
 
     const { id } = params;
+    if (!id || typeof id !== "string" || id.length < 10 || id.length > 50) {
+      return NextResponse.json({ error: "无效的 ID" }, { status: 400 });
+    }
 
     // 验证任务归属权
     const existing = await prisma.task.findUnique({
@@ -24,20 +26,29 @@ export async function PATCH(
       include: { idea: { select: { content: true } } },
     });
     if (!existing) {
-      return NextResponse.json({ error: "未找到" }, { status: 404 });
+      return NextResponse.json({ error: "任务不存在" }, { status: 404 });
     }
     if (user.role !== "admin" && existing.userId !== user.id) {
       return NextResponse.json({ error: "无权访问" }, { status: 403 });
     }
 
-    const { status, column, position } = await req.json();
+    const { status, column, position } = await req.json().catch(() => ({} as { status?: string; column?: string; position?: number }));
 
-    // 跨列移动 - 检查目标列满额
+    // 枚举校验：避免任意字符串被强转写入数据库
+    const validColumns = new Set(["northstar", "campaign", "task"]);
+    if (column !== undefined && !validColumns.has(column as string)) {
+      return NextResponse.json({ error: "无效的列" }, { status: 400 });
+    }
+    const validStatuses = new Set(["active", "done", "dropped"]);
+    if (status !== undefined && !validStatuses.has(status as string)) {
+      return NextResponse.json({ error: "无效的状态" }, { status: 400 });
+    }
+
+    // 跨列移动 - 检查目标列满额（复用 existing 记录，避免重复查询）
     if (column) {
       const col = column as "northstar" | "campaign" | "task";
       const limits = { northstar: 3, campaign: 5, task: 10 };
-      const current = await prisma.task.findUnique({ where: { id } });
-      if (current && current.column !== col) {
+      if (existing.column !== col) {
         const count = await prisma.task.count({
           where: { column: col, status: "active" },
         });
@@ -77,68 +88,9 @@ export async function PATCH(
       cognitionPending: status === "done" && existing.status !== "done",
     });
   } catch (e) {
-    console.error("更新任务失败:", e);
+    logger.error({ err: e }, "更新任务失败");
     return NextResponse.json({ error: "服务器错误" }, { status: 500 });
   }
-}
-
-/**
- * 异步认知提取：从任务内容中提取认知并直接写入 Cognition 表
- * 失败不阻断任务完成操作，仅记录错误日志
- */
-async function extractCognitionsForTask(
-  taskId: string,
-  taskContent: string,
-  ideaContent: string,
-  userId: string
-): Promise<void> {
-  const { writeMemoryForCognition } = await import("@/lib/memory-sync");
-  const combinedContent = ideaContent
-    ? `${taskContent}\n\n[关联灵感]\n${ideaContent}`
-    : taskContent;
-
-  const aiResp = await chat(
-    [{ role: "user", content: combinedContent }],
-    {
-      system: COGNITION_EXTRACT_PROMPT,
-      reasoningMode: "fast",
-      temperature: 0.3,
-    }
-  );
-
-  // 解析 AI 返回的 JSON
-  const jsonMatch = aiResp.content.match(/\{[\s\S]*\}/);
-  const parsed = jsonMatch
-    ? JSON.parse(jsonMatch[0])
-    : { method: [], experience: [], prompt: [] };
-
-  const items: Array<{ type: "method" | "experience" | "prompt"; content: string }> = [];
-  for (const item of parsed.method || []) {
-    if (item?.content) items.push({ type: "method", content: item.content });
-  }
-  for (const item of parsed.experience || []) {
-    if (item?.content) items.push({ type: "experience", content: item.content });
-  }
-  for (const item of parsed.prompt || []) {
-    if (item?.content) items.push({ type: "prompt", content: item.content });
-  }
-
-  // 批量写入 Cognition 表
-  for (const item of items) {
-    const c = await prisma.cognition.create({
-      data: {
-        type: item.type,
-        content: item.content,
-        source: "auto-extract",
-        tags: [],
-        userId,
-      },
-    });
-    // 异步写入 Memory
-    writeMemoryForCognition(c.id, c.content).catch(() => {});
-  }
-
-  logger.info({ taskId, count: items.length }, "异步认知提取完成，已写入 Cognition 表");
 }
 
 // 删除任务
@@ -151,11 +103,14 @@ export async function DELETE(
     if (error) return error;
 
     const { id } = params;
+    if (!id || typeof id !== "string" || id.length < 10 || id.length > 50) {
+      return NextResponse.json({ error: "无效的 ID" }, { status: 400 });
+    }
 
     // 验证任务归属权
     const existing = await prisma.task.findUnique({ where: { id } });
     if (!existing) {
-      return NextResponse.json({ error: "未找到" }, { status: 404 });
+      return NextResponse.json({ error: "任务不存在" }, { status: 404 });
     }
     if (user.role !== "admin" && existing.userId !== user.id) {
       return NextResponse.json({ error: "无权访问" }, { status: 403 });
@@ -167,7 +122,7 @@ export async function DELETE(
     });
     return NextResponse.json({ success: true });
   } catch (e) {
-    console.error("删除任务失败:", e);
+    logger.error({ err: e }, "删除任务失败");
     return NextResponse.json({ error: "服务器错误" }, { status: 500 });
   }
 }

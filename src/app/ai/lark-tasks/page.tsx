@@ -39,9 +39,9 @@ import {
   Card,
   Button,
   Badge,
-  EmptyState,
   Skeleton,
 } from "@/components/layout/PageHeader";
+import { EmptyState } from "@/components/layout/EmptyState";
 import { toast } from "@/components/ui/toast";
 import { Pagination, useClientPagination } from "@/components/ui/ListControls";
 import { cn } from "@/lib/utils";
@@ -1204,7 +1204,7 @@ export default function LarkTasksPage() {
         />
       ) : tasks.length === 0 ? (
         <EmptyState
-          icon={<ListTodo className="h-7 w-7" />}
+          icon={ListTodo}
           title={
             query
               ? "未找到匹配的任务"
@@ -3222,7 +3222,7 @@ function GanttView({
 
       {visibleTasks.length === 0 ? (
         <EmptyState
-          icon={<GanttChart className="h-7 w-7" />}
+          icon={GanttChart}
           title="当前时间范围内无可显示的任务"
           description="任务需要有开始或截止时间才能在甘特图中显示"
         />

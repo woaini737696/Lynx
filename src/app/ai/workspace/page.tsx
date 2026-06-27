@@ -28,6 +28,7 @@ import {
 } from "lucide-react";
 import { PageHeader, Card, Button, Badge } from "@/components/layout/PageHeader";
 import { HelpButton } from "@/components/layout/HelpButton";
+import { Modal } from "@/components/ui/Modal";
 import { toast } from "@/components/ui/toast";
 import { cn } from "@/lib/utils";
 import {
@@ -114,6 +115,8 @@ export default function AIWorkspacePage() {
   const [showTemplateEditor, setShowTemplateEditor] = useState(false);
   const [editingTemplate, setEditingTemplate] = useState<any | null>(null);
   const [versionHistoryTemplate, setVersionHistoryTemplate] = useState<any | null>(null);
+  // 自定义模板删除二次确认
+  const [confirmDeleteTemplate, setConfirmDeleteTemplate] = useState<{ id: string; name: string } | null>(null);
 
   // 加载自定义蒸馏模板
   const fetchCustomTemplates = useCallback(async () => {
@@ -309,8 +312,11 @@ export default function AIWorkspacePage() {
   }, []);
 
   // 删除自定义模板
-  const deleteTemplate = async (id: string) => {
-    if (!confirm("确定删除此自定义模板？")) return;
+  const deleteTemplate = (id: string, name: string) => {
+    setConfirmDeleteTemplate({ id, name });
+  };
+
+  const performDeleteTemplate = async (id: string) => {
     try {
       const res = await fetch(`/api/ai/distill/templates/${id}`, {
         method: "DELETE",
@@ -525,7 +531,7 @@ export default function AIWorkspacePage() {
               }
               onDelete={
                 tpl._custom
-                  ? () => deleteTemplate(tpl._skillId || tpl.id)
+                  ? () => deleteTemplate(tpl._skillId || tpl.id, tpl.name)
                   : undefined
               }
               onVersionHistory={
@@ -632,6 +638,37 @@ export default function AIWorkspacePage() {
           onRollback={onVersionRollback}
         />
       )}
+
+      {/* 删除自定义模板二次确认弹窗 */}
+      <Modal
+        open={!!confirmDeleteTemplate}
+        onClose={() => setConfirmDeleteTemplate(null)}
+        title="确认删除"
+        size="sm"
+      >
+        {confirmDeleteTemplate && (
+          <>
+            <p className="text-sm text-muted-foreground">
+              确定要删除「{confirmDeleteTemplate.name}」吗？此操作不可撤销。
+            </p>
+            <div className="mt-4 flex justify-end gap-2">
+              <Button size="sm" variant="ghost" onClick={() => setConfirmDeleteTemplate(null)}>
+                取消
+              </Button>
+              <Button
+                size="sm"
+                variant="danger"
+                onClick={() => {
+                  void performDeleteTemplate(confirmDeleteTemplate.id);
+                  setConfirmDeleteTemplate(null);
+                }}
+              >
+                确认删除
+              </Button>
+            </div>
+          </>
+        )}
+      </Modal>
     </div>
   );
 }
@@ -1430,6 +1467,8 @@ function VersionHistoryModal({
   const [loading, setLoading] = useState(true);
   const [selectedVersion, setSelectedVersion] = useState<number | null>(null);
   const [rollingBack, setRollingBack] = useState(false);
+  // 回滚二次确认
+  const [confirmRollback, setConfirmRollback] = useState<number | null>(null);
 
   useEffect(() => {
     fetchVersions();
@@ -1450,8 +1489,13 @@ function VersionHistoryModal({
     setLoading(false);
   };
 
-  const handleRollback = async (version: number) => {
-    if (!confirm(`确定回滚到版本 v${version}？当前版本会自动备份。`)) return;
+  // 触发回滚二次确认（用自定义 Modal 替代 confirm()）
+  const askRollback = (version: number) => {
+    setConfirmRollback(version);
+  };
+
+  // 实际执行回滚
+  const performRollback = async (version: number) => {
     setRollingBack(true);
     try {
       const res = await fetch(
@@ -1460,6 +1504,7 @@ function VersionHistoryModal({
       );
       if (res.ok) {
         toast("已回滚", "success");
+        setConfirmRollback(null);
         onRollback();
         onClose();
       } else {
@@ -1607,7 +1652,7 @@ function VersionHistoryModal({
                 <div className="flex justify-end border-t border-border pt-3">
                   <Button
                     size="sm"
-                    onClick={() => handleRollback(selected.version)}
+                    onClick={() => askRollback(selected.version)}
                     disabled={rollingBack}
                   >
                     {rollingBack ? (
@@ -1626,6 +1671,41 @@ function VersionHistoryModal({
           </div>
         </div>
       </div>
+
+      {/* 回滚二次确认弹窗（替代 confirm()） */}
+      <Modal
+        open={confirmRollback !== null}
+        onClose={() => setConfirmRollback(null)}
+        title="确认回滚"
+        size="sm"
+      >
+        {confirmRollback !== null && (
+          <>
+            <p className="text-sm text-muted-foreground">
+              确定回滚到版本 v{confirmRollback}？当前版本会自动备份。
+            </p>
+            <div className="mt-4 flex justify-end gap-2">
+              <Button size="sm" variant="ghost" onClick={() => setConfirmRollback(null)}>
+                取消
+              </Button>
+              <Button
+                size="sm"
+                variant="danger"
+                disabled={rollingBack}
+                onClick={() => performRollback(confirmRollback)}
+              >
+                {rollingBack ? (
+                  <>
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" /> 回滚中...
+                  </>
+                ) : (
+                  "确认回滚"
+                )}
+              </Button>
+            </div>
+          </>
+        )}
+      </Modal>
     </div>
   );
 }

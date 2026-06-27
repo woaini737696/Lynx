@@ -7,6 +7,8 @@ import { AlertCircle, RefreshCw, Home } from "lucide-react";
  * 根级 Error Boundary（global-error.tsx）
  * 当 root layout 自身抛错时由其接管，必须自带 <html>/<body>。
  * 注意：此组件不继承 root layout，需自包含样式。
+ * 通过内联脚本同步读取 next-themes 持久化的主题（localStorage.theme），
+ * 并回退到系统偏好，为 <html> 添加 dark 类，使 Tailwind dark: 前缀生效。
  */
 export default function GlobalError({
   error,
@@ -20,98 +22,62 @@ export default function GlobalError({
   }, [error]);
 
   return (
-    <html lang="zh-CN">
-      <body
-        style={{
-          margin: 0,
-          minHeight: "100vh",
-          display: "flex",
-          flexDirection: "column",
-          alignItems: "center",
-          justifyContent: "center",
-          padding: "2rem",
-          textAlign: "center",
-          fontFamily:
-            "-apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif",
-          background: "#f8fafc",
-          color: "#1e293b",
-        }}
-      >
-        <div
-          style={{
-            marginBottom: "1.5rem",
-            display: "flex",
-            height: "5rem",
-            width: "5rem",
-            alignItems: "center",
-            justifyContent: "center",
-            borderRadius: "1rem",
-            background: "rgba(239, 68, 68, 0.1)",
+    <html lang="zh-CN" suppressHydrationWarning>
+      <head>
+        <style>{`
+          body {
+            margin: 0;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 2rem;
+            text-align: center;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+            background-color: #f8fafc;
+            color: #1e293b;
+          }
+          html.dark body {
+            background-color: #0f172a;
+            color: #e2e8f0;
+          }
+        `}</style>
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `(function(){try{var t=localStorage.getItem('theme');var d=t==='dark'||((!t||t==='system')&&window.matchMedia('(prefers-color-scheme: dark)').matches);if(d){document.documentElement.classList.add('dark');}}catch(e){}})();`,
           }}
+        />
+      </head>
+      <body>
+        <div
+          className="mb-6 flex h-20 w-20 items-center justify-center rounded-2xl bg-red-500/10"
         >
-          <AlertCircle style={{ height: "2.5rem", width: "2.5rem", color: "#ef4444" }} />
+          <AlertCircle className="h-10 w-10 text-red-600 dark:text-red-400" />
         </div>
-        <h2 style={{ marginBottom: "0.5rem", fontSize: "1.5rem", fontWeight: 600 }}>
+        <h2 className="mb-2 text-2xl font-semibold text-slate-800 dark:text-slate-200">
           应用发生严重错误
         </h2>
-        <p
-          style={{
-            marginBottom: "0.25rem",
-            maxWidth: "28rem",
-            fontSize: "0.875rem",
-            color: "#64748b",
-          }}
-        >
+        <p className="mb-1 max-w-md text-sm text-slate-500 dark:text-slate-400">
           {error.message || "发生未知错误，请重试或返回首页。"}
         </p>
         {error.digest && (
-          <p
-            style={{
-              marginBottom: "1.5rem",
-              fontFamily: "monospace",
-              fontSize: "0.6875rem",
-              color: "rgba(100, 116, 139, 0.6)",
-            }}
-          >
+          <p className="mb-6 font-mono text-[11px] text-slate-400/70 dark:text-slate-500/70">
             错误编号：{error.digest}
           </p>
         )}
-        <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
+        <div className="flex items-center gap-3">
           <button
             onClick={reset}
-            style={{
-              display: "inline-flex",
-              alignItems: "center",
-              gap: "0.5rem",
-              borderRadius: "0.75rem",
-              background: "#0f172a",
-              color: "#fff",
-              padding: "0.5rem 1rem",
-              fontSize: "0.875rem",
-              fontWeight: 500,
-              border: "none",
-              cursor: "pointer",
-            }}
+            className="inline-flex items-center gap-2 rounded-xl bg-slate-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-slate-800 dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-slate-200"
           >
-            <RefreshCw style={{ height: "1rem", width: "1rem" }} /> 重试
+            <RefreshCw className="h-4 w-4" /> 重试
           </button>
           <a
             href="/"
-            style={{
-              display: "inline-flex",
-              alignItems: "center",
-              gap: "0.5rem",
-              borderRadius: "0.75rem",
-              border: "1px solid #e2e8f0",
-              background: "#fff",
-              color: "#1e293b",
-              padding: "0.5rem 1rem",
-              fontSize: "0.875rem",
-              fontWeight: 500,
-              textDecoration: "none",
-            }}
+            className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-800 transition hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
           >
-            <Home style={{ height: "1rem", width: "1rem" }} /> 返回首页
+            <Home className="h-4 w-4" /> 返回首页
           </a>
         </div>
       </body>
