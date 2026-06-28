@@ -79,7 +79,7 @@ export function FilterSelect<T extends string>({
         value={value}
         onChange={(e) => onChange(e.target.value as T)}
         className={cn(
-          "ios-glass-sm h-9 cursor-pointer rounded-xl border-0 bg-transparent text-sm text-foreground transition-colors focus:outline-none focus:ring-2 focus:ring-primary/20",
+          "ios-glass-sm h-9 cursor-pointer appearance-none rounded-xl border-0 bg-transparent text-sm text-foreground transition-colors focus:outline-none focus:ring-2 focus:ring-primary/20",
           label ? "pl-14 pr-8" : "pl-3 pr-8"
         )}
       >
@@ -156,7 +156,7 @@ export function Pagination({
             <select
               value={pageSize}
               onChange={(e) => onPageSizeChange(Number(e.target.value))}
-              className="ios-glass-sm h-7 cursor-pointer rounded-lg border-0 bg-transparent px-1.5 text-xs text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20"
+              className="ios-glass-sm h-7 cursor-pointer appearance-none rounded-lg border-0 bg-transparent px-1.5 text-xs text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20"
             >
               {pageSizeOptions.map((s) => (
                 <option key={s} value={s}>{s}</option>

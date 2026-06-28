@@ -105,7 +105,7 @@ const NAV_GROUPS: NavGroup[] = [
     items: [
       { href: "/ai/workspace", label: "AI 工作空间", icon: LayoutGrid, color: "text-cognition" },
       { href: "/ai/flows", label: "AI 工作流", icon: Workflow, color: "text-cognition" },
-      { href: "/ai/assistant", label: "AI 专属助理", icon: Bot, color: "text-cognition" },
+      { href: "/ai/assistant", label: "Lynx超级助理", icon: Bot, color: "text-cognition" },
       { href: "/skills", label: "技能管理", icon: Wrench, color: "text-cognition" },
       { href: "/skills/market", label: "Skill 市场", icon: Store, color: "text-cognition" },
       { href: "/ai/lark-tasks", label: "飞书任务", icon: ListTodo, color: "text-cognition" },

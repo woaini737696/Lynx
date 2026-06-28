@@ -82,7 +82,7 @@ export async function PUT(req: NextRequest) {
       if (typeof updateData.assistantAvatar !== "string") {
         return NextResponse.json({ error: "助理头像格式错误" }, { status: 400 });
       }
-      updateData.assistantAvatar = updateData.assistantAvatar.trim().slice(0, 16) || "🤖";
+      updateData.assistantAvatar = updateData.assistantAvatar.trim().slice(0, 16) || "🦊";
     }
 
     // 校验 avatarUrl

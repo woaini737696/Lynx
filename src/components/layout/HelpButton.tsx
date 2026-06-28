@@ -67,8 +67,8 @@ export function HelpButton({ content, contentKey, title = "使用说明" }: Help
             className="glass-modal max-h-[85vh] w-full max-w-2xl overflow-y-auto rounded-3xl"
             onClick={(e) => e.stopPropagation()}
           >
-            {/* 头部 */}
-            <div className="sticky top-0 flex items-center justify-between px-6 py-4">
+            {/* 头部 - 加背景色避免滚动时内容透出重叠 */}
+            <div className="sticky top-0 z-10 flex items-center justify-between bg-background/95 px-6 py-4 backdrop-blur-xl">
               <h2 className="flex items-center gap-2 text-lg font-bold text-foreground">
                 <HelpCircle className="h-5 w-5 text-cognition" />
                 {title}
@@ -85,40 +85,40 @@ export function HelpButton({ content, contentKey, title = "使用说明" }: Help
             <div className="space-y-5 px-6 py-5">
               {/* 痛点 */}
               <section>
-                <h3 className="mb-1.5 flex items-center gap-1.5 text-sm font-semibold text-graveyard">
+                <h3 className="mb-2 flex items-center gap-1.5 text-base font-semibold text-graveyard">
                   <span className="flex h-5 w-5 items-center justify-center rounded-full bg-graveyard/10 text-xs">!</span>
                   痛点
                 </h3>
-                <p className="text-sm leading-relaxed text-muted-foreground">{resolvedContent.painPoint}</p>
+                <p className="text-sm leading-relaxed text-foreground/80">{resolvedContent.painPoint}</p>
               </section>
 
               {/* 需求 */}
               <section>
-                <h3 className="mb-1.5 flex items-center gap-1.5 text-sm font-semibold text-campaign">
+                <h3 className="mb-2 flex items-center gap-1.5 text-base font-semibold text-campaign">
                   <span className="flex h-5 w-5 items-center justify-center rounded-full bg-campaign/10 text-xs">?</span>
                   需求
                 </h3>
-                <p className="text-sm leading-relaxed text-muted-foreground">{resolvedContent.need}</p>
+                <p className="text-sm leading-relaxed text-foreground/80">{resolvedContent.need}</p>
               </section>
 
               {/* 解决方案 */}
               <section>
-                <h3 className="mb-1.5 flex items-center gap-1.5 text-sm font-semibold text-northstar">
+                <h3 className="mb-2 flex items-center gap-1.5 text-base font-semibold text-northstar">
                   <span className="flex h-5 w-5 items-center justify-center rounded-full bg-northstar/10 text-xs">✓</span>
                   解决方案
                 </h3>
-                <p className="text-sm leading-relaxed text-muted-foreground">{resolvedContent.solution}</p>
+                <p className="text-sm leading-relaxed text-foreground/80">{resolvedContent.solution}</p>
               </section>
 
               {/* 使用方法 */}
               <section>
-                <h3 className="mb-1.5 flex items-center gap-1.5 text-sm font-semibold text-task">
+                <h3 className="mb-2 flex items-center gap-1.5 text-base font-semibold text-task">
                   <span className="flex h-5 w-5 items-center justify-center rounded-full bg-task/10 text-xs">→</span>
                   使用方法
                 </h3>
                 <ol className="space-y-2">
                   {resolvedContent.usage.map((step, i) => (
-                    <li key={i} className="flex gap-2.5 text-sm leading-relaxed text-muted-foreground">
+                    <li key={i} className="flex gap-2.5 text-sm leading-relaxed text-foreground/80">
                       <span className="flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full bg-task/10 text-xs font-medium text-task">
                         {i + 1}
                       </span>
@@ -129,10 +129,10 @@ export function HelpButton({ content, contentKey, title = "使用说明" }: Help
               </section>
             </div>
 
-            {/* 底部 */}
-            <div className="sticky bottom-0 px-6 py-3">
+            {/* 底部 - 加背景色避免滚动时内容透出重叠 */}
+            <div className="sticky bottom-0 z-10 bg-background/95 px-6 py-3 backdrop-blur-xl">
               {versionInfo && (
-                <div className="mb-2 text-[10px] text-muted-foreground/70">
+                <div className="mb-2 text-xs text-muted-foreground">
                   版本 v{versionInfo.version} · 更新于 {versionInfo.updatedAt}
                 </div>
               )}

@@ -187,7 +187,7 @@ export default function TokenStatsPage() {
           <select
             value={selectedUserId}
             onChange={(e) => handleUserChange(e.target.value)}
-            className="rounded-lg border border-border bg-background px-3 py-1.5 text-xs text-foreground focus:border-primary/50 focus:outline-none focus:ring-2 focus:ring-primary/20"
+            className="appearance-none rounded-lg border border-border bg-background px-3 py-1.5 text-xs text-foreground focus:border-primary/50 focus:outline-none focus:ring-2 focus:ring-primary/20"
           >
             <option value="all">全部用户（{users.length}）</option>
             {users.map((u) => (

@@ -82,8 +82,8 @@ interface AssistantSettings {
 
 const DEFAULT_SETTINGS: AssistantSettings = {
   assistantName: "Lynx",
-  assistantAvatar: "🤖",
-  avatarUrl: null,
+  assistantAvatar: "🦊",
+  avatarUrl: "/lynx-icon-256.png",
 };
 
 type VoicePhase = "connecting" | "listening" | "speaking" | "thinking" | "replying" | "error";
@@ -250,8 +250,8 @@ export function AssistantChat({ onClose }: AssistantChatProps = {}) {
         if (cancelled || !data.settings) return;
         setSettings({
           assistantName: data.settings.assistantName || "Lynx",
-          assistantAvatar: data.settings.assistantAvatar || "🤖",
-          avatarUrl: data.settings.avatarUrl || null,
+          assistantAvatar: data.settings.assistantAvatar || "🦊",
+          avatarUrl: data.settings.avatarUrl || "/lynx-icon-256.png",
         });
       })
       .catch(() => {

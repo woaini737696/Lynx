@@ -677,7 +677,7 @@ export default function SkillsPage() {
       >
         {confirmAction && (
           <>
-            <p className="text-sm text-muted-foreground">
+            <p className="text-base text-foreground/80">
               {confirmAction.type === "delete"
                 ? `确定要删除「${confirmAction.skill.name}」吗？此操作不可撤销。`
                 : `确定从广场下架「${confirmAction.skill.name}」吗？`}
@@ -981,7 +981,7 @@ function SkillEditModal({
               <select
                 value={category}
                 onChange={(e) => setCategory(e.target.value)}
-                className="w-full rounded-xl border border-border bg-background px-3 py-2 text-xs text-foreground focus:border-cognition/40 focus:outline-none focus:ring-2 focus:ring-cognition/20"
+                className="w-full appearance-none rounded-xl border border-border bg-background px-3 py-2 text-xs text-foreground focus:border-cognition/40 focus:outline-none focus:ring-2 focus:ring-cognition/20"
               >
                 {CATEGORIES.filter((c) => c.key !== "all").map((c) => (
                   <option key={c.key} value={c.key}>
@@ -1856,7 +1856,7 @@ function ParamEditor({
           onChange={(e) =>
             onChange({ type: e.target.value as SkillParamType })
           }
-          className="rounded-lg border border-border bg-background px-2 py-1.5 text-[11px] focus:border-cognition/40 focus:outline-none"
+          className="appearance-none rounded-lg border border-border bg-background px-2 py-1.5 text-[11px] focus:border-cognition/40 focus:outline-none"
         >
           {PARAM_TYPES.map((t) => (
             <option key={t} value={t}>

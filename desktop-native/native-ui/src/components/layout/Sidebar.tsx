@@ -44,7 +44,7 @@ const NAV_GROUPS: Record<TabKey, { label: string; icon: React.ElementType; items
     icon: AiIcon,
     items: [
       { to: "/ai/workspace", label: "AI 工作空间", icon: Sparkles },
-      { to: "/ai/assistant", label: "AI 专属助理", icon: Bot },
+      { to: "/ai/assistant", label: "Lynx超级助理", icon: Bot },
       { to: "/agent", label: "Lynx Agent", icon: Cpu },
     ],
   },

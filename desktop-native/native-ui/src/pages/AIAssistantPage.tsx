@@ -48,7 +48,7 @@ import {
 const WELCOME_MESSAGE: Message = {
   id: "welcome",
   role: "assistant",
-  content: "你好，我是 Lynn · 你的 AI 专属助理。\n\n我可以帮你查询任务、分析灵感、搜索记忆、执行技能，甚至通过 Lynx Agent 操控本地电脑。\n\n试试下方的快捷指令，或直接告诉我你想做什么。",
+  content: "你好，我是 Lynn · 你的 Lynx超级助理。\n\n我可以帮你查询任务、分析灵感、搜索记忆、执行技能，甚至通过 Lynx Agent 操控本地电脑。\n\n试试下方的快捷指令，或直接告诉我你想做什么。",
   time: new Date().toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit" }),
 };
 
@@ -336,7 +336,7 @@ export function AIAssistantPage() {
             {showSessionList ? <PanelLeftClose className="h-4 w-4" /> : <PanelLeftOpen className="h-4 w-4" />}
           </button>
           <div>
-            <h1 className="text-2xl font-bold tracking-tight text-foreground">AI 专属助理</h1>
+            <h1 className="text-2xl font-bold tracking-tight text-foreground">Lynx超级助理</h1>
             <p className="mt-0.5 text-sm text-muted-foreground">
               基于记忆图谱和认知库 · 支持 Function Calling
             </p>

@@ -1055,7 +1055,7 @@ export default function PatrolSettingsPage() {
                   setPendingRule(null);
                   setChatMessages([]);
                 }}
-                className="flex-1 rounded-lg border border-border bg-background px-2 py-1 text-[11px] outline-none focus:border-primary"
+                className="flex-1 appearance-none rounded-lg border border-border bg-background px-2 py-1 text-[11px] outline-none focus:border-primary"
               >
                 <option value="">请选择要编辑的规则</option>
                 {rules.map((r) => (
@@ -1605,7 +1605,7 @@ function AddRuleForm({
               <select
                 value={form.scope}
                 onChange={(e) => setForm({ ...form, scope: e.target.value })}
-                className="w-full rounded-lg border border-border bg-background px-3 py-2 text-xs outline-none focus:border-primary"
+                className="w-full appearance-none rounded-lg border border-border bg-background px-3 py-2 text-xs outline-none focus:border-primary"
               >
                 <option value="inbox">Inbox 灵感</option>
                 <option value="board">决策看板</option>

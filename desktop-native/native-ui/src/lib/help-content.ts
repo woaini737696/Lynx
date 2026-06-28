@@ -45,9 +45,9 @@ export const helpContent: Record<string, HelpContent> = {
     ],
   },
   "ai-assistant": {
-    title: "AI 专属助理使用说明",
+    title: "Lynx超级助理使用说明",
     paragraphs: [
-      "「AI 专属助理」是你的个人智能助手，可以直接用自然语言下达指令。",
+      "「Lynx超级助理」是你的个人智能助手，可以直接用自然语言下达指令。",
       "输入任务描述后按 Enter 发送，Lynn 会理解意图并调用云端能力或本地 Lynx Agent 执行。",
       "快捷指令可以帮助你快速发起常见操作。",
     ],

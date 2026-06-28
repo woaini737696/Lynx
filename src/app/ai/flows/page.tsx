@@ -2282,7 +2282,7 @@ export default function AIFlowsPage() {
       >
         {confirmDeleteFlow && (
           <>
-            <p className="text-sm text-muted-foreground">
+            <p className="text-base text-foreground/80">
               确定删除工作流「{confirmDeleteFlow.name}」？此操作不可撤销。
             </p>
             <div className="mt-4 flex justify-end gap-2">
@@ -2617,7 +2617,7 @@ function NodeConfigPanel({
                 <select
                   value={config.model || "deepseek-chat"}
                   onChange={(e) => setConfig({ ...config, model: e.target.value })}
-                  className="rounded-lg border border-border bg-background px-2 py-1 text-xs outline-none focus:border-cognition"
+                  className="appearance-none rounded-lg border border-border bg-background px-2 py-1 text-xs outline-none focus:border-cognition"
                 >
                   <option value="deepseek-chat">DeepSeek Chat（快速）</option>
                   <option value="deepseek-reasoner">DeepSeek Reasoner（深度推理）</option>
@@ -2649,7 +2649,7 @@ function NodeConfigPanel({
               <select
                 value={config.outputTarget || "notification"}
                 onChange={(e) => setConfig({ ...config, outputTarget: e.target.value })}
-                className="w-full rounded-xl border border-border bg-background px-3 py-2 text-sm outline-none focus:border-cognition"
+                className="w-full appearance-none rounded-xl border border-border bg-background px-3 py-2 text-sm outline-none focus:border-cognition"
               >
                 <option value="notification">浏览器通知</option>
                 <option value="cognition">认知库</option>
@@ -2678,7 +2678,7 @@ function NodeConfigPanel({
                 <select
                   value={config.hermesMode || "auto"}
                   onChange={(e) => setConfig({ ...config, hermesMode: e.target.value as NodeConfig["hermesMode"] })}
-                  className="rounded-lg border border-border bg-background px-2 py-1 text-xs outline-none focus:border-cognition"
+                  className="appearance-none rounded-lg border border-border bg-background px-2 py-1 text-xs outline-none focus:border-cognition"
                 >
                   <option value="auto">自动选择</option>
                   <option value="computer_use">桌面控制</option>
@@ -2694,7 +2694,7 @@ function NodeConfigPanel({
                 <select
                   value={config.httpMethod || "GET"}
                   onChange={(e) => setConfig({ ...config, httpMethod: e.target.value as NodeConfig["httpMethod"] })}
-                  className="w-24 rounded-xl border border-border bg-background px-2 py-2 text-sm outline-none focus:border-cognition"
+                  className="w-24 appearance-none rounded-xl border border-border bg-background px-2 py-2 text-sm outline-none focus:border-cognition"
                 >
                   <option>GET</option>
                   <option>POST</option>
@@ -2719,7 +2719,7 @@ function NodeConfigPanel({
                 <select
                   value={config.dbOperation || "query"}
                   onChange={(e) => setConfig({ ...config, dbOperation: e.target.value as NodeConfig["dbOperation"] })}
-                  className="w-28 rounded-xl border border-border bg-background px-2 py-2 text-sm outline-none focus:border-cognition"
+                  className="w-28 appearance-none rounded-xl border border-border bg-background px-2 py-2 text-sm outline-none focus:border-cognition"
                 >
                   <option value="query">查询</option>
                   <option value="create">创建</option>
@@ -2729,7 +2729,7 @@ function NodeConfigPanel({
                 <select
                   value={config.dbModel || "idea"}
                   onChange={(e) => setConfig({ ...config, dbModel: e.target.value })}
-                  className="flex-1 rounded-xl border border-border bg-background px-2 py-2 text-sm outline-none focus:border-cognition"
+                  className="flex-1 appearance-none rounded-xl border border-border bg-background px-2 py-2 text-sm outline-none focus:border-cognition"
                 >
                   <option value="idea">灵感</option>
                   <option value="task">任务</option>
@@ -2757,7 +2757,7 @@ function NodeConfigPanel({
               <select
                 value={config.transformType || "template"}
                 onChange={(e) => setConfig({ ...config, transformType: e.target.value as NodeConfig["transformType"] })}
-                className="w-full rounded-xl border border-border bg-background px-3 py-2 text-sm outline-none focus:border-cognition"
+                className="w-full appearance-none rounded-xl border border-border bg-background px-3 py-2 text-sm outline-none focus:border-cognition"
               >
                 <option value="template">模板替换</option>
                 <option value="jsonpath">JSON 路径提取</option>
