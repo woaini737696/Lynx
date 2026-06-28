@@ -433,7 +433,7 @@ function SkillMarketContent() {
                     {codePreview.tags.map((t, i) => (
                       <span
                         key={i}
-                        className="rounded-md bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground"
+                        className="ios-glass-sm rounded-md px-1.5 py-0.5 text-[10px] text-muted-foreground"
                       >
                         {t}
                       </span>
@@ -611,7 +611,7 @@ function MarketplaceSkillCard({
           {skill.tags.slice(0, 4).map((t, i) => (
             <span
               key={i}
-              className="rounded-md bg-muted/50 px-1.5 py-0.5 text-[10px] text-muted-foreground"
+              className="ios-glass-sm rounded-md px-1.5 py-0.5 text-[10px] text-muted-foreground"
             >
               {t}
             </span>
@@ -817,11 +817,11 @@ function SkillDetailModal({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-start justify-center bg-black/50 p-4 pt-[6vh] backdrop-blur-sm animate-in fade-in duration-200"
+      className="fixed inset-0 z-50 flex items-start justify-center bg-black/30 p-4 pt-[6vh] backdrop-blur-sm animate-in fade-in duration-200"
       onClick={onClose}
     >
       <div
-        className="max-h-[88vh] w-full max-w-2xl overflow-y-auto rounded-3xl border border-border bg-card p-5 shadow-2xl transition-all animate-in zoom-in-95 duration-200 sm:p-6"
+        className="max-h-[88vh] w-full max-w-2xl overflow-y-auto glass-card p-5 shadow-2xl transition-all animate-in zoom-in-95 duration-200 sm:p-6"
         onClick={(e) => e.stopPropagation()}
       >
         {/* 头部 */}
@@ -835,7 +835,7 @@ function SkillDetailModal({
           </div>
           <button
             onClick={onClose}
-            className="rounded-lg p-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+            className="rounded-lg p-1.5 text-muted-foreground transition-colors hover:bg-primary/10 hover:text-primary"
             aria-label="关闭"
           >
             <X className="h-4 w-4" />
@@ -843,7 +843,7 @@ function SkillDetailModal({
         </div>
 
         {/* 概要信息 */}
-        <div className="mb-4 rounded-xl border border-border bg-muted/20 p-3">
+        <div className="glass-card mb-4 p-3">
           <p className="mb-2 text-xs leading-relaxed text-foreground/80">
             {skill.description}
           </p>
@@ -874,7 +874,7 @@ function SkillDetailModal({
               {skill.tags.map((t, i) => (
                 <span
                   key={i}
-                  className="rounded-md bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground"
+                  className="ios-glass-sm rounded-md px-1.5 py-0.5 text-[10px] text-muted-foreground"
                 >
                   {t}
                 </span>
@@ -916,7 +916,7 @@ function SkillDetailModal({
                 <label className="mb-1 block text-[10px] font-medium text-muted-foreground">
                   提示词模板
                 </label>
-                <pre className="max-h-40 overflow-y-auto whitespace-pre-wrap rounded-xl border border-border bg-muted/20 p-3 text-[11px] leading-relaxed">
+                <pre className="ios-glass-sm max-h-40 overflow-y-auto whitespace-pre-wrap rounded-xl p-3 text-[11px] leading-relaxed">
                   {detail.promptTemplate}
                 </pre>
               </div>
@@ -927,7 +927,7 @@ function SkillDetailModal({
                 <label className="mb-1 block text-[10px] font-medium text-muted-foreground">
                   参数配置
                 </label>
-                <pre className="max-h-40 overflow-y-auto whitespace-pre-wrap rounded-xl border border-border bg-muted/20 p-3 text-[11px] leading-relaxed">
+                <pre className="ios-glass-sm max-h-40 overflow-y-auto whitespace-pre-wrap rounded-xl p-3 text-[11px] leading-relaxed">
                   {JSON.stringify(detail.parameters, null, 2)}
                 </pre>
               </div>
@@ -938,7 +938,7 @@ function SkillDetailModal({
                 <label className="mb-1 block text-[10px] font-medium text-muted-foreground">
                   正文内容
                 </label>
-                <pre className="max-h-60 overflow-y-auto whitespace-pre-wrap rounded-xl border border-border bg-muted/20 p-3 text-[11px] leading-relaxed">
+                <pre className="ios-glass-sm max-h-60 overflow-y-auto whitespace-pre-wrap rounded-xl p-3 text-[11px] leading-relaxed">
                   {detail.content}
                 </pre>
               </div>
@@ -963,7 +963,7 @@ function SkillDetailModal({
           </div>
 
           {/* 评论表单（需登录） */}
-          <div className="mb-4 space-y-3 rounded-xl border border-border bg-muted/20 p-3">
+          <div className="glass-card mb-4 space-y-3 p-3">
             <div>
               <label className="mb-1.5 block text-[10px] font-medium text-muted-foreground">
                 评分
@@ -1043,7 +1043,7 @@ function SkillDetailModal({
               {reviews.map((review) => (
                 <div
                   key={review.id}
-                  className="rounded-xl border border-border bg-muted/20 p-3"
+                  className="glass-card p-3"
                 >
                   <div className="mb-1.5 flex items-center justify-between">
                     <div className="flex items-center gap-2">

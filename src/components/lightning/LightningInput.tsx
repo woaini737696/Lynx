@@ -249,7 +249,7 @@ export function LightningInput() {
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-start justify-center bg-black/50 p-4 pt-[12vh] backdrop-blur-sm animate-in fade-in duration-200"
+      className="fixed inset-0 z-50 flex items-start justify-center bg-black/30 p-4 pt-[12vh] backdrop-blur-sm animate-in fade-in duration-200"
       onClick={close}
     >
       <div
@@ -346,10 +346,10 @@ export function LightningInput() {
           {/* 上传按钮 + 拖拽提示 */}
           <div
             className={cn(
-              "flex items-center gap-2 rounded-xl border border-dashed px-3 py-2 transition-colors",
+              "ios-glass-sm flex items-center gap-2 rounded-xl border border-dashed px-3 py-2 transition-colors",
               dragOver
                 ? "border-northstar bg-northstar/5"
-                : "border-border/60 bg-transparent"
+                : "border-border/60"
             )}
           >
             <input

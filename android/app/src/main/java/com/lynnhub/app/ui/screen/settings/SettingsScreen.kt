@@ -1,6 +1,7 @@
 package com.lynnhub.app.ui.screen.settings
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -8,6 +9,8 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBackIos
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -22,436 +25,327 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
-import com.lynnhub.app.ui.theme.Amber500
-import com.lynnhub.app.ui.theme.Orange500
-import com.lynnhub.app.ui.theme.Red500
-import com.lynnhub.app.util.Constants
+import com.lynnhub.app.ui.theme.*
+import com.lynnhub.app.ui.screen.panel.BackButton
+import com.lynnhub.app.ui.screen.panel.SwipeHint
 
+/**
+ * Lynx v6 设置主页
+ * 点击头像从右侧滑入，占屏 100%
+ */
 @Composable
 fun SettingsScreen(
+    onBack: () -> Unit,
     onLogout: () -> Unit,
-    onNavigateToInbox: () -> Unit = {},
+    onNavigateToProfile: () -> Unit = {},
+    onNavigateToAiKey: () -> Unit = {},
+    onNavigateToDevices: () -> Unit = {},
     onNavigateToMemory: () -> Unit = {},
+    onNavigateToCognition: () -> Unit = {},
+    onNavigateToNotification: () -> Unit = {},
+    onNavigateToUpdate: () -> Unit = {},
+    onNavigateToAbout: () -> Unit = {},
     viewModel: SettingsViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
-    var showBaseUrlDialog by remember { mutableStateOf(false) }
+    var showClearCacheDialog by remember { mutableStateOf(false) }
     var showLogoutDialog by remember { mutableStateOf(false) }
-
-    val scrollState = rememberScrollState()
 
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background)
-            .verticalScroll(scrollState)
+            .background(Void)
+            .systemBarsPadding()
+            .verticalScroll(rememberScrollState())
+            .padding(horizontal = 16.dp)
     ) {
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .background(
-                    Brush.verticalGradient(
-                        colors = listOf(Amber500, Orange500)
-                    )
-                )
-                .statusBarsPadding()
-                .padding(bottom = 32.dp)
-        ) {
-            Column(
+        Spacer(modifier = Modifier.height(36.dp))
+
+        // 标题栏
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            BackButton(onClick = onBack)
+            Spacer(modifier = Modifier.width(10.dp))
+            Text(
+                text = "设置",
+                fontSize = 16.sp,
+                fontWeight = FontWeight.Bold,
+                color = TextPrimary,
+                modifier = Modifier.weight(1f)
+            )
+        }
+        SwipeHint(text = "← 右滑返回", modifier = Modifier.padding(start = 42.dp, top = 2.dp))
+
+        Spacer(modifier = Modifier.height(20.dp))
+
+        // 个人信息区
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            // 56px 头像
+            Box(
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
+                    .size(56.dp)
+                    .clip(CircleShape)
+                    .background(Brush.linearGradient(GradientPrimary)),
+                contentAlignment = Alignment.Center
             ) {
-                Spacer(modifier = Modifier.height(16.dp))
                 Text(
-                    text = "我的",
-                    style = MaterialTheme.typography.headlineMedium.copy(
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 28.sp
-                    ),
+                    text = (uiState.user?.displayName?.firstOrNull()?.toString())
+                        ?: (uiState.user?.username?.firstOrNull()?.toString()) ?: "U",
                     color = Color.White,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(bottom = 24.dp)
+                    fontSize = 22.sp,
+                    fontWeight = FontWeight.Bold
                 )
-
-                val nameForAvatar = (uiState.user?.displayName?.takeIf { it.isNotBlank() }
-                    ?: uiState.user?.username?.takeIf { it.isNotBlank() }
-                    ?: "U")
-                Box(
-                    modifier = Modifier
-                        .size(64.dp)
-                        .clip(CircleShape)
-                        .background(
-                            Brush.linearGradient(
-                                colors = listOf(Color.White.copy(alpha = 0.3f), Color.White.copy(alpha = 0.1f))
-                            )
-                        ),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = nameForAvatar.first().toString(),
-                        fontSize = 28.sp,
-                        color = Color.White,
-                        fontWeight = FontWeight.Bold
-                    )
-                }
-
-                Spacer(modifier = Modifier.height(12.dp))
-
+            }
+            Spacer(modifier = Modifier.width(12.dp))
+            Column {
                 Text(
-                    text = uiState.user?.displayName?.takeIf { it.isNotBlank() }
-                        ?: uiState.user?.username?.takeIf { it.isNotBlank() }
-                        ?: "未登录",
-                    style = MaterialTheme.typography.titleLarge.copy(
-                        fontWeight = FontWeight.SemiBold
-                    ),
-                    color = Color.White
+                    text = uiState.user?.displayName?.ifBlank { null }
+                        ?: uiState.user?.username ?: "用户",
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = TextPrimary
                 )
-
-                Spacer(modifier = Modifier.height(4.dp))
-
-                val subtitle = uiState.user?.username?.takeIf { it.isNotBlank() }?.let { "@$it" } ?: ""
-                if (subtitle.isNotEmpty()) {
-                    Text(
-                        text = subtitle,
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = Color.White.copy(alpha = 0.8f)
-                    )
-                }
+                Text(
+                    text = uiState.user?.role ?: "",
+                    fontSize = 11.sp,
+                    color = TextMuted,
+                    modifier = Modifier.padding(top = 2.dp)
+                )
             }
-        }
-
-        Card(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp)
-                .offset(y = (-16).dp),
-            shape = RoundedCornerShape(16.dp),
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-            elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
-        ) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(vertical = 20.dp),
-                horizontalArrangement = Arrangement.SpaceEvenly
-            ) {
-                StatItem(count = "0", label = "想法")
-                StatItem(count = "0", label = "任务")
-                StatItem(count = "0", label = "笔记")
-            }
-        }
-
-        Spacer(modifier = Modifier.height(8.dp))
-
-        SettingsSection(title = "功能") {
-            SettingsItem(
-                icon = Icons.Default.Inbox,
-                title = "灵感收件箱",
-                onClick = onNavigateToInbox
-            )
-            HorizontalDivider(
-                modifier = Modifier.padding(start = 56.dp),
-                color = MaterialTheme.colorScheme.surfaceVariant,
-                thickness = 0.5.dp
-            )
-            SettingsItem(
-                icon = Icons.Default.Psychology,
-                title = "记忆认知",
-                onClick = onNavigateToMemory
-            )
-        }
-
-        Spacer(modifier = Modifier.height(8.dp))
-
-        SettingsSection(title = "外观") {
-            ThemeSelector(
-                currentTheme = uiState.theme,
-                onThemeChange = { viewModel.setTheme(it) }
-            )
-        }
-
-        Spacer(modifier = Modifier.height(8.dp))
-
-        SettingsSection(title = "服务器") {
-            SettingsItem(
-                icon = Icons.Default.Dns,
-                title = "服务器地址",
-                subtitle = uiState.baseUrl,
-                onClick = { showBaseUrlDialog = true }
-            )
-        }
-
-        Spacer(modifier = Modifier.height(8.dp))
-
-        SettingsSection(title = "关于") {
-            SettingsItem(
-                icon = Icons.Default.Info,
-                title = "版本",
-                subtitle = "0.1.0"
-            )
         }
 
         Spacer(modifier = Modifier.height(24.dp))
 
-        OutlinedButton(
-            onClick = { showLogoutDialog = true },
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp)
-                .height(48.dp),
-            shape = RoundedCornerShape(12.dp),
-            border = ButtonDefaults.outlinedButtonBorder.copy(
-                brush = Brush.horizontalGradient(listOf(Red500, Red500))
-            ),
-            colors = ButtonDefaults.outlinedButtonColors(
-                contentColor = Red500
-            )
+        // AI & Agent 分组
+        SettingsGroupTitle("AI & Agent")
+        SettingsRow(
+            icon = Icons.Filled.Key,
+            label = "AI Key",
+            onClick = onNavigateToAiKey
+        )
+        SettingsRow(
+            icon = Icons.Filled.Devices,
+            label = "已配对设备",
+            value = "1 台",
+            onClick = onNavigateToDevices
+        )
+
+        // 数据分组
+        SettingsGroupTitle("数据")
+        SettingsRow(
+            icon = Icons.Filled.Hub,
+            label = "记忆图谱",
+            onClick = onNavigateToMemory
+        )
+        SettingsRow(
+            icon = Icons.Filled.MenuBook,
+            label = "认知库",
+            onClick = onNavigateToCognition
+        )
+
+        // 通知分组
+        SettingsGroupTitle("通知")
+        SettingsRow(
+            icon = Icons.Filled.Notifications,
+            label = "通知偏好",
+            value = "全部",
+            onClick = onNavigateToNotification
+        )
+        SettingsRow(
+            icon = Icons.Filled.RecordVoiceOver,
+            label = "语音播报"
         ) {
-            Icon(Icons.Default.Logout, contentDescription = null, tint = Red500)
-            Spacer(modifier = Modifier.width(8.dp))
-            Text("退出登录", fontWeight = FontWeight.SemiBold, color = Red500)
+            // Toggle 占位（阶段4完善）
         }
 
-        Spacer(modifier = Modifier.height(32.dp))
+        // 关于分组
+        SettingsGroupTitle("关于")
+        SettingsRow(
+            icon = Icons.Filled.Refresh,
+            label = "检查更新",
+            onClick = onNavigateToUpdate
+        )
+        SettingsRow(
+            icon = Icons.Filled.Info,
+            label = "关于我们",
+            onClick = onNavigateToAbout
+        )
+
+        // 个人资料入口
+        Spacer(modifier = Modifier.height(16.dp))
+        SettingsGroupTitle("账号")
+        SettingsRow(
+            icon = Icons.Filled.Person,
+            label = "个人资料",
+            onClick = onNavigateToProfile
+        )
+
+        // 危险区域
+        Spacer(modifier = Modifier.height(24.dp))
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(1.dp)
+                .background(Danger.copy(alpha = 0.1f))
+        )
+        Spacer(modifier = Modifier.height(16.dp))
+        DangerRow(
+            icon = Icons.Filled.DeleteOutline,
+            label = "清除缓存",
+            onClick = { showClearCacheDialog = true }
+        )
+        DangerRow(
+            icon = Icons.Filled.Logout,
+            label = "退出登录",
+            onClick = { showLogoutDialog = true }
+        )
+
+        Spacer(modifier = Modifier.height(40.dp))
     }
 
-    if (showBaseUrlDialog) {
-        var text by remember { mutableStateOf(uiState.baseUrl) }
-        AlertDialog(
-            onDismissRequest = { showBaseUrlDialog = false },
-            shape = RoundedCornerShape(20.dp),
-            title = { Text("服务器地址") },
-            text = {
-                OutlinedTextField(
-                    value = text,
-                    onValueChange = { text = it },
-                    label = { Text("URL") },
-                    placeholder = { Text(Constants.DEFAULT_BASE_URL) },
-                    singleLine = true,
-                    shape = RoundedCornerShape(12.dp),
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = Amber500,
-                        focusedLabelColor = Amber500,
-                        cursorColor = Amber500
-                    )
-                )
+    // 清除缓存确认弹窗
+    if (showClearCacheDialog) {
+        ConfirmDialog(
+            title = "清除缓存？",
+            text = "将清除本地缓存数据，不会影响云端数据",
+            confirmText = "确认",
+            onConfirm = {
+                showClearCacheDialog = false
+                // 阶段4实现清理逻辑
             },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        viewModel.setBaseUrl(text.trim())
-                        showBaseUrlDialog = false
-                    },
-                    colors = ButtonDefaults.textButtonColors(contentColor = Amber500)
-                ) { Text("保存") }
-            },
-            dismissButton = {
-                TextButton(onClick = { showBaseUrlDialog = false }) { Text("取消") }
-            }
+            onDismiss = { showClearCacheDialog = false }
         )
     }
 
+    // 退出登录确认弹窗
     if (showLogoutDialog) {
-        AlertDialog(
-            onDismissRequest = { showLogoutDialog = false },
-            shape = RoundedCornerShape(20.dp),
-            title = { Text("退出登录") },
-            text = { Text("确定要退出登录吗？") },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        viewModel.logout()
-                        onLogout()
-                        showLogoutDialog = false
-                    },
-                    colors = ButtonDefaults.textButtonColors(contentColor = Red500)
-                ) { Text("退出") }
+        ConfirmDialog(
+            title = "退出登录？",
+            text = "退出后需要重新登录",
+            confirmText = "退出",
+            onConfirm = {
+                showLogoutDialog = false
+                onLogout()
             },
-            dismissButton = {
-                TextButton(onClick = { showLogoutDialog = false }) { Text("取消") }
-            }
+            onDismiss = { showLogoutDialog = false }
         )
     }
 }
 
 @Composable
-private fun StatItem(count: String, label: String) {
-    Column(
-        horizontalAlignment = Alignment.CenterHorizontally
-    ) {
-        Text(
-            text = count,
-            style = MaterialTheme.typography.headlineMedium.copy(
-                fontWeight = FontWeight.Bold,
-                fontSize = 24.sp
-            ),
-            color = Amber500
-        )
-        Spacer(modifier = Modifier.height(4.dp))
-        Text(
-            text = label,
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
-    }
-}
-
-@Composable
-private fun SettingsSection(
-    title: String,
-    content: @Composable () -> Unit
-) {
+private fun SettingsGroupTitle(text: String) {
     Text(
-        text = title,
-        style = MaterialTheme.typography.labelLarge.copy(
-            fontWeight = FontWeight.SemiBold
-        ),
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
-        modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp)
+        text = text,
+        fontSize = 10.sp,
+        color = TextMuted,
+        fontWeight = FontWeight.SemiBold,
+        letterSpacing = 1.5.sp,
+        modifier = Modifier.padding(start = 4.dp, bottom = 6.dp, top = 12.dp)
     )
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp),
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
-    ) {
-        Column { content() }
-    }
 }
 
 @Composable
-private fun SettingsItem(
+private fun SettingsRow(
     icon: androidx.compose.ui.graphics.vector.ImageVector,
-    title: String,
-    subtitle: String? = null,
+    label: String,
+    value: String? = null,
     onClick: (() -> Unit)? = null
 ) {
     Row(
+        verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier
             .fillMaxWidth()
             .clickable(enabled = onClick != null) { onClick?.invoke() }
-            .padding(horizontal = 16.dp, vertical = 16.dp),
-        verticalAlignment = Alignment.CenterVertically
+            .padding(vertical = 12.dp)
     ) {
-        Box(
-            modifier = Modifier
-                .size(40.dp)
-                .clip(RoundedCornerShape(10.dp))
-                .background(Amber500.copy(alpha = 0.1f)),
-            contentAlignment = Alignment.Center
-        ) {
-            Icon(
-                icon,
-                contentDescription = null,
-                tint = Amber500,
-                modifier = Modifier.size(22.dp)
-            )
-        }
-        Spacer(modifier = Modifier.width(14.dp))
-        Column(modifier = Modifier.weight(1f)) {
+        Icon(
+            imageVector = icon,
+            contentDescription = null,
+            tint = TextMuted,
+            modifier = Modifier.size(18.dp)
+        )
+        Spacer(modifier = Modifier.width(12.dp))
+        Text(
+            text = label,
+            fontSize = 13.sp,
+            color = TextPrimary,
+            modifier = Modifier.weight(1f)
+        )
+        if (value != null) {
             Text(
-                text = title,
-                style = MaterialTheme.typography.bodyLarge.copy(
-                    fontWeight = FontWeight.Medium
-                ),
-                color = MaterialTheme.colorScheme.onSurface
+                text = value,
+                fontSize = 12.sp,
+                color = TextMuted
             )
-            if (subtitle != null) {
-                Text(
-                    text = subtitle,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 1
-                )
-            }
+            Spacer(modifier = Modifier.width(4.dp))
         }
         if (onClick != null) {
             Icon(
-                Icons.Default.ChevronRight,
+                imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
                 contentDescription = null,
-                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
-                modifier = Modifier.size(20.dp)
+                tint = TextMuted,
+                modifier = Modifier.size(16.dp)
             )
         }
     }
 }
 
 @Composable
-private fun ThemeSelector(
-    currentTheme: String,
-    onThemeChange: (String) -> Unit
-) {
-    Column(modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)) {
-        ThemeOption("跟随系统", Constants.THEME_SYSTEM, currentTheme, onThemeChange)
-        HorizontalDivider(
-            modifier = Modifier.padding(start = 48.dp),
-            color = MaterialTheme.colorScheme.surfaceVariant,
-            thickness = 0.5.dp
-        )
-        ThemeOption("浅色模式", Constants.THEME_LIGHT, currentTheme, onThemeChange)
-        HorizontalDivider(
-            modifier = Modifier.padding(start = 48.dp),
-            color = MaterialTheme.colorScheme.surfaceVariant,
-            thickness = 0.5.dp
-        )
-        ThemeOption("深色模式", Constants.THEME_DARK, currentTheme, onThemeChange)
-    }
-}
-
-@Composable
-private fun ThemeOption(
+private fun DangerRow(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
     label: String,
-    value: String,
-    currentValue: String,
-    onSelect: (String) -> Unit
+    onClick: () -> Unit
 ) {
     Row(
+        verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier
             .fillMaxWidth()
-            .clickable { onSelect(value) }
-            .padding(horizontal = 8.dp, vertical = 12.dp),
-        verticalAlignment = Alignment.CenterVertically
+            .clickable(onClick = onClick)
+            .padding(vertical = 12.dp)
     ) {
-        Box(
-            modifier = Modifier
-                .size(40.dp)
-                .clip(RoundedCornerShape(10.dp))
-                .background(Amber500.copy(alpha = 0.1f)),
-            contentAlignment = Alignment.Center
-        ) {
-            Icon(
-                when (value) {
-                    Constants.THEME_LIGHT -> Icons.Default.LightMode
-                    Constants.THEME_DARK -> Icons.Default.DarkMode
-                    else -> Icons.Default.SettingsSuggest
-                },
-                contentDescription = null,
-                tint = Amber500,
-                modifier = Modifier.size(22.dp)
-            )
-        }
-        Spacer(modifier = Modifier.width(14.dp))
+        Icon(
+            imageVector = icon,
+            contentDescription = null,
+            tint = Danger,
+            modifier = Modifier.size(18.dp)
+        )
+        Spacer(modifier = Modifier.width(12.dp))
         Text(
             text = label,
-            modifier = Modifier.weight(1f),
-            style = MaterialTheme.typography.bodyLarge.copy(
-                fontWeight = FontWeight.Medium
-            ),
-            color = MaterialTheme.colorScheme.onSurface
-        )
-        RadioButton(
-            selected = value == currentValue,
-            onClick = { onSelect(value) },
-            colors = RadioButtonDefaults.colors(
-                selectedColor = Amber500,
-                unselectedColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)
-            )
+            fontSize = 13.sp,
+            color = Danger
         )
     }
+}
+
+// ============ 确认弹窗组件 ============
+@Composable
+fun ConfirmDialog(
+    title: String,
+    text: String,
+    confirmText: String = "确认",
+    cancelText: String = "取消",
+    onConfirm: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = Deep,
+        titleContentColor = TextPrimary,
+        title = {
+            Text(text = title, fontWeight = FontWeight.SemiBold, fontSize = 15.sp)
+        },
+        text = {
+            Text(text = text, color = TextMuted, fontSize = 12.sp)
+        },
+        confirmButton = {
+            TextButton(onClick = onConfirm) {
+                Text(confirmText, color = Danger, fontWeight = FontWeight.SemiBold)
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text(cancelText, color = TextPrimary)
+            }
+        }
+    )
 }

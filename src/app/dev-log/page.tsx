@@ -56,7 +56,7 @@ export default function DevLogPage() {
       if (line.trim().startsWith("```")) {
         if (inCodeBlock) {
           blocks.push(
-            <pre key={`code-${i}`} className="my-2 overflow-x-auto rounded-lg border border-border bg-muted/50 p-3 text-xs">
+            <pre key={`code-${i}`} className="glass-card my-2 overflow-x-auto rounded-lg border border-border p-3 text-xs">
               {codeBlock.join("\n")}
             </pre>
           );
@@ -133,7 +133,7 @@ export default function DevLogPage() {
     // 处理未关闭的代码块
     if (inCodeBlock && codeBlock.length > 0) {
       blocks.push(
-        <pre key="code-final" className="my-2 overflow-x-auto rounded-lg border border-border bg-muted/50 p-3 text-xs">
+        <pre key="code-final" className="glass-card my-2 overflow-x-auto rounded-lg border border-border p-3 text-xs">
           {codeBlock.join("\n")}
         </pre>
       );
@@ -153,7 +153,7 @@ export default function DevLogPage() {
       const codeMatch = remaining.match(/^`([^`]+)`/);
       if (codeMatch) {
         parts.push(
-          <code key={key++} className="rounded bg-muted px-1 py-0.5 text-[10px] text-cognition">
+          <code key={key++} className="ios-glass-sm rounded px-1 py-0.5 text-[10px] text-cognition">
             {codeMatch[1]}
           </code>
         );

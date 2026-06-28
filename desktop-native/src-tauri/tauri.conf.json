@@ -7,7 +7,7 @@
     "beforeDevCommand": "npm run frontend:dev",
     "devUrl": "http://localhost:5177",
     "beforeBuildCommand": "npm run frontend:build",
-    "frontendDist": "out/app"
+    "frontendDist": "../out/app"
   },
   "app": {
     "withGlobalTauri": true,
@@ -29,12 +29,6 @@
     "security": {
       "csp": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: http: https:; font-src 'self' data:; connect-src 'self' http: https: ws: wss: ipc:; media-src 'self' data: blob:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-src 'self'",
       "devCsp": "default-src 'self' 'unsafe-inline' 'unsafe-eval'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: http: https:; font-src 'self' data:; connect-src 'self' http: https: ws: wss: ipc:; media-src 'self' data: blob:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-src 'self'"
-    },
-    "trayIcon": {
-      "iconPath": "icons/icon.ico",
-      "iconAsTemplate": false,
-      "menuOnLeftClick": false,
-      "title": "Lynx"
     }
   },
   "bundle": {
@@ -52,6 +46,8 @@
     "windows": {
       "nsis": {
         "installerIcon": "icons/icon.ico",
+        "headerImage": "icons/nsis-header.bmp",
+        "sidebarImage": "icons/nsis-sidebar.bmp",
         "displayLanguageSelector": false,
         "languages": ["SimpChinese"],
         "installMode": "both"

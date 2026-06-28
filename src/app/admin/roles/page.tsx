@@ -231,7 +231,7 @@ export default function RolesPage() {
       <div className="p-4 sm:p-8">
         <PageHeader title="角色管理" subtitle="查看系统角色与权限配置" />
         <Card className="flex flex-col items-center justify-center py-16 text-center">
-          <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-muted">
+          <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-2xl ios-glass-sm">
             <Lock className="h-6 w-6 text-muted-foreground" />
           </div>
           <h3 className="text-base font-semibold text-foreground">权限不足</h3>
@@ -261,7 +261,7 @@ export default function RolesPage() {
 
       {/* 权限目录说明 */}
       {permissions.length > 0 && (
-        <Card className="mb-6 bg-muted/20">
+        <Card className="mb-6">
           <div className="mb-3 flex items-center gap-2">
             <Shield className="h-4 w-4 text-muted-foreground" />
             <h3 className="text-sm font-semibold text-foreground">
@@ -272,10 +272,10 @@ export default function RolesPage() {
             {permissions.map((p) => (
               <div
                 key={p.key}
-                className="rounded-lg border border-border bg-card px-3 py-2"
+                className="rounded-lg glass-card px-3 py-2"
               >
                 <div className="flex items-center gap-2">
-                  <code className="rounded bg-muted px-1.5 py-0.5 text-[10px] font-mono text-foreground">
+                  <code className="rounded ios-glass-sm px-1.5 py-0.5 text-[10px] font-mono text-foreground">
                     {p.key}
                   </code>
                   <span className="text-xs font-medium text-foreground">
@@ -313,11 +313,11 @@ export default function RolesPage() {
       {/* 新建/编辑弹窗 */}
       {modalMode && (
         <div
-          className="fixed inset-0 z-[80] flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm"
+          className="fixed inset-0 z-[80] flex items-center justify-center bg-black/30 p-4 backdrop-blur-sm"
           onClick={closeModal}
         >
           <div
-            className="flex max-h-[90vh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-border bg-card shadow-2xl"
+            className="flex max-h-[90vh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl glass-card shadow-2xl"
             onClick={(e) => e.stopPropagation()}
           >
             {/* 头部 */}
@@ -337,7 +337,7 @@ export default function RolesPage() {
               </h2>
               <button
                 onClick={closeModal}
-                className="rounded-lg p-1 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                className="rounded-lg p-1 text-muted-foreground transition-colors hover:bg-primary/10 hover:text-primary"
               >
                 <X className="h-4 w-4" />
               </button>
@@ -384,11 +384,11 @@ export default function RolesPage() {
                   <span className="text-xs font-medium text-muted-foreground">
                     角色标识
                   </span>
-                  <code className="rounded bg-muted px-2 py-0.5 text-xs font-mono text-foreground">
+                  <code className="rounded ios-glass-sm px-2 py-0.5 text-xs font-mono text-foreground">
                     {editTarget?.name}
                   </code>
                   {editTarget?.isSystem && (
-                    <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">
+                    <span className="rounded ios-glass-sm px-1.5 py-0.5 text-[10px] text-muted-foreground">
                       系统内置
                     </span>
                   )}
@@ -461,14 +461,14 @@ export default function RolesPage() {
                         className={`flex items-start gap-2.5 rounded-xl border px-3 py-2.5 text-left transition-all ${
                           checked
                             ? "border-northstar/40 bg-northstar/5"
-                            : "border-border bg-background/30 hover:bg-muted"
+                            : "border-border bg-background/30 hover:bg-primary/10 hover:text-primary"
                         }`}
                       >
                         <span
                           className={`mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded border transition-colors ${
                             checked
                               ? "border-northstar bg-northstar text-primary-foreground"
-                              : "border-border bg-card"
+                              : "glass-card"
                           }`}
                         >
                           {checked && <Check className="h-3 w-3" />}
@@ -478,7 +478,7 @@ export default function RolesPage() {
                             <span className="text-xs font-medium text-foreground">
                               {p.label}
                             </span>
-                            <code className="rounded bg-muted px-1 py-0 text-[9px] font-mono text-muted-foreground">
+                            <code className="rounded ios-glass-sm px-1 py-0 text-[9px] font-mono text-muted-foreground">
                               {p.key}
                             </code>
                           </div>
@@ -518,11 +518,11 @@ export default function RolesPage() {
       {/* 删除确认弹窗 */}
       {deleteTarget && (
         <div
-          className="fixed inset-0 z-[80] flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm"
+          className="fixed inset-0 z-[80] flex items-center justify-center bg-black/30 p-4 backdrop-blur-sm"
           onClick={() => setDeleteTarget(null)}
         >
           <div
-            className="w-full max-w-sm rounded-2xl border border-border bg-card p-6 shadow-2xl"
+            className="w-full max-w-sm rounded-2xl glass-card p-6 shadow-2xl"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="mb-4 flex items-center gap-3">
@@ -535,7 +535,7 @@ export default function RolesPage() {
             </div>
             <p className="mb-5 text-sm text-muted-foreground">
               确定要删除角色{" "}
-              <code className="rounded bg-muted px-1.5 py-0.5 text-xs text-foreground">
+              <code className="rounded ios-glass-sm px-1.5 py-0.5 text-xs text-foreground">
                 {deleteTarget.displayName}
               </code>
               （{deleteTarget.name}）吗？此操作不可撤销。
@@ -608,8 +608,8 @@ function RoleCard({
     },
     muted: {
       ring: "border-border",
-      icon: "bg-muted text-muted-foreground",
-      badge: "bg-muted text-muted-foreground border-border",
+      icon: "ios-glass-sm text-muted-foreground",
+      badge: "ios-glass-sm text-muted-foreground border-border",
     },
   };
   const style = accentStyles[accent] || accentStyles.muted;
@@ -635,7 +635,7 @@ function RoleCard({
                 <h3 className="text-base font-semibold text-foreground">
                   {role.displayName}
                 </h3>
-                <code className="rounded bg-muted px-1.5 py-0.5 text-[10px] font-mono text-muted-foreground">
+                <code className="rounded ios-glass-sm px-1.5 py-0.5 text-[10px] font-mono text-muted-foreground">
                   {role.name}
                 </code>
               </div>

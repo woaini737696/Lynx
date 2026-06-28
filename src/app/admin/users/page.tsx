@@ -298,7 +298,7 @@ export default function UsersPage() {
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b border-border bg-muted/30 text-xs text-muted-foreground">
+              <tr className="border-b border-border ios-glass-sm text-xs text-muted-foreground">
                 <th className="px-4 py-3 text-left font-medium">用户名</th>
                 <th className="px-4 py-3 text-left font-medium">显示名</th>
                 <th className="px-4 py-3 text-left font-medium">邮箱</th>
@@ -331,7 +331,7 @@ export default function UsersPage() {
                 paginated.map((user) => (
                   <tr
                     key={user.id}
-                    className="border-b border-border/60 transition-colors last:border-0 hover:bg-muted/20"
+                    className="border-b border-border/60 transition-colors last:border-0 hover:bg-primary/10 hover:text-primary"
                     onContextMenu={(e) => openContextMenu(e, [
                       { label: "编辑用户", icon: <Pencil className="h-3.5 w-3.5" />, onClick: () => openEdit(user) },
                       { separator: true },
@@ -379,7 +379,7 @@ export default function UsersPage() {
                       <div className="flex items-center justify-end gap-1">
                         <button
                           onClick={() => openEdit(user)}
-                          className="rounded-lg p-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                          className="rounded-lg p-1.5 text-muted-foreground transition-colors hover:bg-primary/10 hover:text-primary"
                           title="编辑"
                         >
                           <Pencil className="h-3.5 w-3.5" />
@@ -414,11 +414,11 @@ export default function UsersPage() {
       {/* 创建/编辑弹窗 */}
       {modalMode && (
         <div
-          className="fixed inset-0 z-[80] flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm"
+          className="fixed inset-0 z-[80] flex items-center justify-center bg-black/30 p-4 backdrop-blur-sm"
           onClick={closeModal}
         >
           <div
-            className="w-full max-w-md rounded-2xl border border-border bg-card p-6 shadow-2xl"
+            className="w-full max-w-md rounded-2xl glass-card p-6 shadow-2xl"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="mb-5 flex items-center justify-between">
@@ -437,7 +437,7 @@ export default function UsersPage() {
               </h2>
               <button
                 onClick={closeModal}
-                className="rounded-lg p-1 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                className="rounded-lg p-1 text-muted-foreground transition-colors hover:bg-primary/10 hover:text-primary"
               >
                 <X className="h-4 w-4" />
               </button>
@@ -593,11 +593,11 @@ export default function UsersPage() {
       {/* 删除确认弹窗 */}
       {deleteTarget && (
         <div
-          className="fixed inset-0 z-[80] flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm"
+          className="fixed inset-0 z-[80] flex items-center justify-center bg-black/30 p-4 backdrop-blur-sm"
           onClick={() => setDeleteTarget(null)}
         >
           <div
-            className="w-full max-w-sm rounded-2xl border border-border bg-card p-6 shadow-2xl"
+            className="w-full max-w-sm rounded-2xl glass-card p-6 shadow-2xl"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="mb-4 flex items-center gap-3">
@@ -610,7 +610,7 @@ export default function UsersPage() {
             </div>
             <p className="mb-5 text-sm text-muted-foreground">
               确定要删除用户{" "}
-              <code className="rounded bg-muted px-1.5 py-0.5 text-xs text-foreground">
+              <code className="rounded ios-glass-sm px-1.5 py-0.5 text-xs text-foreground">
                 {deleteTarget.username}
               </code>
               吗？此操作不可撤销，该用户关联的数据将保留但不再归属。
@@ -664,7 +664,7 @@ function RoleBadge({
   const icon = profession ? PROFESSION_ICON_MAP[profession] : undefined;
 
   return (
-    <span className="inline-flex items-center rounded-full border border-border bg-muted/40 px-2.5 py-0.5 text-[11px] font-medium text-foreground/80">
+    <span className="inline-flex items-center rounded-full ios-glass-sm px-2.5 py-0.5 text-[11px] font-medium text-foreground/80">
       {role === "admin" && <Shield className="mr-1 h-2.5 w-2.5" />}
       {icon && <span className="mr-1">{icon}</span>}
       {displayName}

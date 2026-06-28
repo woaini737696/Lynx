@@ -1315,62 +1315,62 @@ function HermesHelpModal({ onClose }: { onClose: () => void }) {
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4 backdrop-blur-sm"
       onClick={onClose}
     >
       <div
-        className="max-h-[85vh] w-full max-w-2xl overflow-y-auto rounded-2xl bg-white shadow-2xl dark:bg-slate-900"
+        className="glass-card max-h-[85vh] w-full max-w-2xl overflow-y-auto rounded-2xl shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
         {/* 头部 */}
-        <div className="sticky top-0 flex items-center justify-between border-b border-slate-100 bg-white px-6 py-4 dark:border-slate-800 dark:bg-slate-900">
-          <h2 className="flex items-center gap-2 text-lg font-bold text-slate-900 dark:text-slate-100">
+        <div className="sticky top-0 flex items-center justify-between border-b border-border/60 px-6 py-4">
+          <h2 className="flex items-center gap-2 text-lg font-bold text-foreground">
             <BookOpen className="h-5 w-5 text-northstar" />
             Lynx Agent 使用说明
           </h2>
           <button
             onClick={onClose}
-            className="rounded-lg p-1 text-slate-400 transition hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-slate-800"
+            className="rounded-lg p-1 text-muted-foreground transition hover:bg-primary/10 hover:text-primary"
           >
             <XCircle className="h-5 w-5" />
           </button>
         </div>
 
         {/* 内容 */}
-        <div className="space-y-5 px-6 py-5 text-slate-600 dark:text-slate-300">
+        <div className="space-y-5 px-6 py-5 text-muted-foreground">
           <section>
-            <h3 className="mb-1.5 flex items-center gap-1.5 text-sm font-semibold text-red-600">
-              <span className="flex h-5 w-5 items-center justify-center rounded-full bg-red-100 text-xs">!</span>
+            <h3 className="mb-1.5 flex items-center gap-1.5 text-sm font-semibold text-graveyard">
+              <span className="ios-glass-sm flex h-5 w-5 items-center justify-center rounded-full text-xs">!</span>
               痛点
             </h3>
             <p className="text-sm leading-relaxed">{content.painPoint}</p>
           </section>
 
           <section>
-            <h3 className="mb-1.5 flex items-center gap-1.5 text-sm font-semibold text-amber-600">
-              <span className="flex h-5 w-5 items-center justify-center rounded-full bg-amber-100 text-xs">?</span>
+            <h3 className="mb-1.5 flex items-center gap-1.5 text-sm font-semibold text-campaign">
+              <span className="ios-glass-sm flex h-5 w-5 items-center justify-center rounded-full text-xs">?</span>
               需求
             </h3>
             <p className="text-sm leading-relaxed">{content.need}</p>
           </section>
 
           <section>
-            <h3 className="mb-1.5 flex items-center gap-1.5 text-sm font-semibold text-blue-600">
-              <span className="flex h-5 w-5 items-center justify-center rounded-full bg-blue-100 text-xs">✓</span>
+            <h3 className="mb-1.5 flex items-center gap-1.5 text-sm font-semibold text-northstar">
+              <span className="ios-glass-sm flex h-5 w-5 items-center justify-center rounded-full text-xs">✓</span>
               解决方案
             </h3>
             <p className="text-sm leading-relaxed">{content.solution}</p>
           </section>
 
           <section>
-            <h3 className="mb-1.5 flex items-center gap-1.5 text-sm font-semibold text-green-600">
-              <span className="flex h-5 w-5 items-center justify-center rounded-full bg-green-100 text-xs">→</span>
+            <h3 className="mb-1.5 flex items-center gap-1.5 text-sm font-semibold text-task">
+              <span className="ios-glass-sm flex h-5 w-5 items-center justify-center rounded-full text-xs">→</span>
               使用方法
             </h3>
             <ol className="space-y-2">
               {content.usage.map((step, i) => (
                 <li key={i} className="flex gap-2.5 text-sm leading-relaxed">
-                  <span className="flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full bg-green-100 text-xs font-medium text-green-700">
+                  <span className="ios-glass-sm flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full text-xs font-medium text-task">
                     {i + 1}
                   </span>
                   <span>{step}</span>
@@ -1381,13 +1381,13 @@ function HermesHelpModal({ onClose }: { onClose: () => void }) {
         </div>
 
         {/* 底部 */}
-        <div className="sticky bottom-0 border-t border-slate-100 bg-white px-6 py-3 dark:border-slate-800 dark:bg-slate-900">
-          <div className="mb-2 text-[10px] text-slate-400">
+        <div className="sticky bottom-0 border-t border-border/60 px-6 py-3">
+          <div className="mb-2 text-[10px] text-muted-foreground/70">
             版本 v{content.version} · 更新于 {content.updatedAt}
           </div>
           <button
             onClick={onClose}
-            className="w-full rounded-lg bg-slate-900 py-2 text-sm font-medium text-white transition hover:bg-slate-800 dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-slate-200"
+            className="btn-primary w-full rounded-lg py-2 text-sm font-medium text-primary-foreground transition"
           >
             我知道了
           </button>

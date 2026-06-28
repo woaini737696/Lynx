@@ -36,12 +36,12 @@ export function SearchInput({
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
-        className="h-9 w-full rounded-xl border border-border bg-card pl-9 pr-8 text-sm text-foreground placeholder:text-muted-foreground/60 focus:border-primary/50 focus:outline-none focus:ring-2 focus:ring-primary/20"
+        className="ios-glass-sm h-9 w-full rounded-xl border-0 bg-transparent pl-9 pr-8 text-sm text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:ring-2 focus:ring-primary/20"
       />
       {value && (
         <button
           onClick={() => onChange("")}
-          className="absolute right-2 top-1/2 -translate-y-1/2 rounded-md p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
+          className="absolute right-2 top-1/2 -translate-y-1/2 rounded-md p-1 text-muted-foreground transition-colors hover:bg-primary/10 hover:text-foreground"
           aria-label="清除搜索"
         >
           <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -79,7 +79,7 @@ export function FilterSelect<T extends string>({
         value={value}
         onChange={(e) => onChange(e.target.value as T)}
         className={cn(
-          "h-9 cursor-pointer rounded-xl border border-border bg-card text-sm text-foreground transition-colors hover:border-foreground/20 focus:border-primary/50 focus:outline-none focus:ring-2 focus:ring-primary/20",
+          "ios-glass-sm h-9 cursor-pointer rounded-xl border-0 bg-transparent text-sm text-foreground transition-colors focus:outline-none focus:ring-2 focus:ring-primary/20",
           label ? "pl-14 pr-8" : "pl-3 pr-8"
         )}
       >
@@ -156,7 +156,7 @@ export function Pagination({
             <select
               value={pageSize}
               onChange={(e) => onPageSizeChange(Number(e.target.value))}
-              className="h-7 cursor-pointer rounded-lg border border-border bg-card px-1.5 text-xs text-foreground focus:border-primary/50 focus:outline-none"
+              className="ios-glass-sm h-7 cursor-pointer rounded-lg border-0 bg-transparent px-1.5 text-xs text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20"
             >
               {pageSizeOptions.map((s) => (
                 <option key={s} value={s}>{s}</option>
@@ -170,7 +170,7 @@ export function Pagination({
         <button
           onClick={() => onPageChange(safePage - 1)}
           disabled={safePage <= 1}
-          className="flex h-8 items-center rounded-lg px-2.5 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:pointer-events-none disabled:opacity-40"
+          className="flex h-8 items-center rounded-lg px-2.5 text-xs text-muted-foreground transition-colors hover:bg-primary/10 hover:text-foreground disabled:pointer-events-none disabled:opacity-40"
           aria-label="上一页"
         >
           <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -185,11 +185,11 @@ export function Pagination({
               key={p}
               onClick={() => onPageChange(p)}
               className={cn(
-                "flex h-8 min-w-[2rem] items-center justify-center rounded-lg px-2 text-xs font-medium transition-colors",
-                p === safePage
-                  ? "bg-primary text-primary-foreground shadow-sm"
-                  : "text-muted-foreground hover:bg-muted hover:text-foreground"
-              )}
+                  "flex h-8 min-w-[2rem] items-center justify-center rounded-lg px-2 text-xs font-medium transition-colors",
+                  p === safePage
+                    ? "bg-primary text-primary-foreground shadow-sm"
+                    : "text-muted-foreground hover:bg-primary/10 hover:text-foreground"
+                )}
             >
               {p}
             </button>
@@ -198,7 +198,7 @@ export function Pagination({
         <button
           onClick={() => onPageChange(safePage + 1)}
           disabled={safePage >= totalPages}
-          className="flex h-8 items-center rounded-lg px-2.5 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:pointer-events-none disabled:opacity-40"
+          className="flex h-8 items-center rounded-lg px-2.5 text-xs text-muted-foreground transition-colors hover:bg-primary/10 hover:text-foreground disabled:pointer-events-none disabled:opacity-40"
           aria-label="下一页"
         >
           <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>

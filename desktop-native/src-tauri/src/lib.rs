@@ -54,7 +54,7 @@ impl Default for AppState {
             authorized_dirs: Mutex::new(vec![default_dir]),
             ws_connected: AtomicBool::new(false),
             user_token: Mutex::new(None),
-            cloud_endpoint: Mutex::new("https://app.lynnhub.com".to_string()),
+            cloud_endpoint: Mutex::new("http://127.0.0.1:5176".to_string()),
         }
     }
 }
@@ -369,18 +369,19 @@ async fn cloud_request(
     let cloud = state.cloud_endpoint.lock().map_err(|e| e.to_string())?.clone();
     let token = state.user_token.lock().map_err(|e| e.to_string())?.clone();
 
+    // 构建请求 URL
     let url = if payload.path.starts_with("http://") || payload.path.starts_with("https://") {
         payload.path.clone()
     } else {
         let base = cloud.trim_end_matches('/');
-        let path = payload.path.trim_start_matches('/');
-        format!("{}/{}", base, path)
+        let p = payload.path.trim_start_matches('/');
+        format!("{}/{}", base, p)
     };
 
     let client = reqwest::Client::builder()
         .timeout(std::time::Duration::from_secs(30))
         .build()
-        .map_err(|e| e.to_string())?;
+        .map_err(|e| format!("构建 HTTP client 失败: {}", e))?;
 
     let mut builder = match payload.method.to_uppercase().as_str() {
         "GET" => client.get(&url),
@@ -395,15 +396,15 @@ async fn cloud_request(
     if let Some(t) = token {
         builder = builder.bearer_auth(t);
     }
-
-    if let Some(body) = payload.body {
-        builder = builder.json(&body);
+    if let Some(b) = &payload.body {
+        builder = builder.json(b);
     }
 
-    let resp = builder.send().await.map_err(|e| e.to_string())?;
+    let resp = builder.send().await.map_err(|e| format!("请求失败 [{} {}]: {}", payload.method, url, e))?;
     let status = resp.status().as_u16();
     let data = resp.json::<serde_json::Value>().await.unwrap_or_else(|_| serde_json::Value::Null);
 
+    log::info!("[cloud_request] {} {} -> {}", payload.method, url, status);
     Ok(CloudResponse { status, data })
 }
 
@@ -460,14 +461,6 @@ pub fn run() {
         .init();
 
     log::info!("LynnHub 桌面端启动中...");
-
-    // 将当前工作目录设置为 binary 所在目录，确保 frontendDist 相对路径（out/app）正确解析
-    if let Ok(exe_path) = std::env::current_exe() {
-        if let Some(exe_dir) = exe_path.parent() {
-            let _ = std::env::set_current_dir(exe_dir);
-            log::info!("工作目录已设置为: {}", exe_dir.display());
-        }
-    }
 
     let app_state = Arc::new(AppState::default());
 
@@ -541,42 +534,20 @@ pub fn run() {
             log::info!("LynnHub 桌面端启动完成");
 
             // ============ 系统托盘（Tauri 2.x API） ============
+            // 只保留"退出 Lynx"一个菜单项，双击托盘图标显示主窗口
             let app_handle = app.handle().clone();
-            let quit_item = MenuItem::with_id(&app_handle, "quit", "退出 LynnHub", true, None::<&str>)?;
-            let emergency_item = MenuItem::with_id(&app_handle, "emergency", "🛑 紧急停止", true, None::<&str>)?;
-            let show_item = MenuItem::with_id(&app_handle, "show", "显示主窗口", true, None::<&str>)?;
-            let separator = PredefinedMenuItem::separator(&app_handle)?;
+            let quit_item = MenuItem::with_id(&app_handle, "quit", "退出 Lynx", true, None::<&str>)?;
 
-            let tray_menu = Menu::with_items(&app_handle, &[&show_item, &emergency_item, &separator, &quit_item])?;
+            let tray_menu = Menu::with_items(&app_handle, &[&quit_item])?;
 
             let _tray = TrayIconBuilder::with_id("main-tray")
                 .menu(&tray_menu)
-                .tooltip("LynnHub HermesAgent")
+                .tooltip("Lynx")
                 .icon(app.default_window_icon().cloned().unwrap())
                 .on_menu_event(|app, event| {
-                    match event.id().as_ref() {
-                        "quit" => {
-                            log::info!("用户通过托盘退出");
-                            app.exit(0);
-                        }
-                        "emergency" => {
-                            EMERGENCY_STOP.store(true, Ordering::SeqCst);
-                            log::warn!("托盘触发紧急停止");
-                            let app_clone = app.clone();
-                            thread::spawn(move || {
-                                thread::sleep(std::time::Duration::from_secs(5));
-                                EMERGENCY_STOP.store(false, Ordering::SeqCst);
-                                let _ = app_clone.emit("emergency-reset", ());
-                            });
-                            let _ = app.emit("emergency-stop", ());
-                        }
-                        "show" => {
-                            if let Some(window) = app.get_webview_window("main") {
-                                let _ = window.show();
-                                let _ = window.set_focus();
-                            }
-                        }
-                        _ => {}
+                    if event.id().as_ref() == "quit" {
+                        log::info!("用户通过托盘退出");
+                        app.exit(0);
                     }
                 })
                 .on_tray_icon_event(|tray, event| {

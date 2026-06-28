@@ -60,7 +60,7 @@ export function HelpButton({ content, contentKey, title = "使用说明" }: Help
 
       {open && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4 backdrop-blur-sm"
           onClick={() => setOpen(false)}
         >
           <div
@@ -68,14 +68,14 @@ export function HelpButton({ content, contentKey, title = "使用说明" }: Help
             onClick={(e) => e.stopPropagation()}
           >
             {/* 头部 */}
-            <div className="sticky top-0 flex items-center justify-between border-b border-border bg-card/95 px-6 py-4 backdrop-blur-xl">
+            <div className="sticky top-0 flex items-center justify-between border-b border-border/60 px-6 py-4 backdrop-blur-xl">
               <h2 className="flex items-center gap-2 text-lg font-bold text-foreground">
                 <HelpCircle className="h-5 w-5 text-cognition" />
                 {title}
               </h2>
               <button
                 onClick={() => setOpen(false)}
-                className="rounded-lg p-1 text-muted-foreground transition hover:bg-muted hover:text-foreground"
+                className="rounded-lg p-1 text-muted-foreground transition hover:bg-primary/10 hover:text-primary"
               >
                 <X className="h-5 w-5" />
               </button>
@@ -130,7 +130,7 @@ export function HelpButton({ content, contentKey, title = "使用说明" }: Help
             </div>
 
             {/* 底部 */}
-            <div className="sticky bottom-0 border-t border-border bg-card/95 px-6 py-3 backdrop-blur-xl">
+            <div className="sticky bottom-0 border-t border-border/60 px-6 py-3 backdrop-blur-xl">
               {versionInfo && (
                 <div className="mb-2 text-[10px] text-muted-foreground/70">
                   版本 v{versionInfo.version} · 更新于 {versionInfo.updatedAt}
@@ -138,7 +138,7 @@ export function HelpButton({ content, contentKey, title = "使用说明" }: Help
               )}
               <button
                 onClick={() => setOpen(false)}
-                className="btn-doubao w-full rounded-lg py-2 text-sm font-medium"
+                className="btn-primary w-full rounded-lg py-2 text-sm font-medium"
               >
                 我知道了
               </button>

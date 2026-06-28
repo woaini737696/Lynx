@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import Image from "next/image";
 import { useLightningStore } from "@/store/lightning";
 import { ThemeToggle } from "@/components/theme/ThemeToggle";
-import { Search, Command } from "lucide-react";
+import { Search } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { FastLink } from "./FastLink";
 
@@ -57,7 +57,7 @@ export function CaptureBar() {
 
       {/* 右侧：搜索 + Inbox + 闪电输入 + 主题切换（1:1 还原 HTML：纯文字胶囊按钮） */}
       <div className="flex items-center gap-2 sm:gap-3">
-        {/* 搜索 */}
+        {/* 搜索 — 1:1 还原 ui-preview-v2.html：纯文字胶囊，⌘K 直接写 */}
         <button
           onClick={() => window.dispatchEvent(new Event("lynnhub:open-command-palette"))}
           className="ios-glass-sm flex h-9 items-center gap-2 rounded-full px-3 text-xs font-medium text-muted-foreground transition-all hover:text-primary"
@@ -65,9 +65,9 @@ export function CaptureBar() {
         >
           <Search className="h-4 w-4" />
           <span className="hidden sm:inline">搜索</span>
-          <kbd className="ml-0.5 hidden items-center gap-0.5 rounded border border-border/60 bg-muted/60 px-1 text-[10px] lg:inline-flex">
-            <Command className="h-2.5 w-2.5" />K
-          </kbd>
+          <span className="ml-0.5 hidden items-center gap-0.5 text-[10px] opacity-70 lg:inline-flex">
+            ⌘K
+          </span>
         </button>
 
         {/* Inbox */}
@@ -86,16 +86,14 @@ export function CaptureBar() {
           )}
         </FastLink>
 
-        {/* 闪电输入（ios-glass-sm 圆形） */}
+        {/* 闪电输入（ios-glass-sm 胶囊） */}
         <button
           onClick={open}
           className="ios-glass-sm hidden h-9 items-center gap-1.5 rounded-full px-3 text-xs font-medium text-muted-foreground transition-all hover:text-primary lg:flex"
           aria-label="闪电输入"
         >
           <span>闪电输入</span>
-          <kbd className="rounded border border-border/60 bg-muted/60 px-1 py-0.5 text-[10px]">
-            Ctrl+J
-          </kbd>
+          <span className="text-[10px] opacity-70">Ctrl+J</span>
         </button>
 
         {/* 主题切换 */}

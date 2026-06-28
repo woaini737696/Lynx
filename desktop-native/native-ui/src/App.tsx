@@ -20,6 +20,7 @@ import { useUIStore } from "./stores/uiStore";
 import { useAuthStore } from "./stores/authStore";
 import { loadAuth, clearAuth } from "./lib/auth-persistence";
 import { invoke } from "./lib/tauri";
+import { AUTH_EXPIRED_EVENT, type CloudResponse } from "./lib/cloud-api";
 import { Loader2 } from "lucide-react";
 
 function ThemeSync() {
@@ -39,6 +40,7 @@ function AuthInitializer({ children }: { children: React.ReactNode }) {
     useAuthStore();
   const [bootstrapping, setBootstrapping] = useState(true);
 
+  // bootstrap：加载本地 token 并调用 /api/user/profile 验证有效性
   useEffect(() => {
     let mounted = true;
 
@@ -46,8 +48,28 @@ function AuthInitializer({ children }: { children: React.ReactNode }) {
       try {
         const auth = await loadAuth();
         if (auth && mounted) {
-          setCredentials(auth);
-          await invoke("set_user_token", { token: auth.token }).catch(() => {});
+          // 主动验证 token 是否仍然有效，避免带着过期 token 进入应用
+          try {
+            const res = await invoke<CloudResponse>("cloud_request", {
+              payload: {
+                method: "GET",
+                path: "/api/user/profile",
+                body: null,
+              },
+            });
+            if (res.status === 401) {
+              throw new Error("token 已过期");
+            }
+            // token 有效，设置登录态
+            setCredentials(auth);
+            await invoke("set_user_token", { token: auth.token }).catch(() => {});
+          } catch (err) {
+            // token 无效或网络错误，清除本地登录态，按未登录处理
+            console.warn("本地 token 验证失败，清除登录态:", err);
+            await clearAuth();
+            await invoke("set_user_token", { token: "" }).catch(() => {});
+            signOut();
+          }
         }
       } catch (err) {
         console.error("加载本地登录态失败", err);
@@ -67,6 +89,23 @@ function AuthInitializer({ children }: { children: React.ReactNode }) {
       mounted = false;
     };
   }, [setCredentials, setLoading, setInitialized, signOut]);
+
+  // 监听全局 401 事件：清除登录态并跳转登录页
+  useEffect(() => {
+    const handler = async () => {
+      console.warn("收到 auth-expired 事件，清除登录态并跳转登录页");
+      try {
+        await clearAuth();
+        await invoke("set_user_token", { token: "" }).catch(() => {});
+      } catch (err) {
+        console.error("清除登录态失败", err);
+      }
+      signOut();
+      navigate("/login", { replace: true });
+    };
+    window.addEventListener(AUTH_EXPIRED_EVENT, handler);
+    return () => window.removeEventListener(AUTH_EXPIRED_EVENT, handler);
+  }, [signOut, navigate]);
 
   useEffect(() => {
     if (!initialized || bootstrapping) return;

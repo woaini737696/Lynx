@@ -146,7 +146,7 @@ export function UserAIKeyConfig() {
           <select
             value={preferredProvider}
             onChange={(e) => setPreferredProvider(e.target.value)}
-            className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm focus:border-primary/50 focus:outline-none focus:ring-2 focus:ring-primary/20"
+            className="ios-glass-sm w-full rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20"
           >
             <option value="">（使用全局默认）</option>
             {isProviderAllowed("deepseek") && <option value="deepseek">DeepSeek</option>}
@@ -176,7 +176,7 @@ export function UserAIKeyConfig() {
               value={deepseekKey}
               onChange={(e) => setDeepseekKey(e.target.value)}
               placeholder={hasDeepseek ? "输入新 Key 覆盖（留空保持不变）" : "sk-xxxxxxxxxxxxxxxxxxxx"}
-              className="w-full rounded-lg border border-border bg-background px-3 py-2 pr-10 text-sm focus:border-primary/50 focus:outline-none focus:ring-2 focus:ring-primary/20"
+              className="ios-glass-sm w-full rounded-lg px-3 py-2 pr-10 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20"
               disabled={!isProviderAllowed("deepseek")}
             />
             <button
@@ -211,7 +211,7 @@ export function UserAIKeyConfig() {
               value={mimoKey}
               onChange={(e) => setMimoKey(e.target.value)}
               placeholder={hasMimo ? "输入新 Key 覆盖（留空保持不变）" : "xxxxxxxxxxxxxxxxxxxx"}
-              className="w-full rounded-lg border border-border bg-background px-3 py-2 pr-10 text-sm focus:border-primary/50 focus:outline-none focus:ring-2 focus:ring-primary/20"
+              className="ios-glass-sm w-full rounded-lg px-3 py-2 pr-10 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20"
               disabled={!isProviderAllowed("mimo")}
             />
             <button
@@ -241,7 +241,7 @@ export function UserAIKeyConfig() {
         </div>
 
         {/* 提示 */}
-        <div className="rounded-lg bg-muted/50 p-3 text-[11px] text-muted-foreground">
+        <div className="ios-glass-sm rounded-lg p-3 text-[11px] text-muted-foreground">
           <p className="mb-1 flex items-center gap-1 font-medium text-foreground">
             <CheckCircle2 className="h-3 w-3 text-cognition" />
             使用说明

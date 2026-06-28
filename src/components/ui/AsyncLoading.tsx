@@ -92,7 +92,7 @@ function AsyncLoadingOverlay({ tasks }: { tasks: AsyncTask[] }) {
     >
       <div
         className={cn(
-          "flex flex-col items-center gap-3 rounded-2xl border border-border bg-card/95 px-8 py-6",
+          "glass-card flex flex-col items-center gap-3 rounded-2xl px-8 py-6",
           "shadow-2xl animate-in zoom-in-95"
         )}
       >
@@ -116,7 +116,7 @@ function AsyncLoadingOverlay({ tasks }: { tasks: AsyncTask[] }) {
         )}
 
         {/* 进度条（不确定动画） */}
-        <div className="h-1 w-44 overflow-hidden rounded-full bg-muted">
+        <div className="ios-glass-sm h-1 w-44 overflow-hidden rounded-full">
           <div className="h-full w-1/3 animate-pulse rounded-full bg-cognition" />
         </div>
       </div>

@@ -2,6 +2,12 @@
 @tailwind components;
 @tailwind utilities;
 
+/* 隐藏 WebView2/Edge 自带的密码显示按钮，避免与自定义 Eye 按钮重复 */
+input[type="password"]::-ms-reveal,
+input[type="text"]::-ms-reveal {
+  display: none;
+}
+
 @layer base {
   :root {
     --background: 0 0% 100%;

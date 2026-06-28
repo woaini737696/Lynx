@@ -351,12 +351,12 @@ export default function GraveyardPage() {
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder="按灵感内容、原因、条件搜索..."
-            className="w-full rounded-xl border border-border bg-card py-2 pl-9 pr-3 text-sm outline-none transition-colors placeholder:text-muted-foreground/60 focus:border-primary/40"
+            className="ios-glass-sm w-full rounded-xl border-0 bg-transparent py-2 pl-9 pr-3 text-sm outline-none transition-colors placeholder:text-muted-foreground/60 focus:outline-none focus:ring-2 focus:ring-primary/20"
           />
         </div>
         <div className="flex items-center gap-2">
           <span className="text-[11px] text-muted-foreground">排序</span>
-          <div className="flex rounded-xl border border-border bg-card p-0.5">
+          <div className="ios-glass-sm flex rounded-xl p-0.5">
             <button
               onClick={() => setSortBy("abandonedAt")}
               className={cn(
@@ -385,7 +385,7 @@ export default function GraveyardPage() {
 
       {/* 批量操作工具栏 */}
       {batchMode && (
-        <div className="mb-4 flex flex-wrap items-center gap-3 rounded-xl border border-cognition/30 bg-cognition/5 p-3">
+        <div className="glass-card mb-4 flex flex-wrap items-center gap-3 rounded-xl border border-cognition/30 p-3">
           <button
             onClick={toggleSelectAll}
             className="flex items-center gap-1.5 text-xs text-foreground/80 hover:text-foreground"

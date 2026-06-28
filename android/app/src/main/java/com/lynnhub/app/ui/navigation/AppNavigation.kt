@@ -1,175 +1,216 @@
 package com.lynnhub.app.ui.navigation
 
-import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.navigationBarsPadding
-import androidx.compose.foundation.layout.offset
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.Icon
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Surface
-import androidx.compose.material3.Text
+import androidx.compose.animation.AnimatedContentTransitionScope
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.ui.Alignment
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
-import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
-import androidx.navigation.compose.currentBackStackEntryAsState
-import com.lynnhub.app.ui.screen.board.BoardScreen
-import com.lynnhub.app.ui.screen.chat.ChatScreen
-import com.lynnhub.app.ui.screen.focus.FocusScreen
-import com.lynnhub.app.ui.screen.inbox.InboxScreen
-import com.lynnhub.app.ui.screen.memory.MemoryScreen
+import com.lynnhub.app.ui.screen.home.HomeScreen
+import com.lynnhub.app.ui.screen.panel.AgentPanel
+import com.lynnhub.app.ui.screen.panel.ChatPanel
+import com.lynnhub.app.ui.screen.panel.IdeaPanel
+import com.lynnhub.app.ui.screen.panel.TaskPanel
 import com.lynnhub.app.ui.screen.settings.SettingsScreen
-import com.lynnhub.app.ui.screen.tasks.TasksScreen
-import com.lynnhub.app.ui.theme.Amber500
-import com.lynnhub.app.ui.theme.Orange500
+import com.lynnhub.app.ui.theme.Motion
 
+/**
+ * Lynx v6 导航架构
+ *
+ * 单主页 + 浮层 + 设置面板 + 子页面
+ * - 首页为唯一主页面（startDestination）
+ * - 浮层通过手势触发，使用 navigate 跳转
+ * - 设置面板从右侧滑入
+ * - 子页面从设置面板进入
+ *
+ * 转场动画规范（来自 Lynx_Android_Complete_v6.html）：
+ * - 统一 0.35s + cubic-bezier(0.22,1,0.36,1)
+ * - 灵感速记（上滑进入）：从底部滑入
+ * - 任务视图（下滑进入）：从顶部滑入
+ * - AI 对话（左滑进入）：从右侧滑入
+ * - Agent 远程（右滑进入）：从左侧滑入
+ * - 设置面板/子页面：从右侧滑入
+ * - 通话界面：淡入淡出（0.4s ease 特例）
+ */
 @Composable
 fun AppNavigation(
     navController: NavHostController,
     onLogout: () -> Unit
 ) {
-    Scaffold(
-        containerColor = MaterialTheme.colorScheme.surface,
-        bottomBar = { BottomNavBar(navController) }
-    ) { paddingValues ->
-        NavHost(
-            navController = navController,
-            startDestination = BottomTab.Focus.route,
-            modifier = Modifier.padding(paddingValues)
-        ) {
-            composable(BottomTab.Focus.route) { FocusScreen() }
-            composable(BottomTab.Board.route) { BoardScreen() }
-            composable(BottomTab.Hermes.route) { com.lynnhub.app.ui.screen.hermes.HermesScreen() }
-            composable(BottomTab.Tasks.route) { TasksScreen() }
-            composable(BottomTab.Settings.route) {
-                SettingsScreen(
-                    onLogout = onLogout,
-                    onNavigateToInbox = { navController.navigate("inbox") },
-                    onNavigateToMemory = { navController.navigate("memory") }
-                )
-            }
-            composable("inbox") { InboxScreen(onBack = { navController.popBackStack() }) }
-            composable("memory") { MemoryScreen(onBack = { navController.popBackStack() }) }
-        }
-    }
-}
+    val duration = Motion.DURATION_PAGE_TRANSITION
+    val easing = Motion.EaseExpo
 
-@Composable
-private fun BottomNavBar(navController: NavHostController) {
-    val navBackStackEntry by navController.currentBackStackEntryAsState()
-    val currentRoute = navBackStackEntry?.destination?.route
-
-    Surface(
-        color = MaterialTheme.colorScheme.surface,
-        tonalElevation = 8.dp,
-        shadowElevation = 8.dp
+    NavHost(
+        navController = navController,
+        startDestination = Routes.HOME
     ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .navigationBarsPadding()
-                .padding(horizontal = 8.dp, vertical = 8.dp),
-            horizontalArrangement = Arrangement.SpaceEvenly,
-            verticalAlignment = Alignment.CenterVertically
+        // 主页面
+        composable(Routes.HOME) {
+            HomeScreen(
+                onOpenSettings = { navController.navigate(Routes.SETTINGS) },
+                onSwipeUp = { navController.navigate(Routes.IDEA_PANEL) },
+                onSwipeDown = { navController.navigate(Routes.TASK_PANEL) },
+                onSwipeLeft = { navController.navigate(Routes.CHAT_PANEL) },
+                onSwipeRight = { navController.navigate(Routes.AGENT_PANEL) },
+                onDoubleClick = { navController.navigate(Routes.CALL) }
+            )
+        }
+
+        // 灵感速记（上滑进入 → 从底部滑入，下滑返回）
+        composable(
+            route = Routes.IDEA_PANEL,
+            enterTransition = { slideInVertically(tween(duration, easing = easing)) { it } },
+            exitTransition = { slideOutVertically(tween(duration, easing = easing)) { it } },
+            popEnterTransition = { slideInVertically(tween(duration, easing = easing)) { it } },
+            popExitTransition = { slideOutVertically(tween(duration, easing = easing)) { it } }
         ) {
-            bottomTabs.forEach { tab ->
-                val isSelected = currentRoute == tab.route
-                val isCenter = tab is BottomTab.Hermes
-
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    modifier = Modifier
-                        .weight(1f)
-                        .clip(RoundedCornerShape(12.dp))
-                ) {
-                    if (isCenter) {
-                        Box(
-                            modifier = Modifier
-                                .size(52.dp)
-                                .offset(y = (-8).dp)
-                                .clip(RoundedCornerShape(18.dp))
-                                .background(
-                                    Brush.linearGradient(
-                                        colors = listOf(Amber500, Orange500)
-                                    )
-                                )
-                                .clickable { navigateTo(navController, tab.route) },
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Icon(
-                                imageVector = tab.selectedIcon,
-                                contentDescription = tab.title,
-                                tint = Color.White,
-                                modifier = Modifier.size(26.dp)
-                            )
-                        }
-                        Text(
-                            text = tab.title,
-                            style = MaterialTheme.typography.labelMedium,
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            color = Amber500,
-                            modifier = Modifier.offset(y = (-4).dp)
-                        )
-                    } else {
-                        Column(
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(12.dp))
-                                .clickable { navigateTo(navController, tab.route) }
-                                .padding(vertical = 8.dp, horizontal = 12.dp)
-                        ) {
-                            Icon(
-                                imageVector = if (isSelected) tab.selectedIcon else tab.unselectedIcon,
-                                contentDescription = tab.title,
-                                tint = if (isSelected) Amber500
-                                    else MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.size(24.dp)
-                            )
-                            Spacer(modifier = Modifier.height(4.dp))
-                            Text(
-                                text = tab.title,
-                                style = MaterialTheme.typography.labelMedium,
-                                fontSize = 11.sp,
-                                fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal,
-                                color = if (isSelected) Amber500
-                                    else MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                    }
-                }
-            }
+            IdeaPanel(onBack = { navController.popBackStack() })
         }
-    }
-}
 
-private fun navigateTo(navController: NavHostController, route: String) {
-    navController.navigate(route) {
-        popUpTo(navController.graph.findStartDestination().id) {
-            saveState = true
+        // 任务视图（下滑进入 → 从顶部滑入，上滑返回）
+        composable(
+            route = Routes.TASK_PANEL,
+            enterTransition = { slideInVertically(tween(duration, easing = easing)) { -it } },
+            exitTransition = { slideOutVertically(tween(duration, easing = easing)) { -it } },
+            popEnterTransition = { slideInVertically(tween(duration, easing = easing)) { -it } },
+            popExitTransition = { slideOutVertically(tween(duration, easing = easing)) { -it } }
+        ) {
+            TaskPanel(onBack = { navController.popBackStack() })
         }
-        launchSingleTop = true
-        restoreState = true
+
+        // AI 对话（左滑进入 → 从右侧滑入，右滑返回）
+        composable(
+            route = Routes.CHAT_PANEL,
+            enterTransition = { slideInHorizontally(tween(duration, easing = easing)) { it } },
+            exitTransition = { slideOutHorizontally(tween(duration, easing = easing)) { it } },
+            popEnterTransition = { slideInHorizontally(tween(duration, easing = easing)) { it } },
+            popExitTransition = { slideOutHorizontally(tween(duration, easing = easing)) { it } }
+        ) {
+            ChatPanel(onBack = { navController.popBackStack() })
+        }
+
+        // Agent 远程（右滑进入 → 从左侧滑入，左滑返回）
+        composable(
+            route = Routes.AGENT_PANEL,
+            enterTransition = { slideInHorizontally(tween(duration, easing = easing)) { -it } },
+            exitTransition = { slideOutHorizontally(tween(duration, easing = easing)) { -it } },
+            popEnterTransition = { slideInHorizontally(tween(duration, easing = easing)) { -it } },
+            popExitTransition = { slideOutHorizontally(tween(duration, easing = easing)) { -it } }
+        ) {
+            AgentPanel(onBack = { navController.popBackStack() })
+        }
+
+        // 全双工通话（淡入淡出特例，0.4s ease）
+        composable(
+            route = Routes.CALL,
+            enterTransition = { fadeIn(tween(400)) },
+            exitTransition = { fadeOut(tween(400)) },
+            popEnterTransition = { fadeIn(tween(400)) },
+            popExitTransition = { fadeOut(tween(400)) }
+        ) {
+            com.lynnhub.app.ui.screen.panel.CallScreen(onBack = { navController.popBackStack() })
+        }
+
+        // 设置面板（从右侧滑入）
+        composable(
+            route = Routes.SETTINGS,
+            enterTransition = { slideInHorizontally(tween(duration, easing = easing)) { it } },
+            exitTransition = { slideOutHorizontally(tween(duration, easing = easing)) { it } },
+            popEnterTransition = { slideInHorizontally(tween(duration, easing = easing)) { it } },
+            popExitTransition = { slideOutHorizontally(tween(duration, easing = easing)) { it } }
+        ) {
+            SettingsScreen(
+                onBack = { navController.popBackStack() },
+                onLogout = onLogout,
+                onNavigateToProfile = { navController.navigate(Routes.PROFILE) },
+                onNavigateToAiKey = { navController.navigate(Routes.AI_KEY) },
+                onNavigateToDevices = { navController.navigate(Routes.DEVICES) },
+                onNavigateToMemory = { navController.navigate(Routes.MEMORY) },
+                onNavigateToCognition = { navController.navigate(Routes.COGNITION) },
+                onNavigateToNotification = { navController.navigate(Routes.NOTIFICATION) },
+                onNavigateToUpdate = { navController.navigate(Routes.UPDATE) },
+                onNavigateToAbout = { navController.navigate(Routes.ABOUT) }
+            )
+        }
+
+        // 设置子页面（从右侧滑入）
+        composable(
+            route = Routes.PROFILE,
+            enterTransition = { slideInHorizontally(tween(duration, easing = easing)) { it } },
+            exitTransition = { slideOutHorizontally(tween(duration, easing = easing)) { it } },
+            popEnterTransition = { slideInHorizontally(tween(duration, easing = easing)) { it } },
+            popExitTransition = { slideOutHorizontally(tween(duration, easing = easing)) { it } }
+        ) {
+            com.lynnhub.app.ui.screen.settings.ProfilePage(onBack = { navController.popBackStack() })
+        }
+        composable(
+            route = Routes.AI_KEY,
+            enterTransition = { slideInHorizontally(tween(duration, easing = easing)) { it } },
+            exitTransition = { slideOutHorizontally(tween(duration, easing = easing)) { it } },
+            popEnterTransition = { slideInHorizontally(tween(duration, easing = easing)) { it } },
+            popExitTransition = { slideOutHorizontally(tween(duration, easing = easing)) { it } }
+        ) {
+            com.lynnhub.app.ui.screen.settings.AiKeyPage(onBack = { navController.popBackStack() })
+        }
+        composable(
+            route = Routes.DEVICES,
+            enterTransition = { slideInHorizontally(tween(duration, easing = easing)) { it } },
+            exitTransition = { slideOutHorizontally(tween(duration, easing = easing)) { it } },
+            popEnterTransition = { slideInHorizontally(tween(duration, easing = easing)) { it } },
+            popExitTransition = { slideOutHorizontally(tween(duration, easing = easing)) { it } }
+        ) {
+            com.lynnhub.app.ui.screen.settings.DevicesPage(onBack = { navController.popBackStack() })
+        }
+        composable(
+            route = Routes.MEMORY,
+            enterTransition = { slideInHorizontally(tween(duration, easing = easing)) { it } },
+            exitTransition = { slideOutHorizontally(tween(duration, easing = easing)) { it } },
+            popEnterTransition = { slideInHorizontally(tween(duration, easing = easing)) { it } },
+            popExitTransition = { slideOutHorizontally(tween(duration, easing = easing)) { it } }
+        ) {
+            com.lynnhub.app.ui.screen.settings.MemoryPage(onBack = { navController.popBackStack() })
+        }
+        composable(
+            route = Routes.COGNITION,
+            enterTransition = { slideInHorizontally(tween(duration, easing = easing)) { it } },
+            exitTransition = { slideOutHorizontally(tween(duration, easing = easing)) { it } },
+            popEnterTransition = { slideInHorizontally(tween(duration, easing = easing)) { it } },
+            popExitTransition = { slideOutHorizontally(tween(duration, easing = easing)) { it } }
+        ) {
+            com.lynnhub.app.ui.screen.settings.CognitionPage(onBack = { navController.popBackStack() })
+        }
+        composable(
+            route = Routes.NOTIFICATION,
+            enterTransition = { slideInHorizontally(tween(duration, easing = easing)) { it } },
+            exitTransition = { slideOutHorizontally(tween(duration, easing = easing)) { it } },
+            popEnterTransition = { slideInHorizontally(tween(duration, easing = easing)) { it } },
+            popExitTransition = { slideOutHorizontally(tween(duration, easing = easing)) { it } }
+        ) {
+            com.lynnhub.app.ui.screen.settings.NotificationPage(onBack = { navController.popBackStack() })
+        }
+        composable(
+            route = Routes.UPDATE,
+            enterTransition = { slideInHorizontally(tween(duration, easing = easing)) { it } },
+            exitTransition = { slideOutHorizontally(tween(duration, easing = easing)) { it } },
+            popEnterTransition = { slideInHorizontally(tween(duration, easing = easing)) { it } },
+            popExitTransition = { slideOutHorizontally(tween(duration, easing = easing)) { it } }
+        ) {
+            com.lynnhub.app.ui.screen.settings.UpdatePage(onBack = { navController.popBackStack() })
+        }
+        composable(
+            route = Routes.ABOUT,
+            enterTransition = { slideInHorizontally(tween(duration, easing = easing)) { it } },
+            exitTransition = { slideOutHorizontally(tween(duration, easing = easing)) { it } },
+            popEnterTransition = { slideInHorizontally(tween(duration, easing = easing)) { it } },
+            popExitTransition = { slideOutHorizontally(tween(duration, easing = easing)) { it } }
+        ) {
+            com.lynnhub.app.ui.screen.settings.AboutPage(onBack = { navController.popBackStack() })
+        }
     }
 }

@@ -4,24 +4,12 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.ime
-import androidx.compose.foundation.layout.navigationBars
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.union
-import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.ui.Alignment
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.unit.dp
-import androidx.lifecycle.lifecycleScope
 import androidx.navigation.compose.rememberNavController
+import androidx.lifecycle.lifecycleScope
 import com.lynnhub.app.data.local.UserPreferences
 import com.lynnhub.app.data.remote.interceptor.DynamicBaseUrlInterceptor
-import com.lynnhub.app.ui.component.CaptureBar
 import com.lynnhub.app.ui.navigation.AppNavigation
 import com.lynnhub.app.ui.screen.login.LoginScreen
 import com.lynnhub.app.ui.theme.LynnHubTheme
@@ -49,34 +37,22 @@ class MainActivity : ComponentActivity() {
         }
 
         setContent {
-            val themeMode by userPreferences.themeFlow.collectAsState(
-                initial = com.lynnhub.app.util.Constants.THEME_SYSTEM
-            )
+            // v6 固定深色主题，themeMode 参数已弃用但保留签名兼容
             val token by userPreferences.tokenFlow.collectAsState(initial = null)
 
-            LynnHubTheme(themeMode = themeMode) {
+            LynnHubTheme(themeMode = com.lynnhub.app.util.Constants.THEME_DARK) {
                 val isLoggedIn = token != null
 
                 if (isLoggedIn) {
                     val navController = rememberNavController()
-                    Box(modifier = Modifier.fillMaxSize()) {
-                        AppNavigation(
-                            navController = navController,
-                            onLogout = {
-                                lifecycleScope.launch {
-                                    userPreferences.clearAuth()
-                                }
+                    AppNavigation(
+                        navController = navController,
+                        onLogout = {
+                            lifecycleScope.launch {
+                                userPreferences.clearAuth()
                             }
-                        )
-                        CaptureBar(
-                            modifier = Modifier
-                                .align(Alignment.BottomCenter)
-                                .windowInsetsPadding(
-                                    WindowInsets.navigationBars.union(WindowInsets.ime)
-                                )
-                                .padding(start = 16.dp, end = 16.dp, bottom = 72.dp)
-                        )
-                    }
+                        }
+                    )
                 } else {
                     LoginScreen(
                         onLoginSuccess = {

@@ -431,7 +431,7 @@ export function Sidebar() {
         <div className="flex h-14 items-center justify-end border-b border-border/60 px-1 lg:hidden">
           <button
             onClick={() => setMobileOpen(false)}
-            className="flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+            className="flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-primary/10 hover:text-primary"
             aria-label="关闭菜单"
           >
             <X className="h-4 w-4" />
@@ -454,7 +454,7 @@ export function Sidebar() {
                     "group flex w-full items-center gap-2.5 rounded-xl px-2.5 py-2.5 text-sm font-semibold transition-all",
                     isGroupActive
                       ? "glass-active"
-                      : "nav-item text-foreground/80 hover:bg-muted/70 hover:text-foreground"
+                      : "nav-item text-foreground/80 hover:bg-primary/10 hover:text-foreground"
                   )}
                 >
                   <GroupIcon
@@ -494,7 +494,7 @@ export function Sidebar() {
         </nav>
 
         {/* 底部：用户头像昵称 */}
-        <div className="border-t border-border/60 py-3">
+        <div className="py-3">
           <SidebarUserProfile />
         </div>
       </aside>
@@ -524,7 +524,7 @@ function NavLinkOrButton({
         {item.label}
       </span>
       {item.disabled && (
-        <span className="ml-auto rounded bg-muted px-1.5 py-0 text-[10px] text-muted-foreground">待上线</span>
+        <span className="ios-glass-sm ml-auto rounded px-1.5 py-0 text-[10px] text-muted-foreground">待上线</span>
       )}
     </>
   );
@@ -532,7 +532,7 @@ function NavLinkOrButton({
   const className = cn(
     "group relative flex w-full items-center rounded-xl px-3 py-2 transition-all",
     isActive
-      ? "glass-active font-medium text-primary before:absolute before:left-[6px] before:top-1/2 before:h-4 before:w-0.5 before:-translate-y-1/2 before:rounded-full before:bg-primary"
+      ? "glass-active font-medium text-primary"
       : "nav-item text-muted-foreground hover:text-foreground",
     item.disabled && "cursor-not-allowed opacity-70 hover:bg-transparent"
   );

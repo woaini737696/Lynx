@@ -91,10 +91,10 @@ export function LarkTaskCard({
   return (
     <div
       className={cn(
-        "mt-2 max-w-[85%] overflow-hidden rounded-xl border bg-card",
+        "mt-2 max-w-[85%] overflow-hidden rounded-xl border glass-card",
         status === "done"
-          ? "border-task/40 bg-task/5"
-          : "border-primary/50 bg-primary/5"
+          ? "border-task/40"
+          : "border-primary/50"
       )}
     >
       {/* 卡片头部 */}
@@ -172,7 +172,7 @@ export function LarkTaskCard({
             href={taskUrl}
             target="_blank"
             rel="noopener noreferrer"
-            className="mt-3 inline-flex w-full items-center justify-center gap-1.5 rounded-lg border border-border bg-background px-3 py-1.5 text-xs font-medium text-foreground transition-colors hover:bg-muted focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            className="ios-glass-sm mt-3 inline-flex w-full items-center justify-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium text-foreground transition-colors hover:border-primary/30 hover:text-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           >
             <ExternalLink className="h-3.5 w-3.5" />
             查看飞书任务
@@ -187,7 +187,7 @@ export function LarkTaskCard({
             <button
               type="button"
               onClick={handleSubmit}
-              className="inline-flex w-full items-center justify-center gap-1.5 rounded-lg border border-border bg-background px-3 py-1.5 text-xs font-medium text-foreground transition-colors hover:bg-muted"
+              className="ios-glass-sm inline-flex w-full items-center justify-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium text-foreground transition-colors hover:border-primary/30 hover:text-primary"
             >
               重试下发
             </button>
