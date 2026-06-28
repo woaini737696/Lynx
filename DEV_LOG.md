@@ -107,7 +107,7 @@
 - cargo build --release：0 错误（8 个历史 warning）
 
 ### Commit
-- `迭代 52 修复：重绘 iOS 液态玻璃安装背景，NSIS 控件极简叠加`
+- `1a0a2faf` 迭代 52 修复：重绘 iOS 液态玻璃安装背景，NSIS 控件极简叠加
 
 ---
 
