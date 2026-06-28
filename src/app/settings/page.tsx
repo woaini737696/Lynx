@@ -67,9 +67,8 @@ export default function SettingsPage() {
         const data = await res.json();
         setSettings(data);
         setLoading(false);
-      } catch (e: any) {
+      } catch {
         if (!mounted) return;
-        console.error("Settings load failed:", e);
         toast("加载设置失败", "error");
         setLoading(false);
       }

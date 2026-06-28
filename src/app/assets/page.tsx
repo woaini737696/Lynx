@@ -124,9 +124,8 @@ export default function AssetsPage() {
           const data = await res.json();
           setConversations(data.conversations || []);
         }
-      } catch (e) {
+      } catch {
         if (!mounted) return;
-        console.error(e);
         toast("加载对话资产失败", "error");
       } finally {
         if (mounted) setLoading(false);

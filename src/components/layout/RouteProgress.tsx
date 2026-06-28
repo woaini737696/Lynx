@@ -15,7 +15,6 @@ export function RouteProgress() {
   const [visible, setVisible] = useState(false);
   const [progress, setProgress] = useState(0);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
-  const rafRef = useRef<number | null>(null);
 
   useEffect(() => {
     // 立即显示并开始增长
@@ -23,7 +22,6 @@ export function RouteProgress() {
     setProgress(30);
 
     if (timerRef.current) clearTimeout(timerRef.current);
-    if (rafRef.current) cancelAnimationFrame(rafRef.current);
 
     // 100ms 内拉到 60%，模拟快速加载
     const step1 = setTimeout(() => setProgress(60), 80);
@@ -41,7 +39,6 @@ export function RouteProgress() {
     return () => {
       clearTimeout(step1);
       if (timerRef.current) clearTimeout(timerRef.current);
-      if (rafRef.current) cancelAnimationFrame(rafRef.current);
     };
   }, [pathname, searchParams]);
 

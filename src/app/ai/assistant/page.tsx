@@ -955,6 +955,7 @@ export default function AIAssistantPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [settingsOpen]);
 
+  const stopVoiceCallRef = useRef<() => void>(() => {});
   useEffect(() => {
     return () => {
       if (audioRef.current) {
@@ -964,7 +965,7 @@ export default function AIAssistantPage() {
       if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
         mediaRecorderRef.current.stop();
       }
-      stopVoiceCall();
+      stopVoiceCallRef.current();
       abortRef.current?.abort();
     };
   }, []);
@@ -1032,6 +1033,9 @@ export default function AIAssistantPage() {
     return merged.length > 0 ? merged : [text];
   };
 
+  // 避免 speak 与 speakFallback 互相依赖导致 hook 依赖数组循环
+  const speakFallbackRef = useRef(async (_text: string, _msgId?: string) => {});
+
   /** 流式 TTS：通过 SSE 逐句接收音频，边接收边播放，首包延迟 < 300ms */
   const speak = useCallback(async (text: string, msgId?: string) => {
     stopSpeaking();
@@ -1051,7 +1055,7 @@ export default function AIAssistantPage() {
       if (!res.ok || !res.body) {
         // 流式 API 失败时回退到非流式
         setTtsLoadingId(null);
-        await speakFallback(text, msgId);
+        await speakFallbackRef.current(text, msgId);
         return;
       }
 
@@ -1153,7 +1157,7 @@ export default function AIAssistantPage() {
     } catch (e) {
       setTtsLoadingId(null);
       // 网络错误时回退到非流式
-      await speakFallback(text, msgId);
+      await speakFallbackRef.current(text, msgId);
     }
   }, [stopSpeaking]);
 
@@ -1228,6 +1232,7 @@ export default function AIAssistantPage() {
     };
     playQueue();
   }, []);
+  speakFallbackRef.current = speakFallback;
 
   const send = async (text?: string) => {
     const content = (text || input).trim();
@@ -2004,6 +2009,7 @@ export default function AIAssistantPage() {
     voiceSendLockRef.current = false;
     stopSpeaking();
   };
+  stopVoiceCallRef.current = stopVoiceCall;
 
   // 组件卸载时清理全双工资源，避免麦克风/音频上下文泄漏
   useEffect(() => {
@@ -2396,7 +2402,12 @@ export default function AIAssistantPage() {
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <div className="flex h-8 w-8 items-center justify-center overflow-hidden rounded-xl bg-primary text-primary-foreground shadow-sm">
-              {settings.avatarUrl ? <img src={settings.avatarUrl} alt="avatar" className="h-full w-full object-cover" /> : <span className="text-base leading-none">{settings.assistantAvatar}</span>}
+              {settings.avatarUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={settings.avatarUrl} alt="avatar" className="h-full w-full object-cover" />
+              ) : (
+                <span className="text-base leading-none">{settings.assistantAvatar}</span>
+              )}
             </div>
             <div>
               <h1 className="text-sm font-semibold">AI 专属助理 {settings.assistantName !== "Lynn" && <span className="text-cognition">· {settings.assistantName}</span>}</h1>
@@ -2535,7 +2546,10 @@ export default function AIAssistantPage() {
                   : "bg-northstar"
               )}>
                 {msg.role === "assistant"
-                  ? msg.error ? <AlertCircle className="h-4 w-4" /> : (settings.avatarUrl ? <img src={settings.avatarUrl} alt="avatar" className="h-full w-full object-cover" /> : <span className="text-base leading-none">{settings.assistantAvatar}</span>)
+                  ? msg.error ? <AlertCircle className="h-4 w-4" /> : (settings.avatarUrl ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={settings.avatarUrl} alt="avatar" className="h-full w-full object-cover" />
+                  ) : <span className="text-base leading-none">{settings.assistantAvatar}</span>)
                   : <UserCircle className="h-4 w-4" />}
               </div>
 
@@ -2555,6 +2569,7 @@ export default function AIAssistantPage() {
                       {msg.images && msg.images.length > 0 && (
                         <div className="flex flex-wrap gap-2">
                           {msg.images.map((img, i) => (
+                            // eslint-disable-next-line @next/next/no-img-element
                             <img key={i} src={img} alt={`图片 ${i + 1}`} className="max-h-32 rounded-lg border border-primary-foreground/20 object-cover" />
                           ))}
                         </div>
@@ -2807,7 +2822,12 @@ export default function AIAssistantPage() {
           {thinking && messages[messages.length - 1]?.streaming && messages[messages.length - 1]?.content === "" && (
             <div className="flex gap-3">
               <div className="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-primary text-primary-foreground shadow-sm">
-                {settings.avatarUrl ? <img src={settings.avatarUrl} alt="avatar" className="h-full w-full object-cover" /> : <span className="text-base leading-none">{settings.assistantAvatar}</span>}
+                {settings.avatarUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={settings.avatarUrl} alt="avatar" className="h-full w-full object-cover" />
+                ) : (
+                  <span className="text-base leading-none">{settings.assistantAvatar}</span>
+                )}
               </div>
               <div className="flex items-center gap-1 rounded-2xl border border-border bg-card px-4 py-3">
                 <span className="h-2 w-2 animate-bounce rounded-full bg-muted-foreground/60 [animation-delay:-0.3s]" />
@@ -2874,6 +2894,7 @@ export default function AIAssistantPage() {
             <div className="mb-2 flex flex-wrap gap-2">
               {attachedImages.map((img, i) => (
                 <div key={i} className="relative">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img src={img} alt={`附件 ${i + 1}`} className="h-16 w-16 rounded-lg border border-border object-cover" />
                   <button onClick={() => removeImage(i)} className="absolute -right-1 -top-1 rounded-full bg-destructive p-0.5 text-destructive-foreground shadow-sm" title="移除图片">
                     <X className="h-3 w-3" />
@@ -3087,6 +3108,7 @@ export default function AIAssistantPage() {
                 {settings.avatarUrl && (
                   <div className="mt-2 flex items-center gap-2">
                     <div className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-xl bg-primary text-primary-foreground">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
                       <img src={settings.avatarUrl} alt="preview" className="h-full w-full object-cover" />
                     </div>
                     <button

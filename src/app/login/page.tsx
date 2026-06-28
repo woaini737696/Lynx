@@ -2,6 +2,7 @@
 
 import { useState, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import Image from "next/image";
 import { Loader2, Lock, User, AlertCircle } from "lucide-react";
 
 function LoginForm() {
@@ -58,9 +59,11 @@ function LoginForm() {
     <div className="w-full max-w-sm">
       {/* Logo 和标题 */}
       <div className="mb-8 flex flex-col items-center gap-3">
-        <img
+        <Image
           src="/lynx-logo-black.png"
           alt="Lynx"
+          width={64}
+          height={64}
           className="h-16 w-16 rounded-2xl shadow-lg"
         />
         <div className="text-center">
@@ -74,7 +77,7 @@ function LoginForm() {
       </div>
 
       {/* 登录卡片 */}
-      <div className="rounded-2xl border border-border bg-card p-6 shadow-soft sm:p-8">
+      <div className="glass-card rounded-2xl p-6 sm:p-8">
         {expired && (
           <div className="mb-4 flex items-center gap-2 rounded-xl border border-primary/30 bg-primary/5 px-3 py-2 text-xs text-primary">
             <AlertCircle className="h-3.5 w-3.5 shrink-0" />

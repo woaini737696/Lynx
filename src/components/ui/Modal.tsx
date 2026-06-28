@@ -90,7 +90,7 @@ export function Modal({ open, onClose, title, children, size = "md", className }
       <div
         ref={modalRef}
         className={cn(
-          "w-full max-h-[90vh] overflow-y-auto rounded-xl bg-card p-5 shadow-2xl",
+          "w-full max-h-[90vh] overflow-y-auto rounded-2xl glass-card p-5 shadow-2xl",
           sizeMap[size],
           className
         )}

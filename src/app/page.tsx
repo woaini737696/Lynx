@@ -51,9 +51,8 @@ export default function FocusPage() {
           );
           setAllDone(focus?.status === "completed");
         }
-      } catch (e) {
+      } catch {
         if (!mounted) return;
-        console.error(e);
         toast("加载今日聚焦失败", "error");
       } finally {
         if (mounted) setLoading(false);

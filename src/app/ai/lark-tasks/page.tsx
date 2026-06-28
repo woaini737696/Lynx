@@ -685,10 +685,11 @@ export default function LarkTasksPage() {
     fetchWebhookStatus();
   }, [fetchMeta, fetchWebhookStatus]);
 
-  // 自动同步：每 5 分钟触发一次
+  // 自动同步：每 5 分钟触发一次（使用 ref 避免依赖变化的 handleSync 导致定时器重置）
+  const handleSyncRef = useRef<(silent?: boolean) => Promise<void>>(async () => {});
   useEffect(() => {
     const timer = setInterval(() => {
-      handleSync(true);
+      handleSyncRef.current(true);
     }, 5 * 60 * 1000);
     return () => clearInterval(timer);
   }, []);
@@ -778,6 +779,7 @@ export default function LarkTasksPage() {
       setSyncing(false);
     }
   };
+  handleSyncRef.current = handleSync;
 
   const handleComplete = async (guid: string) => {
     const key = `complete-${guid}`;

@@ -34,7 +34,6 @@ interface MenuState {
   items: ContextMenuItem[];
 }
 
-let menuState: MenuState | null = null;
 let setMenuStateFn: ((s: MenuState | null) => void) | null = null;
 
 /** 打开右键菜单（供列表项调用） */
