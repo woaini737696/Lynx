@@ -2,7 +2,8 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { LogOut, Loader2, Settings2 } from "lucide-react";
+import { LogOut, Loader2, Settings2, ChevronRight } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 export function UserProfileFloat() {
   const router = useRouter();
@@ -10,7 +11,7 @@ export function UserProfileFloat() {
   const [loading, setLoading] = useState(true);
   const [menuOpen, setMenuOpen] = useState(false);
   const [signingOut, setSigningOut] = useState(false);
-  const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     fetch("/api/auth/session")
@@ -20,6 +21,17 @@ export function UserProfileFloat() {
       })
       .catch(() => {})
       .finally(() => setLoading(false));
+  }, []);
+
+  // 点击外部收起菜单
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setMenuOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
   const handleSignOut = async () => {
@@ -56,29 +68,15 @@ export function UserProfileFloat() {
   const initial = displayName.charAt(0).toUpperCase();
   const hasAvatar = !!user.avatarUrl;
 
-  const openMenu = () => {
-    if (closeTimerRef.current) {
-      clearTimeout(closeTimerRef.current);
-      closeTimerRef.current = null;
-    }
-    setMenuOpen(true);
-  };
-
-  const closeMenu = () => {
-    closeTimerRef.current = setTimeout(() => {
-      setMenuOpen(false);
-    }, 180);
-  };
-
   return (
     <div
+      ref={containerRef}
       className="fixed bottom-5 left-5 z-50 hidden lg:block pb-2"
-      onMouseEnter={openMenu}
-      onMouseLeave={closeMenu}
     >
       <button
         type="button"
-        className="glass-user group flex w-auto min-w-[140px] max-w-[200px] items-center gap-3 rounded-2xl px-3 py-2.5 transition-all"
+        onClick={() => setMenuOpen((v) => !v)}
+        className="glass-user group flex w-auto min-w-[160px] max-w-[200px] items-center gap-3 rounded-2xl px-3 py-2.5 text-left transition-all"
         aria-label="用户菜单"
         aria-expanded={menuOpen}
       >
@@ -89,21 +87,27 @@ export function UserProfileFloat() {
             className="h-9 w-9 rounded-full object-cover ring-2 ring-border/60 transition-all group-hover:ring-primary/40"
           />
         ) : (
-          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary text-xs font-bold text-primary-foreground ring-2 ring-border/60 transition-all group-hover:ring-primary/40">
+          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-primary to-accent text-xs font-bold text-white shadow-lg shadow-primary/20">
             {initial}
           </span>
         )}
-        <span className="flex-1 truncate text-left text-sm font-medium text-foreground">
-          {displayName}
-        </span>
+        <div className="min-w-0 flex-1">
+          <div className="truncate text-sm font-semibold text-foreground">{displayName}</div>
+          <div className="truncate text-[11px] text-muted-foreground">Lynx Web 端</div>
+        </div>
+        <ChevronRight
+          className={cn(
+            "h-4 w-4 shrink-0 text-muted-foreground transition-transform duration-300",
+            menuOpen && "rotate-[-90deg]"
+          )}
+        />
       </button>
 
-      {/* 悬浮菜单 */}
       {menuOpen && (
-        <div className="absolute bottom-full left-0 right-0 z-50 mb-2 overflow-hidden rounded-2xl border border-border/60 bg-popover/95 shadow-2xl backdrop-blur-xl">
+        <div className="user-menu absolute bottom-full left-0 right-0 z-50 mb-2 overflow-hidden rounded-2xl p-1.5">
           <button
             onClick={() => { setMenuOpen(false); router.push("/settings/profile"); }}
-            className="flex w-full items-center gap-2.5 px-3 py-2.5 text-sm text-foreground transition-colors hover:bg-primary/10 hover:text-primary"
+            className="flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-sm text-foreground transition-colors hover:bg-primary/10 hover:text-primary"
           >
             <Settings2 className="h-4 w-4 text-muted-foreground" />
             个人资料设置
@@ -112,13 +116,9 @@ export function UserProfileFloat() {
           <button
             onClick={handleSignOut}
             disabled={signingOut}
-            className="flex w-full items-center gap-2.5 px-3 py-2.5 text-sm text-graveyard transition-colors hover:bg-graveyard/10 disabled:opacity-50"
+            className="flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-sm text-graveyard transition-colors hover:bg-graveyard/10 disabled:opacity-50"
           >
-            {signingOut ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : (
-              <LogOut className="h-4 w-4" />
-            )}
+            {signingOut ? <Loader2 className="h-4 w-4 animate-spin" /> : <LogOut className="h-4 w-4" />}
             退出登录
           </button>
         </div>

@@ -7,19 +7,19 @@ export interface AssistantFloatingButtonProps {
   open?: boolean;
   /** 点击按钮回调，由父组件管理开合状态 */
   onToggle?: () => void;
+  /** 未读消息数（左上角红点） */
+  unreadCount?: number;
 }
 
 /**
  * Lynx AI 超级助理全局悬浮入口按钮
  * - 固定右下角，iOS 液态玻璃质感
- * - 显示 Sparkles AI 助理图标，尺寸放大 150%
+ * - 显示 Sparkles AI 助理图标
  * - hover 时展示 "Alt+J" 快捷键提示
  * - 点击调用 onToggle
- *
- * 注意：Alt+J 全局快捷键由父组件 AssistantGlobalEntry 统一监听，
- * 这里不再重复监听，避免与父组件双重触发导致状态回弹。
+ * - 未读数字红点融合在左上角
  */
-export function AssistantFloatingButton({ open, onToggle }: AssistantFloatingButtonProps) {
+export function AssistantFloatingButton({ open, onToggle, unreadCount = 0 }: AssistantFloatingButtonProps) {
   return (
     <div className="group fixed bottom-8 right-8 z-40 flex flex-col items-end gap-3">
       {/* 快捷键提示标签：hover 时显示 */}
@@ -35,10 +35,15 @@ export function AssistantFloatingButton({ open, onToggle }: AssistantFloatingBut
         onClick={onToggle}
         aria-label={open ? "收起 Lynx AI 超级助理" : "打开 Lynx AI 超级助理"}
         aria-pressed={open}
-        className="glass-fab flex h-[84px] w-[84px] items-center justify-center rounded-full text-primary-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+        className="glass-fab relative flex h-14 w-14 items-center justify-center rounded-full text-primary-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
       >
-        {/* AI 助理 Sparkles 图标 */}
-        <Sparkles className="h-8 w-8" strokeWidth={2} />
+        <Sparkles className="h-7 w-7" strokeWidth={2} />
+
+        {unreadCount > 0 && (
+          <span className="absolute -left-1.5 -top-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-[10px] font-bold text-white shadow-sm ring-2 ring-background">
+            {unreadCount > 9 ? "9+" : unreadCount}
+          </span>
+        )}
       </button>
     </div>
   );

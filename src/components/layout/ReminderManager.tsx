@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useState, useCallback, useRef } from "react";
-import { Bell, Settings, X, Check, Trash2 } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
+import { Zap, X, Trash2 } from "lucide-react";
 import { toast } from "@/components/ui/toast";
 import { cn } from "@/lib/utils";
 import {
@@ -18,15 +19,52 @@ import {
   DEFAULT_RULES,
 } from "@/lib/reminder-scheduler";
 
+type NoticeItem = {
+  id: string;
+  title: string;
+  source: string;
+  time: string;
+  type: "revive" | "reminder";
+  detailId?: string;
+};
+
 // 全局挂载：在 layout.tsx 中使用，管理定时检查 + 通知
 export function ReminderManager() {
+  const router = useRouter();
   const [rules, setRules] = useState<ReminderRule[]>(DEFAULT_RULES);
   const [history, setHistory] = useState<ReminderHistoryItem[]>([]);
-  const [showPanel, setShowPanel] = useState(false);
-  const [showSettings, setShowSettings] = useState(false);
-  const [notificationPermission, setNotificationPermission] = useState<NotificationPermission>("default");
   const [reviveSuggestions, setReviveSuggestions] = useState<ReviveSuggestion[]>([]);
+  const [mode, setMode] = useState<"icon" | "hint" | "list">("icon");
+  const [entering, setEntering] = useState(false);
   const checkIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const prevCountRef = useRef(0);
+
+  const notifications: NoticeItem[] = useMemo(() => {
+    const items: NoticeItem[] = [];
+
+    reviveSuggestions.forEach((s) => {
+      items.push({
+        id: `revive-${s.graveyardId}`,
+        title: s.originalContent.length > 40 ? s.originalContent.slice(0, 40) + "…" : s.originalContent,
+        source: "AI 复活建议",
+        time: "刚刚",
+        type: "revive",
+        detailId: s.graveyardId,
+      });
+    });
+
+    history.slice(0, 20).forEach((h) => {
+      items.push({
+        id: h.id,
+        title: h.message,
+        source: h.ruleLabel,
+        time: formatTime(h.triggeredAt),
+        type: "reminder",
+      });
+    });
+
+    return items;
+  }, [history, reviveSuggestions]);
 
   // 初始化
   useEffect(() => {
@@ -35,17 +73,31 @@ export function ReminderManager() {
     const loadedHistory = loadReminderHistory();
     setHistory(loadedHistory);
 
-    // 检查浏览器通知权限
     if (typeof window !== "undefined" && "Notification" in window) {
-      setNotificationPermission(Notification.permission);
+      if (Notification.permission === "default") {
+        requestNotificationPermission();
+      }
     }
 
-    // 提取最近的复活建议
     const latestRevive = loadedHistory.find((h) => h.ruleId === "revive-check" && h.details?.length);
     if (latestRevive?.details) {
       setReviveSuggestions(latestRevive.details);
     }
   }, []);
+
+  // 新通知自动弹出提示（icon -> hint）
+  useEffect(() => {
+    const count = notifications.length;
+    if (count > 0 && prevCountRef.current === 0 && mode === "icon") {
+      const t = setTimeout(() => {
+        setMode("hint");
+        setEntering(true);
+        setTimeout(() => setEntering(false), 450);
+      }, 1200);
+      return () => clearTimeout(t);
+    }
+    prevCountRef.current = count;
+  }, [notifications.length, mode]);
 
   // 定时检查（每分钟）
   useEffect(() => {
@@ -71,11 +123,9 @@ export function ReminderManager() {
           };
           newHistory.push(item);
 
-          // 双通道通知
           toast(result.message, "info");
           sendNotification("Lynx 灵感助理", result.message);
 
-          // 如果是复活建议，更新状态
           if (result.ruleId === "revive-check" && result.details) {
             setReviveSuggestions(result.details);
           }
@@ -89,9 +139,7 @@ export function ReminderManager() {
       }
     };
 
-    // 启动时立即检查一次
     check();
-    // 每分钟检查
     checkIntervalRef.current = setInterval(check, 60_000);
 
     return () => {
@@ -101,209 +149,152 @@ export function ReminderManager() {
     };
   }, []);
 
-  // 请求通知权限
-  const handleRequestPermission = useCallback(async () => {
-    const permission = await requestNotificationPermission();
-    setNotificationPermission(permission);
-    if (permission === "granted") {
-      toast("已开启浏览器通知", "success");
+  const expandToList = () => {
+    setMode("list");
+    setEntering(false);
+  };
+
+  const collapseToIcon = () => {
+    setMode("icon");
+    setEntering(false);
+  };
+
+  const clearNotification = (id: string) => {
+    const item = notifications.find((n) => n.id === id);
+    if (!item) return;
+
+    if (item.type === "revive" && item.detailId) {
+      setReviveSuggestions((prev) => prev.filter((s) => s.graveyardId !== item.detailId));
     } else {
-      toast("浏览器通知权限被拒绝", "error");
+      setHistory((prev) => prev.filter((h) => h.id !== id));
+      saveReminderHistory(history.filter((h) => h.id !== id));
     }
-  }, []);
+  };
 
-  // 切换规则启用状态
-  const toggleRule = useCallback((ruleId: string) => {
-    setRules((prev) => {
-      const updated = prev.map((r) =>
-        r.id === ruleId ? { ...r, enabled: !r.enabled } : r
-      );
-      saveReminderRules(updated);
-      return updated;
-    });
-  }, []);
-
-  // 清空历史
-  const clearHistory = useCallback(() => {
-    saveReminderHistory([]);
-    setHistory([]);
+  const clearAll = () => {
     setReviveSuggestions([]);
-    toast("已清空提醒历史", "info");
-  }, []);
+    setHistory([]);
+    saveReminderHistory([]);
+  };
 
-  // 忽略复活建议
-  const dismissReviveSuggestion = useCallback((id: string) => {
-    setReviveSuggestions((prev) => prev.filter((s) => s.graveyardId !== id));
-  }, []);
+  const processNotification = (id: string) => {
+    const item = notifications.find((n) => n.id === id);
+    if (!item) return;
+
+    clearNotification(id);
+
+    if (item.type === "revive") {
+      router.push("/graveyard");
+    } else {
+      toast("已处理该提醒", "success");
+    }
+  };
+
+  const count = notifications.length;
 
   return (
     <>
-      {/* 浮动提醒图标：右下角悬浮按钮上方 */}
-      <button
-        onClick={() => setShowPanel(true)}
-        className="fixed bottom-[118px] right-8 z-50 flex h-10 w-10 items-center justify-center rounded-full glass-card shadow-lg transition-all hover:shadow-xl hover:-translate-y-0.5"
-        aria-label="灵感助理提醒"
-      >
-        <Bell className={cn("h-4.5 w-4.5", reviveSuggestions.length > 0 ? "text-cognition animate-pulse" : "text-muted-foreground")} />
-        {(history.length > 0 || reviveSuggestions.length > 0) && (
-          <span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-cognition text-[9px] text-white">
-            {reviveSuggestions.length || history.length}
-          </span>
+      {/* 灵感通知 — 三态：图标 / 提示 / 列表 */}
+      <div
+        onClick={(e) => {
+          // 点击非按钮区域展开列表
+          if (mode !== "list" && !(e.target as HTMLElement).closest("button")) {
+            expandToList();
+          }
+        }}
+        className={cn(
+          "idea-toast ios-glass fixed bottom-24 right-8 z-50 flex items-center justify-center",
+          mode === "icon" && "collapsed",
+          mode === "hint" && "hint",
+          mode === "list" && "list",
+          entering && "entering"
         )}
-      </button>
+      >
+        {/* 图标态 */}
+        <div className="toast-icon-only relative flex h-8 w-8 items-center justify-center rounded-full bg-primary/10 text-primary">
+          <Zap className="h-4 w-4" />
+          {count > 0 && (
+            <span className="absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[9px] font-bold text-white shadow-sm">
+              {count}
+            </span>
+          )}
+        </div>
 
-      {/* 提醒面板 */}
-      {showPanel && (
-        <div
-          className="fixed inset-0 z-[90] flex items-end justify-end p-4 bg-black/30 backdrop-blur-sm"
-          onClick={() => setShowPanel(false)}
-        >
-          <div
-            className="w-full max-w-sm rounded-2xl border border-border bg-card shadow-2xl"
-            onClick={(e) => e.stopPropagation()}
-          >
-            {/* 头部 */}
-            <div className="flex items-center justify-between border-b border-border px-4 py-3">
-              <div className="flex items-center gap-2">
-                <Bell className="h-4 w-4 text-cognition" />
-                <span className="text-sm font-semibold">灵感助理</span>
+        {/* 提示态 / 列表态 */}
+        <div className="toast-content hidden w-full flex-col gap-2">
+          <div className="flex items-start gap-3">
+            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
+              <Zap className="h-4 w-4" />
+            </div>
+            <div className="min-w-0 flex-1">
+              <div className="text-xs font-semibold text-foreground">
+                新灵感 <span>{count}</span> 条
               </div>
-              <div className="flex items-center gap-1">
-                <button
-                  onClick={() => setShowSettings(!showSettings)}
-                  className="rounded-lg p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground"
-                  aria-label="设置"
-                >
-                  <Settings className="h-3.5 w-3.5" />
-                </button>
-                <button
-                  onClick={() => setShowPanel(false)}
-                  className="rounded-lg p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground"
-                  aria-label="关闭"
-                >
-                  <X className="h-3.5 w-3.5" />
-                </button>
+              <div className="mt-0.5 text-[11px] text-muted-foreground">
+                {count > 0 ? "来自飞书机器人 / Kimi" : "暂无新通知"}
               </div>
             </div>
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                collapseToIcon();
+              }}
+              className="text-muted-foreground transition-colors hover:text-foreground"
+              aria-label="收起"
+            >
+              <X className="h-3.5 w-3.5" />
+            </button>
+          </div>
 
-            {/* 设置区域 */}
-            {showSettings && (
-              <div className="border-b border-border px-4 py-3">
-                <div className="mb-3 text-xs font-medium text-muted-foreground">提醒规则</div>
-                {rules.map((rule) => (
-                  <div key={rule.id} className="mb-2 flex items-center justify-between">
-                    <div>
-                      <div className="text-xs font-medium">{rule.label}</div>
-                      <div className="text-[10px] text-muted-foreground">
-                        {rule.description} · {rule.time}
-                      </div>
-                    </div>
-                    <button
-                      onClick={() => toggleRule(rule.id)}
-                      className={cn(
-                        "relative h-5 w-9 rounded-full transition-colors",
-                        rule.enabled ? "bg-cognition" : "bg-muted"
-                      )}
-                    >
-                      <span
-                        className={cn(
-                          "absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition-transform",
-                          rule.enabled ? "left-[18px]" : "left-0.5"
-                        )}
-                      />
-                    </button>
-                  </div>
-                ))}
-
-                {/* 浏览器通知权限 */}
-                <div className="mt-3 border-t border-border pt-3">
-                  <div className="mb-2 text-xs font-medium text-muted-foreground">浏览器通知</div>
-                  {notificationPermission === "granted" ? (
-                    <div className="flex items-center gap-1.5 text-xs text-task">
-                      <Check className="h-3 w-3" /> 已开启
-                    </div>
-                  ) : (
-                    <button
-                      onClick={handleRequestPermission}
-                      className="rounded-lg border border-border px-3 py-1.5 text-xs text-muted-foreground hover:bg-muted hover:text-foreground"
-                    >
-                      开启浏览器通知
-                    </button>
-                  )}
-                </div>
-              </div>
-            )}
-
-            {/* 复活建议 */}
-            {reviveSuggestions.length > 0 && (
-              <div className="border-b border-border px-4 py-3">
-                <div className="mb-2 text-xs font-medium text-cognition">AI 复活建议</div>
-                {reviveSuggestions.map((s) => (
+          <div className="toast-list w-full space-y-1 border-t border-border/40 pt-2">
+            {count === 0 ? (
+              <div className="px-2 py-3 text-center text-[11px] text-muted-foreground">暂无最新通知</div>
+            ) : (
+              <>
+                {notifications.map((n) => (
                   <div
-                    key={s.graveyardId}
-                    className="mb-2 rounded-xl border border-cognition/20 bg-cognition/5 p-2.5"
+                    key={n.id}
+                    className="group flex items-center justify-between rounded-lg px-2 py-1.5 transition-colors hover:bg-primary/5"
                   >
-                    <div className="mb-1 text-[11px] font-medium text-foreground/90">
-                      {s.originalContent.length > 40
-                        ? s.originalContent.slice(0, 40) + "…"
-                        : s.originalContent}
-                    </div>
-                    <div className="text-[10px] text-muted-foreground">
-                      复活条件：{s.reviveCondition}
-                    </div>
-                    <div className="mt-1 text-[10px] text-cognition">
-                      命中：{s.reason}
-                    </div>
                     <button
-                      onClick={() => dismissReviveSuggestion(s.graveyardId)}
-                      className="mt-1.5 text-[10px] text-muted-foreground hover:text-foreground"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        processNotification(n.id);
+                      }}
+                      className="min-w-0 flex-1 text-left"
                     >
-                      忽略
+                      <div className="text-[11px] font-medium text-foreground truncate">{n.title}</div>
+                      <div className="text-[10px] text-muted-foreground">
+                        {n.source} · {n.time}
+                      </div>
+                    </button>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        clearNotification(n.id);
+                      }}
+                      className="ml-1.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-md text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100 hover:bg-primary/10 hover:text-primary"
+                      aria-label="清除"
+                    >
+                      <X className="h-3 w-3" />
                     </button>
                   </div>
                 ))}
-              </div>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    clearAll();
+                  }}
+                  className="mt-1.5 flex w-full items-center justify-center gap-1 rounded-lg py-1.5 text-[10px] font-medium text-muted-foreground transition-colors hover:bg-red-500/10 hover:text-red-500"
+                >
+                  <Trash2 className="h-3 w-3" />
+                  全部清除
+                </button>
+              </>
             )}
-
-            {/* 提醒历史 */}
-            <div className="max-h-[300px] overflow-y-auto px-4 py-3">
-              <div className="mb-2 flex items-center justify-between">
-                <span className="text-xs font-medium text-muted-foreground">提醒历史</span>
-                {history.length > 0 && (
-                  <button
-                    onClick={clearHistory}
-                    className="flex items-center gap-1 text-[10px] text-muted-foreground hover:text-foreground"
-                  >
-                    <Trash2 className="h-2.5 w-2.5" /> 清空
-                  </button>
-                )}
-              </div>
-              {history.length === 0 ? (
-                <div className="py-4 text-center text-[11px] text-muted-foreground">
-                  暂无提醒记录
-                </div>
-              ) : (
-                <div className="space-y-2">
-                  {history.map((h) => (
-                    <div
-                      key={h.id}
-                      className="rounded-xl bg-muted/30 px-3 py-2 text-[11px]"
-                    >
-                      <div className="flex items-center justify-between">
-                        <span className="font-medium text-foreground/80">{h.ruleLabel}</span>
-                        <span className="text-[9px] text-muted-foreground">
-                          {formatTime(h.triggeredAt)}
-                        </span>
-                      </div>
-                      <p className="mt-0.5 text-muted-foreground">{h.message}</p>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
           </div>
         </div>
-      )}
+      </div>
     </>
   );
 }

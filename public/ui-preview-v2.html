@@ -1,0 +1,955 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Lynx Web UI 改造预览 v2</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    :root {
+      /* 深邃星空蓝调 - 降低亮度，增强质感 */
+      --bg: #eef1f8;
+      --fg: #0a1020;
+      --card: rgba(255,255,255,0.58);
+      --muted: #5d6b87;
+      --border: rgba(12, 55, 150, 0.12);
+      --primary: #0b3d9e;
+      --primary-light: #0F62FE;
+      --accent: #0088a3;
+      --glass-highlight: rgba(255,255,255,0.48);
+      --glass-border: rgba(12, 55, 150, 0.16);
+      --shadow: 0 8px 32px -8px rgba(5, 12, 32, 0.16);
+    }
+    .dark {
+      --bg: #030713;
+      --fg: #f0f4fb;
+      --card: rgba(13, 22, 45, 0.55);
+      --muted: #8b9ab8;
+      --border: rgba(80, 130, 230, 0.10);
+      --primary: #2563eb;
+      --primary-light: #60a5fa;
+      --accent: #06b6d4;
+      --glass-highlight: rgba(255,255,255,0.05);
+      --glass-border: rgba(100, 150, 255, 0.12);
+      --shadow: 0 8px 32px -8px rgba(0,0,0,0.55);
+    }
+    body { background: var(--bg); color: var(--fg); }
+
+    /* 干净星空背景 */
+    .starfield {
+      background-image:
+        radial-gradient(ellipse at 0% 0%, rgba(15,98,254,0.06) 0%, transparent 45%),
+        radial-gradient(ellipse at 100% 100%, rgba(0,184,212,0.04) 0%, transparent 40%);
+    }
+    .dark .starfield {
+      background-image:
+        radial-gradient(ellipse at 0% 0%, rgba(37,99,235,0.10) 0%, transparent 50%),
+        radial-gradient(ellipse at 100% 100%, rgba(6,182,212,0.06) 0%, transparent 45%),
+        radial-gradient(ellipse at 50% 0%, rgba(15,98,254,0.04) 0%, transparent 60%);
+    }
+
+    /* 液态玻璃 - 增强质感 */
+    .ios-glass {
+      position: relative;
+      background:
+        linear-gradient(160deg, var(--glass-highlight) 0%, transparent 55%),
+        var(--card);
+      backdrop-filter: saturate(200%) blur(28px);
+      -webkit-backdrop-filter: saturate(200%) blur(28px);
+      border: 1px solid var(--glass-border);
+      box-shadow:
+        inset 0 1px 1px var(--glass-highlight),
+        inset 0 -1px 1px rgba(0,0,0,0.03),
+        var(--shadow);
+      transition: all 0.3s cubic-bezier(0.22, 1, 0.36, 1);
+    }
+    .ios-glass::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      border-radius: inherit;
+      background: linear-gradient(135deg, rgba(255,255,255,0.14) 0%, transparent 50%);
+      pointer-events: none;
+    }
+    .dark .ios-glass::before {
+      background: linear-gradient(135deg, rgba(255,255,255,0.06) 0%, transparent 50%);
+    }
+    .ios-glass:hover {
+      border-color: rgba(11, 61, 158, 0.22);
+      box-shadow:
+        inset 0 1px 1px var(--glass-highlight),
+        inset 0 -1px 1px rgba(0,0,0,0.04),
+        0 12px 40px -10px rgba(5, 12, 32, 0.18);
+    }
+    .dark .ios-glass:hover {
+      border-color: rgba(100, 150, 255, 0.22);
+      box-shadow:
+        inset 0 1px 1px var(--glass-highlight),
+        0 12px 40px -10px rgba(0, 0, 0, 0.35);
+    }
+
+    .ios-glass-sm {
+      position: relative;
+      background:
+        linear-gradient(160deg, var(--glass-highlight) 0%, transparent 50%),
+        var(--card);
+      backdrop-filter: saturate(200%) blur(18px);
+      -webkit-backdrop-filter: saturate(200%) blur(18px);
+      border: 1px solid var(--glass-border);
+      box-shadow:
+        inset 0 0.5px 1px var(--glass-highlight),
+        0 1px 3px rgba(0,0,0,0.04);
+      transition: all 0.25s cubic-bezier(0.22, 1, 0.36, 1);
+    }
+    .ios-glass-sm:hover {
+      background:
+        linear-gradient(160deg, var(--glass-highlight) 0%, transparent 40%),
+        var(--card);
+      border-color: rgba(12, 55, 150, 0.24);
+    }
+
+    /* 侧边栏 */
+    .glass-sidebar {
+      background:
+        linear-gradient(180deg, var(--card) 0%, rgba(255,255,255,0.42) 100%);
+      backdrop-filter: saturate(220%) blur(32px);
+      -webkit-backdrop-filter: saturate(220%) blur(32px);
+      border-right: 1px solid var(--glass-border);
+      box-shadow: 4px 0 24px -10px rgba(0,0,0,0.10);
+    }
+    .dark .glass-sidebar {
+      background:
+        linear-gradient(180deg, rgba(13,22,45,0.62) 0%, rgba(6,11,24,0.45) 100%);
+      border-right-color: rgba(80, 130, 230, 0.08);
+    }
+
+    /* 简化版导航选中态 - 更克制 */
+    .nav-active {
+      position: relative;
+      background: rgba(11, 61, 158, 0.08);
+      border: 1px solid rgba(11, 61, 158, 0.15);
+      color: var(--primary);
+    }
+    .nav-active::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      border-radius: inherit;
+      background: linear-gradient(135deg, rgba(255,255,255,0.14), transparent 50%);
+      pointer-events: none;
+    }
+    .dark .nav-active {
+      background: rgba(37, 99, 235, 0.14);
+      border-color: rgba(37, 99, 235, 0.28);
+      color: #93bbfd;
+    }
+
+    .nav-item {
+      transition: all 0.25s cubic-bezier(0.22, 1, 0.36, 1);
+      color: var(--muted);
+    }
+    .nav-item:hover {
+      background: rgba(11, 61, 158, 0.04);
+      color: var(--fg);
+    }
+    .dark .nav-item:hover {
+      background: rgba(100, 150, 255, 0.07);
+    }
+
+    /* 用户卡片 */
+    .user-card {
+      position: relative;
+      background:
+        linear-gradient(135deg, var(--glass-highlight) 0%, transparent 50%),
+        var(--card);
+      backdrop-filter: saturate(180%) blur(16px);
+      border: 1px solid var(--glass-border);
+      box-shadow: 0 1px 3px rgba(0,0,0,0.04), inset 0 1px 1px var(--glass-highlight);
+      transition: all 0.25s cubic-bezier(0.22, 1, 0.36, 1);
+    }
+    .user-card:hover {
+      border-color: rgba(11, 61, 158, 0.25);
+    }
+    .dark .user-card:hover {
+      border-color: rgba(100, 150, 255, 0.18);
+    }
+
+    /* 用户下拉菜单 - 降低透明度、增强毛玻璃 */
+    .user-menu {
+      background: rgba(255, 255, 255, 0.82);
+      backdrop-filter: saturate(220%) blur(24px);
+      -webkit-backdrop-filter: saturate(220%) blur(24px);
+    }
+    .dark .user-menu {
+      background: rgba(13, 22, 45, 0.82);
+      border-color: rgba(80, 130, 230, 0.14);
+    }
+
+    /* 主按钮 - 深邃蓝 */
+    .btn-primary {
+      position: relative;
+      overflow: hidden;
+      background: linear-gradient(135deg, var(--primary) 0%, #0a4fd1 100%);
+      box-shadow: 0 0 0 1px rgba(11, 61, 158, 0.35), 0 6px 18px -6px rgba(11, 61, 158, 0.45);
+    }
+    .dark .btn-primary {
+      background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+      box-shadow: 0 0 0 1px rgba(80, 150, 255, 0.25), 0 6px 18px -6px rgba(37, 99, 235, 0.35);
+    }
+    .btn-primary::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      border-radius: inherit;
+      background: linear-gradient(135deg, rgba(255,255,255,0.16), transparent 50%);
+      pointer-events: none;
+    }
+
+    /* 玻璃按钮 */
+    .btn-glass {
+      position: relative;
+      background: var(--card);
+      border: 1px solid var(--glass-border);
+      box-shadow: inset 0 1px 1px var(--glass-highlight), 0 2px 8px -2px rgba(0,0,0,0.06);
+      transition: all 0.25s cubic-bezier(0.22,1,0.36,1);
+    }
+    .btn-glass:hover {
+      border-color: rgba(11, 61, 158, 0.25);
+      background: rgba(255,255,255,0.7);
+    }
+    .dark .btn-glass:hover {
+      border-color: rgba(100, 150, 255, 0.20);
+      background: rgba(20, 30, 60, 0.65);
+    }
+
+    /* FAB - Lynx 对话入口 */
+    .lynx-fab {
+      position: relative;
+      background: linear-gradient(135deg, var(--primary) 0%, #0a4fd1 100%);
+      box-shadow:
+        0 0 0 1px rgba(255,255,255,0.14) inset,
+        0 8px 32px -8px rgba(11, 61, 158, 0.55),
+        0 0 48px -12px rgba(11, 61, 158, 0.35);
+      transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.3s ease;
+    }
+    .dark .lynx-fab {
+      background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+      box-shadow:
+        0 0 0 1px rgba(255,255,255,0.10) inset,
+        0 8px 32px -8px rgba(37, 99, 235, 0.45),
+        0 0 48px -12px rgba(37, 99, 235, 0.25);
+    }
+    .lynx-fab::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      border-radius: 50%;
+      background: linear-gradient(135deg, rgba(255,255,255,0.22), transparent 50%);
+      pointer-events: none;
+    }
+    .lynx-fab:hover { transform: scale(1.08); }
+    .lynx-fab:active { transform: scale(0.95); }
+
+    /* 通知气泡 - 三态：图标 / 提示 / 列表 */
+    .idea-toast {
+      position: relative;
+      transform-origin: bottom right;
+      transition: all 0.35s cubic-bezier(0.22, 1, 0.36, 1);
+      max-width: 42px;
+      min-height: 42px;
+      padding: 0;
+      overflow: hidden;
+      border-radius: 50%;
+      cursor: pointer;
+    }
+    .idea-toast.hint,
+    .idea-toast.list {
+      max-width: 260px;
+      border-radius: 1rem;
+      padding: 0.875rem;
+    }
+    .idea-toast.list {
+      cursor: default;
+    }
+    .idea-toast .toast-content {
+      display: none;
+      opacity: 0;
+      transform: scale(0.95);
+      transition: opacity 0.25s, transform 0.25s;
+    }
+    .idea-toast.hint .toast-content,
+    .idea-toast.list .toast-content {
+      display: flex;
+      opacity: 1;
+      transform: scale(1);
+    }
+    .idea-toast.hint .toast-list {
+      display: none;
+    }
+    .idea-toast.collapsed .toast-icon-only {
+      display: flex;
+    }
+    .idea-toast.hint .toast-icon-only,
+    .idea-toast.list .toast-icon-only {
+      display: none;
+    }
+    .idea-toast.entering {
+      animation: toast-pop 0.45s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+    }
+    @keyframes toast-pop {
+      0% { opacity: 0; transform: scale(0.6) translateY(12px); }
+      60% { opacity: 1; transform: scale(1.03) translateY(-2px); }
+      100% { opacity: 1; transform: scale(1) translateY(0); }
+    }
+    @keyframes pulse-glow {
+      0%,100% { box-shadow: 0 0 0 0 rgba(11,61,158,0.25); }
+      50% { box-shadow: 0 0 0 6px rgba(11,61,158,0); }
+    }
+    .idea-toast.collapsed .toast-icon-only {
+      animation: pulse-glow 2s ease-in-out infinite;
+    }
+    .toast-list-item {
+      transition: background-color 0.15s;
+    }
+    .toast-list-item:hover {
+      background: rgba(11, 61, 158, 0.06);
+    }
+    .dark .toast-list-item:hover {
+      background: rgba(100, 150, 255, 0.08);
+    }
+
+    /* 页面切换 */
+    .page { display: none; }
+    .page.active { display: block; }
+
+    /* 顶部导航栏 */
+    .glass-topbar {
+      background: rgba(255,255,255,0.70);
+      backdrop-filter: saturate(200%) blur(32px);
+      border-bottom: 1px solid var(--glass-border);
+    }
+    .dark .glass-topbar { background: rgba(4, 8, 20, 0.65); }
+
+    /* 最近页面快速切换入口 - 丝滑稳定版（margin 替代 gap，避免抖动） */
+    .recent-tabs {
+      position: fixed;
+      bottom: 24px;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 50;
+      min-width: fit-content;
+      will-change: transform;
+    }
+    .recent-tab {
+      position: relative;
+      margin-right: 4px;
+      transition: background-color 0.2s, border-color 0.2s, color 0.2s, opacity 0.3s, transform 0.3s, max-width 0.35s, margin-right 0.3s;
+      opacity: 1;
+      transform: scale(1);
+      max-width: 160px;
+      white-space: nowrap;
+      overflow: hidden;
+    }
+    .recent-tab:last-child {
+      margin-right: 0;
+    }
+    .recent-tab.entering {
+      animation: tab-in 0.35s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+    }
+    .recent-tab.leaving {
+      animation: tab-out 0.28s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+    }
+    @keyframes tab-in {
+      from { opacity: 0; transform: scale(0.85); max-width: 0; padding-left: 0; padding-right: 0; margin-right: 0; }
+      to { opacity: 1; transform: scale(1); }
+    }
+    @keyframes tab-out {
+      to { opacity: 0; transform: scale(0.85); max-width: 0; padding-left: 0; padding-right: 0; margin-right: 0; }
+    }
+    .recent-tab:hover {
+      background: rgba(11, 61, 158, 0.06);
+      border-color: rgba(11, 61, 158, 0.22);
+    }
+    .dark .recent-tab:hover {
+      background: rgba(100, 150, 255, 0.09);
+      border-color: rgba(100, 150, 255, 0.20);
+    }
+    .recent-tab.active {
+      background: rgba(11, 61, 158, 0.10);
+      border-color: rgba(11, 61, 158, 0.25);
+      color: var(--primary);
+    }
+    .dark .recent-tab.active {
+      background: rgba(37, 99, 235, 0.16);
+      border-color: rgba(37, 99, 235, 0.32);
+      color: #93bbfd;
+    }
+    .recent-tab.active::after {
+      content: '';
+      position: absolute;
+      bottom: -6px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 4px;
+      height: 4px;
+      border-radius: 50%;
+      background: var(--primary);
+    }
+
+    .preview-grid { display: grid; grid-template-columns: 230px 1fr; min-height: 100vh; }
+    .preview-main { max-height: 100vh; overflow-y: auto; }
+  </style>
+</head>
+<body class="antialiased transition-colors duration-300 starfield">
+  <div class="preview-grid">
+    <!-- 侧边栏 -->
+    <aside class="glass-sidebar flex flex-col px-3 py-4">
+      <!-- Logo -->
+      <div class="mb-6 flex items-center gap-2 px-2">
+        <img
+          src="/lynx-logo-black.png"
+          alt="Lynx"
+          class="h-8 w-8 rounded-lg object-cover shadow-sm"
+          draggable="false"
+        />
+        <span class="text-lg font-bold tracking-tight">Lynx</span>
+      </div>
+
+      <nav class="flex-1 space-y-1 overflow-y-auto pr-1">
+        <div class="mb-1">
+          <button class="nav-active w-full rounded-xl px-3 py-2.5 flex items-center gap-2.5 text-sm font-medium">
+            <svg class="h-[18px] w-[18px]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+            <span class="flex-1 text-left">今日执行</span>
+            <svg class="h-4 w-4 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+          </button>
+          <div class="mt-1 space-y-0.5 pl-2.5">
+            <button class="nav-item w-full rounded-xl px-3 py-2 flex items-center gap-3 text-sm">今日聚焦</button>
+            <button class="nav-item w-full rounded-xl px-3 py-2 flex items-center gap-3 text-sm">决策看板</button>
+          </div>
+        </div>
+
+        <div class="mb-1">
+          <button class="nav-active w-full rounded-xl px-3 py-2.5 flex items-center gap-2.5 text-sm font-medium">
+            <svg class="h-[18px] w-[18px]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4"/></svg>
+            <span class="flex-1 text-left">灵感收集</span>
+            <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+          </button>
+          <div class="mt-1 space-y-0.5 pl-2.5">
+            <button class="nav-item w-full rounded-xl px-3 py-2 flex items-center gap-3 text-sm">Inbox</button>
+            <button class="nav-item w-full rounded-xl px-3 py-2 flex items-center gap-3 text-sm">灵感收敛</button>
+            <button class="nav-active w-full rounded-xl px-3 py-2 text-left text-sm">灵感墓地</button>
+          </div>
+        </div>
+
+        <div class="mb-1">
+          <button class="nav-item w-full rounded-xl px-3 py-2.5 flex items-center gap-2.5 text-sm font-medium text-[var(--fg)]">
+            <svg class="h-[18px] w-[18px]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.384-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z"/></svg>
+            <span class="flex-1 text-left">知识资产</span>
+            <svg class="h-4 w-4 text-[var(--muted)]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+          </button>
+        </div>
+
+        <div class="mb-1">
+          <button class="nav-item w-full rounded-xl px-3 py-2.5 flex items-center gap-2.5 text-sm font-medium text-[var(--fg)]">
+            <svg class="h-[18px] w-[18px]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z"/></svg>
+            <span class="flex-1 text-left">AI 中心</span>
+            <svg class="h-4 w-4 text-[var(--muted)]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+          </button>
+        </div>
+
+        <div class="mb-1">
+          <button class="nav-item w-full rounded-xl px-3 py-2.5 flex items-center gap-2.5 text-sm font-medium text-[var(--fg)]">
+            <svg class="h-[18px] w-[18px]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+            <span class="flex-1 text-left">系统</span>
+            <svg class="h-4 w-4 text-[var(--muted)]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+          </button>
+        </div>
+      </nav>
+
+      <!-- 左下角用户信息 - 新版桌面端样式 -->
+      <div class="relative mt-auto pt-3" id="userArea">
+        <button id="userCardBtn" class="user-card group flex w-full items-center gap-3 rounded-2xl px-3 py-2.5 text-left">
+          <div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-[var(--primary)] to-[var(--accent)] text-xs font-bold text-white shadow-lg shadow-blue-900/20">
+            L
+          </div>
+          <div class="min-w-0 flex-1">
+            <div class="truncate text-sm font-semibold text-[var(--fg)]">Lynn</div>
+            <div class="truncate text-[11px] text-[var(--muted)]">Lynx Web 端</div>
+          </div>
+          <svg id="userChevron" class="h-4 w-4 text-[var(--muted)] transition-transform duration-300" style="transform: rotate(-90deg);" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+        </button>
+
+        <div id="userMenu" class="user-menu absolute bottom-full left-0 right-0 z-50 mb-2 overflow-hidden rounded-2xl border border-border/60 p-1.5 shadow-2xl">
+          <button class="flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-sm text-[var(--fg)] hover:bg-[var(--primary)]/10 hover:text-[var(--primary)] transition-colors">
+            <svg class="h-4 w-4 text-[var(--muted)]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg>
+            账号设置
+          </button>
+          <button class="flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-sm text-[var(--fg)] hover:bg-[var(--primary)]/10 hover:text-[var(--primary)] transition-colors">
+            <svg class="h-4 w-4 text-[var(--muted)]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"/></svg>
+            订阅与账单
+          </button>
+          <button class="flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-sm text-[var(--fg)] hover:bg-[var(--primary)]/10 hover:text-[var(--primary)] transition-colors">
+            <svg class="h-4 w-4 text-[var(--muted)]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+            帮助中心
+          </button>
+          <div class="my-1 h-px bg-[var(--border)]"></div>
+          <button class="flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-sm text-red-500 hover:bg-red-500/10 transition-colors">
+            <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/></svg>
+            退出登录
+          </button>
+        </div>
+      </div>
+    </aside>
+
+    <!-- 主内容 -->
+    <main class="preview-main relative p-8">
+      <header class="glass-topbar fixed left-[230px] right-0 top-0 z-40 flex h-14 items-center justify-between px-6">
+        <div class="flex items-center gap-4">
+          <div class="ios-glass-sm flex h-9 items-center gap-2 rounded-full px-3 text-sm text-[var(--muted)]">
+            <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+            搜索 ⌘K
+          </div>
+        </div>
+        <div class="flex items-center gap-3">
+          <button class="ios-glass-sm h-9 rounded-full px-3 text-xs font-medium text-[var(--muted)] hover:text-[var(--primary)]">Inbox</button>
+          <button class="btn-primary h-9 rounded-full px-4 text-xs font-semibold text-white">捕获灵感</button>
+          <button class="ios-glass-sm h-9 rounded-full px-3 text-xs font-medium text-[var(--muted)]">闪电输入 Ctrl+J</button>
+          <div class="flex rounded-full ios-glass-sm p-0.5">
+            <button onclick="setTheme('light')" class="rounded-full px-2.5 py-1 text-[10px] font-medium transition-colors" id="btnLight">浅色</button>
+            <button onclick="setTheme('dark')" class="rounded-full px-2.5 py-1 text-[10px] font-medium transition-colors" id="btnDark">深色</button>
+            <button onclick="setTheme('system')" class="rounded-full px-2.5 py-1 text-[10px] font-medium transition-colors" id="btnSystem">系统</button>
+          </div>
+        </div>
+      </header>
+
+      <div class="pt-16">
+        <!-- 页面 1：灵感墓地 -->
+        <div class="page active" id="page-graveyard">
+          <div class="mb-6 flex items-end justify-between">
+            <div>
+              <h1 class="text-2xl font-bold text-[var(--fg)]">灵感墓地</h1>
+              <p class="mt-1 text-sm text-[var(--muted)]">记录放弃原因和复活条件，时机成熟可一键复活</p>
+            </div>
+            <div class="flex items-center gap-2">
+              <button class="btn-glass flex items-center gap-1.5 rounded-xl px-3 py-2 text-xs font-medium text-[var(--fg)]">
+                <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
+                批量操作
+              </button>
+              <button class="btn-glass flex items-center gap-1.5 rounded-xl px-3 py-2 text-xs font-medium text-[var(--fg)]">
+                <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                使用说明
+              </button>
+            </div>
+          </div>
+
+          <div class="mb-6 grid grid-cols-3 gap-4">
+            <div class="ios-glass rounded-2xl p-5">
+              <div class="text-xs text-[var(--muted)]">总数</div>
+              <div class="mt-2 text-3xl font-bold text-[var(--fg)]">0</div>
+            </div>
+            <div class="ios-glass rounded-2xl p-5">
+              <div class="text-xs text-[var(--muted)]">已复活</div>
+              <div class="mt-2 text-3xl font-bold text-emerald-600 dark:text-emerald-400">0</div>
+            </div>
+            <div class="ios-glass rounded-2xl p-5">
+              <div class="text-xs text-[var(--muted)]">待复活</div>
+              <div class="mt-2 text-3xl font-bold text-red-500">0</div>
+            </div>
+          </div>
+
+          <div class="ios-glass mb-6 flex items-center gap-3 rounded-2xl px-4 py-3">
+            <svg class="h-5 w-5 text-[var(--muted)]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+            <input type="text" placeholder="按灵感内容、原因、条件搜索..." class="flex-1 bg-transparent text-sm outline-none placeholder:text-[var(--muted)] text-[var(--fg)]">
+            <div class="flex items-center gap-2 text-xs text-[var(--muted)]">
+              排序
+              <button class="btn-primary rounded-lg px-2.5 py-1 text-[11px] text-white">放弃时间</button>
+              <button class="rounded-lg px-2.5 py-1 text-[11px] hover:bg-[var(--primary)]/10">创建时间</button>
+            </div>
+          </div>
+
+          <div class="ios-glass flex min-h-[360px] flex-col items-center justify-center rounded-3xl">
+            <div class="mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-slate-200/50 text-3xl dark:bg-slate-800/50">💀</div>
+            <h3 class="text-base font-medium text-[var(--fg)]">墓地空空如也</h3>
+            <p class="mt-1 text-sm text-[var(--muted)]">暂时没有放弃的灵感</p>
+          </div>
+        </div>
+
+        <!-- 页面 2：设置页 -->
+        <div class="page" id="page-settings">
+          <div class="mb-6">
+            <h1 class="text-2xl font-bold text-[var(--fg)]">设置</h1>
+            <p class="mt-1 text-sm text-[var(--muted)]">系统配置状态 · 点击文件路径可直接打开编辑</p>
+          </div>
+
+          <div class="ios-glass rounded-2xl p-5">
+            <div class="mb-4 flex items-center justify-between">
+              <div class="flex items-center gap-2">
+                <div class="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-[var(--primary)] to-[var(--accent)] text-white">
+                  <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
+                </div>
+                <h2 class="text-sm font-semibold text-[var(--fg)]">Lynx Agent（本地 AI 代理）</h2>
+                <span class="inline-flex items-center gap-1 rounded-full bg-red-500/10 px-2 py-0.5 text-[10px] text-red-500"><span class="h-1.5 w-1.5 rounded-full bg-red-500"></span>未启动</span>
+              </div>
+              <div class="flex items-center gap-2">
+                <button class="text-[11px] text-[var(--primary)] hover:underline flex items-center gap-1">
+                  <svg class="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"/></svg>
+                  使用说明
+                </button>
+                <button class="text-[11px] text-[var(--accent)] hover:underline flex items-center gap-1">
+                  <svg class="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg>
+                  打开 Dashboard
+                </button>
+              </div>
+            </div>
+            <p class="text-xs leading-relaxed text-[var(--muted)]">
+              基于 Hermes Agent 技术深度定制开发，让 AI 助理升级为 Lynx 超级助理，可以直接操控你的电脑（桌面控制、Shell 命令、系统级 CLI、浏览器控制、应用控制），并且拥有自主学习能力...
+            </p>
+            <div class="mt-4 flex flex-wrap gap-2">
+              <button class="btn-primary rounded-xl px-3 py-2 text-xs font-medium text-white">一键安装 AI 环境</button>
+              <button class="btn-glass rounded-xl px-3 py-2 text-xs font-medium text-[var(--fg)]">启动服务</button>
+              <button class="btn-glass rounded-xl px-3 py-2 text-xs font-medium text-[var(--fg)]">测试连接</button>
+              <button class="btn-glass rounded-xl px-3 py-2 text-xs font-medium text-[var(--fg)]">一键配置模型</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- 页面 3：AI 工作空间 -->
+        <div class="page" id="page-workspace">
+          <div class="mb-6 flex items-end justify-between">
+            <div>
+              <h1 class="text-2xl font-bold text-[var(--fg)]">AI 工作空间</h1>
+              <p class="mt-1 text-sm text-[var(--muted)]">预置蒸馏模板 + 自定义工作流，一键运行</p>
+            </div>
+            <div class="ios-glass-sm flex h-10 items-center gap-2 rounded-full px-3">
+              <svg class="h-4 w-4 text-[var(--muted)]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+              <input type="text" placeholder="搜索模板..." class="bg-transparent text-sm outline-none placeholder:text-[var(--muted)] text-[var(--fg)]">
+            </div>
+          </div>
+
+          <div class="mb-4 flex flex-wrap gap-2">
+            <button class="btn-primary rounded-full px-3 py-1.5 text-xs font-medium text-white">全部</button>
+            <button class="ios-glass-sm rounded-full px-3 py-1.5 text-xs font-medium text-[var(--muted)] hover:text-[var(--primary)]">财务</button>
+            <button class="ios-glass-sm rounded-full px-3 py-1.5 text-xs font-medium text-[var(--muted)] hover:text-[var(--primary)]">报告</button>
+            <button class="ios-glass-sm rounded-full px-3 py-1.5 text-xs font-medium text-[var(--muted)] hover:text-[var(--primary)]">审查</button>
+            <button class="ios-glass-sm rounded-full px-3 py-1.5 text-xs font-medium text-[var(--muted)] hover:text-[var(--primary)]">知识</button>
+            <button class="ios-glass-sm rounded-full px-3 py-1.5 text-xs font-medium text-[var(--muted)] hover:text-[var(--primary)]">会议</button>
+            <button class="ios-glass-sm rounded-full px-3 py-1.5 text-xs font-medium text-[var(--muted)] hover:text-[var(--primary)]">产品</button>
+          </div>
+
+          <div class="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
+            <div class="ios-glass rounded-2xl p-5 hover:-translate-y-1 transition-transform cursor-pointer">
+              <div class="mb-3 flex h-10 w-10 items-center justify-center rounded-xl bg-[var(--primary)]/10 text-[var(--primary)]">
+                <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z"/></svg>
+              </div>
+              <h3 class="text-sm font-semibold text-[var(--fg)]">日报生成器</h3>
+              <p class="mt-1 text-xs text-[var(--muted)]">自动汇总今日任务与灵感，生成日报</p>
+            </div>
+            <div class="ios-glass rounded-2xl p-5 hover:-translate-y-1 transition-transform cursor-pointer">
+              <div class="mb-3 flex h-10 w-10 items-center justify-center rounded-xl bg-[var(--accent)]/10 text-[var(--accent)]">
+                <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z"/></svg>
+              </div>
+              <h3 class="text-sm font-semibold text-[var(--fg)]">会议纪要从整理</h3>
+              <p class="mt-1 text-xs text-[var(--muted)]">提取会议要点，自动归档到认知库</p>
+            </div>
+            <div class="ios-glass rounded-2xl p-5 hover:-translate-y-1 transition-transform cursor-pointer">
+              <div class="mb-3 flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
+                <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.384-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z"/></svg>
+              </div>
+              <h3 class="text-sm font-semibold text-[var(--fg)]">灵感提纯</h3>
+              <p class="mt-1 text-xs text-[var(--muted)]">将 Inbox 灵感提炼为可执行任务</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- 页面 4：Inbox -->
+        <div class="page" id="page-inbox">
+          <div class="mb-6">
+            <h1 class="text-2xl font-bold text-[var(--fg)]">Inbox</h1>
+            <p class="mt-1 text-sm text-[var(--muted)]">快速收集灵感与任务，稍后统一处理</p>
+          </div>
+          <div class="ios-glass flex min-h-[360px] flex-col items-center justify-center rounded-3xl">
+            <div class="mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-slate-200/50 text-3xl dark:bg-slate-800/50">📥</div>
+            <h3 class="text-base font-medium text-[var(--fg)]">Inbox 为空</h3>
+            <p class="mt-1 text-sm text-[var(--muted)]">使用捕获灵感或闪电输入添加第一条记录</p>
+          </div>
+        </div>
+
+        <!-- 页面 5：记忆图谱 -->
+        <div class="page" id="page-memory">
+          <div class="mb-6">
+            <h1 class="text-2xl font-bold text-[var(--fg)]">记忆图谱</h1>
+            <p class="mt-1 text-sm text-[var(--muted)]">可视化提取的长期记忆与关联关系</p>
+          </div>
+          <div class="ios-glass flex min-h-[360px] flex-col items-center justify-center rounded-3xl">
+            <div class="mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-slate-200/50 text-3xl dark:bg-slate-800/50">🧠</div>
+            <h3 class="text-base font-medium text-[var(--fg)]">记忆图谱预览</h3>
+            <p class="mt-1 text-sm text-[var(--muted)]">AI 自动提取的记忆节点将在这里呈现</p>
+          </div>
+        </div>
+
+        <!-- 交互演示控制条 -->
+        <div class="mb-6 flex flex-wrap items-center gap-2 rounded-2xl ios-glass-sm p-2">
+          <span class="px-2 text-xs text-[var(--muted)]">交互演示：模拟打开新页面</span>
+          <button onclick="openPage('graveyard')" class="rounded-full px-2.5 py-1 text-[11px] font-medium text-[var(--fg)] hover:bg-[var(--primary)]/10 hover:text-[var(--primary)] transition-colors">灵感墓地</button>
+          <button onclick="openPage('settings')" class="rounded-full px-2.5 py-1 text-[11px] font-medium text-[var(--fg)] hover:bg-[var(--primary)]/10 hover:text-[var(--primary)] transition-colors">设置</button>
+          <button onclick="openPage('workspace')" class="rounded-full px-2.5 py-1 text-[11px] font-medium text-[var(--fg)] hover:bg-[var(--primary)]/10 hover:text-[var(--primary)] transition-colors">AI 工作空间</button>
+          <button onclick="openPage('inbox')" class="rounded-full px-2.5 py-1 text-[11px] font-medium text-[var(--fg)] hover:bg-[var(--primary)]/10 hover:text-[var(--primary)] transition-colors">Inbox</button>
+          <button onclick="openPage('memory')" class="rounded-full px-2.5 py-1 text-[11px] font-medium text-[var(--fg)] hover:bg-[var(--primary)]/10 hover:text-[var(--primary)] transition-colors">记忆图谱</button>
+        </div>
+      </div>
+
+      <!-- 右侧 FAB 区域 -->
+      <div class="fixed bottom-6 right-6 z-50 flex flex-col items-end gap-3">
+        <!-- 灵感通知 - 三态：图标 / 提示 / 列表 -->
+        <div id="ideaToast" class="idea-toast ios-glass collapsed flex items-center justify-center rounded-2xl" onclick="onToastClick()">
+          <!-- 图标态 -->
+          <div class="toast-icon-only relative flex h-8 w-8 items-center justify-center rounded-full bg-[var(--primary)]/10 text-[var(--primary)]">
+            <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+            <span id="toastBadge" class="absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[9px] font-bold text-white shadow-sm">2</span>
+          </div>
+          <!-- 提示态 / 列表态 -->
+          <div class="toast-content hidden w-full flex-col gap-2">
+            <div class="flex items-start gap-3">
+              <div class="toast-icon flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[var(--primary)]/10 text-[var(--primary)]">
+                <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+              </div>
+              <div class="toast-body flex-1 min-w-0">
+                <div class="text-xs font-semibold text-[var(--fg)]">新灵感 <span id="toastCount">2</span> 条</div>
+                <div class="mt-0.5 text-[11px] text-[var(--muted)]">来自飞书机器人 / Kimi</div>
+              </div>
+              <button class="toast-close text-[var(--muted)] hover:text-[var(--fg)]" onclick="event.stopPropagation(); collapseIdeaToast()">
+                <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+              </button>
+            </div>
+            <div id="toastList" class="toast-list w-full space-y-1 border-t border-border/40 pt-2">
+              <!-- 由 JS 渲染 -->
+            </div>
+          </div>
+        </div>
+
+        <!-- Lynx 助理入口 -->
+        <button class="lynx-fab flex h-14 w-14 items-center justify-center rounded-full text-white">
+          <svg class="h-7 w-7" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/></svg>
+          <span class="absolute -left-1.5 -top-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-[10px] font-bold text-white shadow-sm ring-2 ring-[var(--bg)]">2</span>
+        </button>
+      </div>
+
+      <!-- 最近页面快速切换入口（动态 1~3 个） -->
+      <div id="recentTabs" class="recent-tabs ios-glass rounded-full p-1.5 flex items-center">
+        <!-- 由 JS 动态渲染 -->
+      </div>
+    </main>
+  </div>
+
+  <script>
+    function setTheme(mode) {
+      const html = document.documentElement;
+      ['btnLight','btnDark','btnSystem'].forEach(id => {
+        const btn = document.getElementById(id);
+        btn.classList.remove('bg-[var(--primary)]','text-white');
+        btn.classList.add('text-[var(--muted)]');
+      });
+      const activeBtn = document.getElementById('btn' + mode.charAt(0).toUpperCase() + mode.slice(1));
+      activeBtn.classList.add('bg-[var(--primary)]','text-white');
+      activeBtn.classList.remove('text-[var(--muted)]');
+
+      if (mode === 'dark') html.classList.add('dark');
+      else if (mode === 'light') html.classList.remove('dark');
+      else {
+        if (window.matchMedia('(prefers-color-scheme: dark)').matches) html.classList.add('dark');
+        else html.classList.remove('dark');
+      }
+    }
+
+    // 页面注册表
+    const PAGE_ICONS = {
+      graveyard: 'M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z',
+      settings: 'M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z M15 12a3 3 0 11-6 0 3 3 0 016 0z',
+      workspace: 'M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z',
+      inbox: 'M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4',
+      memory: 'M19.428 15.428a2 2 0 00-1.022-.547l-2.384-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z',
+    };
+    const PAGE_LABELS = {
+      graveyard: '灵感墓地',
+      settings: '设置',
+      workspace: 'AI 工作空间',
+      inbox: 'Inbox',
+      memory: '记忆图谱',
+    };
+
+    // 最近页面队列：固定顺序 FIFO， oldest 在左，newest 在右
+    // 在当前 3 个页面之间切换不重新排序；只有打开全新页面时追加到右侧，超过 3 个则移除最左侧（最旧）
+    let recentPages = ['graveyard'];
+    let previousRecentPages = [];
+    let currentPage = 'graveyard';
+
+    function showPage(name) {
+      if (!PAGE_LABELS[name]) return;
+      currentPage = name;
+      document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+      const pageEl = document.getElementById('page-' + name);
+      if (pageEl) pageEl.classList.add('active');
+      renderRecentTabs();
+    }
+
+    function openPage(name) {
+      if (!PAGE_LABELS[name]) return;
+      if (recentPages.includes(name)) {
+        // 当前已有，仅切换，不调整位置
+        showPage(name);
+        return;
+      }
+      // 新页面追加到右侧，超过 3 个移除最左侧
+      recentPages.push(name);
+      if (recentPages.length > 3) recentPages.shift();
+      showPage(name);
+    }
+
+    function renderRecentTabs() {
+      const container = document.getElementById('recentTabs');
+      const prevSet = new Set(previousRecentPages);
+      const currentSet = new Set(recentPages);
+      const added = recentPages.filter(p => !prevSet.has(p));
+      const removed = previousRecentPages.filter(p => !currentSet.has(p));
+
+      // 渲染顺序：当前队列 + 被移除项（放最后播放离开动画，从右侧自然消失）
+      const displayPages = [...recentPages, ...removed];
+      container.innerHTML = '';
+      displayPages.forEach((pageKey) => {
+        const isLeaving = removed.includes(pageKey);
+        const isNew = added.includes(pageKey);
+        const btn = document.createElement('button');
+        btn.className = 'recent-tab flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium text-[var(--muted)]' +
+          (pageKey === currentPage && !isLeaving ? ' active' : '') +
+          (isNew ? ' entering' : '') +
+          (isLeaving ? ' leaving' : '');
+        btn.dataset.page = pageKey;
+        btn.innerHTML = `<svg class="h-3.5 w-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="${PAGE_ICONS[pageKey]}"/></svg><span class="shrink-0">${PAGE_LABELS[pageKey]}</span>`;
+        if (!isLeaving) btn.onclick = () => openPage(pageKey);
+        container.appendChild(btn);
+      });
+
+      // 动画结束后清理被移除的 DOM
+      if (removed.length) {
+        setTimeout(() => {
+          container.querySelectorAll('.recent-tab.leaving').forEach(el => el.remove());
+        }, 280);
+      }
+
+      previousRecentPages = [...recentPages];
+    }
+
+    // 用户菜单
+    const userBtn = document.getElementById('userCardBtn');
+    const userMenu = document.getElementById('userMenu');
+    const userChevron = document.getElementById('userChevron');
+    let menuOpen = false;
+    userBtn.addEventListener('click', () => {
+      menuOpen = !menuOpen;
+      userMenu.classList.toggle('hidden', !menuOpen);
+      // 默认向右（-90deg 旋转 chevron），展开后向上（0deg）
+      userChevron.style.transform = menuOpen ? 'rotate(0deg)' : 'rotate(-90deg)';
+    });
+    document.addEventListener('click', (e) => {
+      if (!document.getElementById('userArea').contains(e.target)) {
+        menuOpen = false;
+        userMenu.classList.add('hidden');
+        userChevron.style.transform = 'rotate(-90deg)';
+      }
+    });
+
+    // 通知三态：icon -> hint -> list
+    let toastState = 'icon'; // 'icon' | 'hint' | 'list'
+    let notifications = [
+      { id: 1, title: '会议纪要待整理', source: '飞书机器人', time: '2 分钟前' },
+      { id: 2, title: '识别到 2 条可执行任务', source: 'Kimi', time: '5 分钟前' }
+    ];
+
+    function renderToast() {
+      const list = document.getElementById('toastList');
+      const badge = document.getElementById('toastBadge');
+      const count = document.getElementById('toastCount');
+
+      // 红点数字
+      if (notifications.length > 0) {
+        badge.style.display = 'flex';
+        badge.textContent = notifications.length;
+        count.textContent = notifications.length;
+      } else {
+        badge.style.display = 'none';
+        count.textContent = 0;
+      }
+
+      // 通知列表
+      if (notifications.length === 0) {
+        list.innerHTML = '<div class="px-2 py-3 text-center text-[11px] text-[var(--muted)]">暂无最新通知</div>';
+      } else {
+        list.innerHTML = notifications.map(n => `
+          <div class="toast-list-item group flex items-center justify-between rounded-lg px-2 py-1.5">
+            <div class="min-w-0 flex-1 cursor-pointer" onclick="event.stopPropagation(); processNotification(${n.id})">
+              <div class="text-[11px] font-medium text-[var(--fg)] truncate">${n.title}</div>
+              <div class="text-[10px] text-[var(--muted)]">${n.source} · ${n.time}</div>
+            </div>
+            <button class="ml-1.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-md text-[var(--muted)] opacity-0 transition-opacity group-hover:opacity-100 hover:bg-[var(--primary)]/10 hover:text-[var(--primary)]" onclick="event.stopPropagation(); clearNotification(${n.id})">
+              <svg class="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+            </button>
+          </div>
+        `).join('') + `
+          <button class="mt-1.5 w-full rounded-lg py-1.5 text-[10px] font-medium text-[var(--muted)] transition-colors hover:bg-red-500/10 hover:text-red-500" onclick="event.stopPropagation(); clearAllNotifications()">全部清除</button>
+        `;
+      }
+    }
+
+    function showToastHint() {
+      if (toastState !== 'icon') return;
+      const toast = document.getElementById('ideaToast');
+      toast.classList.remove('collapsed');
+      toast.classList.add('hint', 'entering');
+      setTimeout(() => toast.classList.remove('entering'), 450);
+      toastState = 'hint';
+    }
+
+    function expandToastToList() {
+      const toast = document.getElementById('ideaToast');
+      toast.classList.remove('collapsed', 'hint');
+      toast.classList.add('list');
+      toastState = 'list';
+      renderToast();
+    }
+
+    function collapseIdeaToast() {
+      const toast = document.getElementById('ideaToast');
+      toast.classList.remove('hint', 'list');
+      toast.classList.add('collapsed');
+      toastState = 'icon';
+    }
+
+    function onToastClick() {
+      expandToastToList();
+    }
+
+    function processNotification(id) {
+      const n = notifications.find(x => x.id === id);
+      clearNotification(id);
+      alert('已处理通知：' + (n?.title || '') + '\n实际项目会跳转至对应页面。');
+    }
+
+    function clearNotification(id) {
+      notifications = notifications.filter(n => n.id !== id);
+      renderToast();
+    }
+
+    function clearAllNotifications() {
+      notifications = [];
+      renderToast();
+    }
+
+    // 演示：1.5 秒后模拟收到新消息，从图标弹出提示
+    setTimeout(() => { if (notifications.length > 0) showToastHint(); }, 1500);
+
+    setTheme('light');
+    renderToast();
+    renderRecentTabs();
+  </script>
+</body>
+</html>

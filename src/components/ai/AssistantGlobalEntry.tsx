@@ -93,7 +93,7 @@ export function AssistantGlobalEntry() {
 
   return (
     <>
-      <AssistantFloatingButton open={open} onToggle={toggle} />
+      <AssistantFloatingButton open={open} onToggle={toggle} unreadCount={0} />
       <AssistantDrawer open={open} onClose={close} />
 
       {/* 未登录引导弹窗 */}
