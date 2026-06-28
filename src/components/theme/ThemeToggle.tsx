@@ -22,28 +22,26 @@ export function ThemeToggle({
 
   if (variant === "segmented") {
     return (
-      <div className="ios-glass-sm inline-flex items-center rounded-full p-0.5">
+      <div className="ios-glass-sm inline-flex h-9 items-center rounded-full p-0.5">
         {[
-          { key: "light", icon: Sun, label: "浅色" },
-          { key: "dark", icon: Moon, label: "深色" },
-          { key: "system", icon: Monitor, label: "系统" },
+          { key: "light", label: "浅色" },
+          { key: "dark", label: "深色" },
+          { key: "system", label: "系统" },
         ].map((item) => {
           const active = theme === item.key;
-          const Icon = item.icon;
           return (
             <button
               key={item.key}
               onClick={() => setTheme(item.key)}
               className={cn(
-                "flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-medium transition-all",
+                "rounded-full px-2.5 py-1 text-[10px] font-medium transition-all",
                 active
                   ? "bg-primary text-primary-foreground shadow-sm"
                   : "text-muted-foreground hover:text-foreground"
               )}
               aria-label={item.label}
             >
-              <Icon className="h-3 w-3" />
-              <span className="hidden sm:inline">{item.label}</span>
+              {item.label}
             </button>
           );
         })}
