@@ -16,6 +16,7 @@ model User {
   username     String   @unique @db.VarChar(64)
   passwordHash String   @db.VarChar(255)
   email        String?  @unique @db.VarChar(255)
+  phone        String?  @unique @db.VarChar(20) // 手机号（支持手机号登录）
   displayName  String   @default("") @db.VarChar(100)
   role         String   @default("viewer") // admin | editor | viewer
   profession   String?  @db.VarChar(100) // 职业

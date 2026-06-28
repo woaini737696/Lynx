@@ -45,6 +45,7 @@ import { cn } from "@/lib/utils";
 import { toast } from "@/components/ui/toast";
 import { useRouter } from "next/navigation";
 import { FastLink } from "./FastLink";
+import { useAuth } from "@/components/auth/AuthProvider";
 
 type NavItem = {
   href: string;
@@ -148,6 +149,7 @@ function findActiveGroup(pathname: string) {
 /* ============ 侧边栏底部用户区域（移动端抽屉用） ============ */
 function SidebarUserProfile() {
   const router = useRouter();
+  const { open } = useAuth();
   const [user, setUser] = useState<{ name?: string | null; displayName?: string; avatarUrl?: string } | null>(null);
   const [loading, setLoading] = useState(true);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -235,7 +237,7 @@ function SidebarUserProfile() {
       setUser(null);
       setSigningOut(false);
       setMenuOpen(false);
-      router.push("/login");
+      router.push("/");
       router.refresh();
     }
   };
@@ -258,12 +260,12 @@ function SidebarUserProfile() {
     );
   }
   if (!user) {
-    // 未登录：显示默认头像，点击跳转登录页
+    // 未登录：显示默认头像，点击弹出登录窗
     return (
       <div className="relative mt-auto pt-3">
         <button
           type="button"
-          onClick={() => router.push("/login")}
+          onClick={() => open("phone-code")}
           className="user-card group flex w-full items-center gap-3 rounded-2xl px-3 py-2.5 text-left transition-all"
           aria-label="前往登录"
         >

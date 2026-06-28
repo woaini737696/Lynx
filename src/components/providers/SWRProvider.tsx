@@ -3,13 +3,14 @@
 import { SWRConfig } from "swr";
 import type { ReactNode } from "react";
 
-// 客户端 fetcher：处理 401 跳转、错误抛出
+// 客户端 fetcher：处理 401 弹出登录窗、错误抛出
 function fetcher(url: string): Promise<any> {
   return fetch(url).then((res) => {
     if (!res.ok) {
       if (res.status === 401) {
         if (typeof window !== "undefined") {
-          window.location.href = "/login";
+          // 派发事件，由 AuthProvider 监听并弹出登录窗
+          window.dispatchEvent(new Event("auth:unauthorized"));
         }
         throw new Error("未登录");
       }

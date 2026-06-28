@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from "next";
+import { Suspense } from "react";
 import "./globals.css";
 import { AppShellWrapper } from "@/components/layout/AppShellWrapper";
 import { LightningInput } from "@/components/lightning/LightningInput";
@@ -14,6 +15,7 @@ import { DesktopBridge } from "@/components/layout/DesktopBridge";
 import { DesktopBehavior } from "@/components/layout/DesktopBehavior";
 import { RoutePreloader } from "@/components/layout/RoutePreloader";
 import { SWRProvider } from "@/components/providers/SWRProvider";
+import { AuthProvider } from "@/components/auth/AuthProvider";
 
 export const metadata: Metadata = {
   title: "LYNX · AI工作站",
@@ -55,7 +57,12 @@ export default function RootLayout({
               <DesktopBridge />
               <DesktopBehavior />
               <RoutePreloader />
-              <AppShellWrapper>{children}</AppShellWrapper>
+              {/* AuthProvider 使用 useSearchParams，需要 Suspense 包裹 */}
+              <Suspense fallback={null}>
+                <AuthProvider>
+                  <AppShellWrapper>{children}</AppShellWrapper>
+                </AuthProvider>
+              </Suspense>
               <LightningInput />
               <CommandPalette />
               <ReminderManager />
