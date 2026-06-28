@@ -163,7 +163,8 @@ const NODE_STYLES: Record<FlowNode["type"], { color: string; bg: string; icon: R
 };
 
 const STATUS_STYLES: Record<FlowNode["status"], string> = {
-  idle: "border-border ios-glass-sm",
+  // idle 不显式设置 border 颜色，让 ios-glass-sm 自带的柔和 border 生效（避免 border-border 的深色边）
+  idle: "ios-glass-sm",
   running: "border-cognition/40 bg-cognition/5 animate-pulse",
   done: "border-task/30 bg-task/5",
   error: "border-graveyard/40 bg-graveyard/5",
@@ -537,8 +538,8 @@ export default function AIFlowsPage() {
     const canvas = canvasRef.current;
     if (!canvas) return { x: 0, y: 0 };
     const rect = canvas.getBoundingClientRect();
-    // 画布容器有 16px padding（为端口圆点预留空间，避免 overflow-auto 裁剪）
-    const pad = 16;
+    // 画布容器有 24px padding（为端口圆点预留空间，避免 overflow-auto 裁剪，zoom > 1 时也足够）
+    const pad = 24;
     return {
       x: (clientX - rect.left - pad + canvas.scrollLeft) / zoomRef.current,
       y: (clientY - rect.top - pad + canvas.scrollTop) / zoomRef.current,
@@ -1828,8 +1829,8 @@ export default function AIFlowsPage() {
               </div>
             </div>
 
-            {/* 画布区域 + 日志面板 */}
-            <div className="min-w-0 flex-1">
+            {/* 画布区域 + 日志面板（flex 布局，日志面板显隐时画布自适应高度，避免跳动） */}
+            <div className="flex min-w-0 flex-1 flex-col gap-3" style={{ height: "calc(100vh - 280px)", minHeight: "480px" }}>
               <div
                 ref={canvasRef}
                 onDrop={handleCanvasDrop}
@@ -1845,7 +1846,7 @@ export default function AIFlowsPage() {
                   setEditingNodeId(null);
                 }}
                 style={{ cursor: isPanning ? "grabbing" : spacePressedRef.current ? "grab" : "default" }}
-                className="glass-card relative h-[calc(100vh-280px)] min-h-[480px] overflow-auto rounded-2xl border border-border p-4"
+                className="glass-card relative min-h-0 flex-1 overflow-auto rounded-2xl border border-border p-6"
               >
                 <div
                   className="relative origin-top-left"
@@ -2026,7 +2027,7 @@ export default function AIFlowsPage() {
                           "group absolute flex select-none items-center gap-2.5 rounded-xl ios-glass-sm px-3",
                           isSelected
                             ? "border-cognition/50 z-10"
-                            : "border-border"
+                            : ""
                         )}
                         style={{
                           left: node.x,
@@ -2034,6 +2035,8 @@ export default function AIFlowsPage() {
                           width: NODE_WIDTH,
                           height: NODE_HEIGHT,
                           cursor: "move",
+                          // 仅过渡颜色属性，避免拖动节点时位置滞后（ios-glass-sm 默认 transition: all 0.25s）
+                          transition: "border-color 0.2s, background-color 0.2s, box-shadow 0.2s",
                         }}
                       >
                         {/* 输入端口（左侧圆点） */}
@@ -2041,9 +2044,9 @@ export default function AIFlowsPage() {
                           data-port="input"
                           data-node-id={node.id}
                           className={cn(
-                            "absolute -left-2 top-1/2 z-20 flex h-4 w-4 -translate-y-1/2 items-center justify-center rounded-full border-2 bg-background",
+                            "absolute -left-2 top-1/2 z-20 flex h-4 w-4 -translate-y-1/2 items-center justify-center rounded-full border-2 bg-background transition-colors",
                             tempConnect
-                              ? "scale-125 border-cognition bg-cognition/10"
+                              ? "border-cognition bg-cognition/10"
                               : "border-border hover:border-cognition"
                           )}
                         >
@@ -2118,7 +2121,7 @@ export default function AIFlowsPage() {
                           data-node-id={node.id}
                           onMouseDown={(e) => handleOutputPortMouseDown(e, node.id)}
                           className={cn(
-                            "absolute -right-2 top-1/2 z-20 flex h-4 w-4 -translate-y-1/2 cursor-crosshair items-center justify-center rounded-full border-2 bg-background",
+                            "absolute -right-2 top-1/2 z-20 flex h-4 w-4 -translate-y-1/2 cursor-crosshair items-center justify-center rounded-full border-2 bg-background transition-colors",
                             isSelected
                               ? "border-cognition"
                               : "border-border group-hover:border-cognition/60"
@@ -2143,9 +2146,9 @@ export default function AIFlowsPage() {
                 </div>
               </div>
 
-              {/* 运行日志面板 */}
+              {/* 运行日志面板（在 flex 容器内，显隐时画布自适应高度） */}
               {showLogs && (
-                <div className="glass-card mt-3 rounded-2xl p-3">
+                <div className="glass-card shrink-0 rounded-2xl p-3">
                   <div className="mb-2 flex items-center justify-between">
                     <div className="flex items-center gap-2">
                       <FileText className="h-3.5 w-3.5 text-cognition" />

@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
+import { check } from "@tauri-apps/plugin-updater";
+import { relaunch } from "@tauri-apps/plugin-process";
 import {
   User,
   LogOut,
@@ -15,6 +17,8 @@ import {
   Plus,
   Trash2,
   Check,
+  Download,
+  RefreshCw,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { invoke } from "@/lib/tauri";
@@ -23,6 +27,8 @@ import { useUIStore } from "@/stores/uiStore";
 import { clearAuth } from "@/lib/auth-persistence";
 import { applyTheme, saveTheme, type Theme } from "@/lib/theme";
 import { HelpButton } from "@/components/ui/HelpButton";
+import { Logo } from "@/components/ui/Logo";
+import { toast } from "@/lib/toast";
 
 interface AgentStatus {
   version: string;
@@ -63,6 +69,51 @@ export function SettingsPage() {
 
   const [newDir, setNewDir] = useState("");
   const [addingDir, setAddingDir] = useState(false);
+
+  // 检查更新
+  const [checking, setChecking] = useState(false);
+  const [installing, setInstalling] = useState(false);
+  const [updateInfo, setUpdateInfo] = useState<{
+    version: string;
+    currentVersion: string;
+    notes?: string;
+  } | null>(null);
+
+  const handleCheckUpdate = async () => {
+    setChecking(true);
+    setUpdateInfo(null);
+    try {
+      const update = await check();
+      if (update) {
+        setUpdateInfo({
+          version: update.version,
+          currentVersion: update.currentVersion,
+          notes: update.body || undefined,
+        });
+      } else {
+        toast.success("已是最新版本");
+      }
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "检查更新失败");
+    } finally {
+      setChecking(false);
+    }
+  };
+
+  const handleDownloadInstall = async () => {
+    setInstalling(true);
+    try {
+      const update = await check();
+      if (update) {
+        await update.downloadAndInstall();
+        await relaunch();
+      }
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "安装更新失败");
+    } finally {
+      setInstalling(false);
+    }
+  };
 
   useEffect(() => {
     loadStatus();
@@ -359,12 +410,10 @@ export function SettingsPage() {
               <div className="flex flex-col gap-5">
                 <h2 className="text-lg font-semibold text-foreground">关于 Lynx</h2>
                 <div className="flex items-center gap-4">
-                  <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-primary text-primary-foreground text-2xl font-bold">
-                    L
-                  </div>
+                  <Logo className="h-16 w-16 rounded-2xl" variant="dark" />
                   <div>
                     <p className="text-base font-semibold text-foreground">Lynx 原生桌面端</p>
-                    <p className="text-sm text-muted-foreground">基于 HermesAgent 技术</p>
+                    <p className="text-sm text-muted-foreground">基于 Lynx Agent 技术</p>
                   </div>
                 </div>
 
@@ -379,6 +428,54 @@ export function SettingsPage() {
                       {status?.wsConnected ? "已连接" : "未连接"}
                     </p>
                   </div>
+                </div>
+
+                {/* 检查更新 */}
+                <div className="rounded-xl border border-border/40 bg-muted/20 p-4">
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-medium text-foreground">检查更新</p>
+                      <p className="text-xs text-muted-foreground">
+                        {updateInfo
+                          ? `发现新版本 v${updateInfo.version}（当前 v${updateInfo.currentVersion}）`
+                          : "检查是否有新版本可用"}
+                      </p>
+                    </div>
+                    {updateInfo ? (
+                      <button
+                        onClick={handleDownloadInstall}
+                        disabled={installing}
+                        className="btn-primary-glass flex h-9 items-center gap-1.5 rounded-lg px-3 text-xs disabled:opacity-50"
+                      >
+                        {installing ? (
+                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                        ) : (
+                          <Download className="h-3.5 w-3.5" />
+                        )}
+                        {installing ? "安装中..." : "立即安装"}
+                      </button>
+                    ) : (
+                      <button
+                        onClick={handleCheckUpdate}
+                        disabled={checking}
+                        className="btn-glass flex h-9 items-center gap-1.5 rounded-lg px-3 text-xs disabled:opacity-50"
+                      >
+                        {checking ? (
+                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                        ) : (
+                          <RefreshCw className="h-3.5 w-3.5" />
+                        )}
+                        {checking ? "检查中..." : "检查更新"}
+                      </button>
+                    )}
+                  </div>
+                  {updateInfo?.notes && (
+                    <div className="mt-3 rounded-lg border border-border/40 bg-background/40 p-3">
+                      <p className="text-xs text-muted-foreground/80 whitespace-pre-line">
+                        {updateInfo.notes}
+                      </p>
+                    </div>
+                  )}
                 </div>
 
                 <p className="text-xs text-muted-foreground">

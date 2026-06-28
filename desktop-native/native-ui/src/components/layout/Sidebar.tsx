@@ -5,77 +5,117 @@ import {
   LayoutDashboard,
   Sparkles,
   Bot,
-  ChevronLeft,
-  ChevronRight,
   Settings,
   Cpu,
   Brain,
   Skull,
-  Inbox as InboxIcon,
   Search as SearchIcon,
+  Inbox as InboxIcon,
+  Briefcase,
+  Bot as AiIcon,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
-import { useUIStore } from "@/stores/uiStore";
 import { UserMenu } from "./UserMenu";
 
-const navItems = [
-  { to: "/focus", label: "今日聚焦", icon: Target },
-  { to: "/inbox", label: "Inbox", icon: InboxIcon },
-  { to: "/search", label: "全局搜索", icon: SearchIcon },
-  { to: "/cognition", label: "认知库", icon: Brain },
-  { to: "/board", label: "决策看板", icon: LayoutDashboard },
-  { to: "/graveyard", label: "灵感墓地", icon: Skull },
-  { to: "/ai/workspace", label: "AI 工作空间", icon: Sparkles },
-  { to: "/ai/assistant", label: "AI 专属助理", icon: Bot },
-  { to: "/agent", label: "HermesAgent", icon: Cpu },
-];
+type TabKey = "work" | "ai";
+
+interface NavEntry {
+  to: string;
+  label: string;
+  icon: React.ElementType;
+}
+
+const NAV_GROUPS: Record<TabKey, { label: string; icon: React.ElementType; items: NavEntry[] }> = {
+  work: {
+    label: "工作",
+    icon: Briefcase,
+    items: [
+      { to: "/focus", label: "今日聚焦", icon: Target },
+      { to: "/inbox", label: "Inbox", icon: InboxIcon },
+      { to: "/board", label: "决策看板", icon: LayoutDashboard },
+      { to: "/graveyard", label: "灵感墓地", icon: Skull },
+      { to: "/search", label: "全局搜索", icon: SearchIcon },
+      { to: "/cognition", label: "认知库", icon: Brain },
+    ],
+  },
+  ai: {
+    label: "AI",
+    icon: AiIcon,
+    items: [
+      { to: "/ai/workspace", label: "AI 工作空间", icon: Sparkles },
+      { to: "/ai/assistant", label: "AI 专属助理", icon: Bot },
+      { to: "/agent", label: "Lynx Agent", icon: Cpu },
+    ],
+  },
+};
 
 export function Sidebar() {
-  const expanded = useUIStore((s) => s.sidebarExpanded);
-  const toggleSidebar = useUIStore((s) => s.toggleSidebar);
   const location = useLocation();
-  const [hovered, setHovered] = useState(false);
-  const showLabel = expanded || hovered;
+  const [tab, setTab] = useState<TabKey>(() => {
+    // 根据当前路由自动选择 Tab
+    for (const [key, group] of Object.entries(NAV_GROUPS)) {
+      if (group.items.some((it) => location.pathname.startsWith(it.to))) {
+        return key as TabKey;
+      }
+    }
+    return "work";
+  });
 
-  // 自动展开：鼠标移入
-  const handleMouseEnter = () => {
-    if (!expanded) setHovered(true);
-  };
-  const handleMouseLeave = () => {
-    if (!expanded) setHovered(false);
-  };
+  const currentItems = NAV_GROUPS[tab].items;
 
   return (
-    <aside
-      onMouseEnter={handleMouseEnter}
-      onMouseLeave={handleMouseLeave}
-      className={cn(
-        "glass-sidebar flex h-full flex-col justify-between transition-[width] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)]",
-        showLabel ? "w-56" : "w-[72px]"
-      )}
-    >
-      <div className="flex flex-col gap-2 p-3">
-        <div className="mb-2 flex items-center justify-end px-1">
-          <button
-            onClick={toggleSidebar}
-            className="flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-primary/10 hover:text-foreground"
-            title={expanded ? "收起侧边栏" : "展开侧边栏"}
-          >
-            {expanded ? <ChevronLeft className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
-          </button>
+    <aside className="glass-sidebar flex h-full w-56 shrink-0 flex-col justify-between">
+      <div className="flex flex-col gap-3 p-3">
+        {/* Tab 分段控制器：工作 / AI */}
+        <div className="flex rounded-xl bg-muted/40 p-1">
+          {(Object.keys(NAV_GROUPS) as TabKey[]).map((key) => {
+            const isActive = tab === key;
+            const Icon = NAV_GROUPS[key].icon;
+            return (
+              <button
+                key={key}
+                onClick={() => setTab(key)}
+                className={cn(
+                  "relative flex flex-1 items-center justify-center gap-1.5 rounded-lg py-1.5 text-xs font-medium transition-colors",
+                  isActive
+                    ? "text-foreground"
+                    : "text-muted-foreground hover:text-foreground"
+                )}
+              >
+                {isActive && (
+                  <motion.div
+                    layoutId="sidebar-tab-indicator"
+                    className="absolute inset-0 rounded-lg bg-primary/15 shadow-[inset_0_1px_1px_hsl(var(--glass-highlight)/0.18),0_0_0_1px_hsl(var(--primary)/0.2)]"
+                    transition={{ type: "spring", stiffness: 400, damping: 32 }}
+                  />
+                )}
+                <Icon className="relative h-3.5 w-3.5" />
+                <span className="relative">{NAV_GROUPS[key].label}</span>
+              </button>
+            );
+          })}
         </div>
 
-        <nav className="flex flex-col gap-1.5">
-          {navItems.map((item) => (
-            <NavItem
-              key={item.to}
-              {...item}
-              active={location.pathname.startsWith(item.to)}
-              showLabel={showLabel}
-            />
-          ))}
-        </nav>
+        {/* 导航项（Tab 切换动画） */}
+        <AnimatePresence mode="wait">
+          <motion.nav
+            key={tab}
+            initial={{ opacity: 0, x: -8 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: 8 }}
+            transition={{ duration: 0.18 }}
+            className="flex flex-col gap-1.5"
+          >
+            {currentItems.map((item) => (
+              <NavItem
+                key={item.to}
+                {...item}
+                active={location.pathname.startsWith(item.to)}
+              />
+            ))}
+          </motion.nav>
+        </AnimatePresence>
       </div>
 
       <div className="flex flex-col gap-2 p-3">
@@ -90,23 +130,11 @@ export function Sidebar() {
           }
         >
           <Settings className="h-[18px] w-[18px] shrink-0" />
-          <AnimatePresence>
-            {showLabel && (
-              <motion.span
-                initial={{ opacity: 0, x: -6 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: -6 }}
-                transition={{ duration: 0.18 }}
-                className="truncate"
-              >
-                设置
-              </motion.span>
-            )}
-          </AnimatePresence>
+          <span className="truncate">设置</span>
         </NavLink>
 
         <div className="mt-1">
-          <UserMenu collapsed={!showLabel} />
+          <UserMenu collapsed={false} />
         </div>
       </div>
     </aside>
@@ -118,42 +146,23 @@ function NavItem({
   label,
   icon: Icon,
   active,
-  showLabel,
 }: {
   to: string;
   label: string;
   icon: React.ElementType;
   active: boolean;
-  showLabel: boolean;
 }) {
   return (
     <NavLink
       to={to}
-      className={({ isActive }) =>
-        cn(
-          "group relative flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all",
-          "text-muted-foreground hover:bg-primary/8 hover:text-foreground",
-          isActive && "glass-active text-foreground"
-        )
-      }
+      className={cn(
+        "group relative flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all",
+        "text-muted-foreground hover:bg-primary/8 hover:text-foreground",
+        active && "glass-active text-foreground"
+      )}
     >
       <Icon className="h-[18px] w-[18px] shrink-0" />
-      <AnimatePresence>
-        {showLabel && (
-          <motion.span
-            initial={{ opacity: 0, x: -6 }}
-            animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 0, x: -6 }}
-            transition={{ duration: 0.18 }}
-            className="truncate"
-          >
-            {label}
-          </motion.span>
-        )}
-      </AnimatePresence>
-      {active && !showLabel && (
-        <span className="absolute left-0 top-1/2 h-5 w-0.5 -translate-y-1/2 rounded-r-full bg-primary" />
-      )}
+      <span className="truncate">{label}</span>
     </NavLink>
   );
 }

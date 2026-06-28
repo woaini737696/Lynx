@@ -102,6 +102,6 @@ export const config = {
      * - _next/static, _next/image, favicon.ico
      * - public 静态资源
      */
-    "/((?!_next/static|_next/image|favicon.ico|manifest.webmanifest|sw.js|icons|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico|css|js|woff|woff2|ttf|eot)$).*)",
+    "/((?!_next/static|_next/image|favicon.ico|manifest.webmanifest|sw.js|icons|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico|css|js|html|woff|woff2|ttf|eot)$).*)",
   ],
 };

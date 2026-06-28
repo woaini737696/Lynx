@@ -68,7 +68,7 @@ export function HelpButton({ content, contentKey, title = "使用说明" }: Help
             onClick={(e) => e.stopPropagation()}
           >
             {/* 头部 */}
-            <div className="sticky top-0 flex items-center justify-between border-b border-border/60 px-6 py-4 backdrop-blur-xl">
+            <div className="sticky top-0 flex items-center justify-between px-6 py-4">
               <h2 className="flex items-center gap-2 text-lg font-bold text-foreground">
                 <HelpCircle className="h-5 w-5 text-cognition" />
                 {title}
@@ -130,7 +130,7 @@ export function HelpButton({ content, contentKey, title = "使用说明" }: Help
             </div>
 
             {/* 底部 */}
-            <div className="sticky bottom-0 border-t border-border/60 px-6 py-3 backdrop-blur-xl">
+            <div className="sticky bottom-0 px-6 py-3">
               {versionInfo && (
                 <div className="mb-2 text-[10px] text-muted-foreground/70">
                   版本 v{versionInfo.version} · 更新于 {versionInfo.updatedAt}
@@ -138,7 +138,7 @@ export function HelpButton({ content, contentKey, title = "使用说明" }: Help
               )}
               <button
                 onClick={() => setOpen(false)}
-                className="btn-primary w-full rounded-lg py-2 text-sm font-medium"
+                className="btn-primary w-full rounded-lg py-2 text-sm font-medium text-white"
               >
                 我知道了
               </button>

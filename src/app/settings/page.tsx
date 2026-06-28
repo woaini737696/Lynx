@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import {
   Database,
   KeyRound,
@@ -18,17 +18,25 @@ import {
   Wifi,
   ExternalLink,
   Send,
-  BookOpen,
   Terminal,
   Sparkles,
   RefreshCw,
 } from "lucide-react";
 import { PageHeader, Card, Button, LoadingState } from "@/components/layout/PageHeader";
 import { HelpButton } from "@/components/layout/HelpButton";
-import { HELP_CONTENT } from "@/lib/help-content";
 import { toast } from "@/components/ui/toast";
 import { UserAIKeyConfig } from "@/components/settings/UserAIKeyConfig";
 import { DesktopHermesSection } from "@/components/settings/DesktopHermesSection";
+
+/** 设置页 Tab */
+type SettingsTab = "ai" | "agent" | "system" | "files";
+
+const TABS: { key: SettingsTab; label: string; icon: React.ReactNode }[] = [
+  { key: "ai", label: "AI 模型", icon: <KeyRound className="h-3.5 w-3.5" /> },
+  { key: "agent", label: "Lynx Agent", icon: <Cpu className="h-3.5 w-3.5" /> },
+  { key: "system", label: "系统状态", icon: <Database className="h-3.5 w-3.5" /> },
+  { key: "files", label: "配置文件", icon: <FileText className="h-3.5 w-3.5" /> },
+];
 
 /** 单个字段的数据库配置状态 */
 type FieldStatus = { configured: boolean; value: string };
@@ -56,6 +64,9 @@ type Settings = {
 export default function SettingsPage() {
   const [settings, setSettings] = useState<Settings | null>(null);
   const [loading, setLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState<SettingsTab>("ai");
+  // 已访问过的 tab，避免重复 mount/unmount 造成频繁请求
+  const [visitedTabs, setVisitedTabs] = useState<Set<SettingsTab>>(new Set(["ai"]));
 
   useEffect(() => {
     let mounted = true;
@@ -79,6 +90,16 @@ export default function SettingsPage() {
     };
   }, []);
 
+  const handleTabChange = (tab: SettingsTab) => {
+    setActiveTab(tab);
+    setVisitedTabs((prev) => {
+      if (prev.has(tab)) return prev;
+      const next = new Set(prev);
+      next.add(tab);
+      return next;
+    });
+  };
+
   if (loading) {
     return <LoadingState title="设置" />;
   }
@@ -96,144 +117,170 @@ export default function SettingsPage() {
       <PageHeader
         title="设置"
         subtitle="系统配置状态 · 点击文件路径可直接打开编辑"
-        action={
-          <HelpButton contentKey="settings" />
-        }
+        action={<HelpButton contentKey="settings" />}
       />
 
-      {/* AI 模型配置（数据库存储，优先级高于环境变量） */}
-      <AIConfigSection dbSettings={settings.dbSettings} envSettings={settings.envSettings} />
+      {/* Tab 导航 - 液态玻璃风格，sticky 固定 */}
+      <div className="sticky top-0 z-20 mb-5 -mx-1 px-1">
+        <div className="glass-card flex gap-1 overflow-x-auto rounded-2xl p-1.5">
+          {TABS.map((tab) => {
+            const active = activeTab === tab.key;
+            return (
+              <button
+                key={tab.key}
+                onClick={() => handleTabChange(tab.key)}
+                className={`flex shrink-0 items-center gap-1.5 rounded-xl px-3.5 py-2 text-xs font-medium transition-all ${
+                  active
+                    ? "bg-primary text-primary-foreground shadow-sm"
+                    : "text-muted-foreground hover:bg-primary/10 hover:text-foreground"
+                }`}
+              >
+                {tab.icon}
+                {tab.label}
+              </button>
+            );
+          })}
+        </div>
+      </div>
 
-      {/* 用户级 AI Key 配置（每用户自配 Key，优先于全局） */}
-      <UserAIKeyConfig />
+      {/* Tab 内容 - 仅渲染已访问过的 tab，避免切回时重新 mount */}
+      {/* AI 模型 Tab */}
+      {visitedTabs.has("ai") && (
+        <div className={activeTab === "ai" ? "block" : "hidden"}>
+          <AIConfigSection dbSettings={settings.dbSettings} envSettings={settings.envSettings} />
+          <UserAIKeyConfig />
+          <Section
+            icon={<KeyRound className="h-4 w-4 text-cognition" />}
+            title="AI Provider（对话提取 / 认知提取）"
+          >
+            <Row
+              label="API Key"
+              value={settings.ai.chatProvider ? "已配置" : "未配置（AI 提取功能不可用）"}
+              ok={settings.ai.chatProvider}
+            />
+            <Row label="模型" value={settings.ai.chatModel} />
+            <Row label="Base URL" value={settings.ai.chatBaseURL} />
+            {!settings.ai.chatProvider && (
+              <div className="ios-glass-sm mt-3 rounded-xl border-graveyard/30 p-3 text-xs text-graveyard">
+                ⚠️ 未配置 LLM API Key（DEEPSEEK_API_KEY / MIMO_API_KEY / AI_API_KEY），对话资产和认知库的 AI 提取会跳过。
+                <br />
+                配置后重启 dev server 生效。
+              </div>
+            )}
+          </Section>
+          <Section
+            icon={<Brain className="h-4 w-4 text-task" />}
+            title="记忆图谱 Embedding"
+          >
+            <Row
+              label="状态"
+              value={settings.ai.embeddingEnabled ? "AI 向量" : "TF-IDF 降级"}
+              ok={settings.ai.embeddingEnabled}
+            />
+            <Row label="模型" value={settings.ai.embeddingModel} />
+            <Row label="当前模式" value={settings.ai.embeddingMode} />
+            {!settings.ai.embeddingEnabled && (
+              <div className="ios-glass-sm mt-3 rounded-xl border-campaign/30 p-3 text-xs text-campaign">
+                ℹ️ 未配置 embedding，记忆图谱使用 TF-IDF 关键词匹配（可用但精度较低）。
+                <br />
+                配置 EMBEDDING_API_KEY 后启用向量搜索。
+              </div>
+            )}
+          </Section>
+        </div>
+      )}
 
-      {/* 桌面端 HermesAgent 专属配置（仅桌面端显示） */}
-      <DesktopHermesSection />
+      {/* Lynx Agent Tab */}
+      {visitedTabs.has("agent") && (
+        <div className={activeTab === "agent" ? "block" : "hidden"}>
+          <DesktopHermesSection />
+          <HermesConfigSection />
+        </div>
+      )}
 
-      {/* Hermes Agent 配置 */}
-      <HermesConfigSection />
+      {/* 系统 Tab */}
+      {visitedTabs.has("system") && (
+        <div className={activeTab === "system" ? "block" : "hidden"}>
+          <Section icon={<Database className="h-4 w-4 text-campaign" />} title="数据库">
+            <Row
+              label="状态"
+              value={settings.db.status === "connected" ? "已连接" : "连接失败"}
+              ok={settings.db.status === "connected"}
+            />
+            <Row label="连接地址" value={settings.db.url} />
+            <Row
+              label="数据量"
+              value={`灵感 ${settings.db.counts.ideas || 0} · 任务 ${settings.db.counts.tasks || 0} · 对话 ${settings.db.counts.conversations || 0} · 认知 ${settings.db.counts.cognitions || 0} · 记忆 ${settings.db.counts.memories || 0}`}
+            />
+          </Section>
+          <Section icon={<Zap className="h-4 w-4 text-northstar" />} title="快捷键">
+            <Row label="闪电输入" value="Ctrl + J（Mac: Cmd + J）" ok />
+            <Row
+              label="说明"
+              value="原 Ctrl+Space 在 Windows 被输入法占用，已改为 Ctrl+J"
+            />
+          </Section>
+        </div>
+      )}
 
-      {/* 快捷键 */}
-      <Section icon={<Zap className="h-4 w-4 text-northstar" />} title="快捷键">
-        <Row label="闪电输入" value="Ctrl + J（Mac: Cmd + J）" ok />
-        <Row
-          label="说明"
-          value="原 Ctrl+Space 在 Windows 被输入法占用，已改为 Ctrl+J"
-        />
-      </Section>
-
-      {/* 数据库 */}
-      <Section icon={<Database className="h-4 w-4 text-campaign" />} title="数据库">
-        <Row
-          label="状态"
-          value={settings.db.status === "connected" ? "已连接" : "连接失败"}
-          ok={settings.db.status === "connected"}
-        />
-        <Row label="连接地址" value={settings.db.url} />
-        <Row
-          label="数据量"
-          value={`灵感 ${settings.db.counts.ideas || 0} · 任务 ${settings.db.counts.tasks || 0} · 对话 ${settings.db.counts.conversations || 0} · 认知 ${settings.db.counts.cognitions || 0} · 记忆 ${settings.db.counts.memories || 0}`}
-        />
-      </Section>
-
-      {/* AI Provider */}
-      <Section
-        icon={<KeyRound className="h-4 w-4 text-cognition" />}
-        title="AI Provider（对话提取 / 认知提取）"
-      >
-        <Row
-          label="API Key"
-          value={settings.ai.chatProvider ? "已配置" : "未配置（AI 提取功能不可用）"}
-          ok={settings.ai.chatProvider}
-        />
-        <Row label="模型" value={settings.ai.chatModel} />
-        <Row label="Base URL" value={settings.ai.chatBaseURL} />
-        {!settings.ai.chatProvider && (
-          <div className="ios-glass-sm mt-3 rounded-xl border-graveyard/30 p-3 text-xs text-graveyard">
-            ⚠️ 未配置 LLM API Key（DEEPSEEK_API_KEY / MIMO_API_KEY / AI_API_KEY），对话资产和认知库的 AI 提取会跳过。
-            <br />
-            配置后重启 dev server 生效。
-          </div>
-        )}
-      </Section>
-
-      {/* Embedding */}
-      <Section
-        icon={<Brain className="h-4 w-4 text-task" />}
-        title="记忆图谱 Embedding"
-      >
-        <Row
-          label="状态"
-          value={settings.ai.embeddingEnabled ? "AI 向量" : "TF-IDF 降级"}
-          ok={settings.ai.embeddingEnabled}
-        />
-        <Row label="模型" value={settings.ai.embeddingModel} />
-        <Row label="当前模式" value={settings.ai.embeddingMode} />
-        {!settings.ai.embeddingEnabled && (
-          <div className="ios-glass-sm mt-3 rounded-xl border-campaign/30 p-3 text-xs text-campaign">
-            ℹ️ 未配置 embedding，记忆图谱使用 TF-IDF 关键词匹配（可用但精度较低）。
-            <br />
-            配置 EMBEDDING_API_KEY 后启用向量搜索。
-          </div>
-        )}
-      </Section>
-
-      {/* 配置文件 */}
-      <Section
-        icon={<FileText className="h-4 w-4 text-muted-foreground" />}
-        title="配置文件（点击路径在 IDE 中打开）"
-      >
-        <FileLink
-          path={settings.envFilePath}
-          label=".env"
-          desc="主配置文件，填入 API Key 后保存"
-          absolutePath="d:/Lynn工作空间/LynnHub/.env"
-        />
-        <FileLink
-          path={settings.envExamplePath}
-          label=".env.example"
-          desc="配置模板，含 4 种 Provider 方案说明"
-          absolutePath="d:/Lynn工作空间/LynnHub/.env.example"
-        />
-      </Section>
-
-      {/* 配置指引 */}
-      <Section
-        icon={<KeyRound className="h-4 w-4 text-northstar" />}
-        title="快速配置指引"
-      >
-        <div className="space-y-3 text-xs text-muted-foreground">
-          <div>
-            <div className="mb-1 font-medium text-foreground">方案 B（国内推荐）：硅基流动</div>
-            <pre className="ios-glass-sm overflow-x-auto rounded-md p-2 text-[11px]">
+      {/* 配置文件 Tab */}
+      {visitedTabs.has("files") && (
+        <div className={activeTab === "files" ? "block" : "hidden"}>
+          <Section
+            icon={<FileText className="h-4 w-4 text-muted-foreground" />}
+            title="配置文件（点击路径在 IDE 中打开）"
+          >
+            <FileLink
+              path={settings.envFilePath}
+              label=".env"
+              desc="主配置文件，填入 API Key 后保存"
+              absolutePath="d:/Lynn工作空间/LynnHub/.env"
+            />
+            <FileLink
+              path={settings.envExamplePath}
+              label=".env.example"
+              desc="配置模板，含 4 种 Provider 方案说明"
+              absolutePath="d:/Lynn工作空间/LynnHub/.env.example"
+            />
+          </Section>
+          <Section
+            icon={<KeyRound className="h-4 w-4 text-northstar" />}
+            title="快速配置指引"
+          >
+            <div className="space-y-3 text-xs text-muted-foreground">
+              <div>
+                <div className="mb-1 font-medium text-foreground">方案 B（国内推荐）：硅基流动</div>
+                <pre className="ios-glass-sm overflow-x-auto rounded-md p-2 text-[11px]">
 {`AI_BASE_URL=https://api.siliconflow.cn/v1
 AI_API_KEY=sk-你的key
 AI_MODEL=Qwen/Qwen2.5-7B-Instruct
 AI_EMBEDDING_MODEL=BAAI/bge-m3`}
-            </pre>
-          </div>
-          <div>
-            <div className="mb-1 font-medium text-foreground">方案 A：OpenAI 官方</div>
-            <pre className="ios-glass-sm overflow-x-auto rounded-md p-2 text-[11px]">
+                </pre>
+              </div>
+              <div>
+                <div className="mb-1 font-medium text-foreground">方案 A：OpenAI 官方</div>
+                <pre className="ios-glass-sm overflow-x-auto rounded-md p-2 text-[11px]">
 {`AI_BASE_URL=https://api.openai.com/v1
 AI_API_KEY=sk-你的key
 AI_MODEL=gpt-4o-mini
 AI_EMBEDDING_MODEL=text-embedding-3-small`}
-            </pre>
-          </div>
-          <div>
-            <div className="mb-1 font-medium text-foreground">方案 C：DeepSeek（无 embedding）</div>
-            <pre className="ios-glass-sm overflow-x-auto rounded-md p-2 text-[11px]">
+                </pre>
+              </div>
+              <div>
+                <div className="mb-1 font-medium text-foreground">方案 C：DeepSeek（无 embedding）</div>
+                <pre className="ios-glass-sm overflow-x-auto rounded-md p-2 text-[11px]">
 {`AI_BASE_URL=https://api.deepseek.com/v1
 AI_API_KEY=sk-你的key
 AI_MODEL=deepseek-chat`}
-            </pre>
-          </div>
-          <div className="ios-glass-sm rounded-md p-2 text-[11px]">
-            配置步骤：1. 点击上方 .env 打开 → 2. 粘贴方案 → 3. 填入 Key → 4. 保存 → 5. 重启 dev server（Ctrl+C 后 npm run dev）
-          </div>
+                </pre>
+              </div>
+              <div className="ios-glass-sm rounded-md p-2 text-[11px]">
+                配置步骤：1. 点击上方 .env 打开 → 2. 粘贴方案 → 3. 填入 Key → 4. 保存 → 5. 重启 dev server（Ctrl+C 后 npm run dev）
+              </div>
+            </div>
+          </Section>
         </div>
-      </Section>
+      )}
     </div>
   );
 }
@@ -584,7 +631,7 @@ function FileLink({
   return (
     <a
       href={`file:///${absolutePath.replace(/\\/g, "/")}`}
-      className="flex items-center gap-3 rounded-md border border-border/60 bg-muted/20 p-3 text-xs transition-colors hover:border-northstar/50 hover:bg-primary/10"
+      className="ios-glass-sm flex items-center gap-3 rounded-md p-3 text-xs transition-colors hover:border-northstar/50 hover:bg-primary/10"
     >
       <FileText className="h-4 w-4 shrink-0 text-northstar" />
       <div className="flex-1">
@@ -725,9 +772,32 @@ function HermesConfigSection() {
   useEffect(() => {
     loadStatus();
     checkModelConfig();
-    // 每 30 秒自动刷新状态（原 10 秒过于频繁，hermes status 命令较重）
-    const timer = setInterval(loadStatus, 30_000);
-    return () => clearInterval(timer);
+    // 每 30 秒自动刷新状态（仅在页面可见时执行，避免后台 tab 持续请求）
+    let timer: ReturnType<typeof setInterval> | null = null;
+    const start = () => {
+      if (timer) return;
+      timer = setInterval(loadStatus, 30_000);
+    };
+    const stop = () => {
+      if (timer) {
+        clearInterval(timer);
+        timer = null;
+      }
+    };
+    const onVis = () => {
+      if (document.visibilityState === "visible") {
+        start();
+        loadStatus();
+      } else {
+        stop();
+      }
+    };
+    if (document.visibilityState === "visible") start();
+    document.addEventListener("visibilitychange", onVis);
+    return () => {
+      stop();
+      document.removeEventListener("visibilitychange", onVis);
+    };
   }, []);
 
   // 快速执行 Hermes 任务
@@ -978,7 +1048,7 @@ function HermesConfigSection() {
 
       {/* 安装状态 */}
       <div className="mb-4 space-y-2">
-        <div className="flex items-center justify-between rounded-md border border-border/60 bg-muted/20 p-3">
+        <div className="ios-glass-sm flex items-center justify-between rounded-md p-3">
           <div className="flex items-center gap-2 text-xs">
             <span className={`h-2 w-2 rounded-full ${
               isRunning ? "bg-green-500" : isInstalled ? "bg-yellow-500" : "bg-gray-400"
@@ -1291,95 +1361,5 @@ function HermesConfigSection() {
         </div>
       </div>
     </Section>
-  );
-}
-
-// ============ Lynx Agent 使用说明弹窗 ============
-
-function HermesHelpModal({ onClose }: { onClose: () => void }) {
-  const content = HELP_CONTENT["hermes-agent"];
-  if (!content) return null;
-
-  return (
-    <div
-      className="fixed inset-0 z-[100] flex items-center justify-center bg-black/30 p-4 backdrop-blur-xl"
-      onClick={onClose}
-    >
-      <div
-        className="glass-modal max-h-[85vh] w-full max-w-2xl overflow-y-auto rounded-2xl"
-        onClick={(e) => e.stopPropagation()}
-      >
-        {/* 头部 */}
-        <div className="sticky top-0 flex items-center justify-between border-b border-border/60 px-6 py-4">
-          <h2 className="flex items-center gap-2 text-lg font-bold text-foreground">
-            <BookOpen className="h-5 w-5 text-northstar" />
-            Lynx Agent 使用说明
-          </h2>
-          <button
-            onClick={onClose}
-            className="rounded-lg p-1 text-muted-foreground transition hover:bg-primary/10 hover:text-primary"
-          >
-            <XCircle className="h-5 w-5" />
-          </button>
-        </div>
-
-        {/* 内容 */}
-        <div className="space-y-5 px-6 py-5 text-muted-foreground">
-          <section>
-            <h3 className="mb-1.5 flex items-center gap-1.5 text-sm font-semibold text-graveyard">
-              <span className="ios-glass-sm flex h-5 w-5 items-center justify-center rounded-full text-xs">!</span>
-              痛点
-            </h3>
-            <p className="text-sm leading-relaxed">{content.painPoint}</p>
-          </section>
-
-          <section>
-            <h3 className="mb-1.5 flex items-center gap-1.5 text-sm font-semibold text-campaign">
-              <span className="ios-glass-sm flex h-5 w-5 items-center justify-center rounded-full text-xs">?</span>
-              需求
-            </h3>
-            <p className="text-sm leading-relaxed">{content.need}</p>
-          </section>
-
-          <section>
-            <h3 className="mb-1.5 flex items-center gap-1.5 text-sm font-semibold text-northstar">
-              <span className="ios-glass-sm flex h-5 w-5 items-center justify-center rounded-full text-xs">✓</span>
-              解决方案
-            </h3>
-            <p className="text-sm leading-relaxed">{content.solution}</p>
-          </section>
-
-          <section>
-            <h3 className="mb-1.5 flex items-center gap-1.5 text-sm font-semibold text-task">
-              <span className="ios-glass-sm flex h-5 w-5 items-center justify-center rounded-full text-xs">→</span>
-              使用方法
-            </h3>
-            <ol className="space-y-2">
-              {content.usage.map((step, i) => (
-                <li key={i} className="flex gap-2.5 text-sm leading-relaxed">
-                  <span className="ios-glass-sm flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full text-xs font-medium text-task">
-                    {i + 1}
-                  </span>
-                  <span>{step}</span>
-                </li>
-              ))}
-            </ol>
-          </section>
-        </div>
-
-        {/* 底部 */}
-        <div className="sticky bottom-0 border-t border-border/60 px-6 py-3">
-          <div className="mb-2 text-[10px] text-muted-foreground/70">
-            版本 v{content.version} · 更新于 {content.updatedAt}
-          </div>
-          <button
-            onClick={onClose}
-            className="btn-primary w-full rounded-lg py-2 text-sm font-medium text-primary-foreground transition"
-          >
-            我知道了
-          </button>
-        </div>
-      </div>
-    </div>
   );
 }
