@@ -13,6 +13,7 @@ import { SearchInput, FilterSelect, Pagination, useClientPagination } from "@/co
 import type { ReviveSuggestion } from "@/lib/reminder-scheduler";
 import { openContextMenu } from "@/components/ui/ContextMenu";
 import { RetryState } from "@/components/ui/RetryState";
+import { useLightningStore } from "@/store/lightning";
 
 /** 附件结构（与 Idea.attachments 字段一致） */
 interface Attachment {
@@ -572,7 +573,7 @@ export default function InboxPage() {
           title="Inbox 已清空"
           description="所有灵感都已收敛到看板或墓地，可以安心工作了"
           action={
-            <Button onClick={() => {}}>
+            <Button onClick={() => useLightningStore.getState().open()}>
               按 Ctrl+J 捕获新灵感
             </Button>
           }
@@ -580,7 +581,7 @@ export default function InboxPage() {
       ) : (
         <div className="flex flex-col gap-3">
           {/* 批量操作栏 */}
-          <div className="flex items-center justify-between rounded-lg border border-border/60 bg-muted/30 px-3 py-2">
+          <div className="flex items-center justify-between rounded-lg border border-border/60 ios-glass-sm px-3 py-2">
             {multiSelectMode ? (
               <>
                 <div className="flex items-center gap-3">
@@ -787,7 +788,7 @@ export default function InboxPage() {
             }}
           </AnimatedList>
           {filtered.length === 0 && (
-            <div className="rounded-xl border border-dashed border-border bg-muted/30 px-4 py-12 text-center text-sm text-muted-foreground">
+            <div className="rounded-xl border border-dashed border-border ios-glass-sm px-4 py-12 text-center text-sm text-muted-foreground">
               没有匹配的灵感
             </div>
           )}

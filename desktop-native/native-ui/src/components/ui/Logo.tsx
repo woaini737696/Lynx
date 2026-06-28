@@ -3,9 +3,13 @@ interface LogoProps {
   variant?: "dark" | "light";
 }
 
+/**
+ * Lynx 产品 Logo - 白色猞猁 + 黑色底
+ * 几何化猞猁头像：尖耳+耳簇 / 锐利双眼 / 三角鼻
+ */
 export function Logo({ className = "w-8 h-8", variant = "dark" }: LogoProps) {
-  const bg = variant === "dark" ? "#030816" : "#ffffff";
-  const fg = variant === "dark" ? "#ffffff" : "#030816";
+  const bg = variant === "dark" ? "#030816" : "#030816";
+  const fg = variant === "dark" ? "#ffffff" : "#ffffff";
 
   return (
     <svg
@@ -14,21 +18,58 @@ export function Logo({ className = "w-8 h-8", variant = "dark" }: LogoProps) {
       fill="none"
       xmlns="http://www.w3.org/2000/svg"
     >
-      <rect width="512" height="512" rx="128" fill={bg} />
+      <rect width="512" height="512" rx="112" fill={bg} />
+
+      {/* 左耳 + 耳簇 */}
       <path
-        d="M368 144c-32 8-72 32-96 56-8-16-24-40-48-48-40-12-88 16-104 48-16 32-8 80 16 112 24 32 64 48 104 40 16-4 32-12 44-24 12 12 28 20 44 24 40 8 80-8 104-40 24-32 32-80 16-112-16-32-64-60-104-48-8 2-16 6-24 10 12-12 32-24 48-28l-16-28c-16 4-40 20-56 36 0-4-4-8-4-12 8-16 16-28 28-40l-20-24c-16 16-28 36-36 56z"
+        d="M170 175 L128 70 L185 110 L165 35 L205 75 L195 135 Z"
         fill={fg}
       />
+      {/* 右耳 + 耳簇 */}
       <path
-        d="M168 208c16-8 36-4 48 8 8 8 12 20 12 32-16 4-32 0-44-12-12-12-16-28-16-28z"
+        d="M342 175 L384 70 L327 110 L347 35 L307 75 L317 135 Z"
+        fill={fg}
+      />
+
+      {/* 脸部 */}
+      <path
+        d="M256 145 C208 145 176 185 170 245 C164 305 186 355 220 380 C235 390 256 395 256 395 C256 395 277 390 292 380 C326 355 348 305 342 245 C336 185 304 145 256 145 Z"
+        fill={fg}
+      />
+
+      {/* 左眼 */}
+      <ellipse
+        cx="216"
+        cy="250"
+        rx="22"
+        ry="15"
         fill={bg}
+        transform="rotate(-12 216 250)"
       />
+      {/* 右眼 */}
+      <ellipse
+        cx="296"
+        cy="250"
+        rx="22"
+        ry="15"
+        fill={bg}
+        transform="rotate(12 296 250)"
+      />
+      {/* 眼睛高光 */}
+      <circle cx="221" cy="245" r="4" fill={fg} />
+      <circle cx="291" cy="245" r="4" fill={fg} />
+
+      {/* 鼻子 */}
+      <path d="M256 290 L240 310 Q256 320 272 310 Z" fill={bg} />
+
+      {/* 嘴 */}
       <path
-        d="M220 280c-8 16-24 28-44 32-20 4-40-4-52-20-8-12-8-28 0-40 8-16 28-24 48-24 20 0 40 12 52 28 8 12 8 24-4 24z"
-        fill={fg}
+        d="M256 320 L256 342 M256 342 Q244 350 234 344 M256 342 Q268 350 278 344"
+        stroke={bg}
+        strokeWidth="4"
+        strokeLinecap="round"
+        fill="none"
       />
-      <circle cx="196" cy="232" r="14" fill={fg} />
-      <circle cx="198" cy="228" r="5" fill={bg} />
     </svg>
   );
 }

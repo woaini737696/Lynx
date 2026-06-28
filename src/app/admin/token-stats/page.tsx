@@ -42,6 +42,13 @@ interface UserInfo {
   username: string;
   displayName: string;
   profession: string | null;
+  totalTokens: number;
+  totalCount: number;
+}
+
+interface NullUserStats {
+  tokens: number;
+  count: number;
 }
 
 interface TokenStatsData {
@@ -55,6 +62,7 @@ interface TokenStatsData {
   byUser: UserStat[];
   records: TokenRecord[];
   users: UserInfo[];
+  nullUser: NullUserStats;
   pagination: {
     offset: number;
     limit: number;
@@ -143,7 +151,7 @@ export default function TokenStatsPage() {
     );
   }
 
-  const { summary, byProvider, byUser, records, users, pagination } = data;
+  const { summary, byProvider, byUser, records, users, pagination, nullUser } = data;
   const todayVsYesterday = summary.yesterday.tokens > 0
     ? ((summary.today.tokens - summary.yesterday.tokens) / summary.yesterday.tokens) * 100
     : null;
@@ -185,8 +193,12 @@ export default function TokenStatsPage() {
             {users.map((u) => (
               <option key={u.id} value={u.id}>
                 {u.username}{u.displayName ? ` (${u.displayName})` : ""}{u.profession ? ` · ${u.profession}` : ""}
+                {u.totalCount > 0 ? ` · ${u.totalCount} 条` : " · 无记录"}
               </option>
             ))}
+            {nullUser.count > 0 && (
+              <option value="__null__">未知用户（历史数据）· {nullUser.count} 条</option>
+            )}
           </select>
           {selectedUserId !== "all" && (
             <Button
@@ -383,7 +395,11 @@ export default function TokenStatsPage() {
               {records.length === 0 ? (
                 <tr>
                   <td colSpan={7} className="px-3 py-8 text-center text-muted-foreground">
-                    暂无记录
+                    {selectedUserId === "all"
+                      ? "暂无词元消耗记录"
+                      : selectedUserId === "__null__"
+                        ? "历史数据中无词元消耗记录"
+                        : "该用户暂无词元消耗记录（仅统计 assistant 消息且 tokens > 0）"}
                   </td>
                 </tr>
               ) : (

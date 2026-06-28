@@ -38,7 +38,9 @@ export async function GET(req: NextRequest) {
       0
     );
     const userIdParam = url.searchParams.get("userId") || "all";
-    const userIdFilter = userIdParam !== "all" ? userIdParam : undefined;
+    // 支持 "__null__" 特殊值：筛选 session.userId 为空的历史数据
+    const isNullUserFilter = userIdParam === "__null__";
+    const userIdFilter = userIdParam !== "all" && !isNullUserFilter ? userIdParam : undefined;
 
     // 计算时间区间（本地时区，Asia/Shanghai）
     const now = new Date();
@@ -48,7 +50,13 @@ export async function GET(req: NextRequest) {
     const last7DaysStart = new Date(todayStart.getTime() - 6 * 24 * 60 * 60 * 1000);
 
     // 用户过滤条件
-    const userFilter = userIdFilter ? { session: { userId: userIdFilter } } : {};
+    // - userIdFilter: 按指定用户 ID 过滤
+    // - isNullUserFilter: 筛选 session.userId 为 null 的历史数据
+    const userFilter = userIdFilter
+      ? { session: { userId: userIdFilter } }
+      : isNullUserFilter
+        ? { session: { userId: null } }
+        : {};
 
     // 基础 where 条件
     const baseWhere = {
@@ -94,7 +102,7 @@ export async function GET(req: NextRequest) {
       prisma.chatSession.findMany({
         where: {
           messages: { some: { role: "assistant", tokens: { gt: 0 }, createdAt: { gte: last7DaysStart, lte: now } } },
-          ...(userIdFilter ? { userId: userIdFilter } : {}),
+          ...(userIdFilter ? { userId: userIdFilter } : isNullUserFilter ? { userId: null } : {}),
         },
         select: {
           userId: true,
@@ -105,10 +113,23 @@ export async function GET(req: NextRequest) {
           },
         },
       }),
-      // 用户列表
+      // 用户列表（含每个用户的总 token 数与记录数，供前端下拉框显示）
       prisma.user.findMany({
         where: { active: true },
-        select: { id: true, username: true, displayName: true, profession: true },
+        select: {
+          id: true,
+          username: true,
+          displayName: true,
+          profession: true,
+          chatSessions: {
+            select: {
+              messages: {
+                where: { role: "assistant", tokens: { gt: 0 } },
+                select: { tokens: true },
+              },
+            },
+          },
+        },
         orderBy: { username: "asc" },
       }),
     ]);
@@ -126,12 +147,18 @@ export async function GET(req: NextRequest) {
     const totalRecordsCount = summaryRow.totalCount;
     const toNum = (v: unknown) => (typeof v === "bigint" ? Number(v) : Number(v) || 0);
 
-    // 聚合 byUser 数据（从 session 维度聚合到 user 维度）
+    // 聚合 byUser 数据（从 session 维度聚合到 user 维度）—— 同时保留 null userId 的历史数据
     const userMap = new Map<string, { username: string; displayName: string; tokens: number; count: number }>();
+    let nullUserTokens = 0;
+    let nullUserCount = 0;
     for (const session of byUserRows) {
-      if (!session.userId) continue;
       const tokens = session.messages.reduce((sum, m) => sum + (m.tokens || 0), 0);
       const count = session.messages.length;
+      if (!session.userId) {
+        nullUserTokens += tokens;
+        nullUserCount += count;
+        continue;
+      }
       const existing = userMap.get(session.userId);
       if (existing) {
         existing.tokens += tokens;
@@ -146,6 +173,29 @@ export async function GET(req: NextRequest) {
       }
     }
 
+    // 计算每个用户的总 token 数与记录数（用于前端下拉框显示 "(N 条)" 指示器）
+    const userStatsMap = new Map<string, { tokens: number; count: number }>();
+    for (const u of users) {
+      let tokens = 0;
+      let count = 0;
+      for (const s of u.chatSessions) {
+        for (const m of s.messages) {
+          tokens += m.tokens || 0;
+          count += 1;
+        }
+      }
+      userStatsMap.set(u.id, { tokens, count });
+    }
+
+    // 单独查 null userId 的总记录数（用于在下拉框显示"未知用户"选项）
+    const nullUserTotalAgg = await prisma.chatMessage.aggregate({
+      where: { role: "assistant", tokens: { gt: 0 }, session: { userId: null } },
+      _sum: { tokens: true },
+      _count: true,
+    });
+    const nullUserTotalTokens = nullUserTotalAgg._sum.tokens ?? 0;
+    const nullUserTotalCount = nullUserTotalAgg._count;
+
     return NextResponse.json({
       summary: {
         today: { tokens: toNum(summaryRow.todayTokens), count: toNum(summaryRow.todayCount) },
@@ -158,15 +208,28 @@ export async function GET(req: NextRequest) {
         tokens: toNum(r._sum.tokens),
         count: toNum(r._count),
       })),
-      byUser: Array.from(userMap.entries())
-        .map(([userId, info]) => ({
-          userId,
-          username: info.username,
-          displayName: info.displayName,
-          tokens: info.tokens,
-          count: info.count,
-        }))
-        .sort((a, b) => b.tokens - a.tokens),
+      byUser: [
+        // 已识别用户
+        ...Array.from(userMap.entries())
+          .map(([userId, info]) => ({
+            userId,
+            username: info.username,
+            displayName: info.displayName,
+            tokens: info.tokens,
+            count: info.count,
+          }))
+          .sort((a, b) => b.tokens - a.tokens),
+        // 历史数据（session.userId 为 null），仅在有数据时显示
+        ...(nullUserTokens > 0
+          ? [{
+              userId: "__null__",
+              username: "未知用户（历史数据）",
+              displayName: "",
+              tokens: nullUserTokens,
+              count: nullUserCount,
+            }]
+          : []),
+      ],
       records: records.map((r) => ({
         id: r.id,
         tokens: r.tokens || 0,
@@ -178,12 +241,22 @@ export async function GET(req: NextRequest) {
         sessionTitle: r.session?.title || "（已删除会话）",
         username: r.session?.user?.username || r.session?.user?.displayName || null,
       })),
-      users: users.map((u) => ({
-        id: u.id,
-        username: u.username,
-        displayName: u.displayName,
-        profession: u.profession,
-      })),
+      users: users.map((u) => {
+        const stats = userStatsMap.get(u.id) || { tokens: 0, count: 0 };
+        return {
+          id: u.id,
+          username: u.username,
+          displayName: u.displayName,
+          profession: u.profession,
+          totalTokens: stats.tokens,
+          totalCount: stats.count,
+        };
+      }),
+      // 历史数据（session.userId 为 null）汇总，用于前端下拉框显示
+      nullUser: {
+        tokens: toNum(nullUserTotalTokens),
+        count: toNum(nullUserTotalCount),
+      },
       pagination: {
         offset,
         limit,

@@ -339,14 +339,14 @@ function SidebarUserProfile() {
             账号设置
           </button>
           <button
-            onClick={() => { setMenuOpen(false); toast("订阅与账单即将上线", "info"); }}
+            onClick={() => { setMenuOpen(false); router.push("/subscription"); }}
             className="flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-sm text-foreground transition-colors hover:bg-primary/10 hover:text-primary"
           >
             <CreditCard className="h-4 w-4 text-muted-foreground" />
             订阅与账单
           </button>
           <button
-            onClick={() => { setMenuOpen(false); toast("帮助中心即将上线", "info"); }}
+            onClick={() => { setMenuOpen(false); router.push("/help"); }}
             className="flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-sm text-foreground transition-colors hover:bg-primary/10 hover:text-primary"
           >
             <HelpCircle className="h-4 w-4 text-muted-foreground" />
