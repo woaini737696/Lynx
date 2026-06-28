@@ -263,7 +263,7 @@ export default function ConvergePage() {
 
       {abandoning && (
         <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/60 p-4 backdrop-blur-md" onClick={() => setAbandoning(null)}>
-          <div className="w-full max-w-md rounded-3xl border border-graveyard/30 bg-card p-5 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+          <div className="w-full max-w-md rounded-3xl border border-graveyard/30 glass-card p-5 shadow-2xl" onClick={(e) => e.stopPropagation()}>
             <div className="mb-3 flex items-center gap-2 text-graveyard">
               <Trash2 className="h-4 w-4" />
               <span className="text-sm font-semibold">送入灵感墓地</span>

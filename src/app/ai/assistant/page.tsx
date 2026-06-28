@@ -3696,7 +3696,7 @@ export default function AIAssistantPage() {
                             className={cn(
                               "rounded-full px-2.5 py-0.5 text-[11px] transition-colors",
                               skillCategory === "all"
-                                ? "bg-cognition text-white"
+                                ? "bg-cognition/10 text-cognition"
                                 : "bg-muted text-muted-foreground hover:bg-muted/70"
                             )}
                           >
@@ -3709,7 +3709,7 @@ export default function AIAssistantPage() {
                               className={cn(
                                 "rounded-full px-2.5 py-0.5 text-[11px] transition-colors",
                                 skillCategory === cat
-                                  ? "bg-cognition text-white"
+                                  ? "bg-cognition/10 text-cognition"
                                   : "bg-muted text-muted-foreground hover:bg-muted/70"
                               )}
                             >

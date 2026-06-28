@@ -2,8 +2,9 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { LogOut, Loader2, Settings2, ChevronRight } from "lucide-react";
+import { LogOut, Loader2, Settings2, ChevronRight, CreditCard, HelpCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { toast } from "@/components/ui/toast";
 
 export function UserProfileFloat() {
   const router = useRouter();
@@ -111,19 +112,33 @@ export function UserProfileFloat() {
       </button>
 
       {menuOpen && (
-        <div className="user-menu absolute bottom-full left-0 right-0 z-50 mb-2 overflow-hidden rounded-2xl p-1.5">
+        <div className="user-menu absolute bottom-full left-0 right-0 z-50 mb-2 overflow-hidden rounded-2xl border border-border/60 p-1.5 shadow-2xl">
           <button
             onClick={() => { setMenuOpen(false); router.push("/settings/profile"); }}
             className="flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-sm text-foreground transition-colors hover:bg-primary/10 hover:text-primary"
           >
             <Settings2 className="h-4 w-4 text-muted-foreground" />
-            个人资料设置
+            账号设置
           </button>
-          <div className="h-px bg-border/60" />
+          <button
+            onClick={() => { setMenuOpen(false); toast("订阅与账单即将上线", "info"); }}
+            className="flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-sm text-foreground transition-colors hover:bg-primary/10 hover:text-primary"
+          >
+            <CreditCard className="h-4 w-4 text-muted-foreground" />
+            订阅与账单
+          </button>
+          <button
+            onClick={() => { setMenuOpen(false); toast("帮助中心即将上线", "info"); }}
+            className="flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-sm text-foreground transition-colors hover:bg-primary/10 hover:text-primary"
+          >
+            <HelpCircle className="h-4 w-4 text-muted-foreground" />
+            帮助中心
+          </button>
+          <div className="my-1 h-px bg-border/60" />
           <button
             onClick={handleSignOut}
             disabled={signingOut}
-            className="flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-sm text-graveyard transition-colors hover:bg-graveyard/10 disabled:opacity-50"
+            className="flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-sm text-red-500 transition-colors hover:bg-red-500/10 disabled:opacity-50"
           >
             {signingOut ? <Loader2 className="h-4 w-4 animate-spin" /> : <LogOut className="h-4 w-4" />}
             退出登录

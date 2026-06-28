@@ -1058,7 +1058,7 @@ function HermesConfigSection() {
 
       {/* 模型配置（LLM Provider）— 未配置时会导致 "no final response was produced" */}
       {isInstalled && (
-        <div className="mb-4 rounded-md border border-border/60 bg-muted/20 p-3">
+        <div className="mb-4 rounded-md glass-card p-3">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2 text-xs">
               <span className={`h-2 w-2 rounded-full ${
@@ -1246,10 +1246,8 @@ function HermesConfigSection() {
             {ALL_CAPABILITIES.map((cap) => (
               <label
                 key={cap.key}
-                className={`flex cursor-pointer items-start gap-2 rounded-md border p-2 text-xs transition-colors ${
-                  capabilities.includes(cap.key)
-                    ? "border-northstar/40 bg-northstar/5"
-                    : "border-border/40 bg-muted/10"
+                className={`flex cursor-pointer items-start gap-2 rounded-md p-2 text-xs transition-colors ios-glass-sm ${
+                  capabilities.includes(cap.key) ? "border-northstar/40 bg-northstar/5" : ""
                 }`}
               >
                 <input

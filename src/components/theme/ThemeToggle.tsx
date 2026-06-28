@@ -22,7 +22,7 @@ export function ThemeToggle({
 
   if (variant === "segmented") {
     return (
-      <div className="inline-flex items-center rounded-xl border border-border bg-muted/60 p-0.5">
+      <div className="ios-glass-sm inline-flex items-center rounded-full p-0.5">
         {[
           { key: "light", icon: Sun, label: "浅色" },
           { key: "dark", icon: Moon, label: "深色" },
@@ -35,9 +35,9 @@ export function ThemeToggle({
               key={item.key}
               onClick={() => setTheme(item.key)}
               className={cn(
-                "flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[11px] transition-all",
+                "flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-medium transition-all",
                 active
-                  ? "bg-card text-foreground shadow-sm"
+                  ? "bg-primary text-primary-foreground shadow-sm"
                   : "text-muted-foreground hover:text-foreground"
               )}
               aria-label={item.label}

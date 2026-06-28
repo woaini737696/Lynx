@@ -47,7 +47,7 @@ export default function RootLayout({
         <link rel="icon" href="/lynx-icon-256.png" type="image/png" />
         <link rel="apple-touch-icon" href="/lynx-icon-256.png" />
       </head>
-      <body className="min-h-screen bg-background text-foreground antialiased">
+      <body className="starfield min-h-screen bg-background text-foreground antialiased">
         <ThemeProvider>
           <SWRProvider>
             <AsyncLoadingProvider>

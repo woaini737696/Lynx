@@ -4,7 +4,6 @@ import { useEffect, useState } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { Sidebar } from "./Sidebar";
 import { CaptureBar } from "./CaptureBar";
-import { UserProfileFloat } from "./UserProfileFloat";
 import { TitleBar } from "./TitleBar";
 import { RecentTabs } from "./RecentTabs";
 
@@ -88,7 +87,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           {children}
         </main>
       </div>
-      <UserProfileFloat />
       <RecentTabs />
       <ConvergeReminder />
     </div>

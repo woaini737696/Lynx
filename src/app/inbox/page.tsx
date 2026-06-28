@@ -509,7 +509,7 @@ export default function InboxPage() {
             {reviveSuggestions.map((s) => (
               <div
                 key={s.graveyardId}
-                className="rounded-xl border border-cognition/20 bg-card/60 p-3"
+                className="rounded-xl border border-cognition/20 glass-card p-3"
               >
                 <div className="mb-1 flex items-start justify-between gap-2">
                   <div className="flex-1">
@@ -802,7 +802,7 @@ export default function InboxPage() {
           onClick={() => setAbandoning(null)}
         >
           <div
-            className="w-full max-w-md rounded-3xl border border-graveyard/30 bg-card p-5 shadow-2xl"
+            className="w-full max-w-md rounded-3xl border border-graveyard/30 glass-card p-5 shadow-2xl"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="mb-3 flex items-center gap-2 text-graveyard">
@@ -852,7 +852,7 @@ export default function InboxPage() {
           <div className="absolute inset-0" onClick={closeChat} />
 
           {/* 抽屉主体 */}
-          <div className="relative flex h-full w-full max-w-md flex-col border-l border-border bg-card shadow-2xl">
+          <div className="relative flex h-full w-full max-w-md flex-col glass-card shadow-2xl">
             {/* 头部 */}
             <div className="flex items-center justify-between border-b border-border px-4 py-3">
               <div className="flex items-center gap-2">
@@ -1039,7 +1039,7 @@ export default function InboxPage() {
         >
           <button
             onClick={() => setPreviewImage(null)}
-            className="absolute right-4 top-4 inline-flex h-10 w-10 items-center justify-center rounded-full bg-card/80 text-foreground transition-colors hover:bg-card"
+            className="absolute right-4 top-4 inline-flex h-10 w-10 items-center justify-center rounded-full glass-card text-foreground transition-colors hover:bg-card"
             aria-label="关闭"
           >
             <X className="h-5 w-5" />
