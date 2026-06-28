@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useRef, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   Check,
@@ -57,6 +57,14 @@ export function BoardPage() {
   const [newContent, setNewContent] = useState("");
   const [updatingId, setUpdatingId] = useState<string | null>(null);
   const [expandedDone, setExpandedDone] = useState<Set<BoardColumn>>(new Set());
+  // 认知提取延迟刷新的 timer，组件卸载时清除避免内存泄漏
+  const cognitionTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (cognitionTimerRef.current) clearTimeout(cognitionTimerRef.current);
+    };
+  }, []);
 
   const { data: tasks = [], isLoading } = useQuery<BoardTask[]>({
     queryKey: ["board"],
@@ -86,7 +94,8 @@ export function BoardPage() {
       if (variables.status === "done" && data.cognitionPending) {
         toast.success("任务已完成 · AI 正在提取认知...");
         // 延迟刷新认知库，让用户能在认知库看到新提取的条目
-        setTimeout(() => {
+        if (cognitionTimerRef.current) clearTimeout(cognitionTimerRef.current);
+        cognitionTimerRef.current = setTimeout(() => {
           queryClient.invalidateQueries({ queryKey: ["cognitions"] });
         }, 3000);
       } else if (variables.status === "done") {

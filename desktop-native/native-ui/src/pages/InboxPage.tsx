@@ -18,9 +18,10 @@ import {
   Loader2,
 } from "lucide-react";
 import { AnimatePresence, motion } from "framer-motion";
-import { cn } from "@/lib/utils";
+import { cn, formatRelativeTime } from "@/lib/utils";
 import { cloudApi } from "@/lib/cloud-api";
 import { toast } from "@/lib/toast";
+import { streamSimulate } from "@/lib/ai-assistant";
 import { HelpButton } from "@/components/ui/HelpButton";
 import { Modal } from "@/components/ui/Modal";
 import type { Idea, ReviveSuggestion, FinalizeResult } from "@/types/api";
@@ -38,16 +39,6 @@ const COLUMNS = [
 
 type ColumnKey = (typeof COLUMNS)[number]["key"];
 
-function formatTime(dateStr: string) {
-  const date = new Date(dateStr);
-  const now = new Date();
-  const diff = now.getTime() - date.getTime();
-  const hours = Math.floor(diff / 3600000);
-  if (hours < 1) return "刚刚";
-  if (hours < 24) return `${hours}小时前`;
-  return `${Math.floor(hours / 24)}天前`;
-}
-
 export function InboxPage() {
   const queryClient = useQueryClient();
   const [searchQuery, setSearchQuery] = useState("");
@@ -56,6 +47,7 @@ export function InboxPage() {
   const [abandoning, setAbandoning] = useState<Idea | null>(null);
   const [reason, setReason] = useState("");
   const [condition, setCondition] = useState("");
+  const [deleteTarget, setDeleteTarget] = useState<Idea | null>(null);
 
   // AI 对话状态
   const [chatIdea, setChatIdea] = useState<Idea | null>(null);
@@ -77,7 +69,6 @@ export function InboxPage() {
   const [multiSelectMode, setMultiSelectMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [confirmBatchDelete, setConfirmBatchDelete] = useState(false);
-  const [batchDeleting, setBatchDeleting] = useState(false);
 
   // 加载灵感列表
   const { data: ideas = [], isLoading } = useQuery<Idea[]>({
@@ -138,6 +129,7 @@ export function InboxPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["inbox"] });
       toast.success("已删除灵感");
+      setDeleteTarget(null);
     },
     onError: (e: Error) => toast.error(e.message || "删除失败"),
   });
@@ -199,25 +191,23 @@ export function InboxPage() {
     else setSelectedIds(new Set(filtered.map((i) => i.id)));
   };
 
-  const performBatchDelete = async () => {
-    setBatchDeleting(true);
-    try {
-      await cloudApi.delete(`/api/ideas`, { ids: Array.from(selectedIds) });
-      queryClient.invalidateQueries({ queryKey: ["inbox"] });
-      toast.success(`已删除 ${selectedIds.size} 条灵感`);
-      setSelectedIds(new Set());
-      setMultiSelectMode(false);
-    } catch (e) {
-      toast.error((e as Error).message || "批量删除失败");
-    } finally {
-      setBatchDeleting(false);
-      setConfirmBatchDelete(false);
-    }
+  const performBatchDelete = () => {
+    deleteMutation.mutate(Array.from(selectedIds), {
+      onSuccess: () => {
+        toast.success(`已删除 ${selectedIds.size} 条灵感`);
+        setSelectedIds(new Set());
+        setMultiSelectMode(false);
+        setConfirmBatchDelete(false);
+      },
+      onError: (e: Error) => {
+        toast.error(e.message || "批量删除失败");
+        setConfirmBatchDelete(false);
+      },
+    });
   };
 
   const handleDelete = (idea: Idea) => {
-    if (!window.confirm("确定删除这条灵感？此操作不可恢复。")) return;
-    deleteMutation.mutate([idea.id]);
+    setDeleteTarget(idea);
   };
 
   // ============ AI 对话助理 ============
@@ -250,18 +240,14 @@ export function InboxPage() {
         stream: false,
       });
       const reply = res.reply || "";
-      // 前端逐字显示，模拟流式效果
       setChatMessages((prev) => [...prev, { role: "assistant", content: "" }]);
-      const chunkSize = 4;
-      for (let i = 0; i < reply.length; i += chunkSize) {
-        await new Promise((r) => setTimeout(r, 16));
-        const partial = reply.slice(0, i + chunkSize);
+      await streamSimulate(reply, (partial) => {
         setChatMessages((prev) => {
           const updated = [...prev];
           updated[updated.length - 1] = { role: "assistant", content: partial };
           return updated;
         });
-      }
+      });
     } catch (e) {
       toast.error("AI 回复失败，请重试");
     } finally {
@@ -472,11 +458,11 @@ export function InboxPage() {
                     }
                     setConfirmBatchDelete(true);
                   }}
-                  disabled={selectedIds.size === 0 || batchDeleting}
+                  disabled={selectedIds.size === 0 || deleteMutation.isPending}
                   className="flex items-center gap-1 rounded-md px-2 py-1 text-xs text-graveyard transition-colors hover:bg-graveyard/10 disabled:opacity-50"
                 >
                   <Trash2 className="h-3 w-3" />
-                  {batchDeleting ? "删除中..." : "批量删除"}
+                  {deleteMutation.isPending ? "删除中..." : "批量删除"}
                 </button>
               </div>
             ) : (
@@ -534,7 +520,7 @@ export function InboxPage() {
                           {idea.source === "lightning" ? "⚡" : "💬"}
                           {idea.source === "lightning" ? "闪电输入" : "对话提取"}
                         </span>
-                        <span>{formatTime(idea.createdAt)}</span>
+                        <span>{formatRelativeTime(idea.createdAt)}</span>
                         {idea.tags?.map((tag) =>
                           tag === "AI建议" ? (
                             <span
@@ -955,11 +941,52 @@ export function InboxPage() {
           </button>
           <button
             onClick={performBatchDelete}
-            disabled={batchDeleting}
+            disabled={deleteMutation.isPending}
             className="btn-primary-glass rounded-lg bg-graveyard px-3 py-1.5 text-xs"
           >
-            {batchDeleting ? "删除中..." : "确认删除"}
+            {deleteMutation.isPending ? "删除中..." : "确认删除"}
           </button>
+        </div>
+      </Modal>
+
+      {/* 单条删除确认 */}
+      <Modal
+        open={!!deleteTarget}
+        onClose={() => setDeleteTarget(null)}
+        title="删除灵感"
+        size="sm"
+      >
+        <div className="space-y-4">
+          <p className="text-sm text-foreground/80">
+            确定删除这条灵感？此操作不可恢复。
+          </p>
+          {deleteTarget && (
+            <div className="rounded-xl border border-border/60 bg-muted/30 p-3">
+              <p className="line-clamp-3 text-xs text-muted-foreground">
+                {deleteTarget.content}
+              </p>
+            </div>
+          )}
+          <div className="flex items-center justify-end gap-2">
+            <button
+              onClick={() => setDeleteTarget(null)}
+              className="btn-glass flex h-8 items-center px-3 text-xs"
+            >
+              取消
+            </button>
+            <button
+              onClick={() => deleteTarget && deleteMutation.mutate([deleteTarget.id])}
+              disabled={deleteMutation.isPending}
+              className="flex h-8 items-center gap-1.5 rounded-lg bg-destructive/10 px-3 text-xs font-medium text-destructive transition-colors hover:bg-destructive/20 disabled:opacity-50"
+            >
+              {deleteMutation.isPending ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <Trash2 className="h-3.5 w-3.5" />
+              )}
+              确认删除
+            </button>
+          </div>
         </div>
       </Modal>
     </div>
