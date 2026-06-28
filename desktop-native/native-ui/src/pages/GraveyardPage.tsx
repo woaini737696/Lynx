@@ -14,17 +14,8 @@ import { cloudApi } from "@/lib/cloud-api";
 import { toast } from "@/lib/toast";
 import { HelpButton } from "@/components/ui/HelpButton";
 import { Modal } from "@/components/ui/Modal";
+import { formatRelativeTime } from "@/lib/utils";
 import type { GraveyardItem } from "@/types/api";
-
-function formatTime(dateStr: string) {
-  const date = new Date(dateStr);
-  const now = new Date();
-  const diff = now.getTime() - date.getTime();
-  const hours = Math.floor(diff / 3600000);
-  if (hours < 1) return "刚刚";
-  if (hours < 24) return `${hours}小时前`;
-  return `${Math.floor(hours / 24)}天前`;
-}
 
 export function GraveyardPage() {
   const queryClient = useQueryClient();
@@ -214,7 +205,7 @@ export function GraveyardPage() {
                     </span>
                   )}
                   <span className="text-[10px] text-muted-foreground/60">
-                    {formatTime(item.abandonedAt)}
+                    {formatRelativeTime(item.abandonedAt)}
                   </span>
                 </div>
 
