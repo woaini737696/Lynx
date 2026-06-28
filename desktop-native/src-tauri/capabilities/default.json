@@ -56,6 +56,15 @@
     "http:allow-fetch-cancel",
     "http:allow-fetch-read-body",
     "http:allow-fetch-send",
-    "global-shortcut:default"
+    "global-shortcut:default",
+    "store:default",
+    "store:allow-get",
+    "store:allow-set",
+    "store:allow-save",
+    "store:allow-delete",
+    "store:allow-keys",
+    "store:allow-values",
+    "store:allow-length",
+    "store:allow-load"
   ]
 }

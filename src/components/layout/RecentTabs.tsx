@@ -31,6 +31,8 @@ import {
 import { cn } from "@/lib/utils";
 import { FastLink } from "./FastLink";
 
+const EXCLUDED_PATHS = new Set(["/login", "/register"]);
+
 const ROUTE_MAP: Record<string, { label: string; icon: LucideIcon }> = {
   "/": { label: "今日聚焦", icon: Target },
   "/board": { label: "决策看板", icon: KanbanSquare },
@@ -64,10 +66,16 @@ function getRouteInfo(path: string) {
   const noSlash = path.replace(/\/$/, "");
   if (noSlash !== path && ROUTE_MAP[noSlash]) return ROUTE_MAP[noSlash];
 
-  // 兜底：取最后一段
-  const segment = path.split("/").filter(Boolean).pop() || "页面";
+  // 兜底：取最后一段并中文化常见词汇
+  const segment = path.split("/").filter(Boolean).pop() || "page";
+  const labelMap: Record<string, string> = {
+    login: "登录",
+    register: "注册",
+    profile: "个人资料",
+    admin: "管理后台",
+  };
   return {
-    label: segment.charAt(0).toUpperCase() + segment.slice(1),
+    label: labelMap[segment] || segment,
     icon: FileText,
   };
 }
@@ -83,7 +91,7 @@ export function RecentTabs() {
   const [mounted, setMounted] = useState(false);
   const [recent, setRecent] = useState<string[]>([]);
   const [displayPages, setDisplayPages] = useState<string[]>([]);
-  const prevRecentRef = useRef<string[]>([]);
+  const [prevRecent, setPrevRecent] = useState<string[]>([]);
 
   useEffect(() => {
     setMounted(true);
@@ -92,6 +100,7 @@ export function RecentTabs() {
   // 路由变化时更新 recent 队列
   useEffect(() => {
     if (!pathname) return;
+    if (EXCLUDED_PATHS.has(pathname)) return;
 
     setRecent((prev) => {
       if (prev.includes(pathname)) {
@@ -105,28 +114,29 @@ export function RecentTabs() {
 
   // 同步 displayPages，并处理离开动画
   useEffect(() => {
-    const prev = prevRecentRef.current;
-    const prevSet = new Set(prev);
+    const prevSet = new Set(prevRecent);
     const currentSet = new Set(recent);
-    const removed = prev.filter((p) => !currentSet.has(p));
+    const removed = prevRecent.filter((p) => !currentSet.has(p));
 
     if (removed.length > 0) {
       setDisplayPages([...recent, ...removed]);
       const t = setTimeout(() => {
         setDisplayPages(recent);
+        setPrevRecent(recent);
       }, 300);
       return () => clearTimeout(t);
     } else {
       setDisplayPages(recent);
+      if (recent.length !== prevRecent.length || !recent.every((p, i) => p === prevRecent[i])) {
+        setPrevRecent(recent);
+      }
     }
-
-    prevRecentRef.current = recent;
-  }, [recent]);
+  }, [recent, prevRecent]);
 
   const addedSet = useMemo(() => {
-    const prevSet = new Set(prevRecentRef.current);
+    const prevSet = new Set(prevRecent);
     return new Set(recent.filter((p) => !prevSet.has(p)));
-  }, [recent]);
+  }, [recent, prevRecent]);
 
   const leavingSet = useMemo(() => {
     return new Set(displayPages.filter((p) => !recent.includes(p)));

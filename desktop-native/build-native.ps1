@@ -1,20 +1,98 @@
-$ErrorActionPreference = "Continue"
+param(
+    [switch]$UninstallExisting
+)
+# Lynx native desktop build script
+# Éú³É°²×°×ÊÔ´ -> ¹¹½¨ native UI -> ±àÒë Rust -> NSIS ´ò°ü
+# ²ÎÊý£º-UninstallExisting ¹¹½¨Ç°Ç¿ÖÆÐ¶ÔØ±¾µØÒÑ°²×°°æ±¾£¨²âÊÔÓÃ£©
+
+$ErrorActionPreference = "Stop"
 $root = Split-Path -Parent $MyInvocation.MyCommand.Path
 Set-Location $root
 
 $nsis = Join-Path (Split-Path -Parent $root) "Temp\NSIS\makensis.exe"
 $assetScript = Join-Path $root "..\scripts\generate-desktop-native-assets.py"
 
+# ---------- ¿ÉÑ¡£ºÐ¶ÔØ±¾µØÒÑ°²×°°æ±¾ ----------
+if ($UninstallExisting) {
+    Write-Host "==> Uninstalling existing Lynx (if any)..."
+
+    # ÏÈÇ¿ÖÆ¹Ø±Õ½ø³Ì£¬±ÜÃâÐ¶ÔØÊ±ÎÄ¼þ±»Õ¼ÓÃ
+    $proc = Get-Process -Name "lynnhub-desktop-native" -ErrorAction SilentlyContinue
+    if ($proc) {
+        Write-Host "    Stopping running Lynx process..."
+        Stop-Process -Name "lynnhub-desktop-native" -Force -ErrorAction SilentlyContinue
+        Start-Sleep -Milliseconds 800
+    }
+
+    $uninstReg = "HKLM:\Software\Microsoft\Windows\CurrentVersion\Uninstall\Lynx"
+    $instDir = $null
+    if (Test-Path $uninstReg) {
+        $props = Get-ItemProperty $uninstReg
+        $uninst = $props.UninstallString
+        $instDir = $props.InstallLocation
+        if ($uninst) {
+            Write-Host "    Found uninstaller: $uninst"
+            Start-Process -FilePath $uninst -ArgumentList "/S" -Wait -NoNewWindow
+        }
+    }
+
+    # Èç¹û×¢²á±íÀïÃ»ÓÐ InstallLocation£¬Ê¹ÓÃÄ¬ÈÏÂ·¾¶
+    if (-not $instDir) {
+        $instDir = "C:\Program Files\Lynx"
+    }
+    if (Test-Path $instDir) {
+        Write-Host "    Cleaning residual directory: $instDir"
+        Remove-Item -Recurse -Force $instDir -ErrorAction SilentlyContinue
+    }
+
+    # ÇåÀí×¢²á±í²ÐÁô
+    if (Test-Path $uninstReg) {
+        Remove-Item -Path $uninstReg -Recurse -Force -ErrorAction SilentlyContinue
+    }
+    $appPathReg = "HKLM:\Software\Microsoft\Windows\CurrentVersion\App Paths\lynnhub-desktop-native.exe"
+    if (Test-Path $appPathReg) {
+        Remove-Item -Path $appPathReg -Recurse -Force -ErrorAction SilentlyContinue
+    }
+
+    Start-Sleep -Milliseconds 500
+}
+
+# ---------- Éú³É°²×°×ÊÔ´ ----------
 Write-Host "==> Generating installer assets..."
 python $assetScript
 if ($LASTEXITCODE -ne 0) { throw "Asset generation failed" }
+
+# ---------- ÇåÀí²¢¹¹½¨ native UI ----------
+Write-Host "==> Cleaning old web assets..."
+$outDir = Join-Path $root "out"
+if (Test-Path $outDir) {
+    Remove-Item -Recurse -Force $outDir -ErrorAction Stop
+}
 
 Write-Host "==> Building native UI..."
 npm run frontend:build
 if ($LASTEXITCODE -ne 0) { throw "Frontend build failed" }
 
+# È·ÈÏ out/app ´æÔÚ
+$appDir = Join-Path $outDir "app"
+$appIndex = Join-Path $appDir "index.html"
+if (-not (Test-Path $appIndex)) {
+    throw "Native UI build output not found at $appIndex"
+}
+Write-Host "==> Native UI ready: $appIndex"
+
+# ---------- ¸´ÖÆÇ°¶Ë×ÊÔ´µ½ src-tauri/out/app£¨¹© build.rs Ð£Ñé frontendDist£© ----------
+Write-Host "==> Staging frontend assets for Rust build..."
+$tauriOutDir = Join-Path $root "src-tauri\out\app"
+if (Test-Path $tauriOutDir) {
+    Remove-Item -Recurse -Force $tauriOutDir -ErrorAction Stop
+}
+New-Item -ItemType Directory -Path $tauriOutDir -Force | Out-Null
+Copy-Item -Path "$appDir\*" -Destination $tauriOutDir -Recurse -Force
+Write-Host "==> Frontend assets staged at: $tauriOutDir"
+
+# ---------- ±àÒë Rust binary ----------
 Write-Host "==> Building Rust binary..."
-# å¿…é¡»åœ¨ src-tauri ç›®å½•ä¸‹æ‰§è¡Œ cargoï¼Œæ‰èƒ½æ­£ç¡®è¯»å– .cargo/config.toml ä¸­çš„ target-dir
 Push-Location (Join-Path $root "src-tauri")
 try {
     cargo build --release
@@ -23,8 +101,7 @@ try {
     Pop-Location
 }
 
-# å°†äºŒè¿›åˆ¶å¤åˆ¶åˆ°å›ºå®šä½ç½®ï¼Œä¾› NSIS æ‰“åŒ…ï¼ˆé¿å…ä¾èµ– target-dir é…ç½®ï¼‰
-# ä½¿ç”¨å½“å‰ç›®å½•ï¼ˆå³è„šæœ¬æ‰€åœ¨ç›®å½•ï¼‰ä½œä¸ºæ ¹ç›®å½•ï¼Œé¿å… $root åœ¨åŽå°ä»»åŠ¡ä¸­å¶å‘ä¸ºç©º
+# ½«¶þ½øÖÆ¸´ÖÆµ½¹Ì¶¨Î»ÖÃ£¬¹© NSIS ´ò°ü
 $here = (Get-Location).Path
 $binDir = Join-Path $here "bin"
 New-Item -ItemType Directory -Path $binDir -Force | Out-Null
@@ -34,8 +111,11 @@ if (-not (Test-Path $builtExe)) { throw "Built binary not found at $builtExe" }
 Copy-Item -Path $builtExe -Destination $binExe -Force
 Write-Host "==> Binary staged: $binExe"
 
+# ---------- ±àÒë NSIS °²×°°ü ----------
 Write-Host "==> Compiling NSIS installer..."
-& $nsis installer.nsi
+$distDir = Join-Path $root "dist"
+New-Item -ItemType Directory -Path $distDir -Force | Out-Null
+& $nsis /INPUTCHARSET UTF8 installer.nsi
 if ($LASTEXITCODE -ne 0) { throw "NSIS compile failed" }
 
 $exe = Join-Path $root "dist\lynx_1.0.0.exe"

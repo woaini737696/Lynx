@@ -6,10 +6,12 @@
 /src-tauri/target/
 /src-tauri/target-check/
 /src-tauri/cargo-err.txt
+/src-tauri/out/
 
 # 生成资源（由 scripts/generate-desktop-native-assets.py 动态生成）
 /assets/installer-bg.bmp
-/assets/installer-logo.bmp
+/assets/installer-welcome.bmp
+/assets/installer-header.bmp
 
 # Node
 /node_modules/

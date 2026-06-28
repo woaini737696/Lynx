@@ -1,14 +1,15 @@
 import { useState, useRef, useEffect } from "react";
-import { NavLink } from "react-router-dom";
-import { User, LogOut, Settings, CreditCard, HelpCircle } from "lucide-react";
+import { NavLink, useNavigate } from "react-router-dom";
+import { User, LogOut, Settings, HelpCircle } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
 import { useAuthStore } from "@/stores/authStore";
+import { clearAuth } from "@/lib/auth-persistence";
+import { invoke } from "@/lib/tauri";
 import { Logo } from "@/components/ui/Logo";
 
 const menuItems = [
-  { to: "/settings/account", label: "账号设置", icon: Settings },
-  { to: "/settings/billing", label: "订阅与账单", icon: CreditCard },
+  { to: "/settings", label: "设置", icon: Settings },
   { to: "/help", label: "帮助中心", icon: HelpCircle },
 ];
 
@@ -21,8 +22,22 @@ interface UserMenuProps {
 export function UserMenu({ collapsed = false }: UserMenuProps) {
   const user = useAuthStore((s) => s.user);
   const signOut = useAuthStore((s) => s.signOut);
+  const navigate = useNavigate();
   const [open, setOpen] = useState(false);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const handleSignOut = async () => {
+    try {
+      await clearAuth();
+      await invoke("set_user_token", { token: "" }).catch(() => {});
+    } catch (err) {
+      console.error("退出登录失败", err);
+    } finally {
+      signOut();
+      setOpen(false);
+      navigate("/login", { replace: true });
+    }
+  };
 
   const handleMouseEnter = () => {
     if (timerRef.current) clearTimeout(timerRef.current);
@@ -109,10 +124,7 @@ export function UserMenu({ collapsed = false }: UserMenuProps) {
                 </NavLink>
               ))}
               <button
-                onClick={() => {
-                  signOut();
-                  setOpen(false);
-                }}
+                onClick={handleSignOut}
                 className="flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm text-destructive transition-colors hover:bg-destructive/10"
               >
                 <LogOut className="h-4 w-4" />

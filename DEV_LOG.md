@@ -9,6 +9,7 @@
 
 | 迭代 | 日期 | 任务概要 |
 |------|------|----------|
+| [迭代 52](#迭代-52---2026-06-28) | 2026-06-28 | Lynx 安装/卸载/登录闭环彻底修复：全自定义液态玻璃安装页 + 登录态持久化 + 原生设置页 |
 | [迭代 51](#迭代-51---2026-06-28) | 2026-06-28 | Web 端 UI 同步确认版设计：深邃星空蓝 + 液态玻璃 + 最近页面入口 + 通知三态 |
 | [迭代 50](#迭代-50---2026-06-28) | 2026-06-28 | Lynx 原生桌面端安装包重构：深海蓝液态玻璃安装界面 + 版本统一 1.0.0 |
 | [迭代 49](#迭代-49---2026-06-28) | 2026-06-28 | Android App 全面优化：修复崩溃、API DTO 对齐、Focus 无限循环修复 |
@@ -30,7 +31,87 @@
 
 ---
 
-## 迭代 51 - 2026-06-28
+## 迭代 52 - 2026-06-28
+
+### 任务概要
+彻底修复 Lynx 原生桌面端安装、卸载、登录、退出登录全闭环：安装程序改为全自定义 nsDialogs 单页（深海蓝 + 液态玻璃），支持检测旧版本、杀进程、覆盖安装；卸载程序稳定清理文件与注册表；桌面端应用启动时加载本地登录态，未登录强制跳转登录页；新增原生设置页，移除 WebFallbackPage 演示页，补齐退出登录能力。
+
+### 完成内容
+
+#### 1. 全自定义 NSIS 安装界面
+- `desktop-native/installer.nsi`：
+  - 完全移除 MUI 标准向导页，改用 `nsDialogs` 自定义单页
+  - 窗口居中，尺寸固定为约 520×420 客户端区域
+  - 背景位图 `assets/installer-bg.bmp`：深海蓝渐变 + 玻璃面板 + 蓝色光晕
+  - 叠加 Logo、标题、安装路径输入框、创建桌面快捷方式复选框、蓝色「立即安装」按钮
+  - 安装中切换为进度条 + 状态文案
+  - 安装完成后显示 ✓ 成功图标、"安装完成"、"立即体验"按钮（点击启动 Lynx 并退出安装程序）
+  - `.onInit` 检测已安装版本：弹窗提示卸载旧版 → 关闭进程 → 静默运行旧卸载程序 → 强制清理残留 → 继续安装
+  - 支持 `/S` 静默安装与 `/D=路径` 自定义安装目录
+- `scripts/generate-desktop-native-assets.py`：
+  - 背景图改为完整的 iOS 液态玻璃静态画面：深海蓝渐变 + 玻璃面板 + Logo + 标题/副标题 + 安装路径标签 + 蓝色渐变圆角按钮背景 + 进度条轨道 + 协议文本
+  - 中文字体自动加载（微软雅黑/黑体/宋体回退）
+  - 移除独立的 `installer-logo.bmp`，Logo 直接绘制在背景图中
+- `desktop-native/.gitignore`：同步移除 `installer-logo.bmp` 忽略
+
+#### 2. 卸载流程修复
+- 卸载初始化 `un.onInit` 强制关闭 Lynx 进程（循环 3 次，避免文件占用）
+- 卸载段使用 `/REBOOTOK` 删除主程序与卸载程序自身
+- 补充 `UninstPage uninstConfirm` + `UninstPage instfiles`，使双击 `uninstall.exe` 有确认与进度界面
+- 注册表 `UninstallString` 改为无引号路径，避免旧版本卸载时引号嵌套错误
+
+#### 3. 桌面端登录态持久化
+- `desktop-native/src-tauri/src/lib.rs`：
+  - 集成 `tauri-plugin-store`
+  - 新增 `set_user_token` 命令（空字符串表示清除登录态）
+- `desktop-native/native-ui/src/lib/auth-persistence.ts`：
+  - 封装 `saveAuth` / `loadAuth` / `clearAuth`，使用 `lynx-auth.bin` 本地存储
+- `desktop-native/native-ui/src/stores/authStore.ts`：
+  - 登录成功后写入 Rust 状态与本地 store
+  - 退出登录时清除 store 与 Rust token
+
+#### 4. 应用启动权限控制
+- `desktop-native/native-ui/src/App.tsx`：
+  - 启动时异步加载本地登录态
+  - 未登录自动跳转 `/login`
+  - 已登录访问 `/login` 自动跳转 `/focus`
+  - 移除 `WebFallbackPage` 路由，`*` 统一重定向到 `/focus`
+- `desktop-native/native-ui/src/pages/LoginPage.tsx`：调用云端 `/api/auth/token`，成功后持久化并进入主页
+
+#### 5. 原生设置页
+- 新增 `desktop-native/native-ui/src/pages/SettingsPage.tsx`：
+  - 账号信息展示与退出登录
+  - 浅色/深色/跟随系统主题切换
+  - 云端地址配置
+  - Agent 授权模式（弹窗审批 / 一次性授权 / 免审批仅记录）
+  - 授权目录白名单管理（增删）
+  - 关于页：版本号、WS 连接状态
+- `desktop-native/native-ui/src/components/layout/UserMenu.tsx`：
+  - 移除无效的 `/settings/account`、`/settings/billing` 入口
+  - 统一跳转到 `/settings`
+- `desktop-native/native-ui/src/lib/help-content.ts`：新增 `settings` 使用说明
+
+#### 6. 构建与清理
+- `desktop-native/build-native.ps1`：
+  - `-UninstallExisting` 流程优化：先杀进程 → 读取注册表 InstallLocation → 静默卸载 → 清理残留目录与注册表
+  - 脚本保存为 GBK 编码，避免中文路径解析异常
+- `desktop-native/.gitignore`：新增 `/src-tauri/out/` 排除构建暂存目录
+- 清理测试残留目录 `Lynx-Test-Install*`（共 3 个）
+
+### 自测结果
+- `desktop-native/dist/lynx_1.0.0.exe` 构建成功（约 5.96 MB）
+- `scripts/generate-desktop-native-assets.py` 生成背景图预览：深海蓝渐变、玻璃面板、Logo、标题、按钮、进度条轨道、协议文本均正确渲染
+- NSIS 自定义安装页编译通过，仅保留输入框、复选框、透明文字按钮、进度条、完成状态等必要控件
+- TRAE 沙盒内无法以管理员权限运行安装程序查看实际界面，需在本机双击验证最终效果
+- `npx tsc --noEmit`（native-ui）：0 错误
+- cargo build --release：0 错误（8 个历史 warning）
+
+### Commit
+- `迭代 52 修复：重绘 iOS 液态玻璃安装背景，NSIS 控件极简叠加`
+
+---
+
+## 迭代 51 - 2026-06-06-28
 
 ### 任务概要
 将浏览器端确认通过的 Lynx Web UI 设计方案同步到实际代码：深邃星空蓝主题、液态玻璃拟态、简化侧边栏选中态、左下角用户菜单箭头交互、右下角灵感通知三态、底部最近页面快速切换入口，并修复 Assistant 未读红点与通知自动展开/收起逻辑。

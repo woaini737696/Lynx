@@ -163,7 +163,7 @@ function LoginForm() {
 
 export default function LoginPage() {
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-background p-4">
+    <div className="relative flex min-h-screen flex-col items-center justify-center bg-background p-4">
       {/* 背景装饰 */}
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_top,hsl(var(--primary)/0.08),transparent_60%)]" />
       <Suspense

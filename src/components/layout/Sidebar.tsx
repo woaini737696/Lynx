@@ -148,6 +148,7 @@ function SidebarUserProfile() {
   const [loading, setLoading] = useState(true);
   const [menuOpen, setMenuOpen] = useState(false);
   const [signingOut, setSigningOut] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     fetch("/api/auth/session")
@@ -157,6 +158,24 @@ function SidebarUserProfile() {
       })
       .catch(() => {})
       .finally(() => setLoading(false));
+  }, []);
+
+  // 点击外部或按 Esc 收起菜单
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setMenuOpen(false);
+      }
+    };
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setMenuOpen(false);
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
   }, []);
 
   const handleSignOut = async () => {
@@ -194,7 +213,7 @@ function SidebarUserProfile() {
   const hasAvatar = !!user.avatarUrl;
 
   return (
-    <div className="relative mt-auto pt-3">
+    <div ref={containerRef} className="relative mt-auto pt-3">
       <button
         type="button"
         onClick={() => setMenuOpen((v) => !v)}

@@ -1,7 +1,9 @@
 """
 Generate desktop-native installer assets:
-- desktop-native/assets/installer-bg.bmp   NSIS custom page background (deep-sea glass)
-- desktop-native/src-tauri/icons/icon.png  HD lynx icon
+- desktop-native/assets/installer-bg.bmp      NSIS custom page background (deep-sea glass)
+- desktop-native/assets/installer-welcome.bmp MUI welcome/finish side bitmap (164x314)
+- desktop-native/assets/installer-header.bmp  MUI header bitmap (150x57)
+- desktop-native/src-tauri/icons/icon.png     HD lynx icon
 """
 from PIL import Image, ImageDraw, ImageFont
 import os
@@ -19,11 +21,14 @@ DEEP_TOP = (12, 26, 45)
 DEEP_MID = (9, 20, 37)
 DEEP_BOT = (6, 13, 24)
 GLASS_FILL = (255, 255, 255, 15)        # ~6% white overlaid
+GLASS_FILL_INPUT = (255, 255, 255, 10)  # ~4% white for input
 GLASS_BORDER = (255, 255, 255, 36)      # ~14% white border
 GLOW_BLUE = (59, 130, 246, 40)
 TEXT_PRIMARY = (234, 239, 245)
 TEXT_SECONDARY = (160, 170, 185)
 TEXT_MUTED = (130, 142, 158)
+BUTTON_TOP = (59, 130, 246)
+BUTTON_BOT = (29, 78, 216)
 
 
 def lerp(a, b, t):
@@ -41,6 +46,27 @@ def find_font(preferred_names):
         if os.path.exists(path):
             return path
     return None
+
+
+def load_font(size, bold=False):
+    names = ["msyhbd.ttc", "msyhbd.ttf", "msyh.ttc", "msyh.ttf", "simhei.ttf", "simsun.ttc", "simsunb.ttc", "arialbd.ttf"]
+    if not bold:
+        names = ["msyh.ttc", "msyh.ttf", "msyhbd.ttc", "msyhbd.ttf", "simhei.ttf", "simsun.ttc", "simsunb.ttc", "arial.ttf"]
+    path = find_font(names)
+    if path:
+        try:
+            return ImageFont.truetype(path, size)
+        except Exception as e:
+            print(f"Font load warning ({path}): {e}")
+    print(f"Warning: falling back to default font for size={size} bold={bold}")
+    return ImageFont.load_default()
+
+
+def draw_text_centered(draw, text, y, font, fill, width):
+    bbox = draw.textbbox((0, 0), text, font=font)
+    tw = bbox[2] - bbox[0]
+    x = (width - tw) // 2
+    draw.text((x, y), text, font=font, fill=fill)
 
 
 def make_black_bg_logo(size: int, radius_ratio: float = 0.22) -> Image.Image:
@@ -102,76 +128,145 @@ def draw_glass_panel(base):
     return Image.alpha_composite(base, overlay)
 
 
-def draw_text_layer(base, fonts):
-    draw = ImageDraw.Draw(base)
-    w, h = base.size
-
-    # Logo is drawn separately by NSIS; keep background clean behind it.
-    # Product title
-    title_font = fonts.get("title")
-    if title_font:
-        bbox = draw.textbbox((0, 0), "Lynx", font=title_font)
-        tw = bbox[2] - bbox[0]
-        draw.text(((w - tw) // 2, 192), "Lynx", font=title_font, fill=TEXT_PRIMARY)
-
-    # Path label
-    label_font = fonts.get("label")
-    if label_font:
-        draw.text((80, 242), "安装路径", font=label_font, fill=TEXT_SECONDARY)
-
-    # Agreement note
-    note_font = fonts.get("note")
-    if note_font:
-        text = "点击“立即安装”即表示同意软件许可协议"
-        bbox = draw.textbbox((0, 0), text, font=note_font)
-        tw = bbox[2] - bbox[0]
-        draw.text(((w - tw) // 2, 366), text, font=note_font, fill=TEXT_MUTED)
-
-    return base
-
-
 def build_background() -> Image.Image:
+    """Full iOS liquid-glass installer background with all static visual elements."""
     width, height = 520, 420
     base = Image.new("RGBA", (width, height), DEEP_TOP)
     draw = ImageDraw.Draw(base)
     draw_gradient_bg(draw, width, height)
     base = add_glows(base)
     base = draw_glass_panel(base)
+
+    # Recreate draw after composites
+    draw = ImageDraw.Draw(base)
+
+    # Logo (centered inside glass panel)
+    logo_size = 96
+    logo = make_black_bg_logo(logo_size)
+    logo_x = (width - logo_size) // 2
+    logo_y = 75
+    base.paste(logo, (logo_x, logo_y), logo)
+
+    # Fonts
+    title_font = load_font(36, bold=True)
+    subtitle_font = load_font(15)
+    body_font = load_font(14)
+    small_font = load_font(12)
+
+    # Title
+    draw_text_centered(draw, "Lynx", 180, title_font, TEXT_PRIMARY, width)
+    # Subtitle
+    draw_text_centered(draw, "AI 原生桌面端", 217, subtitle_font, TEXT_SECONDARY, width)
+    # Path label
+    draw.text((80, 242), "安装路径", font=small_font, fill=TEXT_MUTED)
+
+    # Input box background (glass)
+    overlay = Image.new("RGBA", base.size, (0, 0, 0, 0))
+    ov_draw = ImageDraw.Draw(overlay)
+    ov_draw.rounded_rectangle([(80, 260), (440, 294)], radius=8, fill=GLASS_FILL_INPUT)
+    ov_draw.rounded_rectangle([(80, 260), (440, 294)], radius=8, outline=GLASS_BORDER, width=1)
+    base = Image.alpha_composite(base, overlay)
+
+    # Install button background (blue gradient, 14px radius)
+    overlay = Image.new("RGBA", base.size, (0, 0, 0, 0))
+    ov_draw = ImageDraw.Draw(overlay)
+    btn_x, btn_y, btn_w, btn_h, btn_r = 80, 330, 360, 44, 14
+    # Gradient fill clipped to rounded rect
+    mask = Image.new("L", (btn_w, btn_h), 0)
+    mask_draw = ImageDraw.Draw(mask)
+    mask_draw.rounded_rectangle([(0, 0), (btn_w - 1, btn_h - 1)], radius=btn_r, fill=255)
+    btn_img = Image.new("RGBA", (btn_w, btn_h))
+    btn_draw = ImageDraw.Draw(btn_img)
+    for y in range(btn_h):
+        t = y / btn_h
+        color = lerp_color(BUTTON_TOP, BUTTON_BOT, t)
+        btn_draw.line([(0, y), (btn_w, y)], fill=color)
+    btn_img.putalpha(mask)
+    overlay.paste(btn_img, (btn_x, btn_y), btn_img)
+    # Subtle border
+    ov_draw.rounded_rectangle([(btn_x, btn_y), (btn_x + btn_w, btn_y + btn_h)], radius=btn_r, outline=(255, 255, 255, 50), width=1)
+    # Button text is rendered by NSIS so it can change per-state (e.g. 立即体验)
+    base = Image.alpha_composite(base, overlay)
+
+    # Progress track (hidden behind NSIS progress bar)
+    overlay = Image.new("RGBA", base.size, (0, 0, 0, 0))
+    ov_draw = ImageDraw.Draw(overlay)
+    ov_draw.rounded_rectangle([(80, 346), (440, 356)], radius=5, fill=(255, 255, 255, 18))
+    ov_draw.rounded_rectangle([(80, 346), (440, 356)], radius=5, outline=(255, 255, 255, 30), width=1)
+    base = Image.alpha_composite(base, overlay)
+
+    # Recreate draw after composites
+    draw = ImageDraw.Draw(base)
+    # Agreement text
+    draw_text_centered(draw, "点击“立即安装”即表示同意软件许可协议", 384, small_font, TEXT_MUTED, width)
+
     return base
 
 
-def load_fonts():
-    regular_path = find_font(["msyh.ttc", "msyh.ttf", "Microsoft YaHei.ttf"])
-    bold_path = find_font(["msyhbd.ttc", "msyhbd.ttf", "Microsoft YaHei Bold.ttf"])
-    fonts = {}
-    try:
-        if bold_path:
-            fonts["title"] = ImageFont.truetype(bold_path, 28)
-        if regular_path:
-            fonts["label"] = ImageFont.truetype(regular_path, 12)
-            fonts["note"] = ImageFont.truetype(regular_path, 10)
-    except Exception as e:
-        print(f"Font load warning: {e}")
-    return fonts
+def build_welcome_bitmap() -> Image.Image:
+    """MUI welcome/finish side bitmap: 164x314."""
+    width, height = 164, 314
+    base = Image.new("RGBA", (width, height), DEEP_TOP)
+    draw = ImageDraw.Draw(base)
+    for y in range(height):
+        t = y / height
+        color = lerp_color(DEEP_TOP, DEEP_BOT, t)
+        draw.line([(0, y), (width, y)], fill=color)
+    base = add_glows(base)
+
+    # Glass panel behind logo
+    overlay = Image.new("RGBA", base.size, (0, 0, 0, 0))
+    ov_draw = ImageDraw.Draw(overlay)
+    x, y, w, h, r = 14, 54, 136, 136, 20
+    ov_draw.rounded_rectangle([(x, y), (x + w, y + h)], radius=r, fill=GLASS_FILL)
+    ov_draw.rounded_rectangle([(x, y), (x + w, y + h)], radius=r, outline=GLASS_BORDER, width=1)
+    base = Image.alpha_composite(base, overlay)
+
+    # Logo
+    logo = make_black_bg_logo(96)
+    base.paste(logo, (34, 74), logo)
+
+    return base
+
+
+def build_header_bitmap() -> Image.Image:
+    """MUI header bitmap: 150x57."""
+    width, height = 150, 57
+    base = Image.new("RGBA", (width, height), DEEP_TOP)
+    draw = ImageDraw.Draw(base)
+    for y in range(height):
+        t = y / height
+        color = lerp_color(DEEP_TOP, DEEP_MID, t)
+        draw.line([(0, y), (width, y)], fill=color)
+
+    # Subtle glass strip
+    overlay = Image.new("RGBA", base.size, (0, 0, 0, 0))
+    ov_draw = ImageDraw.Draw(overlay)
+    ov_draw.rounded_rectangle([(6, 8), (width - 6, height - 8)], radius=10, fill=GLASS_FILL)
+    ov_draw.rounded_rectangle([(6, 8), (width - 6, height - 8)], radius=10, outline=GLASS_BORDER, width=1)
+    return Image.alpha_composite(base, overlay)
 
 
 def main():
-    fonts = load_fonts()
-
-    # 1. Installer custom page background
+    # 1. Installer custom page background (includes logo, title, button, progress track)
     bg = build_background()
-    bg = draw_text_layer(bg, fonts)
     bg_path = os.path.join(ASSETS_DIR, "installer-bg.bmp")
     bg.convert("RGB").save(bg_path, format="BMP")
     print(f"Generated: {bg_path}")
 
-    # 2. Installer logo (dark rounded square, overlays the glass panel)
-    logo_bmp = make_black_bg_logo(128)
-    logo_bmp_path = os.path.join(ASSETS_DIR, "installer-logo.bmp")
-    logo_bmp.convert("RGB").save(logo_bmp_path, format="BMP")
-    print(f"Generated: {logo_bmp_path}")
+    # 2. MUI welcome/finish side bitmap
+    welcome = build_welcome_bitmap()
+    welcome_path = os.path.join(ASSETS_DIR, "installer-welcome.bmp")
+    welcome.convert("RGB").save(welcome_path, format="BMP")
+    print(f"Generated: {welcome_path}")
 
-    # 3. HD desktop icon
+    # 4. MUI header bitmap
+    header = build_header_bitmap()
+    header_path = os.path.join(ASSETS_DIR, "installer-header.bmp")
+    header.convert("RGB").save(header_path, format="BMP")
+    print(f"Generated: {header_path}")
+
+    # 5. HD desktop icon
     icon_png = make_black_bg_logo(512)
     icon_path = os.path.join(ICON_DIR, "icon.png")
     icon_png.save(icon_path)

@@ -70,6 +70,19 @@ export const helpContent: Record<string, HelpContent> = {
       "可在设置中配置授权目录白名单",
     ],
   },
+  settings: {
+    title: "设置使用说明",
+    paragraphs: [
+      "在「设置」中可以管理当前登录账号、切换浅色/深色主题、配置云端地址。",
+      "「Agent」标签页用于设置本地操作授权模式与授权目录：Agent 仅允许在授权目录内读写文件，确保本地数据安全。",
+      "点击退出登录将清除本地保存的登录态并返回登录页面。",
+    ],
+    tips: [
+      "授权模式包括弹窗审批、一次性授权、免审批仅记录三档",
+      "授权目录建议使用专门的工作目录，避免误操作系统文件",
+      "云端地址修改后会影响所有云 API 请求",
+    ],
+  },
 };
 
 export type HelpKey = keyof typeof helpContent;
