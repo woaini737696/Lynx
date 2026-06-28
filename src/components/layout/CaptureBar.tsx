@@ -1,24 +1,28 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { useLightningStore } from "@/store/lightning";
 import { ThemeToggle } from "@/components/theme/ThemeToggle";
 import { Search, Download, Monitor, X, Check } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { FastLink } from "./FastLink";
 
-/** 桌面版下载引导弹窗 */
+/** 桌面版下载引导弹窗（Portal 渲染到 body，避免被 sticky header 的堆叠上下文遮挡） */
 function DesktopDownloadModal({ open, onClose }: { open: boolean; onClose: () => void }) {
-  if (!open) return null;
-  return (
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+  if (!mounted || !open) return null;
+
+  return createPortal(
     <div
-      className="fixed inset-0 z-[100] flex items-center justify-center bg-black/30 px-4 py-6 backdrop-blur-sm"
+      className="fixed inset-0 z-[200] flex items-center justify-center bg-black/30 px-4 py-6 backdrop-blur-xl"
       role="dialog"
       aria-modal="true"
       onClick={onClose}
     >
       <div
-        className="glass-modal w-full max-w-md rounded-2xl p-6"
+        className="glass-modal w-full max-w-md rounded-3xl p-6"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="mb-4 flex items-center justify-between">
@@ -70,7 +74,8 @@ function DesktopDownloadModal({ open, onClose }: { open: boolean; onClose: () =>
           </a>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
 

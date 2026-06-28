@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useRef, useCallback } from "react";
+import { createPortal } from "react-dom";
 import { Zap, X, Loader2, Check, Paperclip, FileText } from "lucide-react";
 import { useLightningStore } from "@/store/lightning";
 import { cn } from "@/lib/utils";
@@ -216,7 +217,7 @@ export function LightningInput() {
     }
   };
 
-  if (!isOpen) return null;
+  if (!isOpen || typeof document === "undefined") return null;
 
   const statusMeta = {
     idle: {
@@ -247,16 +248,15 @@ export function LightningInput() {
 
   const { Icon } = statusMeta;
 
-  return (
+  return createPortal(
     <div
-      className="fixed inset-0 z-50 flex items-start justify-center bg-black/30 p-4 pt-[12vh] backdrop-blur-sm animate-in fade-in duration-200"
+      className="fixed inset-0 z-[200] flex items-start justify-center bg-black/30 p-4 pt-[12vh] backdrop-blur-xl animate-in fade-in duration-200"
       onClick={close}
     >
       <div
         className={cn(
-          "w-full max-w-xl rounded-3xl glass-card p-5 shadow-2xl transition-all animate-in zoom-in-95 duration-200 sm:p-6",
-          statusMeta.border,
-          statusMeta.shadow
+          "glass-modal w-full max-w-xl rounded-3xl p-5 transition-all animate-in zoom-in-95 duration-200 sm:p-6",
+          statusMeta.border
         )}
         onClick={(e) => e.stopPropagation()}
         onDrop={handleDrop}
@@ -413,6 +413,7 @@ export function LightningInput() {
           </div>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
