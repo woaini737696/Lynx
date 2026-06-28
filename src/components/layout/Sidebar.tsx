@@ -16,6 +16,7 @@ import {
   PanelLeft,
   X,
   ChevronRight,
+  ChevronDown,
   CreditCard,
   HelpCircle,
   Sparkles,
@@ -308,11 +309,10 @@ function SidebarUserProfile() {
           <div className="truncate text-sm font-semibold text-foreground">{displayName}</div>
           <div className="truncate text-[11px] text-muted-foreground">Lynx Web 端</div>
         </div>
-        <ChevronRight
-          className={cn(
-            "h-4 w-4 shrink-0 text-muted-foreground transition-transform duration-300",
-            menuOpen && "rotate-[-90deg]"
-          )}
+        {/* 1:1 还原 ui-preview-v2.html：默认向左 -90deg，展开向上 -180deg */}
+        <ChevronDown
+          className="h-4 w-4 shrink-0 text-muted-foreground transition-transform duration-300"
+          style={{ transform: menuOpen ? "rotate(-180deg)" : "rotate(-90deg)" }}
         />
       </button>
 

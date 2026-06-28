@@ -103,7 +103,7 @@ export function Modal({ open, onClose, title, children, size = "md", className }
               type="button"
               onClick={onClose}
               aria-label="关闭"
-              className="rounded-md p-1 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+              className="rounded-md p-1 text-muted-foreground transition-colors hover:bg-primary/10 hover:text-primary"
             >
               <X className="h-4 w-4" />
             </button>

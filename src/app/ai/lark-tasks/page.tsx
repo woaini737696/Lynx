@@ -274,8 +274,8 @@ function MemberMultiSelect({
         type="button"
         onClick={() => setOpen((v) => !v)}
         className={cn(
-          "flex w-full items-center gap-2 rounded-xl border border-border bg-background px-3 py-2 text-left text-xs outline-none transition-colors hover:bg-muted/30 focus:border-cognition/50",
-          open && "border-cognition/50 ring-1 ring-cognition/20"
+          "ios-glass-sm flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-xs outline-none transition-colors focus:outline-none focus:ring-2 focus:ring-cognition/20",
+          open && "ring-1 ring-cognition/20"
         )}
       >
         <Icon className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
@@ -308,7 +308,7 @@ function MemberMultiSelect({
       </button>
 
       {open && (
-        <div className="absolute z-50 mt-1 max-h-56 w-full overflow-auto rounded-xl border border-border bg-card p-1 shadow-lg">
+        <div className="user-menu absolute z-50 mt-1 max-h-56 w-full overflow-auto rounded-2xl p-1.5 shadow-2xl">
           {members.length === 0 ? (
             <div className="px-2 py-3 text-center text-[11px] text-muted-foreground">
               暂无成员
@@ -372,14 +372,14 @@ function DateTimeQuickPicker({
         <button
           type="button"
           onClick={() => applyQuick("today")}
-          className="rounded-lg border border-border bg-background px-2.5 py-1 text-[11px] text-foreground hover:bg-muted/50"
+          className="ios-glass-sm rounded-lg px-2.5 py-1 text-[11px] text-foreground transition-colors hover:bg-primary/10 hover:text-primary"
         >
           今天
         </button>
         <button
           type="button"
           onClick={() => applyQuick("tomorrow")}
-          className="rounded-lg border border-border bg-background px-2.5 py-1 text-[11px] text-foreground hover:bg-muted/50"
+          className="ios-glass-sm rounded-lg px-2.5 py-1 text-[11px] text-foreground transition-colors hover:bg-primary/10 hover:text-primary"
         >
           明天
         </button>
@@ -387,10 +387,10 @@ function DateTimeQuickPicker({
           type="button"
           onClick={() => setMode("custom")}
           className={cn(
-            "rounded-lg border px-2.5 py-1 text-[11px] transition-colors",
+            "rounded-lg px-2.5 py-1 text-[11px] transition-colors",
             mode === "custom"
-              ? "border-cognition/50 bg-cognition/5 text-cognition"
-              : "border-border bg-background text-foreground hover:bg-muted/50"
+              ? "ios-glass-sm bg-cognition/5 text-cognition ring-1 ring-cognition/20"
+              : "ios-glass-sm text-foreground hover:bg-primary/10 hover:text-primary"
           )}
         >
           其他时间
@@ -410,7 +410,7 @@ function DateTimeQuickPicker({
           type="datetime-local"
           value={localValue}
           onChange={(e) => onChange(fromDatetimeLocal(e.target.value))}
-          className="w-full rounded-xl border border-border bg-background px-3 py-2 text-xs outline-none focus:border-cognition/50"
+          className="ios-glass-sm w-full rounded-xl border-0 bg-transparent px-3 py-2 text-xs outline-none focus:outline-none focus:ring-2 focus:ring-cognition/20"
         />
       )}
       {mode === "custom" && !showTime && (
@@ -420,7 +420,7 @@ function DateTimeQuickPicker({
           onChange={(e) =>
             onChange(e.target.value ? new Date(e.target.value).toISOString() : null)
           }
-          className="w-full rounded-xl border border-border bg-background px-3 py-2 text-xs outline-none focus:border-cognition/50"
+          className="ios-glass-sm w-full rounded-xl border-0 bg-transparent px-3 py-2 text-xs outline-none focus:outline-none focus:ring-2 focus:ring-cognition/20"
         />
       )}
       {value && mode === "quick" && (
@@ -946,14 +946,14 @@ export default function LarkTasksPage() {
 
       {/* 显示模式切换：列表 / 日历 / 甘特图 */}
       <div className="mb-4 flex items-center justify-between">
-        <div className="flex items-center gap-1 rounded-xl border border-border bg-card p-1">
+        <div className="ios-glass-sm flex items-center gap-1 rounded-xl p-1">
           <button
             onClick={() => setDisplayMode("list")}
             className={cn(
               "flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-all",
               displayMode === "list"
                 ? "bg-primary text-primary-foreground shadow-sm"
-                : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                : "text-muted-foreground hover:bg-primary/10 hover:text-primary"
             )}
           >
             <ListTodo className="h-3.5 w-3.5" />
@@ -965,7 +965,7 @@ export default function LarkTasksPage() {
               "flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-all",
               displayMode === "calendar"
                 ? "bg-primary text-primary-foreground shadow-sm"
-                : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                : "text-muted-foreground hover:bg-primary/10 hover:text-primary"
             )}
           >
             <CalendarDays className="h-3.5 w-3.5" />
@@ -977,7 +977,7 @@ export default function LarkTasksPage() {
               "flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-all",
               displayMode === "gantt"
                 ? "bg-primary text-primary-foreground shadow-sm"
-                : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                : "text-muted-foreground hover:bg-primary/10 hover:text-primary"
             )}
           >
             <GanttChart className="h-3.5 w-3.5" />
@@ -989,7 +989,7 @@ export default function LarkTasksPage() {
               "flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-all",
               displayMode === "board"
                 ? "bg-primary text-primary-foreground shadow-sm"
-                : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                : "text-muted-foreground hover:bg-primary/10 hover:text-primary"
             )}
           >
             <Columns3 className="h-3.5 w-3.5" />
@@ -1000,7 +1000,7 @@ export default function LarkTasksPage() {
 
       {/* 视图切换 Tab */}
       <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex items-center gap-1 rounded-xl border border-border bg-card p-1">
+        <div className="ios-glass-sm flex items-center gap-1 rounded-xl p-1">
           {VIEW_TABS.map((t) => (
             <button
               key={t.key}
@@ -1009,7 +1009,7 @@ export default function LarkTasksPage() {
                 "rounded-lg px-3 py-1.5 text-xs font-medium transition-all",
                 view === t.key
                   ? "bg-primary text-primary-foreground shadow-sm"
-                  : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                  : "text-muted-foreground hover:bg-primary/10 hover:text-primary"
               )}
             >
               {t.label}
@@ -1018,7 +1018,7 @@ export default function LarkTasksPage() {
         </div>
 
         {/* 完成状态筛选 */}
-        <div className="flex items-center gap-1 rounded-xl border border-border bg-card p-1">
+        <div className="ios-glass-sm flex items-center gap-1 rounded-xl p-1">
           {COMPLETE_FILTERS.map((f) => (
             <button
               key={f.key}
@@ -1027,7 +1027,7 @@ export default function LarkTasksPage() {
                 "rounded-lg px-3 py-1.5 text-xs font-medium transition-all",
                 completeFilter === f.key
                   ? "bg-secondary text-secondary-foreground shadow-sm"
-                  : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                  : "text-muted-foreground hover:bg-primary/10 hover:text-primary"
               )}
             >
               {f.label}
@@ -1044,7 +1044,7 @@ export default function LarkTasksPage() {
             <select
               value={selectedAssignee}
               onChange={(e) => setSelectedAssignee(e.target.value)}
-              className="appearance-none rounded-xl border border-border bg-card py-2 pl-8 pr-8 text-xs text-foreground outline-none transition-colors focus:border-cognition/50"
+              className="ios-glass-sm appearance-none rounded-xl py-2 pl-8 pr-8 text-xs text-foreground outline-none transition-colors focus:border-cognition/50"
             >
               <option value="">全部负责人</option>
               {assignees.map((a) => {
@@ -1064,7 +1064,7 @@ export default function LarkTasksPage() {
             <select
               value={selectedTasklist}
               onChange={(e) => setSelectedTasklist(e.target.value)}
-              className="appearance-none rounded-xl border border-border bg-card py-2 pl-8 pr-8 text-xs text-foreground outline-none transition-colors focus:border-cognition/50"
+              className="appearance-none rounded-xl ios-glass-sm py-2 pl-8 pr-8 text-xs text-foreground outline-none transition-colors focus:border-cognition/50"
             >
               <option value="">全部清单</option>
               {tasklists.map((t) => (
@@ -1102,7 +1102,7 @@ export default function LarkTasksPage() {
               if (e.key === "Enter") handleSearch();
             }}
             placeholder="搜索任务标题..."
-            className="w-full rounded-xl border border-border bg-card py-2 pl-9 pr-9 text-xs text-foreground outline-none transition-colors placeholder:text-muted-foreground focus:border-cognition/50"
+            className="ios-glass-sm w-full rounded-xl py-2 pl-9 pr-9 text-xs text-foreground outline-none transition-colors placeholder:text-muted-foreground focus:border-cognition/50"
           />
           {searchInput ? (
             <button
@@ -1433,7 +1433,7 @@ function BoardView({
           onDragLeave={() => setDragOverCol(null)}
           onDrop={() => handleDrop(col.key)}
           className={cn(
-            "flex flex-col rounded-xl border border-border bg-card/50 p-3 min-h-[400px]",
+            "flex flex-col rounded-xl ios-glass-sm/50 p-3 min-h-[400px]",
             "border-l-4",
             col.color,
             dragOverCol === col.key && "ring-2 ring-cognition/40 bg-cognition/5"
@@ -1465,7 +1465,7 @@ function BoardView({
                     onDragEnd={() => { setDraggedGuid(null); setDragOverCol(null); }}
                     onClick={() => onOpenDetail(task)}
                     className={cn(
-                      "cursor-move rounded-lg border border-border bg-background p-2.5 transition-all hover:border-cognition/40 hover:shadow-sm",
+                      "cursor-move rounded-lg ios-glass-sm p-2.5 transition-all hover:border-cognition/40 hover:shadow-sm",
                       draggedGuid === task.guid && "opacity-50"
                     )}
                   >
@@ -1899,7 +1899,7 @@ function SubtaskInline({
             if (e.key === "Enter") handleCreate();
           }}
           placeholder="添加子任务..."
-          className="flex-1 rounded-lg border border-border bg-background px-2.5 py-1.5 text-[11px] outline-none focus:border-cognition/50"
+          className="flex-1 rounded-lg ios-glass-sm px-2.5 py-1.5 text-[11px] outline-none focus:border-cognition/50"
         />
         <Button
           size="sm"
@@ -2076,7 +2076,7 @@ function CreateTaskModal({
               }}
               placeholder="输入任务标题..."
               autoFocus
-              className="w-full rounded-xl border border-border bg-background px-3 py-2 text-sm outline-none focus:border-cognition/50"
+              className="w-full rounded-xl ios-glass-sm px-3 py-2 text-sm outline-none focus:border-cognition/50"
             />
           </div>
 
@@ -2090,7 +2090,7 @@ function CreateTaskModal({
               onChange={(e) => setDescription(e.target.value)}
               placeholder="任务描述（可选）..."
               rows={3}
-              className="w-full resize-none rounded-xl border border-border bg-background px-3 py-2 text-sm outline-none focus:border-cognition/50"
+              className="w-full resize-none rounded-xl ios-glass-sm px-3 py-2 text-sm outline-none focus:border-cognition/50"
             />
           </div>
 
@@ -2130,7 +2130,7 @@ function CreateTaskModal({
             <select
               value={tasklistId}
               onChange={(e) => setTasklistId(e.target.value)}
-              className="w-full rounded-xl border border-border bg-background px-3 py-2 text-sm outline-none focus:border-cognition/50"
+              className="w-full rounded-xl ios-glass-sm px-3 py-2 text-sm outline-none focus:border-cognition/50"
             >
               <option value="">默认清单</option>
               {tasklists.map((t) => (
@@ -2504,7 +2504,7 @@ function TaskDetailDrawer({
       <div
         ref={drawerRef}
         onClick={(e) => e.stopPropagation()}
-        className="flex h-full w-full max-w-xl flex-col bg-card shadow-2xl animate-in slide-in-from-right"
+        className="glass-card flex h-full w-full max-w-xl flex-col shadow-2xl animate-in slide-in-from-right"
       >
         {/* 头部 */}
         <div className="flex items-center justify-between border-b border-border px-5 py-4">
@@ -2546,7 +2546,7 @@ function TaskDetailDrawer({
                   type="text"
                   value={summary}
                   onChange={(e) => setSummary(e.target.value)}
-                  className="w-full rounded-xl border border-border bg-background px-3 py-2 text-sm outline-none focus:border-cognition/50"
+                  className="w-full rounded-xl ios-glass-sm px-3 py-2 text-sm outline-none focus:border-cognition/50"
                 />
               </div>
               <div>
@@ -2557,7 +2557,7 @@ function TaskDetailDrawer({
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
                   rows={4}
-                  className="w-full resize-none rounded-xl border border-border bg-background px-3 py-2 text-sm outline-none focus:border-cognition/50"
+                  className="w-full resize-none rounded-xl ios-glass-sm px-3 py-2 text-sm outline-none focus:border-cognition/50"
                 />
               </div>
               <div className="flex items-center gap-2">
@@ -2637,7 +2637,7 @@ function TaskDetailDrawer({
                 <select
                   value={tasklistId}
                   onChange={(e) => setTasklistId(e.target.value)}
-                  className="w-full rounded-xl border border-border bg-background px-3 py-2 text-xs outline-none focus:border-cognition/50"
+                  className="w-full rounded-xl ios-glass-sm px-3 py-2 text-xs outline-none focus:border-cognition/50"
                 >
                   <option value="">默认清单</option>
                   {tasklists.map((t) => (
@@ -2772,7 +2772,7 @@ function TaskDetailDrawer({
                   if (e.key === "Enter") handleCreateSubtask();
                 }}
                 placeholder="添加子任务..."
-                className="flex-1 rounded-lg border border-border bg-background px-3 py-1.5 text-xs outline-none focus:border-cognition/50"
+                className="flex-1 rounded-lg ios-glass-sm px-3 py-1.5 text-xs outline-none focus:border-cognition/50"
               />
               <Button
                 size="sm"
@@ -2850,7 +2850,7 @@ function TaskDetailDrawer({
                 onChange={(e) => setNewComment(e.target.value)}
                 placeholder="写下你的评论..."
                 rows={2}
-                className="flex-1 resize-none rounded-lg border border-border bg-background px-3 py-2 text-xs outline-none focus:border-cognition/50"
+                className="flex-1 resize-none rounded-lg ios-glass-sm px-3 py-2 text-xs outline-none focus:border-cognition/50"
               />
               <Button
                 size="sm"
@@ -3011,7 +3011,7 @@ function CalendarView({
               className={cn(
                 "min-h-[96px] rounded-lg border p-1.5 transition-colors",
                 isCurrentMonth
-                  ? "border-border bg-card"
+                  ? "ios-glass-sm"
                   : "border-border/40 bg-muted/20",
                 isToday && "ring-1 ring-cognition/40",
                 dayTasks.length > 0 && "cursor-pointer hover:border-cognition/40",
@@ -3230,7 +3230,7 @@ function GanttView({
           description="任务需要有开始或截止时间才能在甘特图中显示"
         />
       ) : (
-        <div className="overflow-x-auto rounded-xl border border-border bg-card">
+        <div className="overflow-x-auto rounded-xl ios-glass-sm">
           <div
             className="relative"
             style={{
@@ -3238,10 +3238,10 @@ function GanttView({
             }}
           >
             {/* 时间轴表头 */}
-            <div className="flex border-b border-border bg-card">
+            <div className="ios-glass-sm flex">
               {/* 左上角占位 */}
               <div
-                className="shrink-0 border-r border-border bg-card px-3 py-2 text-[11px] font-medium text-muted-foreground"
+                className="ios-glass-sm shrink-0 border-r border-border px-3 py-2 text-[11px] font-medium text-muted-foreground"
                 style={{ width: TASK_NAME_WIDTH }}
               >
                 任务
@@ -3305,7 +3305,7 @@ function GanttView({
                   >
                     {/* 任务名（左侧 sticky） */}
                     <div
-                      className="sticky left-0 z-10 shrink-0 truncate border-r border-border bg-card px-3 py-2 text-xs"
+                      className="ios-glass-sm sticky left-0 z-10 shrink-0 truncate border-r border-border px-3 py-2 text-xs"
                       style={{ width: TASK_NAME_WIDTH }}
                     >
                       <span
@@ -3386,7 +3386,7 @@ function GanttView({
       {/* 悬停 tooltip */}
       {hoveredTask && (
         <div
-          className="pointer-events-none fixed z-50 -translate-x-1/2 -translate-y-full rounded-lg border border-border bg-card px-3 py-2 text-xs shadow-xl"
+          className="pointer-events-none fixed z-50 -translate-x-1/2 -translate-y-full rounded-lg ios-glass-sm px-3 py-2 text-xs shadow-xl"
           style={{
             left: hoveredTask.x,
             top: hoveredTask.y - 8,
@@ -3574,7 +3574,7 @@ function WebhookPanel({
                 disabled={simulating}
                 onClick={() => onSimulate(evt.type)}
                 className={cn(
-                  "rounded-md border border-border bg-card px-2 py-1.5 text-[11px] font-medium transition-colors hover:bg-muted/40 disabled:opacity-50",
+                  "rounded-md ios-glass-sm px-2 py-1.5 text-[11px] font-medium transition-colors hover:bg-muted/40 disabled:opacity-50",
                   evt.color
                 )}
               >
@@ -3662,7 +3662,7 @@ function WebhookConfigWizard({ onClose }: { onClose: () => void }) {
         </div>
         <div className="space-y-3 p-4">
           {steps.map((step, idx) => (
-            <div key={idx} className="rounded-lg border border-border bg-card p-3">
+            <div key={idx} className="rounded-lg ios-glass-sm p-3">
               <div className="mb-1 text-sm font-medium text-foreground">{step.title}</div>
               <div className="whitespace-pre-wrap text-xs leading-relaxed text-muted-foreground">
                 {step.content}

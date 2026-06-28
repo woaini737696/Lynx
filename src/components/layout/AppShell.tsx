@@ -76,15 +76,16 @@ function ConvergeReminder() {
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   return (
-    <div className="flex h-screen flex-col overflow-hidden bg-background">
+    <div className="flex h-screen flex-col overflow-hidden">
       <TitleBar />
-      <CaptureBar />
-      {/* 顶部 header 栏已移除 — 侧边栏直接延伸到内容区顶部 */}
-      <div className="flex flex-1 overflow-hidden">
+      {/* 布局 1:1 还原 ui-preview-v2.html：侧边栏直达顶部，顶部操作栏位于主内容区内 */}
+      <div className="relative flex flex-1 overflow-hidden">
         <Sidebar />
-        <main className="relative flex-1 overflow-y-auto overflow-x-hidden bg-background">
-          <div className="pointer-events-none absolute inset-0 -z-10 bg-[radial-gradient(ellipse_at_top,hsl(var(--primary)/0.05),transparent_50%)]" />
-          {children}
+        <main className="relative flex flex-1 flex-col overflow-hidden">
+          <CaptureBar />
+          <div className="flex-1 overflow-y-auto overflow-x-hidden">
+            {children}
+          </div>
         </main>
       </div>
       <RecentTabs />

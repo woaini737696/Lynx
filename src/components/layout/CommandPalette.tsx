@@ -510,7 +510,7 @@ export function CommandPalette() {
       onClick={() => setOpen(false)}
     >
       <div
-        className="flex max-h-[80vh] w-full max-w-xl flex-col overflow-hidden rounded-2xl border border-border bg-card shadow-2xl"
+        className="glass-card flex max-h-[80vh] w-full max-w-xl flex-col overflow-hidden rounded-2xl shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
         {/* 搜索输入 */}
@@ -531,7 +531,7 @@ export function CommandPalette() {
           {loading && (
             <span className="shrink-0 animate-pulse text-[10px] text-muted-foreground">搜索中...</span>
           )}
-          <kbd className="shrink-0 rounded border border-border bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">
+          <kbd className="ios-glass-sm shrink-0 rounded px-1.5 py-0.5 text-[10px] text-muted-foreground">
             ESC
           </kbd>
         </div>
@@ -554,12 +554,12 @@ export function CommandPalette() {
                     "flex items-center gap-1 rounded-lg px-2 py-1 text-[11px] transition-colors",
                     activeTab === tab.key
                       ? "bg-primary/10 font-medium text-primary"
-                      : "text-muted-foreground hover:bg-muted/50 hover:text-foreground",
+                      : "text-muted-foreground hover:bg-primary/10 hover:text-primary hover:text-foreground",
                   )}
                 >
                   {tab.label}
                   {query.trim() && count > 0 && (
-                    <span className="rounded bg-muted/60 px-1 text-[9px]">{count}</span>
+                    <span className="ios-glass-sm rounded px-1 text-[9px]">{count}</span>
                   )}
                 </button>
               );
@@ -590,7 +590,7 @@ export function CommandPalette() {
                     onClick={() => selectItem(item)}
                     className={cn(
                       "flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left transition-colors",
-                      isActive ? "bg-primary/10" : "hover:bg-muted/50",
+                      isActive ? "bg-primary/10" : "hover:bg-primary/10 hover:text-primary",
                     )}
                   >
                     <Icon className={cn("h-4 w-4 shrink-0", cmd.color)} />
@@ -627,7 +627,7 @@ export function CommandPalette() {
                   onClick={() => selectItem(item)}
                   className={cn(
                     "flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left transition-colors",
-                    isActive ? "bg-primary/10" : "hover:bg-muted/50",
+                    isActive ? "bg-primary/10" : "hover:bg-primary/10 hover:text-primary",
                   )}
                 >
                   <Icon className={cn("h-4 w-4 shrink-0", result.color)} />
@@ -639,7 +639,7 @@ export function CommandPalette() {
                       <div className="text-[10px] text-muted-foreground">{result.subtitle}</div>
                     )}
                   </div>
-                  <span className="shrink-0 rounded bg-muted/60 px-1.5 py-0.5 text-[9px] text-muted-foreground">
+                  <span className="shrink-0 ios-glass-sm rounded px-1.5 py-0.5 text-[9px] text-muted-foreground">
                     {TYPE_LABELS[result.type]}
                   </span>
                   {isActive && <ArrowRight className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />}
@@ -660,7 +660,7 @@ export function CommandPalette() {
                     <button
                       key={q}
                       onClick={() => restoreSearch(q)}
-                      className="flex w-full items-center gap-2 rounded-lg px-3 py-1.5 text-left text-xs text-foreground/80 transition-colors hover:bg-muted/50"
+                      className="flex w-full items-center gap-2 rounded-lg px-3 py-1.5 text-left text-xs text-foreground/80 transition-colors hover:bg-primary/10 hover:text-primary"
                     >
                       <Clock className="h-3 w-3 shrink-0 text-muted-foreground/60" />
                       <span className="flex-1 truncate">{q}</span>
@@ -686,7 +686,7 @@ export function CommandPalette() {
                       onClick={() => selectItem(item)}
                       className={cn(
                         "flex w-full items-center gap-3 rounded-xl px-3 py-2 text-left transition-colors",
-                        isActive ? "bg-primary/10" : "hover:bg-muted/50",
+                        isActive ? "bg-primary/10" : "hover:bg-primary/10 hover:text-primary",
                       )}
                     >
                       <Icon className={cn("h-4 w-4 shrink-0", result.color)} />
@@ -720,7 +720,7 @@ export function CommandPalette() {
                   onClick={() => selectItem(item)}
                   className={cn(
                     "flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left transition-colors",
-                    isActive ? "bg-primary/10" : "hover:bg-muted/50",
+                    isActive ? "bg-primary/10" : "hover:bg-primary/10 hover:text-primary",
                   )}
                 >
                   <Icon className={cn("h-4 w-4 shrink-0", result.color)} />
@@ -732,7 +732,7 @@ export function CommandPalette() {
                       <div className="text-[10px] text-muted-foreground">{result.subtitle}</div>
                     )}
                   </div>
-                  <span className="shrink-0 rounded bg-muted/60 px-1.5 py-0.5 text-[9px] text-muted-foreground">
+                  <span className="shrink-0 ios-glass-sm rounded px-1.5 py-0.5 text-[9px] text-muted-foreground">
                     {TYPE_LABELS[result.type]}
                   </span>
                   {isActive && <ArrowRight className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />}
@@ -771,18 +771,18 @@ export function CommandPalette() {
         <div className="flex items-center justify-between border-t border-border px-4 py-2 text-[10px] text-muted-foreground">
           <div className="flex items-center gap-3">
             <span className="flex items-center gap-1">
-              <kbd className="rounded border border-border bg-muted px-1">↑↓</kbd> 导航
+              <kbd className="ios-glass-sm rounded px-1">↑↓</kbd> 导航
             </span>
             <span className="flex items-center gap-1">
-              <kbd className="rounded border border-border bg-muted px-1">↵</kbd> 选择
+              <kbd className="ios-glass-sm rounded px-1">↵</kbd> 选择
             </span>
             {!isCommandMode && (
               <span className="flex items-center gap-1">
-                <kbd className="rounded border border-border bg-muted px-1">Tab</kbd> 筛选
+                <kbd className="ios-glass-sm rounded px-1">Tab</kbd> 筛选
               </span>
             )}
             <span className="flex items-center gap-1">
-              <kbd className="rounded border border-border bg-muted px-1">&gt;</kbd> 命令模式
+              <kbd className="ios-glass-sm rounded px-1">&gt;</kbd> 命令模式
             </span>
           </div>
           <span className="flex items-center gap-1">
