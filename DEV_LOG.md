@@ -160,7 +160,7 @@
 - 构建脚本：`desktop-native/build-native.ps1` 完整跑通，生成 `dist\lynx_1.0.0.exe`（5.92 MB）
 
 ### Commit hash
-- 待回填
+- `3e43cf4f` — feat(desktop-native): iter 50 - Lynx安装包重构为深海蓝液态玻璃风格，统一版本1.0.0并修复构建脚本cargo工作目录
 
 ---
 
