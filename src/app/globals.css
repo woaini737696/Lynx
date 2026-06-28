@@ -4,8 +4,8 @@
 
 @layer base {
   :root {
-    /* 浅色主题 — 宇宙星空蓝 + 极净白 */
-    --background: 220 20% 95%;
+    /* 浅色主题 — 1:1 还原 HTML：深空蓝灰底 #eef1f8 */
+    --background: 222 20% 95%;
     --foreground: 222 47% 8%;
     --card: 0 0% 100%;
     --card-foreground: 222 47% 8%;
@@ -17,15 +17,15 @@
     --primary-soft: 217 90% 95%;
     --secondary: 220 18% 96%;
     --secondary-foreground: 222 47% 8%;
-    --muted: 220 20% 95%;
-    --muted-foreground: 220 15% 45%;
+    --muted: 222 18% 94%;
+    --muted-foreground: 222 15% 45%;
     /* 强调色：深青 #0088a3 */
     --accent: 190 100% 32%;
     --accent-foreground: 0 0% 100%;
     --destructive: 0 84% 60%;
     --destructive-foreground: 0 0% 100%;
-    --border: 220 35% 86%;
-    --input: 220 35% 86%;
+    --border: 222 35% 86%;
+    --input: 222 35% 86%;
     --ring: 217 86% 33%;
     --radius: 0.85rem;
 
@@ -37,7 +37,7 @@
     --cognition: 222 47% 30%;
 
     /* 发光与玻璃控制 */
-    --glass-border: 220 35% 86%;
+    --glass-border: 222 35% 86%;
     --glass-highlight: 0 0% 100%;
     --glow-primary: 217 86% 33%;
     --glow-accent: 190 100% 32%;
@@ -119,18 +119,18 @@
 @layer components {
   /* ============ iOS 26 液态玻璃质感系统 ============ */
 
-  /* 通用液态玻璃层（1:1 还原 HTML ios-glass — 轻盈 iOS 玻璃感） */
+  /* 通用液态玻璃层（1:1 还原 HTML ios-glass） */
   .ios-glass {
     position: relative;
     background:
-      linear-gradient(160deg, rgba(255,255,255,0.40) 0%, transparent 55%),
-      rgba(255,255,255,0.55);
+      linear-gradient(160deg, rgba(255,255,255,0.48) 0%, transparent 55%),
+      rgba(255,255,255,0.58);
     backdrop-filter: saturate(200%) blur(28px);
     -webkit-backdrop-filter: saturate(200%) blur(28px);
-    border: 1px solid rgba(12, 55, 150, 0.12);
+    border: 1px solid rgba(12, 55, 150, 0.16);
     box-shadow:
-      inset 0 1px 1px rgba(255,255,255,0.40),
-      0 4px 20px -6px rgba(5, 12, 32, 0.10);
+      inset 0 1px 1px rgba(255,255,255,0.48),
+      0 8px 32px -8px rgba(12, 55, 150, 0.08);
     border-radius: 1.1rem;
     transition: all 0.3s cubic-bezier(0.22, 1, 0.36, 1);
     overflow: hidden;
@@ -139,46 +139,46 @@
     content: "";
     position: absolute;
     inset: 0;
-    background: linear-gradient(135deg, rgba(255,255,255,0.10) 0%, transparent 50%);
+    background: linear-gradient(135deg, rgba(255,255,255,0.14) 0%, transparent 50%);
     pointer-events: none;
   }
   .dark .ios-glass {
     background:
-      linear-gradient(160deg, rgba(255,255,255,0.04) 0%, transparent 55%),
-      rgba(13, 22, 45, 0.50);
-    border: 1px solid rgba(80, 130, 230, 0.08);
+      linear-gradient(160deg, rgba(255,255,255,0.05) 0%, transparent 55%),
+      rgba(13, 22, 45, 0.55);
+    border: 1px solid rgba(80, 130, 230, 0.10);
     box-shadow:
-      inset 0 1px 1px rgba(255,255,255,0.04),
-      0 4px 20px -6px rgba(0,0,0,0.40);
+      inset 0 1px 1px rgba(255,255,255,0.05),
+      0 8px 32px -8px rgba(0, 0, 0, 0.45);
   }
   .dark .ios-glass::before {
-    background: linear-gradient(135deg, rgba(255,255,255,0.04) 0%, transparent 50%);
+    background: linear-gradient(135deg, rgba(255,255,255,0.05) 0%, transparent 50%);
   }
   .ios-glass:hover {
-    border-color: rgba(11, 61, 158, 0.18);
+    border-color: rgba(11, 61, 158, 0.22);
     box-shadow:
-      inset 0 1px 1px rgba(255,255,255,0.40),
-      0 6px 24px -6px rgba(5, 12, 32, 0.12);
+      inset 0 1px 1px rgba(255,255,255,0.48),
+      0 10px 36px -8px rgba(12, 55, 150, 0.12);
   }
   .dark .ios-glass:hover {
-    border-color: rgba(100, 150, 255, 0.18);
+    border-color: rgba(100, 150, 255, 0.22);
     box-shadow:
-      inset 0 1px 1px rgba(255,255,255,0.04),
-      0 6px 24px -6px rgba(0, 0, 0, 0.30);
+      inset 0 1px 1px rgba(255,255,255,0.05),
+      0 10px 36px -8px rgba(0, 0, 0, 0.35);
   }
 
-  /* 小型玻璃控件（1:1 还原 HTML ios-glass-sm — 轻盈）— 按钮、标签、输入框 */
+  /* 小型玻璃控件（1:1 还原 HTML ios-glass-sm）— 按钮、标签、输入框 */
   .ios-glass-sm {
     position: relative;
     background:
-      linear-gradient(160deg, rgba(255,255,255,0.40) 0%, transparent 50%),
+      linear-gradient(160deg, rgba(255,255,255,0.45) 0%, transparent 50%),
       rgba(255,255,255,0.55);
     backdrop-filter: saturate(200%) blur(18px);
     -webkit-backdrop-filter: saturate(200%) blur(18px);
-    border: 1px solid rgba(12, 55, 150, 0.12);
+    border: 1px solid rgba(12, 55, 150, 0.14);
     box-shadow:
-      inset 0 0.5px 1px rgba(255, 255, 255, 0.40),
-      0 1px 3px rgba(0, 0, 0, 0.04);
+      inset 0 0.5px 1px rgba(255, 255, 255, 0.45),
+      0 2px 8px -2px rgba(12, 55, 150, 0.05);
     transition: all 0.25s cubic-bezier(0.22, 1, 0.36, 1);
     overflow: hidden;
   }
@@ -186,26 +186,26 @@
     content: "";
     position: absolute;
     inset: 0;
-    background: linear-gradient(135deg, rgba(255, 255, 255, 0.10), transparent 50%);
+    background: linear-gradient(135deg, rgba(255, 255, 255, 0.12), transparent 50%);
     pointer-events: none;
   }
   .ios-glass-sm:hover {
-    border-color: rgba(12, 55, 150, 0.20);
+    border-color: rgba(12, 55, 150, 0.22);
   }
   .dark .ios-glass-sm {
     background:
-      linear-gradient(160deg, rgba(255,255,255,0.04) 0%, transparent 50%),
-      rgba(13, 22, 45, 0.50);
-    border-color: rgba(80, 130, 230, 0.08);
+      linear-gradient(160deg, rgba(255,255,255,0.05) 0%, transparent 50%),
+      rgba(13, 22, 45, 0.55);
+    border-color: rgba(80, 130, 230, 0.10);
     box-shadow:
-      inset 0 0.5px 1px rgba(255, 255, 255, 0.04),
-      0 1px 3px rgba(0, 0, 0, 0.20);
+      inset 0 0.5px 1px rgba(255, 255, 255, 0.05),
+      0 2px 8px -2px rgba(0, 0, 0, 0.25);
   }
   .dark .ios-glass-sm::before {
-    background: linear-gradient(135deg, rgba(255, 255, 255, 0.04), transparent 50%);
+    background: linear-gradient(135deg, rgba(255, 255, 255, 0.05), transparent 50%);
   }
   .dark .ios-glass-sm:hover {
-    border-color: rgba(100, 150, 255, 0.18);
+    border-color: rgba(100, 150, 255, 0.22);
   }
 
   /* 主按钮（1:1 还原 HTML btn-primary — 轻盈深邃蓝） */
@@ -491,19 +491,19 @@
       0 0 18px -4px hsl(var(--primary) / 0.25);
   }
 
-  /* 液态玻璃质感卡片（1:1 还原 HTML ios-glass — 轻盈 iOS 玻璃感） */
+  /* 液态玻璃质感卡片（1:1 还原 HTML ios-glass） */
   .glass-card {
     position: relative;
     background:
-      linear-gradient(160deg, rgba(255,255,255,0.40) 0%, transparent 55%),
-      rgba(255,255,255,0.55);
+      linear-gradient(160deg, rgba(255,255,255,0.48) 0%, transparent 55%),
+      rgba(255,255,255,0.58);
     backdrop-filter: saturate(200%) blur(28px);
     -webkit-backdrop-filter: saturate(200%) blur(28px);
-    border: 1px solid rgba(12, 55, 150, 0.12);
+    border: 1px solid rgba(12, 55, 150, 0.16);
     border-radius: 1.1rem;
     box-shadow:
-      inset 0 1px 1px rgba(255, 255, 255, 0.40),
-      0 4px 20px -6px rgba(5, 12, 32, 0.10);
+      inset 0 1px 1px rgba(255, 255, 255, 0.48),
+      0 8px 32px -8px rgba(12, 55, 150, 0.08);
     overflow: hidden;
     transition: all 0.3s cubic-bezier(0.22, 1, 0.36, 1);
   }
@@ -511,32 +511,32 @@
     content: "";
     position: absolute;
     inset: 0;
-    background: linear-gradient(135deg, rgba(255, 255, 255, 0.10), transparent 50%);
+    background: linear-gradient(135deg, rgba(255, 255, 255, 0.14), transparent 50%);
     pointer-events: none;
   }
   .glass-card:hover {
-    border-color: rgba(11, 61, 158, 0.18);
+    border-color: rgba(11, 61, 158, 0.22);
     box-shadow:
-      inset 0 1px 1px rgba(255, 255, 255, 0.40),
-      0 6px 24px -6px rgba(5, 12, 32, 0.12);
+      inset 0 1px 1px rgba(255, 255, 255, 0.48),
+      0 10px 36px -8px rgba(12, 55, 150, 0.12);
   }
   .dark .glass-card {
     background:
-      linear-gradient(160deg, rgba(255,255,255,0.04) 0%, transparent 55%),
-      rgba(13, 22, 45, 0.50);
-    border-color: rgba(80, 130, 230, 0.08);
+      linear-gradient(160deg, rgba(255,255,255,0.05) 0%, transparent 55%),
+      rgba(13, 22, 45, 0.55);
+    border-color: rgba(80, 130, 230, 0.10);
     box-shadow:
-      inset 0 1px 1px rgba(255, 255, 255, 0.04),
-      0 4px 20px -6px rgba(0, 0, 0, 0.40);
+      inset 0 1px 1px rgba(255, 255, 255, 0.05),
+      0 8px 32px -8px rgba(0, 0, 0, 0.45);
   }
   .dark .glass-card::before {
-    background: linear-gradient(135deg, rgba(255, 255, 255, 0.04), transparent 50%);
+    background: linear-gradient(135deg, rgba(255, 255, 255, 0.05), transparent 50%);
   }
   .dark .glass-card:hover {
-    border-color: rgba(100, 150, 255, 0.18);
+    border-color: rgba(100, 150, 255, 0.22);
     box-shadow:
-      inset 0 1px 1px rgba(255, 255, 255, 0.04),
-      0 6px 24px -6px rgba(0, 0, 0, 0.30);
+      inset 0 1px 1px rgba(255, 255, 255, 0.05),
+      0 10px 36px -8px rgba(0, 0, 0, 0.35);
   }
 
   /* 侧边栏玻璃（1:1 还原 HTML glass-sidebar） */
