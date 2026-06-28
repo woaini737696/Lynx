@@ -154,8 +154,8 @@ interface AISettings {
 
 const DEFAULT_SETTINGS: AISettings = {
   assistantName: "Lynn",
-  assistantAvatar: "🤖",
-  avatarUrl: null,
+  assistantAvatar: "🦊",
+  avatarUrl: "/lynx-icon-256.png",
   personaStyle: null,
   distilledStyle: null,
   styleStrength: 0.7,
@@ -725,7 +725,7 @@ export default function AIAssistantPage() {
           loadedMessages.push({
             id: "welcome",
             role: "assistant",
-            content: `你好！我是你的 AI 专属助理${settings.assistantName !== "Lynn" ? ` ${settings.assistantName}` : ""}。我可以帮你管理灵感、分析任务、整理认知，也可以直接对话讨论问题。有什么我能帮你的？`,
+            content: `你好！我是你的 Lynx超级助理${settings.assistantName !== "Lynn" ? ` ${settings.assistantName}` : ""}。我可以帮你管理灵感、分析任务、整理认知，也可以直接对话讨论问题。有什么我能帮你的？`,
             time: "刚刚",
           });
         }
@@ -752,7 +752,7 @@ export default function AIAssistantPage() {
         setMessages([{
           id: "welcome",
           role: "assistant",
-          content: `你好！我是你的 AI 专属助理${settings.assistantName !== "Lynn" ? ` ${settings.assistantName}` : ""}。我可以帮你管理灵感、分析任务、整理认知，也可以直接对话讨论问题。有什么我能帮你的？`,
+          content: `你好！我是你的 Lynx超级助理${settings.assistantName !== "Lynn" ? ` ${settings.assistantName}` : ""}。我可以帮你管理灵感、分析任务、整理认知，也可以直接对话讨论问题。有什么我能帮你的？`,
           time: "刚刚",
         }]);
         fetchSessions();
@@ -2410,8 +2410,8 @@ export default function AIAssistantPage() {
               )}
             </div>
             <div>
-              <h1 className="text-sm font-semibold">AI 专属助理 {settings.assistantName !== "Lynn" && <span className="text-cognition">· {settings.assistantName}</span>}</h1>
-              <p className="text-[10px] text-muted-foreground">基于你的记忆图谱和认知库提供个性化协助</p>
+              <h1 className="text-base font-semibold text-foreground">Lynx超级助理 {settings.assistantName !== "Lynn" && <span className="text-cognition">· {settings.assistantName}</span>}</h1>
+              <p className="text-xs text-muted-foreground">基于你的记忆图谱和认知库提供个性化协助</p>
             </div>
           </div>
           <div className="flex items-center gap-2">
@@ -2480,12 +2480,16 @@ export default function AIAssistantPage() {
 
       {/* 历史对话侧边栏 */}
       {showSessionList && (
-        <div className="border-b border-border bg-card/50 px-4 py-3 sm:px-8">
+        <div className="border-b border-border bg-card/80 px-4 py-3 backdrop-blur-xl sm:px-8">
           <div className="mx-auto max-w-2xl">
-            <div className="mb-2 flex items-center justify-between">
-              <h3 className="text-xs font-medium text-muted-foreground">历史对话</h3>
-              <button onClick={() => setShowSessionList(false)} className="text-muted-foreground hover:text-foreground">
-                <X className="h-3.5 w-3.5" />
+            <div className="mb-3 flex items-center justify-between">
+              <h3 className="flex items-center gap-1.5 text-sm font-semibold text-foreground">
+                <MessageSquare className="h-4 w-4 text-cognition" />
+                历史对话
+                <span className="text-xs font-normal text-muted-foreground">（{sessions.length}）</span>
+              </h3>
+              <button onClick={() => setShowSessionList(false)} className="rounded-lg p-1 text-muted-foreground transition hover:bg-primary/10 hover:text-foreground">
+                <X className="h-4 w-4" />
               </button>
             </div>
             {sessions.length > 0 && (
@@ -2496,11 +2500,15 @@ export default function AIAssistantPage() {
                 className="mb-2"
               />
             )}
-            <div className="max-h-64 space-y-1 overflow-y-auto">
+            <div className="max-h-72 space-y-1 overflow-y-auto">
               {sessions.length === 0 ? (
-                <p className="py-4 text-center text-xs text-muted-foreground">暂无历史对话</p>
+                <div className="flex flex-col items-center gap-2 py-8 text-center">
+                  <MessageSquare className="h-8 w-8 text-muted-foreground/40" />
+                  <p className="text-sm text-muted-foreground">暂无历史对话</p>
+                  <p className="text-xs text-muted-foreground/70">开始新对话后会自动保存到这里</p>
+                </div>
               ) : filteredSessions.length === 0 ? (
-                <p className="py-4 text-center text-xs text-muted-foreground">未找到匹配的对话</p>
+                <p className="py-4 text-center text-sm text-muted-foreground">未找到匹配的对话</p>
               ) : (
                 sessionPagination.paginated.map((s) => (
                   <button
@@ -2510,13 +2518,13 @@ export default function AIAssistantPage() {
                       setShowSessionList(false);
                     }}
                     className={cn(
-                      "flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-xs transition-colors hover:bg-primary/10",
-                      currentSessionId === s.id && "bg-cognition/10 text-cognition"
+                      "flex w-full items-center gap-2.5 rounded-lg px-3 py-2.5 text-left text-sm transition-colors hover:bg-primary/10",
+                      currentSessionId === s.id ? "bg-cognition/10 text-cognition ring-1 ring-cognition/20" : "text-foreground"
                     )}
                   >
-                    <MessageSquare className="h-3 w-3 shrink-0 text-muted-foreground" />
-                    <span className="flex-1 truncate">{s.title}</span>
-                    <span className="shrink-0 text-[10px] text-muted-foreground">{s.messageCount}条</span>
+                    <MessageSquare className={cn("h-3.5 w-3.5 shrink-0", currentSessionId === s.id ? "text-cognition" : "text-muted-foreground")} />
+                    <span className="flex-1 truncate font-medium">{s.title}</span>
+                    <span className={cn("shrink-0 text-xs", currentSessionId === s.id ? "text-cognition/70" : "text-muted-foreground")}>{s.messageCount}条</span>
                   </button>
                 ))
               )}
@@ -3036,38 +3044,38 @@ export default function AIAssistantPage() {
       {settingsOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4" onClick={() => setSettingsOpen(false)}>
           <div className="flex max-h-[90vh] w-full max-w-md flex-col rounded-2xl glass-modal" onClick={(e) => e.stopPropagation()}>
-            <div className="flex shrink-0 items-center justify-between border-b border-border px-6 py-4">
-              <h2 className="text-lg font-semibold">助理设置</h2>
-              <button onClick={() => setSettingsOpen(false)} className="rounded-full p-1 hover:bg-primary/10">
-                <X className="h-4 w-4" />
+            <div className="sticky top-0 z-10 flex shrink-0 items-center justify-between bg-background/95 px-6 py-4 backdrop-blur-xl">
+              <h2 className="text-lg font-semibold text-foreground">助理设置</h2>
+              <button onClick={() => setSettingsOpen(false)} className="rounded-full p-1 text-muted-foreground transition hover:bg-primary/10 hover:text-foreground">
+                <X className="h-5 w-5" />
               </button>
             </div>
 
             <div className="min-h-0 flex-1 space-y-5 overflow-y-auto px-6 py-4">
               <div>
-                <label className="mb-1.5 block text-xs font-medium">助理名称</label>
+                <label className="mb-2 block text-sm font-medium text-foreground">助理名称</label>
                 <input
                   type="text"
                   value={settings.assistantName}
                   onChange={(e) => setSettings((s) => ({ ...s, assistantName: e.target.value }))}
                   onBlur={() => updateSettings({ assistantName: settings.assistantName })}
                   maxLength={20}
-                  className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:border-cognition"
+                  className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground outline-none focus:border-cognition"
                   placeholder="给你的AI助理取个名字"
                 />
               </div>
 
               {/* 头像 - 支持 Emoji 选择、URL 输入和文件上传 */}
               <div>
-                <label className="mb-1.5 block text-xs font-medium">助理头像</label>
+                <label className="mb-2 block text-sm font-medium text-foreground">助理头像</label>
                 {/* Emoji 头像（无 URL 时使用，与移动端同步） */}
                 <div className="mb-2 flex flex-wrap items-center gap-1.5">
-                  {["🤖", "🐱", "🦊", "🐼", "🧠", "⚡", "🌟", "🎯"].map((emoji) => (
+                  {["🦊", "🐱", "🤖", "🐼", "🧠", "⚡", "🌟", "🎯"].map((emoji) => (
                     <button
                       key={emoji}
                       onClick={() => { setSettings((s) => ({ ...s, assistantAvatar: emoji })); updateSettings({ assistantAvatar: emoji }); }}
                       className={cn(
-                        "flex h-8 w-8 items-center justify-center rounded-lg border text-lg transition",
+                        "flex h-9 w-9 items-center justify-center rounded-lg border text-lg transition",
                         settings.assistantAvatar === emoji
                           ? "border-cognition bg-cognition/10"
                           : "border-border bg-background hover:bg-primary/10"
@@ -3076,7 +3084,7 @@ export default function AIAssistantPage() {
                       {emoji}
                     </button>
                   ))}
-                  <span className="ml-1 text-[10px] text-muted-foreground">无 URL 时显示</span>
+                  <span className="ml-1 text-xs text-muted-foreground">无 URL 时显示</span>
                 </div>
                 <div className="flex items-center gap-2">
                   <input
@@ -3084,7 +3092,7 @@ export default function AIAssistantPage() {
                     value={settings.avatarUrl || ""}
                     onChange={(e) => setSettings((s) => ({ ...s, avatarUrl: e.target.value || null }))}
                     onBlur={() => updateSettings({ avatarUrl: settings.avatarUrl })}
-                    className="flex-1 rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:border-cognition"
+                    className="flex-1 rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground outline-none focus:border-cognition"
                     placeholder="粘贴图片 URL 或点击右侧上传"
                   />
                   <input
@@ -3101,7 +3109,7 @@ export default function AIAssistantPage() {
                     disabled={avatarUploading}
                     className="shrink-0"
                   >
-                    {avatarUploading ? <Loader2 className="h-3 w-3 animate-spin" /> : <ImageIcon className="h-3 w-3" />}
+                    {avatarUploading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <ImageIcon className="h-3.5 w-3.5" />}
                     {avatarUploading ? "上传中" : "上传"}
                   </Button>
                 </div>
@@ -3119,21 +3127,21 @@ export default function AIAssistantPage() {
                     </button>
                   </div>
                 )}
-                <p className="mt-1 text-[10px] text-muted-foreground">支持 PNG/JPEG/GIF/WebP/SVG，最大 2MB</p>
+                <p className="mt-1 text-xs text-muted-foreground">支持 PNG/JPEG/GIF/WebP/SVG，最大 2MB</p>
               </div>
 
               {/* 聊天风格描述 */}
               <div>
-                <label className="mb-1.5 block text-xs font-medium">聊天风格描述</label>
+                <label className="mb-2 block text-sm font-medium text-foreground">聊天风格描述</label>
                 <textarea
                   value={settings.personaStyle || ""}
                   onChange={(e) => setSettings((s) => ({ ...s, personaStyle: e.target.value || null }))}
                   onBlur={() => updateSettings({ personaStyle: settings.personaStyle })}
                   rows={3}
-                  className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:border-cognition"
+                  className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground outline-none focus:border-cognition"
                   placeholder="如：幽默、简洁、多用emoji、像朋友一样聊天..."
                 />
-                <p className="mt-1 text-[10px] text-muted-foreground">描述你希望 AI 助理的聊天风格，会注入到 system prompt</p>
+                <p className="mt-1 text-xs text-muted-foreground">描述你希望 AI 助理的聊天风格，会注入到 system prompt</p>
               </div>
 
               {/* 蒸馏真人聊天风格 */}
@@ -3974,7 +3982,7 @@ export default function AIAssistantPage() {
                               onChange={(e) =>
                                 setSkillParams((prev) => ({ ...prev, [param.key]: e.target.value }))
                               }
-                              className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:border-cognition"
+                              className="w-full appearance-none rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:border-cognition"
                             >
                               <option value="">请选择...</option>
                               {(param.options || []).map((opt) => (
@@ -4029,7 +4037,7 @@ export default function AIAssistantPage() {
           {currentApproval && (
             <div className="space-y-3">
               <div className="flex items-center gap-2">
-                <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium ${
+                <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium ${
                   currentApproval.level === "L3"
                     ? "bg-graveyard/15 text-graveyard"
                     : "bg-campaign/15 text-campaign"
@@ -4037,24 +4045,24 @@ export default function AIAssistantPage() {
                   {currentApproval.level === "L3" ? <ShieldOff className="h-2.5 w-2.5" /> : <ShieldAlert className="h-2.5 w-2.5" />}
                   {currentApproval.level} 级操作
                 </span>
-                <span className="text-[11px] text-muted-foreground">
+                <span className="text-xs text-muted-foreground">
                   {currentApproval.level === "L3" ? "高风险（每次需审批）" : "中风险（首次授权）"}
                 </span>
               </div>
 
               <div className="rounded-md border border-border/60 bg-muted/30 p-3">
-                <div className="mb-1 text-[11px] font-medium text-foreground">操作描述</div>
+                <div className="mb-1 text-xs font-medium text-foreground">操作描述</div>
                 <div className="text-xs text-foreground">{currentApproval.action}</div>
               </div>
 
               <div className="rounded-md border border-border/60 bg-muted/30 p-3">
-                <div className="mb-1 text-[11px] font-medium text-foreground">执行命令</div>
-                <pre className="max-h-40 overflow-y-auto whitespace-pre-wrap break-words rounded bg-background p-2 text-[11px] text-foreground">
+                <div className="mb-1 text-xs font-medium text-foreground">执行命令</div>
+                <pre className="max-h-40 overflow-y-auto whitespace-pre-wrap break-words rounded bg-background p-2 text-xs text-foreground">
                   {currentApproval.command}
                 </pre>
               </div>
 
-              <div className="flex items-center gap-2 rounded-md border border-yellow-300/30 bg-yellow-50/40 p-2 text-[11px] text-yellow-700">
+              <div className="flex items-center gap-2 rounded-md border border-yellow-300/30 bg-yellow-50/40 p-2 text-xs text-yellow-700">
                 <ShieldCheck className="h-3 w-3 shrink-0" />
                 请确认是否允许执行此操作。拒绝将中止该操作但可继续对话。
               </div>

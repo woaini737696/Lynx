@@ -11,7 +11,7 @@ const suggestions = [
   { id: "board", label: "决策看板", to: "/board" },
   { id: "graveyard", label: "灵感墓地", to: "/graveyard" },
   { id: "ai-workspace", label: "AI 工作空间", to: "/ai/workspace" },
-  { id: "ai-assistant", label: "AI 专属助理", to: "/ai/assistant" },
+  { id: "ai-assistant", label: "Lynx超级助理", to: "/ai/assistant" },
   { id: "agent", label: "Lynx Agent", to: "/agent" },
   { id: "settings", label: "设置", to: "/settings" },
 ];

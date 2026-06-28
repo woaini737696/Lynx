@@ -21,9 +21,20 @@ import {
   Terminal,
   Sparkles,
   RefreshCw,
+  MessageSquare,
+  Image as ImageIcon,
+  Video,
+  Volume2,
+  Mic,
+  Edit3,
+  Trash2,
+  Star,
+  Power,
+  Plus,
 } from "lucide-react";
 import { PageHeader, Card, Button, LoadingState } from "@/components/layout/PageHeader";
 import { HelpButton } from "@/components/layout/HelpButton";
+import { Modal } from "@/components/ui/Modal";
 import { toast } from "@/components/ui/toast";
 import { UserAIKeyConfig } from "@/components/settings/UserAIKeyConfig";
 import { DesktopHermesSection } from "@/components/settings/DesktopHermesSection";
@@ -149,41 +160,29 @@ export default function SettingsPage() {
         <div className={activeTab === "ai" ? "block" : "hidden"}>
           <AIConfigSection dbSettings={settings.dbSettings} envSettings={settings.envSettings} />
           <UserAIKeyConfig />
-          <Section
-            icon={<KeyRound className="h-4 w-4 text-cognition" />}
-            title="AI Provider（对话提取 / 认知提取）"
-          >
-            <Row
-              label="API Key"
-              value={settings.ai.chatProvider ? "已配置" : "未配置（AI 提取功能不可用）"}
-              ok={settings.ai.chatProvider}
-            />
-            <Row label="模型" value={settings.ai.chatModel} />
-            <Row label="Base URL" value={settings.ai.chatBaseURL} />
-            {!settings.ai.chatProvider && (
-              <div className="ios-glass-sm mt-3 rounded-xl border-graveyard/30 p-3 text-xs text-graveyard">
-                ⚠️ 未配置 LLM API Key（DEEPSEEK_API_KEY / MIMO_API_KEY / AI_API_KEY），对话资产和认知库的 AI 提取会跳过。
-                <br />
-                配置后重启 dev server 生效。
-              </div>
-            )}
-          </Section>
+          {/* 环境变量状态提示（精简版） */}
           <Section
             icon={<Brain className="h-4 w-4 text-task" />}
-            title="记忆图谱 Embedding"
+            title="环境变量与运行状态"
           >
             <Row
-              label="状态"
-              value={settings.ai.embeddingEnabled ? "AI 向量" : "TF-IDF 降级"}
+              label="对话模型"
+              value={settings.ai.chatProvider ? `${settings.ai.chatModel}` : "未配置（AI 提取不可用）"}
+              ok={settings.ai.chatProvider}
+            />
+            <Row
+              label="Embedding"
+              value={settings.ai.embeddingEnabled ? `${settings.ai.embeddingModel}（${settings.ai.embeddingMode}）` : "TF-IDF 降级模式"}
               ok={settings.ai.embeddingEnabled}
             />
-            <Row label="模型" value={settings.ai.embeddingModel} />
-            <Row label="当前模式" value={settings.ai.embeddingMode} />
+            {!settings.ai.chatProvider && (
+              <div className="ios-glass-sm mt-2 rounded-xl border-graveyard/30 p-3 text-xs text-foreground/80">
+                ⚠️ 未配置 LLM API Key 时，对话资产和认知库的 AI 提取会跳过。点击上方模型卡片「编辑」按钮配置 API Key。
+              </div>
+            )}
             {!settings.ai.embeddingEnabled && (
-              <div className="ios-glass-sm mt-3 rounded-xl border-campaign/30 p-3 text-xs text-campaign">
-                ℹ️ 未配置 embedding，记忆图谱使用 TF-IDF 关键词匹配（可用但精度较低）。
-                <br />
-                配置 EMBEDDING_API_KEY 后启用向量搜索。
+              <div className="ios-glass-sm mt-2 rounded-xl border-campaign/30 p-3 text-xs text-foreground/80">
+                ℹ️ 未配置 Embedding 时，记忆图谱使用 TF-IDF 关键词匹配（可用但精度较低）。在「向量模型」分类中配置后启用语义搜索。
               </div>
             )}
           </Section>
@@ -285,43 +284,61 @@ AI_MODEL=deepseek-chat`}
   );
 }
 
-// ============ AI 模型配置区块 ============
+// ============ AI 模型配置区块（卡片列表模式） ============
 
-/** Provider 配置表单字段 */
-type ProviderForm = {
-  apiKey: string;
-  baseUrl: string;
-  model: string;
-};
+/** 模型分类 */
+type ModelCategory = "text" | "multimodal" | "image" | "video" | "embedding" | "tts" | "asr";
 
-/** 单个 Provider 卡片的字段定义 */
-type ProviderFields = {
-  key: "deepseek" | "mimo" | "embedding";
-  title: string;
+const MODEL_CATEGORIES: { key: ModelCategory; label: string; icon: React.ReactNode; desc: string }[] = [
+  { key: "text", label: "单模态", icon: <MessageSquare className="h-3.5 w-3.5" />, desc: "文本对话与推理" },
+  { key: "multimodal", label: "多模态", icon: <Sparkles className="h-3.5 w-3.5" />, desc: "文本+图片+文件" },
+  { key: "image", label: "图片生成", icon: <ImageIcon className="h-3.5 w-3.5" />, desc: "文生图 / 图生图" },
+  { key: "video", label: "视频生成", icon: <Video className="h-3.5 w-3.5" />, desc: "文生视频" },
+  { key: "embedding", label: "向量模型", icon: <Brain className="h-3.5 w-3.5" />, desc: "语义搜索与记忆图谱" },
+  { key: "tts", label: "TTS", icon: <Volume2 className="h-3.5 w-3.5" />, desc: "文本转语音" },
+  { key: "asr", label: "ASR", icon: <Mic className="h-3.5 w-3.5" />, desc: "语音转文本" },
+];
+
+/** 模型定义（将现有 Provider 映射到分类） */
+interface ModelDef {
+  id: "deepseek" | "mimo" | "embedding";
+  category: ModelCategory;
+  name: string;
   desc: string;
+  provider: string;
   defaultBaseUrl: string;
   defaultModel: string;
-};
+  /** 是否支持设为默认对话模型（仅对话类模型支持） */
+  canBeDefault?: boolean;
+}
 
-const PROVIDER_FIELDS: ProviderFields[] = [
+const MODEL_DEFS: ModelDef[] = [
   {
-    key: "deepseek",
-    title: "DeepSeek",
+    id: "deepseek",
+    category: "text",
+    name: "DeepSeek",
     desc: "深度推理模型，适合对话提取 / 认知提取",
+    provider: "DeepSeek",
     defaultBaseUrl: "https://api.deepseek.com/v1",
     defaultModel: "deepseek-chat",
+    canBeDefault: true,
   },
   {
-    key: "mimo",
-    title: "小米 MiMo",
+    id: "mimo",
+    category: "multimodal",
+    name: "小米 MiMo",
     desc: "多模态模型，支持图片/文件输入",
+    provider: "MiMo",
     defaultBaseUrl: "https://api.mimo.com/v1",
     defaultModel: "mimo-v2.5",
+    canBeDefault: true,
   },
   {
-    key: "embedding",
-    title: "Embedding",
+    id: "embedding",
+    category: "embedding",
+    name: "BAAI/bge-m3",
     desc: "向量模型，用于记忆图谱语义搜索",
+    provider: "SiliconFlow",
     defaultBaseUrl: "https://api.siliconflow.cn/v1",
     defaultModel: "BAAI/bge-m3",
   },
@@ -334,71 +351,56 @@ function AIConfigSection({
   dbSettings: Record<string, FieldStatus>;
   envSettings: Record<string, boolean>;
 }) {
-  // 默认 Provider：优先读数据库，回退 deepseek
-  const [defaultProvider, setDefaultProvider] = useState<"deepseek" | "mimo">(
-    dbSettings.defaultProvider?.value === "mimo" ? "mimo" : "deepseek"
-  );
-
-  // 三个 Provider 的表单状态
-  const [forms, setForms] = useState<Record<"deepseek" | "mimo" | "embedding", ProviderForm>>({
-    deepseek: {
-      apiKey: "",
-      baseUrl: dbSettings.deepseekBaseUrl?.value || "",
-      model: dbSettings.deepseekModel?.value || "",
-    },
-    mimo: {
-      apiKey: "",
-      baseUrl: dbSettings.mimoBaseUrl?.value || "",
-      model: dbSettings.mimoModel?.value || "",
-    },
-    embedding: {
-      apiKey: "",
-      baseUrl: dbSettings.embeddingBaseUrl?.value || "",
-      model: dbSettings.embeddingModel?.value || "",
-    },
+  const [activeCategory, setActiveCategory] = useState<ModelCategory>("text");
+  // 编辑弹窗状态
+  const [editingModel, setEditingModel] = useState<ModelDef | null>(null);
+  const [editForm, setEditForm] = useState<{ apiKey: string; baseUrl: string; model: string }>({
+    apiKey: "",
+    baseUrl: "",
+    model: "",
   });
-
   const [saving, setSaving] = useState(false);
 
-  const updateField = (
-    provider: "deepseek" | "mimo" | "embedding",
-    field: keyof ProviderForm,
-    value: string
-  ) => {
-    setForms((prev) => ({
-      ...prev,
-      [provider]: { ...prev[provider], [field]: value },
-    }));
+  // 当前默认 Provider
+  const defaultProvider = dbSettings.defaultProvider?.value === "mimo" ? "mimo" : "deepseek";
+
+  // 当前分类下的模型
+  const categoryModels = MODEL_DEFS.filter((m) => m.category === activeCategory);
+
+  // 判断模型是否已配置
+  const isConfigured = (id: string) => {
+    const dbKey = dbSettings[`${id}ApiKey`];
+    return dbKey?.configured || envSettings[`${id}ApiKey`] || false;
   };
 
-  const handleSave = async () => {
+  // 打开编辑弹窗
+  const handleEdit = (model: ModelDef) => {
+    setEditingModel(model);
+    setEditForm({
+      apiKey: "",
+      baseUrl: dbSettings[`${model.id}BaseUrl`]?.value || "",
+      model: dbSettings[`${model.id}Model`]?.value || "",
+    });
+  };
+
+  // 保存编辑
+  const handleSaveEdit = async () => {
+    if (!editingModel) return;
     setSaving(true);
     try {
+      const body: Record<string, unknown> = {};
+      if (editForm.apiKey) body[`${editingModel.id}ApiKey`] = editForm.apiKey;
+      if (editForm.baseUrl) body[`${editingModel.id}BaseUrl`] = editForm.baseUrl;
+      if (editForm.model) body[`${editingModel.id}Model`] = editForm.model;
+
       const res = await fetch("/api/settings", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          defaultProvider,
-          deepseekApiKey: forms.deepseek.apiKey,
-          deepseekBaseUrl: forms.deepseek.baseUrl,
-          deepseekModel: forms.deepseek.model,
-          mimoApiKey: forms.mimo.apiKey,
-          mimoBaseUrl: forms.mimo.baseUrl,
-          mimoModel: forms.mimo.model,
-          embeddingApiKey: forms.embedding.apiKey,
-          embeddingBaseUrl: forms.embedding.baseUrl,
-          embeddingModel: forms.embedding.model,
-        }),
+        body: JSON.stringify(body),
       });
       if (res.ok) {
-        toast("AI 配置已保存并生效", "success");
-        // 清空 apiKey 输入框（已保存到数据库）
-        setForms((prev) => ({
-          deepseek: { ...prev.deepseek, apiKey: "" },
-          mimo: { ...prev.mimo, apiKey: "" },
-          embedding: { ...prev.embedding, apiKey: "" },
-        }));
-        // 重新加载页面状态以刷新 mask 显示
+        toast(`${editingModel.name} 配置已保存`, "success");
+        setEditingModel(null);
         setTimeout(() => window.location.reload(), 600);
       } else {
         toast("保存失败", "error");
@@ -409,168 +411,269 @@ function AIConfigSection({
     setSaving(false);
   };
 
+  // 设为默认
+  const handleSetDefault = async (model: ModelDef) => {
+    try {
+      const res = await fetch("/api/settings", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ defaultProvider: model.id }),
+      });
+      if (res.ok) {
+        toast(`${model.name} 已设为默认对话模型`, "success");
+        setTimeout(() => window.location.reload(), 600);
+      } else {
+        toast("设置默认失败", "error");
+      }
+    } catch {
+      toast("网络错误", "error");
+    }
+  };
+
+  // 删除配置（清除 API Key）
+  const handleRemove = async (model: ModelDef) => {
+    if (!confirm(`确定要移除 ${model.name} 的配置吗？这将清除已保存的 API Key。`)) return;
+    try {
+      const res = await fetch("/api/settings", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ [`${model.id}ApiKey`]: "" }),
+      });
+      if (res.ok) {
+        toast(`${model.name} 配置已移除`, "success");
+        setTimeout(() => window.location.reload(), 600);
+      } else {
+        toast("移除失败", "error");
+      }
+    } catch {
+      toast("网络错误", "error");
+    }
+  };
+
   return (
     <Card className="mb-5">
       <div className="mb-4 flex items-center gap-2">
         <KeyRound className="h-4 w-4 text-cognition" />
-        <h2 className="text-sm font-semibold">AI 模型配置</h2>
-        <span className="ml-auto text-[10px] text-muted-foreground">
-          数据库存储 · 优先级高于环境变量 · 保存后立即生效
+        <h2 className="text-sm font-semibold text-foreground">AI 模型管理</h2>
+        <span className="ml-auto text-xs text-muted-foreground">
+          点击「编辑」配置 API Key · 数据库存储 · 保存后立即生效
         </span>
       </div>
 
-      {/* 默认 Provider 切换 */}
-      <div className="mb-5 ios-glass-sm rounded-xl p-3">
-        <div className="mb-2 text-[11px] font-medium text-foreground">默认对话 Provider</div>
-        <div className="flex gap-2">
-          {(["deepseek", "mimo"] as const).map((p) => (
+      {/* 分类 Tab */}
+      <div className="mb-4 flex gap-1.5 overflow-x-auto pb-1">
+        {MODEL_CATEGORIES.map((cat) => {
+          const active = activeCategory === cat.key;
+          const count = MODEL_DEFS.filter((m) => m.category === cat.key).length;
+          return (
             <button
-              key={p}
-              onClick={() => setDefaultProvider(p)}
-              className={`rounded-lg px-3 py-1.5 text-xs font-medium transition-all ${
-                defaultProvider === p
-                  ? "border border-northstar bg-northstar/10 text-northstar"
-                  : "ios-glass-sm border-border/60 text-muted-foreground hover:border-primary/30 hover:text-primary"
+              key={cat.key}
+              onClick={() => setActiveCategory(cat.key)}
+              className={`flex shrink-0 items-center gap-1.5 rounded-xl px-3 py-2 text-xs font-medium transition-all ${
+                active
+                  ? "bg-primary text-primary-foreground shadow-sm"
+                  : "ios-glass-sm text-muted-foreground hover:text-foreground"
               }`}
             >
-              {p === "deepseek" ? "DeepSeek" : "小米 MiMo"}
+              {cat.icon}
+              {cat.label}
+              {count > 0 && (
+                <span className={`ml-0.5 rounded-full px-1.5 text-[10px] ${active ? "bg-primary-foreground/20" : "bg-muted-foreground/15"}`}>
+                  {count}
+                </span>
+              )}
             </button>
-          ))}
-        </div>
+          );
+        })}
       </div>
 
-      {/* 三个 Provider 卡片 */}
-      <div className="space-y-4">
-        {PROVIDER_FIELDS.map((p) => (
-          <ProviderCard
-            key={p.key}
-            fields={p}
-            form={forms[p.key]}
-            dbStatus={{
-              apiKey: dbSettings[`${p.key}ApiKey`],
-              baseUrl: dbSettings[`${p.key}BaseUrl`],
-              model: dbSettings[`${p.key}Model`],
-            }}
-            envStatus={{
-              apiKey: envSettings[`${p.key}ApiKey`] || false,
-              baseUrl: envSettings[`${p.key}BaseUrl`] || false,
-              model: envSettings[`${p.key}Model`] || false,
-            }}
-            onChange={(field, value) => updateField(p.key, field, value)}
-          />
-        ))}
-      </div>
+      {/* 模型卡片列表 */}
+      {categoryModels.length > 0 ? (
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          {categoryModels.map((model) => {
+            const configured = isConfigured(model.id);
+            const isDefault = model.canBeDefault && defaultProvider === model.id;
+            const dbKey = dbSettings[`${model.id}ApiKey`];
+            const envConfigured = envSettings[`${model.id}ApiKey`] || false;
 
-      {/* 保存按钮 */}
-      <div className="mt-5 flex items-center justify-end gap-3">
-        <span className="text-[10px] text-muted-foreground">
-          留空 API Key 表示不修改（保持已保存的值）
-        </span>
-        <Button onClick={handleSave} disabled={saving}>
-          {saving ? (
-            <>
-              <Loader2 className="h-3.5 w-3.5 animate-spin" /> 保存中...
-            </>
-          ) : (
-            <>
-              <Save className="h-3.5 w-3.5" /> 保存配置
-            </>
-          )}
-        </Button>
-      </div>
-    </Card>
-  );
-}
+            return (
+              <div
+                key={model.id}
+                className={`ios-glass-sm rounded-xl p-4 transition-all ${
+                  isDefault ? "ring-1 ring-northstar/40" : ""
+                }`}
+              >
+                {/* 卡片头部 */}
+                <div className="mb-3 flex items-start justify-between">
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-semibold text-foreground">{model.name}</span>
+                      {isDefault && (
+                        <span className="inline-flex items-center gap-0.5 rounded-full bg-northstar/15 px-1.5 py-0.5 text-[10px] font-medium text-northstar">
+                          <Star className="h-2.5 w-2.5" /> 默认
+                        </span>
+                      )}
+                    </div>
+                    <div className="mt-0.5 text-xs text-muted-foreground">{model.desc}</div>
+                  </div>
+                  {/* 状态徽章 */}
+                  <div className="ml-2 shrink-0">
+                    {dbKey?.configured ? (
+                      <span className="inline-flex items-center gap-0.5 rounded-full bg-task/10 px-2 py-0.5 text-[10px] font-medium text-task">
+                        <CheckCircle2 className="h-2.5 w-2.5" /> 已配置
+                      </span>
+                    ) : envConfigured ? (
+                      <span className="inline-flex items-center gap-0.5 rounded-full bg-cognition/10 px-2 py-0.5 text-[10px] font-medium text-cognition">
+                        环境变量
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-0.5 rounded-full bg-graveyard/10 px-2 py-0.5 text-[10px] font-medium text-graveyard">
+                        <XCircle className="h-2.5 w-2.5" /> 未配置
+                      </span>
+                    )}
+                  </div>
+                </div>
 
-/** 单个 Provider 配置卡片 */
-function ProviderCard({
-  fields,
-  form,
-  dbStatus,
-  envStatus,
-  onChange,
-}: {
-  fields: ProviderFields;
-  form: ProviderForm;
-  dbStatus: { apiKey: FieldStatus; baseUrl: FieldStatus; model: FieldStatus };
-  envStatus: { apiKey: boolean; baseUrl: boolean; model: boolean };
-  onChange: (field: keyof ProviderForm, value: string) => void;
-}) {
-  return (
-    <div className="ios-glass-sm rounded-xl p-4">
-      <div className="mb-3 flex items-center justify-between">
-        <div>
-          <div className="text-xs font-semibold text-foreground">{fields.title}</div>
-          <div className="text-[10px] text-muted-foreground">{fields.desc}</div>
-        </div>
-        <div className="flex items-center gap-1.5">
-          {dbStatus.apiKey.configured ? (
-            <span className="inline-flex items-center gap-0.5 rounded-full bg-task/10 px-1.5 py-0.5 text-[10px] text-task">
-              <CheckCircle2 className="h-2.5 w-2.5" /> 数据库已配置
-            </span>
-          ) : envStatus.apiKey ? (
-            <span className="inline-flex items-center gap-0.5 rounded-full bg-cognition/10 px-1.5 py-0.5 text-[10px] text-cognition">
-              环境变量已配置
-            </span>
-          ) : (
-            <span className="inline-flex items-center gap-0.5 rounded-full bg-graveyard/10 px-1.5 py-0.5 text-[10px] text-graveyard">
-              <XCircle className="h-2.5 w-2.5" /> 未配置
-            </span>
-          )}
-        </div>
-      </div>
+                {/* 配置摘要 */}
+                {configured && (
+                  <div className="mb-3 space-y-0.5 text-xs text-muted-foreground">
+                    {dbKey?.configured && (
+                      <div className="flex items-center gap-1.5">
+                        <KeyRound className="h-3 w-3" />
+                        <span>Key: {dbKey.value}</span>
+                      </div>
+                    )}
+                    {(dbSettings[`${model.id}BaseUrl`]?.configured || envSettings[`${model.id}BaseUrl`]) && (
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-muted-foreground/60">URL:</span>
+                        <span className="truncate">{dbSettings[`${model.id}BaseUrl`]?.value || model.defaultBaseUrl}</span>
+                      </div>
+                    )}
+                    {(dbSettings[`${model.id}Model`]?.configured || envSettings[`${model.id}Model`]) && (
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-muted-foreground/60">模型:</span>
+                        <span>{dbSettings[`${model.id}Model`]?.value || model.defaultModel}</span>
+                      </div>
+                    )}
+                  </div>
+                )}
 
-      <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
-        {/* API Key */}
-        <div className="space-y-1">
-          <label className="text-[10px] text-muted-foreground">API Key</label>
-          <input
-            type="password"
-            value={form.apiKey}
-            onChange={(e) => onChange("apiKey", e.target.value)}
-            placeholder={
-              dbStatus.apiKey.configured
-                ? dbStatus.apiKey.value
-                : envStatus.apiKey
-                ? "环境变量已配置，输入可覆盖"
-                : `输入 ${fields.title} API Key`
-            }
-            className="ios-glass-sm w-full rounded-lg px-2.5 py-1.5 text-xs outline-none transition-colors focus:ring-2 focus:ring-northstar/20"
-          />
+                {/* 操作按钮 */}
+                <div className="flex items-center gap-2">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => handleEdit(model)}
+                    className="gap-1.5"
+                  >
+                    <Edit3 className="h-3 w-3" />
+                    编辑
+                  </Button>
+                  {model.canBeDefault && !isDefault && configured && (
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => handleSetDefault(model)}
+                      className="gap-1.5"
+                    >
+                      <Star className="h-3 w-3" />
+                      设为默认
+                    </Button>
+                  )}
+                  {configured && (
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => handleRemove(model)}
+                      className="ml-auto gap-1.5 text-graveyard hover:bg-graveyard/10"
+                    >
+                      <Trash2 className="h-3 w-3" />
+                      移除
+                    </Button>
+                  )}
+                </div>
+              </div>
+            );
+          })}
         </div>
-        {/* Base URL */}
-        <div className="space-y-1">
-          <label className="text-[10px] text-muted-foreground">Base URL</label>
-          <input
-            type="text"
-            value={form.baseUrl}
-            onChange={(e) => onChange("baseUrl", e.target.value)}
-            placeholder={fields.defaultBaseUrl}
-            className="ios-glass-sm w-full rounded-lg px-2.5 py-1.5 text-xs outline-none transition-colors focus:ring-2 focus:ring-northstar/20"
-          />
-        </div>
-        {/* Model */}
-        <div className="space-y-1">
-          <label className="text-[10px] text-muted-foreground">Model</label>
-          <input
-            type="text"
-            value={form.model}
-            onChange={(e) => onChange("model", e.target.value)}
-            placeholder={fields.defaultModel}
-            className="ios-glass-sm w-full rounded-lg px-2.5 py-1.5 text-xs outline-none transition-colors focus:ring-2 focus:ring-northstar/20"
-          />
-        </div>
-      </div>
-
-      {/* 已保存配置提示 */}
-      {dbStatus.apiKey.configured && (
-        <div className="mt-2 text-[10px] text-muted-foreground/70">
-          已保存 Key：{dbStatus.apiKey.value}
-          {dbStatus.baseUrl.configured && ` · URL：${dbStatus.baseUrl.value}`}
-          {dbStatus.model.configured && ` · 模型：${dbStatus.model.value}`}
+      ) : (
+        /* 空状态 - 该分类暂无模型 */
+        <div className="flex flex-col items-center gap-3 py-12 text-center">
+          <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-muted/30">
+            {MODEL_CATEGORIES.find((c) => c.key === activeCategory)?.icon}
+          </div>
+          <div>
+            <div className="text-sm font-medium text-foreground">该分类暂无模型</div>
+            <div className="mt-1 text-xs text-muted-foreground">
+              {MODEL_CATEGORIES.find((c) => c.key === activeCategory)?.desc} 模型即将支持
+            </div>
+          </div>
+          <Button size="sm" variant="outline" disabled className="gap-1.5 opacity-50">
+            <Plus className="h-3 w-3" />
+            添加自定义模型
+          </Button>
         </div>
       )}
-    </div>
+
+      {/* 编辑弹窗 */}
+      {editingModel && (
+        <Modal
+          open={true}
+          onClose={() => setEditingModel(null)}
+          title={`配置 ${editingModel.name}`}
+        >
+          <div className="space-y-4">
+            <div>
+              <label className="mb-1.5 block text-sm font-medium text-foreground">API Key</label>
+              <input
+                type="password"
+                value={editForm.apiKey}
+                onChange={(e) => setEditForm((f) => ({ ...f, apiKey: e.target.value }))}
+                placeholder={
+                  dbSettings[`${editingModel.id}ApiKey`]?.configured
+                    ? `已配置 ${dbSettings[`${editingModel.id}ApiKey`].value}，输入新值可覆盖`
+                    : `输入 ${editingModel.name} API Key`
+                }
+                className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground outline-none focus:border-cognition"
+              />
+              <p className="mt-1 text-xs text-muted-foreground">留空表示不修改已保存的 Key</p>
+            </div>
+            <div>
+              <label className="mb-1.5 block text-sm font-medium text-foreground">Base URL</label>
+              <input
+                type="text"
+                value={editForm.baseUrl}
+                onChange={(e) => setEditForm((f) => ({ ...f, baseUrl: e.target.value }))}
+                placeholder={editingModel.defaultBaseUrl}
+                className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground outline-none focus:border-cognition"
+              />
+            </div>
+            <div>
+              <label className="mb-1.5 block text-sm font-medium text-foreground">模型名称</label>
+              <input
+                type="text"
+                value={editForm.model}
+                onChange={(e) => setEditForm((f) => ({ ...f, model: e.target.value }))}
+                placeholder={editingModel.defaultModel}
+                className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground outline-none focus:border-cognition"
+              />
+            </div>
+            <div className="flex items-center justify-end gap-2 pt-2">
+              <Button variant="outline" onClick={() => setEditingModel(null)}>
+                取消
+              </Button>
+              <Button onClick={handleSaveEdit} disabled={saving}>
+                {saving ? (
+                  <><Loader2 className="h-3.5 w-3.5 animate-spin" /> 保存中...</>
+                ) : (
+                  <><Save className="h-3.5 w-3.5" /> 保存</>
+                )}
+              </Button>
+            </div>
+          </div>
+        </Modal>
+      )}
+    </Card>
   );
 }
 
@@ -1024,14 +1127,14 @@ function HermesConfigSection() {
       title="Lynx Agent（本地 AI 代理）"
     >
       {/* 说明 */}
-      <div className="mb-4 rounded-md border border-northstar/20 bg-northstar/5 p-3 text-xs text-muted-foreground">
-        <div className="mb-1 flex items-center justify-between">
-          <div className="font-medium text-foreground">🤖 Lynx Agent 是什么？</div>
+      <div className="mb-4 rounded-xl border border-northstar/20 bg-northstar/5 p-4 text-sm text-foreground/80">
+        <div className="mb-1.5 flex items-center justify-between">
+          <div className="font-semibold text-foreground">🤖 Lynx Agent 是什么？</div>
           <button
             type="button"
             onClick={handleOpenDashboard}
             disabled={openingDashboard}
-            className="inline-flex items-center gap-1 text-[11px] text-campaign hover:underline disabled:opacity-50"
+            className="inline-flex items-center gap-1 text-xs text-campaign hover:underline disabled:opacity-50"
             title={isInstalled ? "确保 Dashboard 服务已启动并在新标签页打开" : "请先安装 Lynx Agent"}
           >
             {openingDashboard ? (
@@ -1041,27 +1144,29 @@ function HermesConfigSection() {
             )}
           </button>
         </div>
-        基于 Hermes Agent 技术深度定制开发，让 AI 助理升级为 Lynx 超级助理，可以直接操控你的电脑（桌面控制、Shell 命令、系统级 CLI、浏览器控制、应用控制），并且拥有自主学习能力（你重复做 2 次的工作，Lynx 超级助理会自主学习并打包成技能 Skill），自我成长能力（你每次的对话和操作，Lynx 超级助理会自动提取关键记忆，保证永远不会失忆），实现「AI 自动化工作流」，无需学习开箱即用。所有操作都在本地执行，数据不出本机，保证你的隐私。
+        <p className="leading-relaxed">
+          基于 Hermes Agent 技术深度定制开发，让 AI 助理升级为 Lynx 超级助理，可以直接操控你的电脑（桌面控制、Shell 命令、浏览器控制），并拥有自主学习与自我成长能力。所有操作在本地执行，数据不出本机。
+        </p>
       </div>
 
-      {/* Lynx Agent 使用说明已整合到右上角 HelpButton 弹窗（contentKey="settings"） */}
-
-      {/* 安装状态 */}
+      {/* 安装状态 - 卡片式 */}
       <div className="mb-4 space-y-2">
-        <div className="ios-glass-sm flex items-center justify-between rounded-md p-3">
-          <div className="flex items-center gap-2 text-xs">
-            <span className={`h-2 w-2 rounded-full ${
+        <div className="ios-glass-sm flex items-center justify-between rounded-xl p-4">
+          <div className="flex items-center gap-2.5">
+            <span className={`h-2.5 w-2.5 rounded-full ${
               isRunning ? "bg-green-500" : isInstalled ? "bg-yellow-500" : "bg-gray-400"
             }`} />
-            <span className="font-medium text-foreground">
-              {isRunning ? "运行中" : isInstalled ? "已安装（未运行）" : "未安装"}
-            </span>
-            {status?.installVersion && (
-              <span className="text-muted-foreground">v{status.installVersion}</span>
-            )}
-            {isConnected && status?.version && (
-              <span className="text-green-600">· 已连接</span>
-            )}
+            <div>
+              <span className="text-sm font-medium text-foreground">
+                {isRunning ? "运行中" : isInstalled ? "已安装（未运行）" : "未安装"}
+              </span>
+              {status?.installVersion && (
+                <span className="ml-2 text-xs text-muted-foreground">v{status.installVersion}</span>
+              )}
+              {isConnected && status?.version && (
+                <span className="ml-2 text-xs text-green-600">· 已连接</span>
+              )}
+            </div>
           </div>
           <div className="flex items-center gap-2">
             {!isInstalled && (
@@ -1072,9 +1177,9 @@ function HermesConfigSection() {
                 className="gap-1.5"
               >
                 {installing ? (
-                  <><Loader2 className="h-3 w-3 animate-spin" /> 安装中...</>
+                  <><Loader2 className="h-3.5 w-3.5 animate-spin" /> 安装中...</>
                 ) : (
-                  <><Rocket className="h-3 w-3" /> 一键安装</>
+                  <><Rocket className="h-3.5 w-3.5" /> 一键安装</>
                 )}
               </Button>
             )}
@@ -1086,9 +1191,9 @@ function HermesConfigSection() {
                 className="gap-1.5"
               >
                 {starting ? (
-                  <><Loader2 className="h-3 w-3 animate-spin" /> 启动中...</>
+                  <><Loader2 className="h-3.5 w-3.5 animate-spin" /> 启动中...</>
                 ) : (
-                  <><Play className="h-3 w-3" /> 启动服务</>
+                  <><Play className="h-3.5 w-3.5" /> 启动服务</>
                 )}
               </Button>
             )}
@@ -1099,35 +1204,37 @@ function HermesConfigSection() {
                 onClick={handleStop}
                 className="gap-1.5"
               >
-                <Square className="h-3 w-3" /> 停止
+                <Square className="h-3.5 w-3.5" /> 停止
               </Button>
             )}
           </div>
         </div>
 
         {status?.config?.lastError && (
-          <div className="rounded-md border border-red-300/30 bg-red-50/50 p-2 text-xs text-red-600">
+          <div className="rounded-lg border border-red-300/30 bg-red-50/50 p-2.5 text-xs text-red-600">
             ⚠️ {status.config.lastError}
           </div>
         )}
       </div>
 
-      {/* 模型配置（LLM Provider）— 未配置时会导致 "no final response was produced" */}
+      {/* 模型配置（LLM Provider）— 卡片式 */}
       {isInstalled && (
-        <div className="mb-4 rounded-md glass-card p-3">
+        <div className="mb-4 rounded-xl glass-card p-4">
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2 text-xs">
-              <span className={`h-2 w-2 rounded-full ${
+            <div className="flex items-center gap-2.5">
+              <span className={`h-2.5 w-2.5 rounded-full ${
                 modelConfigured === true ? "bg-green-500" : modelConfigured === false ? "bg-red-500" : "bg-gray-400"
               }`} />
-              <span className="font-medium text-foreground">LLM 模型配置</span>
-              {modelConfigured === true ? (
-                <span className="text-green-600">· 已配置</span>
-              ) : modelConfigured === false ? (
-                <span className="text-red-600">· 未配置（任务会失败）</span>
-              ) : (
-                <span className="text-muted-foreground">· 检测中</span>
-              )}
+              <div>
+                <span className="text-sm font-medium text-foreground">LLM 模型配置</span>
+                {modelConfigured === true ? (
+                  <span className="ml-2 text-xs text-green-600">· 已配置</span>
+                ) : modelConfigured === false ? (
+                  <span className="ml-2 text-xs text-red-600">· 未配置（任务会失败）</span>
+                ) : (
+                  <span className="ml-2 text-xs text-muted-foreground">· 检测中</span>
+                )}
+              </div>
             </div>
             <div className="flex items-center gap-2">
               {/* 模型 provider 选择器 */}
@@ -1135,7 +1242,7 @@ function HermesConfigSection() {
                 value={selectedProvider}
                 onChange={(e) => setSelectedProvider(e.target.value as "deepseek" | "mimo" | "auto")}
                 disabled={configuringModel}
-                className="h-7 rounded border border-border/60 bg-background px-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-campaign disabled:opacity-50"
+                className="h-8 appearance-none rounded-lg border border-border bg-background px-2.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-campaign disabled:opacity-50"
                 title="选择要配置的 LLM Provider"
               >
                 <option value="auto">自动（按配置）</option>
@@ -1150,22 +1257,22 @@ function HermesConfigSection() {
                 className="gap-1.5"
               >
                 {configuringModel ? (
-                  <><Loader2 className="h-3 w-3 animate-spin" /> 配置中...</>
+                  <><Loader2 className="h-3.5 w-3.5 animate-spin" /> 配置中...</>
                 ) : modelConfigured ? (
-                  <><RefreshCw className="h-3 w-3" /> 重新配置</>
+                  <><RefreshCw className="h-3.5 w-3.5" /> 重新配置</>
                 ) : (
-                  <><Sparkles className="h-3 w-3" /> 一键配置模型</>
+                  <><Sparkles className="h-3.5 w-3.5" /> 一键配置模型</>
                 )}
               </Button>
             </div>
           </div>
           {modelConfigured === false && (
-            <div className="mt-2 text-[11px] text-muted-foreground">
-              Hermes 需要配置 LLM 模型才能执行任务。点击「一键配置模型」会自动复用 Lynx 的 DeepSeek / MiMo API Key 写入 Hermes 配置。
+            <div className="mt-2 text-xs text-foreground/80">
+              Hermes 需要配置 LLM 模型才能执行任务。点击「一键配置模型」会自动复用上方 AI 模型管理中的 DeepSeek / MiMo API Key。
             </div>
           )}
           {availableModels.length > 0 && (
-            <div className="mt-2 text-[11px] text-muted-foreground">
+            <div className="mt-2 text-xs text-muted-foreground">
               已配置的 Provider：
               {availableModels.map((m) => ` ${m.provider}（${m.model}）`).join("、")}
               {defaultProvider && defaultProvider !== "auto" ? `　默认：${defaultProvider}` : ""}
@@ -1176,11 +1283,11 @@ function HermesConfigSection() {
 
       {/* 快速执行（仅在运行中时显示） */}
       {isRunning && (
-        <div className="mb-4 rounded-md border border-campaign/30 bg-campaign/5 p-3">
+        <div className="mb-4 rounded-xl border border-campaign/30 bg-campaign/5 p-4">
           <div className="mb-2 flex items-center gap-2">
-            <Terminal className="h-3.5 w-3.5 text-campaign" />
-            <span className="text-xs font-medium text-foreground">快速执行任务</span>
-            <span className="text-[10px] text-muted-foreground">直接在这里让 Hermes 执行任务，无需切换到 AI 助理</span>
+            <Terminal className="h-4 w-4 text-campaign" />
+            <span className="text-sm font-medium text-foreground">快速执行任务</span>
+            <span className="text-xs text-muted-foreground">直接在这里让 Lynx Agent 执行任务</span>
           </div>
           <div className="flex gap-2">
             <input
@@ -1191,7 +1298,7 @@ function HermesConfigSection() {
                 if (e.key === "Enter" && !quickExecuting) handleQuickExecute();
               }}
               placeholder="输入任务描述，如：打开浏览器访问 github.com"
-              className="flex-1 rounded-md border border-border/60 bg-background px-3 py-1.5 text-xs"
+              className="flex-1 rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground"
               disabled={quickExecuting}
             />
             <Button
@@ -1201,9 +1308,9 @@ function HermesConfigSection() {
               className="gap-1.5"
             >
               {quickExecuting ? (
-                <><Loader2 className="h-3 w-3 animate-spin" /> 执行中...</>
+                <><Loader2 className="h-3.5 w-3.5 animate-spin" /> 执行中...</>
               ) : (
-                <><Send className="h-3 w-3" /> 执行</>
+                <><Send className="h-3.5 w-3.5" /> 执行</>
               )}
             </Button>
           </div>
@@ -1216,7 +1323,7 @@ function HermesConfigSection() {
                 type="button"
                 onClick={() => setQuickTask(ex)}
                 disabled={quickExecuting}
-                className="rounded-full border border-border/60 bg-background px-2 py-0.5 text-[10px] text-muted-foreground transition-colors hover:border-campaign/40 hover:text-campaign disabled:opacity-50"
+                className="rounded-full border border-border bg-background px-2.5 py-0.5 text-xs text-muted-foreground transition-colors hover:border-campaign/40 hover:text-campaign disabled:opacity-50"
               >
                 {ex}
               </button>
@@ -1225,8 +1332,8 @@ function HermesConfigSection() {
 
           {/* 执行结果 */}
           {quickResult && (
-            <div className="mt-3 rounded-md border border-border/60 bg-background p-2.5">
-              <div className="mb-1 flex items-center justify-between text-[11px]">
+            <div className="mt-3 rounded-lg border border-border bg-background p-3">
+              <div className="mb-1 flex items-center justify-between text-xs">
                 <span className={quickResult.success ? "text-task" : "text-graveyard"}>
                   {quickResult.success ? "✓ 执行成功" : "✗ 执行失败"}
                 </span>
@@ -1237,24 +1344,24 @@ function HermesConfigSection() {
                 )}
               </div>
               {quickResult.success ? (
-                <pre className="max-h-48 overflow-y-auto whitespace-pre-wrap break-words text-[11px] text-foreground">
+                <pre className="max-h-48 overflow-y-auto whitespace-pre-wrap break-words text-xs text-foreground">
                   {quickResult.output}
                 </pre>
               ) : (
-                <div className="text-[11px] text-graveyard">{quickResult.error}</div>
+                <div className="text-xs text-graveyard">{quickResult.error}</div>
               )}
             </div>
           )}
         </div>
       )}
 
-      {/* 配置表单 */}
-      <div className="space-y-3">
+      {/* 配置表单 - 卡片式 */}
+      <div className="space-y-4">
         {/* 启用开关 */}
-        <div className="flex items-center justify-between">
+        <div className="ios-glass-sm flex items-center justify-between rounded-xl p-3">
           <div>
-            <div className="text-xs font-medium text-foreground">启用 Hermes 集成</div>
-            <div className="text-[11px] text-muted-foreground">开启后 AI 助理和工作流可调用 Hermes</div>
+            <div className="text-sm font-medium text-foreground">启用 Lynx Agent 集成</div>
+            <div className="text-xs text-muted-foreground">开启后 AI 助理和工作流可调用 Lynx Agent</div>
           </div>
           <button
             type="button"
@@ -1271,39 +1378,39 @@ function HermesConfigSection() {
           </button>
         </div>
 
-        {/* 端点 */}
-        <div>
-          <label className="mb-1 block text-xs font-medium text-foreground">Hermes 端点</label>
-          <input
-            type="text"
-            value={endpoint}
-            onChange={(e) => setEndpoint(e.target.value)}
-            placeholder="http://localhost:9119"
-            className="w-full rounded-md border border-border/60 bg-background px-3 py-1.5 text-xs"
-          />
+        {/* 端点和 API Key - 网格布局 */}
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <div>
+            <label className="mb-1.5 block text-sm font-medium text-foreground">Lynx Agent 端点</label>
+            <input
+              type="text"
+              value={endpoint}
+              onChange={(e) => setEndpoint(e.target.value)}
+              placeholder="http://localhost:9119"
+              className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground"
+            />
+          </div>
+          <div>
+            <label className="mb-1.5 block text-sm font-medium text-foreground">API Key（可选）</label>
+            <input
+              type="password"
+              value={apiKey}
+              onChange={(e) => setApiKey(e.target.value)}
+              placeholder="如启用了鉴权则填写"
+              className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground"
+            />
+          </div>
         </div>
 
-        {/* API Key */}
+        {/* 能力配置 - 卡片网格 */}
         <div>
-          <label className="mb-1 block text-xs font-medium text-foreground">API Key（可选）</label>
-          <input
-            type="password"
-            value={apiKey}
-            onChange={(e) => setApiKey(e.target.value)}
-            placeholder="如 Hermes 启用了鉴权则填写"
-            className="w-full rounded-md border border-border/60 bg-background px-3 py-1.5 text-xs"
-          />
-        </div>
-
-        {/* 能力配置 */}
-        <div>
-          <div className="mb-2 text-xs font-medium text-foreground">能力配置</div>
+          <div className="mb-2 text-sm font-medium text-foreground">能力配置</div>
           <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
             {ALL_CAPABILITIES.map((cap) => (
               <label
                 key={cap.key}
-                className={`flex cursor-pointer items-start gap-2 rounded-md p-2 text-xs transition-colors ios-glass-sm ${
-                  capabilities.includes(cap.key) ? "border-northstar/40 bg-northstar/5" : ""
+                className={`flex cursor-pointer items-start gap-2 rounded-xl p-3 text-sm transition-colors ios-glass-sm ${
+                  capabilities.includes(cap.key) ? "border border-northstar/40 bg-northstar/5" : ""
                 }`}
               >
                 <input
@@ -1314,7 +1421,7 @@ function HermesConfigSection() {
                 />
                 <div>
                   <div className="font-medium text-foreground">{cap.label}</div>
-                  <div className="text-[11px] text-muted-foreground">{cap.desc}</div>
+                  <div className="text-xs text-muted-foreground">{cap.desc}</div>
                 </div>
               </label>
             ))}
@@ -1322,10 +1429,10 @@ function HermesConfigSection() {
         </div>
 
         {/* 自动启动 */}
-        <div className="flex items-center justify-between">
+        <div className="ios-glass-sm flex items-center justify-between rounded-xl p-3">
           <div>
-            <div className="text-xs font-medium text-foreground">随系统自动启动</div>
-            <div className="text-[11px] text-muted-foreground">服务启动时自动拉起 Lynx Agent</div>
+            <div className="text-sm font-medium text-foreground">随系统自动启动</div>
+            <div className="text-xs text-muted-foreground">服务启动时自动拉起 Lynx Agent</div>
           </div>
           <button
             type="button"
@@ -1343,9 +1450,9 @@ function HermesConfigSection() {
         </div>
 
         {/* 操作按钮 */}
-        <div className="flex items-center gap-2 pt-2">
+        <div className="flex items-center gap-2 pt-1">
           <Button size="sm" onClick={handleSave} disabled={saving} className="gap-1.5">
-            {saving ? <Loader2 className="h-3 w-3 animate-spin" /> : <Save className="h-3 w-3" />}
+            {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
             保存配置
           </Button>
           <Button
@@ -1355,7 +1462,7 @@ function HermesConfigSection() {
             disabled={testing || !isInstalled}
             className="gap-1.5"
           >
-            {testing ? <Loader2 className="h-3 w-3 animate-spin" /> : <Wifi className="h-3 w-3" />}
+            {testing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Wifi className="h-3.5 w-3.5" />}
             测试连接
           </Button>
         </div>

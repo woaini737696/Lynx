@@ -29,6 +29,7 @@ import {
 import { Card, Button, Badge } from "@/components/layout/PageHeader";
 import { Modal } from "@/components/ui/Modal";
 import { toast } from "@/components/ui/toast";
+import { HelpButton } from "@/components/layout/HelpButton";
 import { cn } from "@/lib/utils";
 import {
   DISTILL_TEMPLATES,
@@ -371,15 +372,18 @@ export default function AIWorkspacePage() {
           <h1 className="text-2xl font-bold text-foreground">AI 工作空间</h1>
           <p className="mt-1 text-sm text-muted-foreground">预置蒸馏模板 + 自定义工作流，一键运行</p>
         </div>
-        <div className="ios-glass-sm flex h-10 items-center gap-2 rounded-full px-3">
-          <Search className="h-4 w-4 text-muted-foreground" />
-          <input
-            type="text"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="搜索模板..."
-            className="bg-transparent text-sm text-foreground outline-none placeholder:text-muted-foreground sm:w-40"
-          />
+        <div className="flex items-center gap-3">
+          <HelpButton contentKey="ai-workspace" />
+          <div className="ios-glass-sm flex h-10 items-center gap-2 rounded-full px-3">
+            <Search className="h-4 w-4 text-muted-foreground" />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="搜索模板..."
+              className="bg-transparent text-sm text-foreground outline-none placeholder:text-muted-foreground sm:w-40"
+            />
+          </div>
         </div>
       </div>
 
@@ -395,7 +399,7 @@ export default function AIWorkspacePage() {
         <QuickLink
           href="/ai/assistant"
           icon={Bot}
-          title="AI 专属助理"
+          title="Lynx超级助理"
           desc="对话式个人助手"
           color="text-cognition"
         />
@@ -629,7 +633,7 @@ export default function AIWorkspacePage() {
       >
         {confirmDeleteTemplate && (
           <>
-            <p className="text-sm text-muted-foreground">
+            <p className="text-base text-foreground/80">
               确定要删除「{confirmDeleteTemplate.name}」吗？此操作不可撤销。
             </p>
             <div className="mt-4 flex justify-end gap-2">
@@ -854,7 +858,7 @@ function DistillModal({
             </div>
             <div>
               <h2 className="text-base font-semibold">{template.name}</h2>
-              <p className="text-[11px] text-muted-foreground">
+              <p className="text-xs text-muted-foreground">
                 {template.description}
               </p>
             </div>
@@ -872,7 +876,7 @@ function DistillModal({
         <div className="mb-5 flex flex-wrap items-center gap-1.5">
           {template.steps.map((s, i) => (
             <div key={s} className="flex items-center gap-1.5">
-              <span className="ios-glass-sm inline-flex items-center gap-1 rounded-md px-2 py-1 text-[10px] text-muted-foreground">
+              <span className="ios-glass-sm inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs text-muted-foreground">
                 <span className="text-foreground/40">{i + 1}</span>
                 {s}
               </span>
@@ -909,7 +913,7 @@ function DistillModal({
                   onChange={(e) =>
                     setParams({ ...params, [p.key]: e.target.value })
                   }
-                  className="w-full rounded-xl border border-border bg-background px-3 py-2 text-xs text-foreground focus:border-cognition/40 focus:outline-none focus:ring-2 focus:ring-cognition/20"
+                  className="w-full appearance-none rounded-xl border border-border bg-background px-3 py-2 text-xs text-foreground focus:border-cognition/40 focus:outline-none focus:ring-2 focus:ring-cognition/20"
                 >
                   {(p.options ?? []).map((opt) => (
                     <option key={opt} value={opt}>
@@ -934,7 +938,7 @@ function DistillModal({
 
         {/* 执行按钮 */}
         <div className="mt-5 flex items-center justify-between gap-3">
-          <span className="text-[10px] text-muted-foreground">
+          <span className="text-xs text-muted-foreground">
             点击执行将调用 AI 填充模板并生成结果
           </span>
           <Button onClick={onExecute} disabled={executing}>
@@ -960,7 +964,7 @@ function DistillModal({
                 <Badge color="default">未配置 Key</Badge>
               )}
             </div>
-            <pre className="glass-card max-h-[40vh] overflow-y-auto whitespace-pre-wrap rounded-xl border border-border p-3 text-[11px] leading-relaxed text-foreground/90">
+            <pre className="glass-card max-h-[40vh] overflow-y-auto whitespace-pre-wrap rounded-xl border border-border p-3 text-xs leading-relaxed text-foreground/90">
               {result}
             </pre>
             <div className="mt-2 flex justify-end gap-2">
@@ -1126,7 +1130,7 @@ function TemplateEditor({
             <h2 className="text-base font-semibold">
               {isEdit ? "编辑模板" : "新建模板"}
             </h2>
-            <p className="text-[11px] text-muted-foreground">
+            <p className="text-xs text-muted-foreground">
               {isEdit ? "修改自定义蒸馏模板" : "创建自定义蒸馏模板，可填参数一键执行"}
             </p>
           </div>
@@ -1134,7 +1138,7 @@ function TemplateEditor({
             {isEdit && onOpenVersionHistory && (
               <button
                 onClick={onOpenVersionHistory}
-                className="flex items-center gap-1 rounded-lg border border-border px-2 py-1 text-[11px] text-muted-foreground transition-colors hover:bg-primary/10 hover:text-primary"
+                className="flex items-center gap-1 rounded-lg border border-border px-2 py-1 text-xs text-muted-foreground transition-colors hover:bg-primary/10 hover:text-primary"
                 title="查看历史版本"
               >
                 <GitBranch className="h-3 w-3" />
@@ -1189,7 +1193,7 @@ function TemplateEditor({
                 onChange={(e) =>
                   setCategory(e.target.value as DistillCategory)
                 }
-                className="w-full rounded-xl border border-border bg-background px-3 py-2 text-xs text-foreground focus:border-cognition/40 focus:outline-none focus:ring-2 focus:ring-cognition/20"
+                className="w-full appearance-none rounded-xl border border-border bg-background px-3 py-2 text-xs text-foreground focus:border-cognition/40 focus:outline-none focus:ring-2 focus:ring-cognition/20"
               >
                 {(Object.keys(CATEGORY_LABEL) as DistillCategory[]).map((c) => (
                   <option key={c} value={c}>
@@ -1205,7 +1209,7 @@ function TemplateEditor({
               <select
                 value={icon}
                 onChange={(e) => setIcon(e.target.value)}
-                className="w-full rounded-xl border border-border bg-background px-3 py-2 text-xs text-foreground focus:border-cognition/40 focus:outline-none focus:ring-2 focus:ring-cognition/20"
+                className="w-full appearance-none rounded-xl border border-border bg-background px-3 py-2 text-xs text-foreground focus:border-cognition/40 focus:outline-none focus:ring-2 focus:ring-cognition/20"
               >
                 {ICON_OPTIONS.map((ic) => (
                   <option key={ic} value={ic}>
@@ -1224,7 +1228,7 @@ function TemplateEditor({
               </label>
               <button
                 onClick={addStep}
-                className="flex items-center gap-0.5 text-[11px] text-cognition hover:underline"
+                className="flex items-center gap-0.5 text-xs text-cognition hover:underline"
               >
                 <Plus className="h-3 w-3" /> 添加步骤
               </button>
@@ -1232,14 +1236,14 @@ function TemplateEditor({
             <div className="space-y-1.5">
               {steps.map((s, i) => (
                 <div key={i} className="flex items-center gap-1.5">
-                  <span className="w-5 shrink-0 text-[10px] text-muted-foreground">
+                  <span className="w-5 shrink-0 text-xs text-muted-foreground">
                     {i + 1}.
                   </span>
                   <input
                     value={s}
                     onChange={(e) => updateStep(i, e.target.value)}
                     placeholder={`步骤 ${i + 1}`}
-                    className="flex-1 rounded-lg border border-border bg-background px-2.5 py-1.5 text-[11px] text-foreground placeholder:text-muted-foreground/60 focus:border-cognition/40 focus:outline-none focus:ring-1 focus:ring-cognition/20"
+                    className="flex-1 rounded-lg border border-border bg-background px-2.5 py-1.5 text-xs text-foreground placeholder:text-muted-foreground/60 focus:border-cognition/40 focus:outline-none focus:ring-1 focus:ring-cognition/20"
                   />
                   <button
                     onClick={() => removeStep(i)}
@@ -1251,7 +1255,7 @@ function TemplateEditor({
                 </div>
               ))}
               {steps.length === 0 && (
-                <p className="text-[10px] text-muted-foreground">
+                <p className="text-xs text-muted-foreground">
                   暂无步骤，点击上方添加
                 </p>
               )}
@@ -1266,7 +1270,7 @@ function TemplateEditor({
               </label>
               <button
                 onClick={addParameter}
-                className="flex items-center gap-0.5 text-[11px] text-cognition hover:underline"
+                className="flex items-center gap-0.5 text-xs text-cognition hover:underline"
               >
                 <Plus className="h-3 w-3" /> 添加参数
               </button>
@@ -1278,7 +1282,7 @@ function TemplateEditor({
                   className="ios-glass-sm rounded-xl p-2.5"
                 >
                   <div className="mb-1.5 flex items-center justify-between">
-                    <span className="text-[10px] font-medium text-muted-foreground">
+                    <span className="text-xs font-medium text-muted-foreground">
                       参数 {i + 1}
                     </span>
                     <button
@@ -1296,7 +1300,7 @@ function TemplateEditor({
                         updateParameter(i, { key: e.target.value })
                       }
                       placeholder="key（如：period）"
-                      className="rounded-lg border border-border bg-background px-2 py-1 text-[11px] focus:border-cognition/40 focus:outline-none"
+                      className="rounded-lg border border-border bg-background px-2 py-1 text-xs focus:border-cognition/40 focus:outline-none"
                     />
                     <input
                       value={p.label}
@@ -1304,7 +1308,7 @@ function TemplateEditor({
                         updateParameter(i, { label: e.target.value })
                       }
                       placeholder="label（如：预测周期）"
-                      className="rounded-lg border border-border bg-background px-2 py-1 text-[11px] focus:border-cognition/40 focus:outline-none"
+                      className="rounded-lg border border-border bg-background px-2 py-1 text-xs focus:border-cognition/40 focus:outline-none"
                     />
                   </div>
                   <div className="mt-1.5 grid grid-cols-3 gap-1.5">
@@ -1315,7 +1319,7 @@ function TemplateEditor({
                           type: e.target.value as DistillParamType,
                         })
                       }
-                      className="rounded-lg border border-border bg-background px-2 py-1 text-[11px] focus:border-cognition/40 focus:outline-none"
+                      className="appearance-none rounded-lg border border-border bg-background px-2 py-1 text-xs focus:border-cognition/40 focus:outline-none"
                     >
                       {PARAM_TYPE_OPTIONS.map((t) => (
                         <option key={t} value={t}>
@@ -1329,9 +1333,9 @@ function TemplateEditor({
                         updateParameter(i, { defaultValue: e.target.value })
                       }
                       placeholder="默认值"
-                      className="rounded-lg border border-border bg-background px-2 py-1 text-[11px] focus:border-cognition/40 focus:outline-none"
+                      className="rounded-lg border border-border bg-background px-2 py-1 text-xs focus:border-cognition/40 focus:outline-none"
                     />
-                    <label className="flex items-center gap-1 text-[11px] text-muted-foreground">
+                    <label className="flex items-center gap-1 text-xs text-muted-foreground">
                       <input
                         type="checkbox"
                         checked={p.required}
@@ -1349,7 +1353,7 @@ function TemplateEditor({
                       updateParameter(i, { placeholder: e.target.value })
                     }
                     placeholder="placeholder（输入提示）"
-                    className="mt-1.5 w-full rounded-lg border border-border bg-background px-2 py-1 text-[11px] focus:border-cognition/40 focus:outline-none"
+                    className="mt-1.5 w-full rounded-lg border border-border bg-background px-2 py-1 text-xs focus:border-cognition/40 focus:outline-none"
                   />
                   {p.type === "select" && (
                     <input
@@ -1363,13 +1367,13 @@ function TemplateEditor({
                         })
                       }
                       placeholder="选项（用英文逗号分隔，如：A, B, C）"
-                      className="mt-1.5 w-full rounded-lg border border-border bg-background px-2 py-1 text-[11px] focus:border-cognition/40 focus:outline-none"
+                      className="mt-1.5 w-full rounded-lg border border-border bg-background px-2 py-1 text-xs focus:border-cognition/40 focus:outline-none"
                     />
                   )}
                 </div>
               ))}
               {parameters.length === 0 && (
-                <p className="text-[10px] text-muted-foreground">
+                <p className="text-xs text-muted-foreground">
                   暂无参数，点击上方添加。参数可在提示词中用{" "}
                   {"{{key}}"} 引用。
                 </p>
@@ -1382,7 +1386,7 @@ function TemplateEditor({
             <label className="mb-1.5 flex items-center gap-1.5 text-xs font-medium text-foreground/80">
               提示词模板 <span className="text-graveyard">*</span>
             </label>
-            <p className="mb-1.5 text-[10px] text-muted-foreground">
+            <p className="mb-1.5 text-xs text-muted-foreground">
               用 {"{{paramKey}}"} 引用参数，如 {"{{period}}"}
             </p>
             <textarea
@@ -1515,7 +1519,7 @@ function VersionHistoryModal({
             <GitBranch className="h-4 w-4 text-cognition" />
             <div>
               <h2 className="text-base font-semibold">历史版本</h2>
-              <p className="text-[11px] text-muted-foreground">
+              <p className="text-xs text-muted-foreground">
                 {templateName} · 共 {versions.length} 个版本
               </p>
             </div>
@@ -1534,14 +1538,14 @@ function VersionHistoryModal({
           {/* 左侧版本列表 */}
           <div className="w-1/2 overflow-y-auto border-r border-border">
             {loading ? (
-              <div className="flex items-center justify-center p-8 text-[11px] text-muted-foreground">
+              <div className="flex items-center justify-center p-8 text-xs text-muted-foreground">
                 <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />
                 加载中...
               </div>
             ) : versions.length === 0 ? (
-              <div className="p-8 text-center text-[11px] text-muted-foreground">
+              <div className="p-8 text-center text-xs text-muted-foreground">
                 暂无历史版本
-                <p className="mt-1 text-[10px]">
+                <p className="mt-1 text-xs">
                   编辑模板时会自动创建版本快照
                 </p>
               </div>
@@ -1560,16 +1564,16 @@ function VersionHistoryModal({
                   >
                     <div className="flex items-center justify-between">
                       <span className="flex items-center gap-1.5 text-xs font-medium">
-                        <span className="ios-glass-sm inline-flex h-5 min-w-[2rem] items-center justify-center rounded px-1 text-[10px] text-foreground/80">
+                        <span className="ios-glass-sm inline-flex h-5 min-w-[2rem] items-center justify-center rounded px-1 text-xs text-foreground/80">
                           v{v.version}
                         </span>
                         {v.name}
                       </span>
                     </div>
-                    <p className="mt-1 line-clamp-1 text-[10px] text-muted-foreground">
+                    <p className="mt-1 line-clamp-1 text-xs text-muted-foreground">
                       {v.description || "（无描述）"}
                     </p>
-                    <p className="mt-0.5 text-[9px] text-muted-foreground/70">
+                    <p className="mt-0.5 text-xs text-muted-foreground/70">
                       {formatTime(v.createdAt)}
                     </p>
                   </li>
@@ -1581,50 +1585,50 @@ function VersionHistoryModal({
           {/* 右侧详情 */}
           <div className="w-1/2 overflow-y-auto p-4">
             {!selected ? (
-              <div className="flex h-full items-center justify-center text-[11px] text-muted-foreground">
+              <div className="flex h-full items-center justify-center text-xs text-muted-foreground">
                 点击左侧版本查看详情
               </div>
             ) : (
               <div className="space-y-3">
                 <div>
-                  <div className="text-[10px] font-medium text-muted-foreground">
+                  <div className="text-xs font-medium text-muted-foreground">
                     版本
                   </div>
                   <div className="text-sm font-semibold">v{selected.version}</div>
                 </div>
                 <div>
-                  <div className="text-[10px] font-medium text-muted-foreground">
+                  <div className="text-xs font-medium text-muted-foreground">
                     名称
                   </div>
                   <div className="text-xs">{selected.name}</div>
                 </div>
                 <div>
-                  <div className="text-[10px] font-medium text-muted-foreground">
+                  <div className="text-xs font-medium text-muted-foreground">
                     描述
                   </div>
                   <div className="text-xs">{selected.description || "（无）"}</div>
                 </div>
                 <div>
-                  <div className="text-[10px] font-medium text-muted-foreground">
+                  <div className="text-xs font-medium text-muted-foreground">
                     创建时间
                   </div>
-                  <div className="text-[11px] text-muted-foreground">
+                  <div className="text-xs text-muted-foreground">
                     {new Date(selected.createdAt).toLocaleString("zh-CN")}
                   </div>
                 </div>
                 <div>
-                  <div className="mb-1 text-[10px] font-medium text-muted-foreground">
+                  <div className="mb-1 text-xs font-medium text-muted-foreground">
                     提示词模板
                   </div>
-                  <pre className="glass-card max-h-40 overflow-y-auto whitespace-pre-wrap rounded-lg border border-border p-2 text-[10px] leading-relaxed text-foreground/90">
+                  <pre className="glass-card max-h-40 overflow-y-auto whitespace-pre-wrap rounded-lg border border-border p-2 text-xs leading-relaxed text-foreground/90">
                     {selected.promptTemplate || "（空）"}
                   </pre>
                 </div>
                 <div>
-                  <div className="mb-1 text-[10px] font-medium text-muted-foreground">
+                  <div className="mb-1 text-xs font-medium text-muted-foreground">
                     正文内容
                   </div>
-                  <pre className="glass-card max-h-40 overflow-y-auto whitespace-pre-wrap rounded-lg border border-border p-2 text-[10px] leading-relaxed text-foreground/90">
+                  <pre className="glass-card max-h-40 overflow-y-auto whitespace-pre-wrap rounded-lg border border-border p-2 text-xs leading-relaxed text-foreground/90">
                     {selected.content || "（空）"}
                   </pre>
                 </div>
@@ -1662,7 +1666,7 @@ function VersionHistoryModal({
       >
         {confirmRollback !== null && (
           <>
-            <p className="text-sm text-muted-foreground">
+            <p className="text-base text-foreground/80">
               确定回滚到版本 v{confirmRollback}？当前版本会自动备份。
             </p>
             <div className="mt-4 flex justify-end gap-2">

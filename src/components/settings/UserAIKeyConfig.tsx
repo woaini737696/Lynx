@@ -146,7 +146,7 @@ export function UserAIKeyConfig() {
           <select
             value={preferredProvider}
             onChange={(e) => setPreferredProvider(e.target.value)}
-            className="ios-glass-sm w-full rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20"
+            className="ios-glass-sm w-full appearance-none rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20"
           >
             <option value="">（使用全局默认）</option>
             {isProviderAllowed("deepseek") && <option value="deepseek">DeepSeek</option>}
@@ -265,7 +265,7 @@ export function UserAIKeyConfig() {
     >
       {confirmClear && (
         <>
-          <p className="text-sm text-muted-foreground">
+          <p className="text-base text-foreground/80">
             确定要清除{confirmClear === "deepseek" ? "DeepSeek" : "MiMo"}的 API Key 吗？清除后将使用管理员配置的全局 Key。
           </p>
           <div className="mt-4 flex justify-end gap-2">

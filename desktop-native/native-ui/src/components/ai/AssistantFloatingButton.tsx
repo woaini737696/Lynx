@@ -7,7 +7,7 @@ import type { Idea } from "@/types/api";
 
 /**
  * AI 助理悬浮入口 - 同步 Web 端 AssistantFloatingButton
- * 右下角圆形液态玻璃按钮，点击跳转 AI 专属助理
+ * 右下角圆形液态玻璃按钮，点击跳转 Lynx超级助理
  * 全局快捷键 Alt+J，在 /ai/assistant 页面隐藏
  */
 export function AssistantFloatingButton() {
@@ -54,7 +54,7 @@ export function AssistantFloatingButton() {
       <button
         type="button"
         onClick={() => navigate("/ai/assistant")}
-        aria-label="打开 Lynx AI 专属助理"
+        aria-label="打开 Lynx Lynx超级助理"
         className="glass-fab relative flex h-14 w-14 shrink-0 items-center justify-center rounded-full text-white shadow-lg transition-transform hover:scale-105 active:scale-95"
         style={{
           background:

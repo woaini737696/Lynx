@@ -1062,7 +1062,7 @@ export default function InboxPage() {
         title="确认删除"
         size="sm"
       >
-        <p className="text-sm text-muted-foreground">
+        <p className="text-base text-foreground/80">
           确定要永久删除选中的 {selectedIds.size} 条灵感吗？此操作不可恢复。
         </p>
         <div className="mt-4 flex justify-end gap-2">

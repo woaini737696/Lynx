@@ -404,7 +404,7 @@ function WorkspaceCard({
               <select
                 value={editForm.defaultProvider || ""}
                 onChange={(e) => onChangeForm({ ...editForm, defaultProvider: e.target.value || null })}
-                className="mt-1 w-full rounded border border-border bg-background/50 px-2 py-1 text-xs focus:border-cognition/50 focus:outline-none"
+                className="mt-1 w-full appearance-none rounded border border-border bg-background/50 px-2 py-1 text-xs focus:border-cognition/50 focus:outline-none"
               >
                 <option value="">（使用全局默认）</option>
                 <option value="deepseek">DeepSeek</option>
@@ -425,7 +425,7 @@ function WorkspaceCard({
               <select
                 value={editForm.defaultReasoningMode || ""}
                 onChange={(e) => onChangeForm({ ...editForm, defaultReasoningMode: e.target.value || null })}
-                className="mt-1 w-full rounded border border-border bg-background/50 px-2 py-1 text-xs focus:border-cognition/50 focus:outline-none"
+                className="mt-1 w-full appearance-none rounded border border-border bg-background/50 px-2 py-1 text-xs focus:border-cognition/50 focus:outline-none"
               >
                 <option value="">（无）</option>
                 {REASONING_MODES.map((m) => (

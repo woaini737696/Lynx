@@ -844,10 +844,10 @@ function SkillDetailModal({
 
         {/* 概要信息 */}
         <div className="glass-card mb-4 p-3">
-          <p className="mb-2 text-xs leading-relaxed text-foreground/80">
+          <p className="mb-2 text-xs leading-relaxed text-foreground/90">
             {skill.description}
           </p>
-          <div className="flex flex-wrap items-center gap-3 text-[10px] text-muted-foreground">
+          <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
             <span className="inline-flex items-center gap-1">
               <User className="h-3 w-3" />
               {skill.author?.displayName || skill.author?.username || "匿名"}
@@ -874,7 +874,7 @@ function SkillDetailModal({
               {skill.tags.map((t, i) => (
                 <span
                   key={i}
-                  className="ios-glass-sm rounded-md px-1.5 py-0.5 text-[10px] text-muted-foreground"
+                  className="ios-glass-sm rounded-md px-1.5 py-0.5 text-xs text-muted-foreground"
                 >
                   {t}
                 </span>
@@ -913,10 +913,10 @@ function SkillDetailModal({
           <div className="space-y-4">
             {detail.promptTemplate && (
               <div>
-                <label className="mb-1 block text-[10px] font-medium text-muted-foreground">
+                <label className="mb-1 block text-xs font-medium text-muted-foreground">
                   提示词模板
                 </label>
-                <pre className="ios-glass-sm max-h-40 overflow-y-auto whitespace-pre-wrap rounded-xl p-3 text-[11px] leading-relaxed">
+                <pre className="ios-glass-sm max-h-40 overflow-y-auto whitespace-pre-wrap rounded-xl p-3 text-xs leading-relaxed">
                   {detail.promptTemplate}
                 </pre>
               </div>
@@ -924,10 +924,10 @@ function SkillDetailModal({
 
             {detail.parameters && detail.parameters.length > 0 && (
               <div>
-                <label className="mb-1 block text-[10px] font-medium text-muted-foreground">
+                <label className="mb-1 block text-xs font-medium text-muted-foreground">
                   参数配置
                 </label>
-                <pre className="ios-glass-sm max-h-40 overflow-y-auto whitespace-pre-wrap rounded-xl p-3 text-[11px] leading-relaxed">
+                <pre className="ios-glass-sm max-h-40 overflow-y-auto whitespace-pre-wrap rounded-xl p-3 text-xs leading-relaxed">
                   {JSON.stringify(detail.parameters, null, 2)}
                 </pre>
               </div>
@@ -935,10 +935,10 @@ function SkillDetailModal({
 
             {detail.content && (
               <div>
-                <label className="mb-1 block text-[10px] font-medium text-muted-foreground">
+                <label className="mb-1 block text-xs font-medium text-muted-foreground">
                   正文内容
                 </label>
-                <pre className="ios-glass-sm max-h-60 overflow-y-auto whitespace-pre-wrap rounded-xl p-3 text-[11px] leading-relaxed">
+                <pre className="ios-glass-sm max-h-60 overflow-y-auto whitespace-pre-wrap rounded-xl p-3 text-xs leading-relaxed">
                   {detail.content}
                 </pre>
               </div>
@@ -949,7 +949,7 @@ function SkillDetailModal({
         {/* 评论区 */}
         <div className="mt-6 border-t border-border pt-4">
           <div className="mb-3 flex items-center justify-between">
-            <h4 className="text-xs font-medium text-foreground/80">
+            <h4 className="text-xs font-medium text-foreground/90">
               评分与评论 ({count})
             </h4>
             {count > 0 && (
@@ -965,7 +965,7 @@ function SkillDetailModal({
           {/* 评论表单（需登录） */}
           <div className="glass-card mb-4 space-y-3 p-3">
             <div>
-              <label className="mb-1.5 block text-[10px] font-medium text-muted-foreground">
+              <label className="mb-1.5 block text-xs font-medium text-muted-foreground">
                 评分
               </label>
               <div className="flex gap-1">
@@ -991,7 +991,7 @@ function SkillDetailModal({
               </div>
             </div>
             <div>
-              <label className="mb-1.5 block text-[10px] font-medium text-muted-foreground">
+              <label className="mb-1.5 block text-xs font-medium text-muted-foreground">
                 作者
               </label>
               <input
@@ -1002,7 +1002,7 @@ function SkillDetailModal({
               />
             </div>
             <div>
-              <label className="mb-1.5 block text-[10px] font-medium text-muted-foreground">
+              <label className="mb-1.5 block text-xs font-medium text-muted-foreground">
                 评论
               </label>
               <textarea
@@ -1052,11 +1052,11 @@ function SkillDetailModal({
                       </span>
                       <Stars value={review.rating} size="h-2.5 w-2.5" />
                     </div>
-                    <span className="text-[10px] text-muted-foreground">
+                    <span className="text-xs text-muted-foreground">
                       {formatTime(review.createdAt)}
                     </span>
                   </div>
-                  <p className="text-xs leading-relaxed text-foreground/80">
+                  <p className="text-xs leading-relaxed text-foreground/90">
                     {review.comment}
                   </p>
                 </div>
