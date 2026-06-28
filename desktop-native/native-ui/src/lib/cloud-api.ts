@@ -15,7 +15,7 @@ function notifyAuthExpired() {
 }
 
 export async function cloudRequest<T>(
-  method: "GET" | "POST" | "PATCH" | "DELETE",
+  method: "GET" | "POST" | "PUT" | "PATCH" | "DELETE",
   path: string,
   body?: unknown
 ): Promise<T> {
@@ -50,6 +50,7 @@ export async function cloudRequest<T>(
 export const cloudApi = {
   get: <T>(path: string) => cloudRequest<T>("GET", path),
   post: <T>(path: string, body?: unknown) => cloudRequest<T>("POST", path, body),
+  put: <T>(path: string, body?: unknown) => cloudRequest<T>("PUT", path, body),
   patch: <T>(path: string, body?: unknown) => cloudRequest<T>("PATCH", path, body),
-  delete: <T>(path: string) => cloudRequest<T>("DELETE", path),
+  delete: <T>(path: string, body?: unknown) => cloudRequest<T>("DELETE", path, body),
 };

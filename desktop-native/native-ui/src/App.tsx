@@ -9,11 +9,16 @@ import {
 import { AppLayout } from "./components/layout/AppLayout";
 import { FocusPage } from "./pages/FocusPage";
 import { BoardPage } from "./pages/BoardPage";
+import { InboxPage } from "./pages/InboxPage";
+import { SearchPage } from "./pages/SearchPage";
+import { CognitionPage } from "./pages/CognitionPage";
+import { GraveyardPage } from "./pages/GraveyardPage";
 import { AIWorkspacePage } from "./pages/AIWorkspacePage";
 import { AIAssistantPage } from "./pages/AIAssistantPage";
 import { AgentPage } from "./pages/AgentPage";
 import { LoginPage } from "./pages/LoginPage";
 import { SettingsPage } from "./pages/SettingsPage";
+import { Toaster } from "./components/ui/Toaster";
 import { useEffect, useState } from "react";
 import { applyTheme, getStoredTheme } from "./lib/theme";
 import { useUIStore } from "./stores/uiStore";
@@ -146,7 +151,11 @@ export function App() {
           <Route path="/" element={<AppLayout />}>
             <Route index element={<Navigate to="/focus" replace />} />
             <Route path="focus" element={<FocusPage />} />
+            <Route path="inbox" element={<InboxPage />} />
+            <Route path="search" element={<SearchPage />} />
+            <Route path="cognition" element={<CognitionPage />} />
             <Route path="board" element={<BoardPage />} />
+            <Route path="graveyard" element={<GraveyardPage />} />
             <Route path="ai/workspace" element={<AIWorkspacePage />} />
             <Route path="ai/assistant" element={<AIAssistantPage />} />
             <Route path="agent" element={<AgentPage />} />
@@ -156,6 +165,7 @@ export function App() {
           </Route>
         </Routes>
       </AuthInitializer>
+      <Toaster />
     </HashRouter>
   );
 }

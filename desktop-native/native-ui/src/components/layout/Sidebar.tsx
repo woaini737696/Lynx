@@ -9,6 +9,10 @@ import {
   ChevronRight,
   Settings,
   Cpu,
+  Brain,
+  Skull,
+  Inbox as InboxIcon,
+  Search as SearchIcon,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
@@ -17,7 +21,11 @@ import { UserMenu } from "./UserMenu";
 
 const navItems = [
   { to: "/focus", label: "今日聚焦", icon: Target },
+  { to: "/inbox", label: "Inbox", icon: InboxIcon },
+  { to: "/search", label: "全局搜索", icon: SearchIcon },
+  { to: "/cognition", label: "认知库", icon: Brain },
   { to: "/board", label: "决策看板", icon: LayoutDashboard },
+  { to: "/graveyard", label: "灵感墓地", icon: Skull },
   { to: "/ai/workspace", label: "AI 工作空间", icon: Sparkles },
   { to: "/ai/assistant", label: "AI 专属助理", icon: Bot },
   { to: "/agent", label: "HermesAgent", icon: Cpu },

@@ -24,14 +24,16 @@ function createTextStream(text: string): ReadableStream<Uint8Array> {
   });
 }
 
-// 灵感对话 API（流式响应）
-// Request: { messages: [{role, content}], ideaDraft: string, provider?: "deepseek" | "mimo" }
-// Response: SSE stream of AI reply
+// 灵感对话 API
+// Request: { messages: [{role, content}], ideaDraft: string, provider?: "deepseek" | "mimo", stream?: boolean }
+// Response:
+//   - stream=true (默认): SSE stream of AI reply
+//   - stream=false: JSON { reply: string }  —— 桌面端 Tauri cloud_request 不支持流式，使用此模式
 export async function POST(req: NextRequest) {
   const auth = await requireAuth();
   if (auth.error) return auth.error;
   try {
-    const { messages = [], ideaDraft, provider } = await req.json();
+    const { messages = [], ideaDraft, provider, stream = true } = await req.json();
 
     if (!ideaDraft || !ideaDraft.trim()) {
       return NextResponse.json(
@@ -76,9 +78,14 @@ export async function POST(req: NextRequest) {
       replyText = FALLBACK_REPLY;
     }
 
-    // 以流式格式返回
-    const stream = createTextStream(replyText);
-    return new Response(stream, {
+    // 非流式模式：直接返回 JSON（桌面端使用）
+    if (!stream) {
+      return NextResponse.json({ reply: replyText });
+    }
+
+    // 流式模式：以分块文本流返回（Web 端使用）
+    const streamResponse = createTextStream(replyText);
+    return new Response(streamResponse, {
       headers: {
         "Content-Type": "text/plain; charset=utf-8",
         "Cache-Control": "no-cache",

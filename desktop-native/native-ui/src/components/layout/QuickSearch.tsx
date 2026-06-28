@@ -1,18 +1,31 @@
 import { useState, useEffect, useRef } from "react";
-import { Search, Command, X, Sparkles } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import { Search, Command, X, Sparkles, CornerDownLeft } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
 const suggestions = [
-  { id: "focus", label: "今日聚焦", shortcut: "G F" },
-  { id: "board", label: "决策看板", shortcut: "G B" },
-  { id: "ai-workspace", label: "AI 工作空间", shortcut: "G W" },
-  { id: "ai-assistant", label: "AI 专属助理", shortcut: "G A" },
+  { id: "focus", label: "今日聚焦", to: "/focus" },
+  { id: "inbox", label: "Inbox 灵感收件箱", to: "/inbox" },
+  { id: "search", label: "全局搜索", to: "/search" },
+  { id: "cognition", label: "认知库", to: "/cognition" },
+  { id: "board", label: "决策看板", to: "/board" },
+  { id: "graveyard", label: "灵感墓地", to: "/graveyard" },
+  { id: "ai-workspace", label: "AI 工作空间", to: "/ai/workspace" },
+  { id: "ai-assistant", label: "AI 专属助理", to: "/ai/assistant" },
+  { id: "agent", label: "HermesAgent", to: "/agent" },
+  { id: "settings", label: "设置", to: "/settings" },
 ];
 
 export function QuickSearch() {
+  const navigate = useNavigate();
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
+  const [activeIndex, setActiveIndex] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  const filtered = suggestions.filter((s) =>
+    s.label.toLowerCase().includes(query.toLowerCase())
+  );
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -31,10 +44,31 @@ export function QuickSearch() {
   useEffect(() => {
     if (open) {
       setTimeout(() => inputRef.current?.focus(), 50);
+      setActiveIndex(0);
     } else {
       setQuery("");
     }
   }, [open]);
+
+  const jumpTo = (to: string) => {
+    navigate(to);
+    setOpen(false);
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      setActiveIndex((i) => Math.min(i + 1, filtered.length - 1));
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      setActiveIndex((i) => Math.max(i - 1, 0));
+    } else if (e.key === "Enter") {
+      e.preventDefault();
+      if (filtered[activeIndex]) {
+        jumpTo(filtered[activeIndex].to);
+      }
+    }
+  };
 
   return (
     <>
@@ -74,7 +108,11 @@ export function QuickSearch() {
                 <input
                   ref={inputRef}
                   value={query}
-                  onChange={(e) => setQuery(e.target.value)}
+                  onChange={(e) => {
+                    setQuery(e.target.value);
+                    setActiveIndex(0);
+                  }}
+                  onKeyDown={handleKeyDown}
                   placeholder="搜索功能、页面或输入 AI 指令..."
                   className="flex-1 bg-transparent text-base text-foreground outline-none placeholder:text-muted-foreground"
                 />
@@ -87,23 +125,67 @@ export function QuickSearch() {
               </div>
 
               <div className="max-h-[50vh] overflow-auto p-2">
-                <div className="px-3 py-2 text-xs font-medium text-muted-foreground">快捷跳转</div>
-                {suggestions.map((item) => (
+                <div className="px-3 py-2 text-xs font-medium text-muted-foreground">
+                  {query.trim() ? "全局内容搜索" : "快捷跳转"}
+                </div>
+
+                {/* 当有输入时，显示"在全局搜索中查看"入口 */}
+                {query.trim() && (
                   <div
-                    key={item.id}
-                    className="flex cursor-pointer items-center justify-between rounded-lg px-3 py-2.5 text-sm text-foreground/80 transition-colors hover:bg-primary/10 hover:text-foreground"
+                    onClick={() => jumpTo(`/search`)}
+                    className="flex cursor-pointer items-center justify-between rounded-lg bg-primary/5 px-3 py-2.5 text-sm text-primary transition-colors hover:bg-primary/10"
                   >
                     <div className="flex items-center gap-2.5">
-                      <Sparkles className="h-4 w-4 text-primary" />
-                      {item.label}
+                      <Sparkles className="h-4 w-4" />
+                      在全局搜索中查看"{query.trim()}"
                     </div>
-                    <span className="text-xs text-muted-foreground">{item.shortcut}</span>
+                    <CornerDownLeft className="h-3.5 w-3.5 opacity-60" />
                   </div>
-                ))}
+                )}
+
+                {/* 快捷跳转列表（按输入过滤） */}
+                {filtered.length > 0 && (
+                  <>
+                    {query.trim() && (
+                      <div className="px-3 pt-2 pb-1 text-xs font-medium text-muted-foreground">
+                        页面
+                      </div>
+                    )}
+                    {filtered.map((item, idx) => (
+                      <div
+                        key={item.id}
+                        onClick={() => jumpTo(item.to)}
+                        onMouseEnter={() => setActiveIndex(idx)}
+                        className={`flex cursor-pointer items-center justify-between rounded-lg px-3 py-2.5 text-sm transition-colors ${
+                          idx === activeIndex
+                            ? "bg-primary/10 text-foreground"
+                            : "text-foreground/80 hover:bg-primary/10 hover:text-foreground"
+                        }`}
+                      >
+                        <div className="flex items-center gap-2.5">
+                          <Sparkles className="h-4 w-4 text-primary" />
+                          {item.label}
+                        </div>
+                        {idx === activeIndex && (
+                          <CornerDownLeft className="h-3.5 w-3.5 text-muted-foreground" />
+                        )}
+                      </div>
+                    ))}
+                  </>
+                )}
+
+                {filtered.length === 0 && !query.trim() && (
+                  <div className="px-3 py-4 text-center text-xs text-muted-foreground">
+                    无匹配页面
+                  </div>
+                )}
               </div>
 
               <div className="flex items-center justify-between border-t border-border/60 px-4 py-2 text-xs text-muted-foreground">
-                <span>Enter 跳转</span>
+                <div className="flex items-center gap-3">
+                  <span>↑↓ 导航</span>
+                  <span>Enter 跳转</span>
+                </div>
                 <span>ESC 关闭</span>
               </div>
             </motion.div>
