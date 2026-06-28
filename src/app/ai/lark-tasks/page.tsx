@@ -1930,7 +1930,7 @@ function SubtaskInline({
                 className={cn(
                   "flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded border transition-colors",
                   st.completed
-                    ? "border-task bg-task text-white"
+                    ? "border-task bg-task text-primary-foreground"
                     : "border-border hover:border-task"
                 )}
               >
@@ -2809,7 +2809,7 @@ function TaskDetailDrawer({
                       className={cn(
                         "flex h-4 w-4 shrink-0 items-center justify-center rounded border transition-colors",
                         st.completed
-                          ? "border-task bg-task text-white"
+                          ? "border-task bg-task text-primary-foreground"
                           : "border-border hover:border-task"
                       )}
                     >

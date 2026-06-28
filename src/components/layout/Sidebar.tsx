@@ -15,6 +15,8 @@ import {
   PanelLeft,
   X,
   ChevronRight,
+  CreditCard,
+  HelpCircle,
   Sparkles,
   LayoutGrid,
   Workflow,
@@ -151,10 +153,40 @@ function SidebarUserProfile() {
   const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
+    // 1. 先从 localStorage 读取缓存的用户信息，立即显示（避免首屏闪烁）
+    //    注意：next-auth v5 的 session cookie 是 httpOnly，document.cookie 读不到，
+    //    所以无法用 cookie 判断登录态，只能依赖 localStorage 缓存 + fetch 更新
+    try {
+      const cached = localStorage.getItem("lynx-sidebar-user");
+      if (cached) {
+        const cachedUser = JSON.parse(cached) as { name?: string | null; displayName?: string; avatarUrl?: string };
+        setUser(cachedUser);
+        setLoading(false); // 立即显示缓存用户，首屏即最终态
+      }
+    } catch {
+      // 缓存解析失败，忽略
+    }
+
+    // 2. fetch 最新 session 更新（同时刷新缓存）
     fetch("/api/auth/session")
       .then((r) => (r.ok ? r.json() : null))
       .then((s) => {
-        if (s?.user) setUser(s.user);
+        if (s?.user) {
+          setUser(s.user);
+          try {
+            localStorage.setItem("lynx-sidebar-user", JSON.stringify(s.user));
+          } catch {
+            // localStorage 不可用，忽略
+          }
+        } else {
+          // session 失效，清除缓存显示未登录
+          setUser(null);
+          try {
+            localStorage.removeItem("lynx-sidebar-user");
+          } catch {
+            // ignore
+          }
+        }
       })
       .catch(() => {})
       .finally(() => setLoading(false));
@@ -192,6 +224,13 @@ function SidebarUserProfile() {
     } catch {
       // ignore
     } finally {
+      // 清除本地缓存的用户信息，避免下次访问仍显示已登出用户
+      try {
+        localStorage.removeItem("lynx-sidebar-user");
+      } catch {
+        // ignore
+      }
+      setUser(null);
       setSigningOut(false);
       setMenuOpen(false);
       router.push("/login");
@@ -200,13 +239,43 @@ function SidebarUserProfile() {
   };
 
   if (loading) {
+    // 仅在有 session cookie 但无 localStorage 缓存时才会显示此占位（首次登录后访问）
+    // 显示中性占位（默认头像 + 加载提示），不显示"未登录"避免误导
     return (
-      <div className="flex h-12 items-center justify-center px-1">
-        <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+      <div className="relative mt-auto pt-3">
+        <div className="glass-user group flex w-full items-center gap-3 rounded-2xl px-3 py-2.5 text-left opacity-60">
+          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-primary to-accent text-xs font-bold text-white shadow-lg shadow-primary/20">
+            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+          </span>
+          <div className="min-w-0 flex-1">
+            <div className="truncate text-sm font-semibold text-foreground">Lynx</div>
+            <div className="truncate text-[11px] text-muted-foreground">加载中…</div>
+          </div>
+        </div>
       </div>
     );
   }
-  if (!user) return null;
+  if (!user) {
+    // 未登录：显示默认头像，点击跳转登录页
+    return (
+      <div className="relative mt-auto pt-3">
+        <button
+          type="button"
+          onClick={() => router.push("/login")}
+          className="glass-user group flex w-full items-center gap-3 rounded-2xl px-3 py-2.5 text-left transition-all"
+          aria-label="前往登录"
+        >
+          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-primary to-accent text-xs font-bold text-white shadow-lg shadow-primary/20">
+            ?
+          </span>
+          <div className="min-w-0 flex-1">
+            <div className="truncate text-sm font-semibold text-foreground">未登录</div>
+            <div className="truncate text-[11px] text-muted-foreground">点击登录 Lynx</div>
+          </div>
+        </button>
+      </div>
+    );
+  }
 
   const displayName = user.displayName || user.name || "用户";
   const initial = displayName.charAt(0).toUpperCase();
@@ -245,19 +314,33 @@ function SidebarUserProfile() {
       </button>
 
       {menuOpen && (
-        <div className="user-menu absolute bottom-full left-0 right-0 z-50 mb-2 overflow-hidden rounded-2xl p-1.5">
+        <div className="user-menu absolute bottom-full left-0 right-0 z-50 mb-2 overflow-hidden rounded-2xl border border-border/60 p-1.5 shadow-2xl">
           <button
             onClick={() => { setMenuOpen(false); router.push("/settings/profile"); }}
             className="flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-sm text-foreground transition-colors hover:bg-primary/10 hover:text-primary"
           >
             <Settings2 className="h-4 w-4 text-muted-foreground" />
-            个人资料设置
+            账号设置
           </button>
-          <div className="h-px bg-border/60" />
+          <button
+            onClick={() => { setMenuOpen(false); toast("订阅与账单即将上线", "info"); }}
+            className="flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-sm text-foreground transition-colors hover:bg-primary/10 hover:text-primary"
+          >
+            <CreditCard className="h-4 w-4 text-muted-foreground" />
+            订阅与账单
+          </button>
+          <button
+            onClick={() => { setMenuOpen(false); toast("帮助中心即将上线", "info"); }}
+            className="flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-sm text-foreground transition-colors hover:bg-primary/10 hover:text-primary"
+          >
+            <HelpCircle className="h-4 w-4 text-muted-foreground" />
+            帮助中心
+          </button>
+          <div className="my-1 h-px bg-border/60" />
           <button
             onClick={handleSignOut}
             disabled={signingOut}
-            className="flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-sm text-graveyard transition-colors hover:bg-graveyard/10 disabled:opacity-50"
+            className="flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-sm text-red-500 transition-colors hover:bg-red-500/10 disabled:opacity-50"
           >
             {signingOut ? <Loader2 className="h-4 w-4 animate-spin" /> : <LogOut className="h-4 w-4" />}
             退出登录

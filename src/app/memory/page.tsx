@@ -1312,7 +1312,7 @@ export default function MemoryPage() {
                   className={cn(
                     "rounded-lg px-2 py-1 text-[11px] font-medium transition-colors",
                     timeRange === r.key
-                      ? "bg-cognition text-white"
+                      ? "bg-cognition/10 text-cognition"
                       : "text-muted-foreground hover:bg-muted hover:text-foreground"
                   )}
                 >
@@ -1413,7 +1413,7 @@ export default function MemoryPage() {
 
               {/* 聚焦模式提示条 */}
               {focusNodeId && focusSubgraph && (
-                <div className="absolute left-1/2 top-3 flex -translate-x-1/2 items-center gap-2 rounded-xl border border-cognition/40 bg-card/95 px-3 py-1.5 text-[11px] shadow-lg backdrop-blur">
+                <div className="absolute left-1/2 top-3 flex -translate-x-1/2 items-center gap-2 rounded-xl border border-cognition/40 glass-card px-3 py-1.5 text-[11px] shadow-lg backdrop-blur">
                   <button
                     onClick={() => setFocusNodeId(null)}
                     className="flex items-center gap-1 font-medium text-cognition transition-colors hover:text-cognition/80"
@@ -1438,14 +1438,14 @@ export default function MemoryPage() {
               <div className="absolute right-3 top-3 flex flex-col gap-1">
                 <button
                   onClick={() => setScale((s) => Math.min(s + 0.2, 2))}
-                  className="flex h-7 w-7 items-center justify-center rounded-lg border border-border bg-card/90 text-muted-foreground shadow-sm backdrop-blur hover:bg-muted"
+                  className="flex h-7 w-7 items-center justify-center rounded-lg glass-card text-muted-foreground shadow-sm backdrop-blur hover:bg-muted"
                   aria-label="放大"
                 >
                   <ZoomIn className="h-3.5 w-3.5" />
                 </button>
                 <button
                   onClick={() => setScale((s) => Math.max(s - 0.2, 0.5))}
-                  className="flex h-7 w-7 items-center justify-center rounded-lg border border-border bg-card/90 text-muted-foreground shadow-sm backdrop-blur hover:bg-muted"
+                  className="flex h-7 w-7 items-center justify-center rounded-lg glass-card text-muted-foreground shadow-sm backdrop-blur hover:bg-muted"
                   aria-label="缩小"
                 >
                   <ZoomOut className="h-3.5 w-3.5" />
@@ -1462,14 +1462,14 @@ export default function MemoryPage() {
                       initSimulation(filteredNodes, filteredEdges);
                     }
                   }}
-                  className="flex h-7 w-7 items-center justify-center rounded-lg border border-border bg-card/90 text-muted-foreground shadow-sm backdrop-blur hover:bg-muted"
+                  className="flex h-7 w-7 items-center justify-center rounded-lg glass-card text-muted-foreground shadow-sm backdrop-blur hover:bg-muted"
                   aria-label="重置视角"
                 >
                   <RotateCcw className="h-3.5 w-3.5" />
                 </button>
                 <button
                   onClick={() => setSimulating((s) => !s)}
-                  className="flex h-7 w-7 items-center justify-center rounded-lg border border-border bg-card/90 text-muted-foreground shadow-sm backdrop-blur hover:bg-muted"
+                  className="flex h-7 w-7 items-center justify-center rounded-lg glass-card text-muted-foreground shadow-sm backdrop-blur hover:bg-muted"
                   aria-label={simulating ? "暂停" : "播放"}
                 >
                   {simulating ? <Pause className="h-3.5 w-3.5" /> : <Play className="h-3.5 w-3.5" />}
@@ -1729,7 +1729,7 @@ export default function MemoryPage() {
                             ? "border-cognition/50 bg-cognition/10"
                             : isSelected
                             ? "border-cognition/50 bg-cognition/10"
-                            : "border-transparent hover:border-border hover:bg-muted/40"
+                            : "ios-glass-sm hover:bg-muted/40"
                         )}
                       >
                         {/* 批量选择复选框 */}

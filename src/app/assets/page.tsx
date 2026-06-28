@@ -391,7 +391,7 @@ export default function AssetsPage() {
           "mb-6 cursor-pointer rounded-2xl border-2 border-dashed p-8 text-center transition-all",
           dragOver
             ? "border-campaign bg-campaign/10"
-            : "border-border bg-card/60 hover:border-campaign/50 hover:bg-muted/30"
+            : "glass-card hover:border-campaign/50"
         )}
       >
         <UploadCloud
@@ -481,7 +481,7 @@ export default function AssetsPage() {
                   "rounded-xl border px-3 py-2 text-xs transition-all",
                   source === s.key
                     ? "border-campaign bg-campaign/10 text-campaign"
-                    : "border-border bg-card text-muted-foreground hover:bg-muted"
+                    : "ios-glass-sm text-muted-foreground"
                 )}
               >
                 {s.label}

@@ -328,7 +328,7 @@ export default function BoardPage() {
         action={
           <div className="flex items-center gap-2">
             {stats ? (
-              <div className="flex items-center gap-3 rounded-xl border border-border bg-card px-3 py-1.5 text-xs">
+              <div className="flex items-center gap-3 rounded-xl glass-card px-3 py-1.5 text-xs">
                 <div className="flex items-center gap-1.5">
                   <TrendingUp className="h-3.5 w-3.5 text-task" />
                   <span className="text-muted-foreground">累计完成</span>
@@ -348,7 +348,7 @@ export default function BoardPage() {
             ) : null}
             <Link
               href="/board/trash"
-              className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-border bg-card px-3 py-1.5 text-[11px] font-medium text-foreground transition-all hover:bg-muted hover:border-foreground/30 focus:outline-none focus:ring-2 focus:ring-muted active:scale-[0.97]"
+              className="inline-flex items-center justify-center gap-1.5 rounded-xl glass-card px-3 py-1.5 text-[11px] font-medium text-foreground transition-all hover:bg-muted hover:border-foreground/30 focus:outline-none focus:ring-2 focus:ring-muted active:scale-[0.97]"
               title="回收站"
             >
               <Trash2 className="h-3.5 w-3.5" />
@@ -448,7 +448,7 @@ export default function BoardPage() {
                         exit={{ opacity: 0, scale: 0.95, transition: { duration: 0.15 } }}
                         transition={{ duration: 0.2 }}
                         className={cn(
-                          "group flex cursor-pointer items-start gap-2.5 rounded-xl border border-border bg-background p-2.5 transition-all hover:border-primary/30 hover:shadow-sm",
+                          "group flex cursor-pointer items-start gap-2.5 rounded-xl ios-glass-sm p-2.5 transition-all hover:border-primary/30 hover:shadow-sm",
                           updatingTaskId === task.id && "opacity-60 pointer-events-none"
                         )}
                         onClick={() => toggleDone(task)}
@@ -516,12 +516,12 @@ export default function BoardPage() {
                     exit={{ opacity: 0, scale: 0.95, transition: { duration: 0.15 } }}
                     transition={{ duration: 0.2 }}
                     className={cn(
-                      "group flex cursor-pointer items-start gap-2.5 rounded-xl border border-border bg-background p-2.5 transition-all hover:border-task/30 hover:shadow-sm",
+                      "group flex cursor-pointer items-start gap-2.5 rounded-xl ios-glass-sm p-2.5 transition-all hover:border-task/30 hover:shadow-sm",
                       updatingTaskId === task.id && "opacity-60 pointer-events-none"
                     )}
                     onClick={() => toggleDone(task)}
                   >
-                    <div className="mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded border border-task bg-task text-white">
+                    <div className="mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded border border-task bg-task text-primary-foreground">
                       {updatingTaskId === task.id ? (
                         <Loader2 className="h-3 w-3 animate-spin" />
                       ) : (

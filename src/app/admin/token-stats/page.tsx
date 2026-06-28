@@ -95,7 +95,7 @@ const PROVIDER_BADGE: Record<string, { color: "cognition" | "campaign" | "norths
 const RANK_COLORS = [
   "text-yellow-500",   // 第 1 名 金色
   "text-gray-400",     // 第 2 名 银色
-  "text-orange-700",   // 第 3 名 铜色
+  "text-orange-600 dark:text-orange-400",   // 第 3 名 铜色
 ];
 
 export default function TokenStatsPage() {
@@ -490,9 +490,9 @@ export default function TokenStatsPage() {
                       }`}
                     >
                       <div className={`flex h-8 w-8 items-center justify-center rounded-full text-sm font-bold ${
-                        i === 0 ? "bg-yellow-500/20 text-yellow-600"
-                        : i === 1 ? "bg-gray-400/20 text-gray-500"
-                        : i === 2 ? "bg-orange-700/20 text-orange-700"
+                        i === 0 ? "bg-yellow-500/20 text-yellow-600 dark:text-yellow-400"
+                        : i === 1 ? "bg-gray-400/20 text-gray-500 dark:text-gray-300"
+                        : i === 2 ? "bg-orange-700/20 text-orange-600 dark:text-orange-400"
                         : "bg-muted text-muted-foreground"
                       }`}>
                         {i + 1}

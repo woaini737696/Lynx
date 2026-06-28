@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Zap, X, Trash2 } from "lucide-react";
+import { X, Trash2 } from "lucide-react";
 import { toast } from "@/components/ui/toast";
 import { cn } from "@/lib/utils";
 import {
@@ -38,6 +38,19 @@ export function ReminderManager() {
   const [entering, setEntering] = useState(false);
   const checkIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const prevCountRef = useRef(0);
+  const toastRef = useRef<HTMLDivElement>(null);
+
+  // 列表态点击外部自动收回图标态
+  useEffect(() => {
+    if (mode !== "list") return;
+    const handleClickOutside = (e: MouseEvent) => {
+      if (toastRef.current && !toastRef.current.contains(e.target as Node)) {
+        collapseToIcon();
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [mode]);
 
   const notifications: NoticeItem[] = useMemo(() => {
     const items: NoticeItem[] = [];
@@ -196,6 +209,7 @@ export function ReminderManager() {
     <>
       {/* 灵感通知 — 三态：图标 / 提示 / 列表 */}
       <div
+        ref={toastRef}
         onClick={(e) => {
           // 点击非按钮区域展开列表
           if (mode !== "list" && !(e.target as HTMLElement).closest("button")) {
@@ -203,7 +217,7 @@ export function ReminderManager() {
           }
         }}
         className={cn(
-          "idea-toast ios-glass fixed bottom-24 right-8 z-50 flex items-center justify-center",
+          "idea-toast ios-glass fixed bottom-28 right-[39px] z-50 flex items-center justify-center",
           mode === "icon" && "collapsed",
           mode === "hint" && "hint",
           mode === "list" && "list",
@@ -212,7 +226,9 @@ export function ReminderManager() {
       >
         {/* 图标态 */}
         <div className="toast-icon-only relative flex h-8 w-8 items-center justify-center rounded-full bg-primary/10 text-primary">
-          <Zap className="h-4 w-4" />
+          <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+            <path d="M13 10V3L4 14h7v7l9-11h-7z" />
+          </svg>
           {count > 0 && (
             <span className="absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[9px] font-bold text-white shadow-sm">
               {count}
@@ -224,7 +240,9 @@ export function ReminderManager() {
         <div className="toast-content hidden w-full flex-col gap-2">
           <div className="flex items-start gap-3">
             <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
-              <Zap className="h-4 w-4" />
+              <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+                <path d="M13 10V3L4 14h7v7l9-11h-7z" />
+              </svg>
             </div>
             <div className="min-w-0 flex-1">
               <div className="text-xs font-semibold text-foreground">

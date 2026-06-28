@@ -459,7 +459,7 @@ export default function AIWorkspacePage() {
             className={cn(
               "rounded-lg px-2.5 py-1 text-[11px] font-medium transition-colors",
               categoryFilter === f.key
-                ? "bg-cognition text-white"
+                ? "border border-cognition bg-cognition/10 text-cognition"
                 : "border border-border bg-card text-muted-foreground hover:bg-muted hover:text-foreground"
             )}
           >

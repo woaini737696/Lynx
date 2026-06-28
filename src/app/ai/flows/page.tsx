@@ -156,10 +156,10 @@ const NODE_STYLES: Record<FlowNode["type"], { color: string; bg: string; icon: R
   condition: { color: "text-campaign", bg: "bg-campaign/10", icon: GitBranch },
   output: { color: "text-task", bg: "bg-task/10", icon: CheckCircle2 },
   hermes: { color: "text-primary", bg: "bg-primary/10", icon: Cpu },
-  http: { color: "text-blue-600", bg: "bg-blue-500/10", icon: Globe },
-  database: { color: "text-emerald-600", bg: "bg-emerald-500/10", icon: Database },
-  transform: { color: "text-orange-600", bg: "bg-orange-500/10", icon: Shuffle },
-  delay: { color: "text-gray-600", bg: "bg-gray-500/10", icon: Timer },
+  http: { color: "text-blue-600 dark:text-blue-400", bg: "bg-blue-500/10", icon: Globe },
+  database: { color: "text-emerald-600 dark:text-emerald-400", bg: "bg-emerald-500/10", icon: Database },
+  transform: { color: "text-orange-600 dark:text-orange-400", bg: "bg-orange-500/10", icon: Shuffle },
+  delay: { color: "text-gray-600 dark:text-gray-400", bg: "bg-gray-500/10", icon: Timer },
 };
 
 const STATUS_STYLES: Record<FlowNode["status"], string> = {
