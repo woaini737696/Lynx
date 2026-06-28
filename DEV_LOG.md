@@ -9,6 +9,7 @@
 
 | 迭代 | 日期 | 任务概要 |
 |------|------|----------|
+| [迭代 50](#迭代-50---2026-06-28) | 2026-06-28 | Lynx 原生桌面端安装包重构：深海蓝液态玻璃安装界面 + 版本统一 1.0.0 |
 | [迭代 49](#迭代-49---2026-06-28) | 2026-06-28 | Android App 全面优化：修复崩溃、API DTO 对齐、Focus 无限循环修复 |
 | [迭代 48](#迭代-48---2026-06-28) | 2026-06-28 | 方案一：Lynx 原生桌面端一级页面与核心功能原生 UI 重构 |
 | [迭代 47](#迭代-47---2026-06-28) | 2026-06-28 | 修复 Lynx 桌面端图标、安装界面与 hover 菜单体验问题 |
@@ -110,6 +111,56 @@
 
 ### Commit
 `943100df` — feat(desktop-native): iter 47 - 修复安装包图标、安装界面与hover菜单
+
+---
+
+## 迭代 50 - 2026-06-28
+
+### 任务概要
+响应用户三项需求：安装包命名规范改为 `lynx_1.0.0`、安装流程改为 iOS 透明液态玻璃风格（深海蓝 + 黑白灰）、完整跑通桌面端安装/启动/卸载验证。本轮修复了构建脚本中 cargo 工作目录错误导致的旧版二进制混入问题，确保安装包内二进制版本与命名一致。
+
+### 完成内容
+
+#### 1. 安装包命名与版本统一
+- `desktop-native/package.json`：版本 `1.2.0` → `1.0.0`
+- `desktop-native/native-ui/package.json`：版本 `1.2.0` → `1.0.0`
+- `desktop-native/src-tauri/Cargo.toml`：版本 `1.2.0` → `1.0.0`
+- `desktop-native/src-tauri/tauri.conf.json`：版本 `1.2.0` → `1.0.0`
+- `desktop-native/src-tauri/Cargo.lock`：同步更新包版本
+- `desktop-native/installer.nsi`：`OutFile` 改为 `dist\lynx_${PRODUCT_VERSION}.exe`，产品版本 `1.0.0`
+
+#### 2. iOS 液态玻璃 + 深海蓝安装界面
+- `scripts/generate-desktop-native-assets.py`：
+  - 新增深海蓝渐变背景、蓝色光晕、半透明玻璃面板生成逻辑
+  - 输出 `desktop-native/assets/installer-bg.bmp`（520×420 自定义页背景）
+  - 输出 `desktop-native/assets/installer-logo.bmp`（128×128 深色圆角图标）
+  - 同步更新 `src-tauri/icons/icon.png`
+- `desktop-native/installer.nsi`：
+  - 自定义 `CustomInstallPage` 全页背景贴图，隐藏默认 Next/Back/Cancel
+  - 玻璃面板区域覆盖安装路径输入框、浏览按钮、桌面快捷方式复选框、蓝色「立即安装」按钮
+  - 安装进度页使用深海蓝主题、隐藏取消按钮
+  - 卸载流程保留确认/执行/完成三页
+- `desktop-native/mockup-installer.html`：深色 Deep Sea 方案浏览器预览
+- `docs/superpowers/specs/2026-06-28-lynx-installer-redesign-design.md`：记录设计规格、版本规范、验证标准
+
+#### 3. 构建流程修复
+- `desktop-native/build-native.ps1`：
+  - 修复 cargo 工作目录：改为 `Push-Location src-tauri` 后执行 `cargo build --release`，确保读取 `.cargo/config.toml` 的 `target-dir = D:/cargo-target-native`
+  - 新增 `bin/` 中转目录，构建完成后将二进制复制到 `desktop-native/bin/lynnhub-desktop-native.exe`
+- `desktop-native/installer.nsi`：`File` 路径从绝对路径 `D:\cargo-target-native\release\...` 改为相对路径 `bin\lynnhub-desktop-native.exe`
+- `desktop-native/.gitignore`：新增 `/bin/`、`/assets/installer-bg.bmp`、`/assets/installer-logo.bmp`，避免提交生成资源
+- `git rm --cached desktop-native/assets/installer-logo.bmp`：取消跟踪已生成的 logo 位图
+
+### 自测结果
+- 静默安装：`desktop-native\dist\lynx_1.0.0.exe /S /D=D:\LynnHub\Lynx-Test-Install-Final` 退出码 0
+- 产物检查：安装目录包含 `lynnhub-desktop-native.exe`（22.47 MB）、`uninstall.exe`、`out/index.html`、`out/app/index.html` 及前端资源
+- 版本检查：产品名 `Lynx`、文件版本 `1.0.0`、产品版本 `1.0.0`，与安装包命名一致
+- 启动探测：TRAE 沙箱内无 GUI，进程以退出码 101 退出（WebView2 无法在无显示环境初始化），属沙箱限制，非安装包缺陷
+- 卸载验证：`uninstall.exe /S` 退出码 0，主程序与资源已移除（仅 `uninstall.exe` 自身残留，属 NSIS 自身行为）
+- 构建脚本：`desktop-native/build-native.ps1` 完整跑通，生成 `dist\lynx_1.0.0.exe`（5.92 MB）
+
+### Commit hash
+- 待回填
 
 ---
 

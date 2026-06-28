@@ -2,9 +2,14 @@
 /dist/
 /dist-web/
 /out/app/
+/bin/
 /src-tauri/target/
 /src-tauri/target-check/
 /src-tauri/cargo-err.txt
+
+# 生成资源（由 scripts/generate-desktop-native-assets.py 动态生成）
+/assets/installer-bg.bmp
+/assets/installer-logo.bmp
 
 # Node
 /node_modules/
