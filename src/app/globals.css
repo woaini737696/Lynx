@@ -4,81 +4,81 @@
 
 @layer base {
   :root {
-    /* 浅色主题 — 极净白 + 深海蓝 accent */
-    --background: 0 0% 100%;
+    /* 浅色主题 — 宇宙星空蓝 + 极净白 */
+    --background: 220 20% 95%;
     --foreground: 222 47% 8%;
     --card: 0 0% 100%;
     --card-foreground: 222 47% 8%;
     --popover: 0 0% 100%;
     --popover-foreground: 222 47% 8%;
-    /* 主色：深海宇宙蓝 #0F62FE → HSL(217, 99%, 53%) */
-    --primary: 217 99% 53%;
+    /* 主色：深邃星空蓝 #0b3d9e */
+    --primary: 217 86% 33%;
     --primary-foreground: 0 0% 100%;
-    --primary-soft: 217 99% 96%;
-    --secondary: 220 14% 96%;
+    --primary-soft: 217 90% 95%;
+    --secondary: 220 18% 96%;
     --secondary-foreground: 222 47% 8%;
-    --muted: 220 14% 96%;
-    --muted-foreground: 220 9% 46%;
-    /* 强调色：科技青 #00B8D4 */
-    --accent: 189 100% 42%;
+    --muted: 220 20% 95%;
+    --muted-foreground: 220 15% 45%;
+    /* 强调色：深青 #0088a3 */
+    --accent: 190 100% 32%;
     --accent-foreground: 0 0% 100%;
     --destructive: 0 84% 60%;
     --destructive-foreground: 0 0% 100%;
-    --border: 220 13% 91%;
-    --input: 220 13% 91%;
-    --ring: 217 99% 53%;
+    --border: 220 35% 86%;
+    --input: 220 35% 86%;
+    --ring: 217 86% 33%;
     --radius: 0.85rem;
 
     /* Lynx 语义色 - 浅色 */
-    --northstar: 217 99% 53%;
-    --campaign: 189 100% 42%;
+    --northstar: 217 86% 33%;
+    --campaign: 190 100% 32%;
     --task: 142 50% 45%;
     --graveyard: 0 72% 51%;
     --cognition: 222 47% 30%;
 
     /* 发光与玻璃控制 */
-    --glass-border: 220 20% 88%;
+    --glass-border: 220 35% 86%;
     --glass-highlight: 0 0% 100%;
-    --glow-primary: 217 99% 53%;
-    --glow-accent: 189 100% 42%;
+    --glow-primary: 217 86% 33%;
+    --glow-accent: 190 100% 32%;
   }
 
   .dark {
-    /* 深色主题 — 深蓝黑宇宙 #030816 → HSL(220, 78%, 4%) */
-    --background: 220 60% 4%;
-    --foreground: 210 25% 94%;
-    --card: 220 50% 7%;
-    --card-foreground: 210 25% 94%;
-    --popover: 220 50% 7%;
-    --popover-foreground: 210 25% 94%;
-    /* 主色：更亮的宇宙蓝 */
-    --primary: 217 99% 62%;
-    --primary-foreground: 220 60% 4%;
+    /* 深色主题 — 深空黑蓝 #030713 */
+    --background: 220 70% 4%;
+    --foreground: 220 20% 96%;
+    --card: 220 55% 12%;
+    --card-foreground: 220 20% 96%;
+    --popover: 220 55% 12%;
+    --popover-foreground: 220 20% 96%;
+    /* 主色：更亮的宇宙蓝 #2563eb */
+    --primary: 217 90% 58%;
+    --primary-foreground: 220 70% 4%;
     --primary-soft: 217 60% 16%;
     --secondary: 220 35% 13%;
-    --secondary-foreground: 210 25% 94%;
-    --muted: 220 35% 13%;
-    --muted-foreground: 217 18% 56%;
-    /* 强调色：霓虹青 */
-    --accent: 189 100% 52%;
-    --accent-foreground: 220 60% 4%;
+    --secondary-foreground: 220 20% 96%;
+    --muted: 220 30% 12%;
+    --muted-foreground: 220 15% 65%;
+    /* 强调色：霓虹青 #06b6d4 */
+    --accent: 189 90% 43%;
+    --accent-foreground: 220 70% 4%;
     --destructive: 0 72% 58%;
     --destructive-foreground: 0 0% 100%;
-    --border: 220 30% 18%;
-    --input: 220 30% 18%;
-    --ring: 217 99% 62%;
+    --border: 220 40% 18%;
+    --input: 220 40% 18%;
+    --ring: 217 90% 58%;
 
     /* Lynx 语义色 - 深色 */
-    --northstar: 217 99% 68%;
-    --campaign: 189 100% 58%;
+    --northstar: 217 90% 68%;
+    --campaign: 189 90% 53%;
     --task: 142 55% 58%;
     --graveyard: 0 72% 62%;
     --cognition: 210 25% 78%;
 
-    --glass-border: 220 30% 22%;
-    --glass-highlight: 220 30% 18%;
-    --glow-primary: 217 99% 62%;
-    --glow-accent: 189 100% 52%;
+    --glass-border: 220 45% 24%;
+    --glass-highlight: 220 35% 18%;
+    --glow-primary: 217 90% 62%;
+    --glow-accent: 189 90% 52%;
   }
 }
 
@@ -123,15 +123,15 @@
   .ios-glass {
     position: relative;
     background:
-      linear-gradient(135deg, hsl(var(--glass-highlight) / 0.12) 0%, hsl(var(--glass-highlight) / 0.04) 50%, hsl(var(--glass-highlight) / 0.08) 100%),
-      hsl(var(--card) / 0.55);
-    backdrop-filter: saturate(200%) blur(24px);
-    -webkit-backdrop-filter: saturate(200%) blur(24px);
+      linear-gradient(160deg, hsl(var(--glass-highlight) / 0.14) 0%, transparent 55%),
+      hsl(var(--card) / 0.58);
+    backdrop-filter: saturate(200%) blur(28px);
+    -webkit-backdrop-filter: saturate(200%) blur(28px);
     border: 1px solid hsl(var(--glass-border) / 0.45);
     box-shadow:
       inset 0 1px 1px hsl(var(--glass-highlight) / 0.18),
-      inset 0 -1px 1px hsl(0 0% 0% / 0.06),
-      0 8px 32px -8px hsl(0 0% 0% / 0.12);
+      inset 0 -1px 1px hsl(0 0% 0% / 0.04),
+      0 8px 32px -8px hsl(0 0% 0% / 0.14);
     border-radius: 1.1rem;
     transition: all 0.3s cubic-bezier(0.22, 1, 0.36, 1);
     overflow: hidden;
@@ -140,17 +140,17 @@
     content: "";
     position: absolute;
     inset: 0;
-    background: linear-gradient(135deg, hsl(var(--glass-highlight) / 0.14), transparent 55%);
+    background: linear-gradient(135deg, hsl(var(--glass-highlight) / 0.14), transparent 50%);
     pointer-events: none;
   }
   .ios-glass:hover {
     background:
-      linear-gradient(135deg, hsl(var(--glass-highlight) / 0.20) 0%, hsl(var(--glass-highlight) / 0.07) 50%, hsl(var(--glass-highlight) / 0.10) 100%),
-      hsl(var(--card) / 0.68);
+      linear-gradient(160deg, hsl(var(--glass-highlight) / 0.20) 0%, transparent 50%),
+      hsl(var(--card) / 0.72);
     border-color: hsl(var(--glass-border) / 0.65);
     box-shadow:
-      inset 0 1px 2px hsl(var(--glass-highlight) / 0.24),
-      inset 0 -1px 1px hsl(0 0% 0% / 0.08),
+      inset 0 1px 1px hsl(var(--glass-highlight) / 0.22),
+      inset 0 -1px 1px hsl(0 0% 0% / 0.06),
       0 12px 40px -10px hsl(0 0% 0% / 0.18);
     transform: translateY(-1px);
   }
@@ -159,14 +159,14 @@
   .ios-glass-sm {
     position: relative;
     background:
-      linear-gradient(135deg, hsl(var(--glass-highlight) / 0.10) 0%, hsl(var(--glass-highlight) / 0.03) 100%),
+      linear-gradient(160deg, hsl(var(--glass-highlight) / 0.12) 0%, transparent 50%),
       hsl(var(--muted) / 0.35);
-    backdrop-filter: saturate(180%) blur(16px);
-    -webkit-backdrop-filter: saturate(180%) blur(16px);
+    backdrop-filter: saturate(180%) blur(18px);
+    -webkit-backdrop-filter: saturate(180%) blur(18px);
     border: 1px solid hsl(var(--glass-border) / 0.38);
     box-shadow:
       inset 0 0.5px 1px hsl(var(--glass-highlight) / 0.14),
-      0 1px 2px hsl(0 0% 0% / 0.04);
+      0 1px 3px hsl(0 0% 0% / 0.04);
     border-radius: 0.85rem;
     transition: all 0.25s cubic-bezier(0.22, 1, 0.36, 1);
     overflow: hidden;
@@ -175,12 +175,12 @@
     content: "";
     position: absolute;
     inset: 0;
-    background: linear-gradient(135deg, hsl(var(--glass-highlight) / 0.12), transparent 50%);
+    background: linear-gradient(135deg, hsl(var(--glass-highlight) / 0.10), transparent 50%);
     pointer-events: none;
   }
   .ios-glass-sm:hover {
     background:
-      linear-gradient(135deg, hsl(var(--glass-highlight) / 0.16) 0%, hsl(var(--glass-highlight) / 0.06) 100%),
+      linear-gradient(160deg, hsl(var(--glass-highlight) / 0.16) 0%, transparent 40%),
       hsl(var(--muted) / 0.55);
     border-color: hsl(var(--glass-border) / 0.58);
     box-shadow:
@@ -440,7 +440,7 @@
   .glass-card {
     position: relative;
     background:
-      linear-gradient(135deg, hsl(var(--glass-highlight) / 0.12) 0%, hsl(var(--glass-highlight) / 0.04) 50%, hsl(var(--glass-highlight) / 0.08) 100%),
+      linear-gradient(160deg, hsl(var(--glass-highlight) / 0.12) 0%, transparent 55%),
       hsl(var(--card) / 0.58);
     backdrop-filter: saturate(200%) blur(24px);
     -webkit-backdrop-filter: saturate(200%) blur(24px);
@@ -462,11 +462,11 @@
   }
   .glass-card:hover {
     background:
-      linear-gradient(135deg, hsl(var(--glass-highlight) / 0.20) 0%, hsl(var(--glass-highlight) / 0.07) 50%, hsl(var(--glass-highlight) / 0.10) 100%),
+      linear-gradient(160deg, hsl(var(--glass-highlight) / 0.18) 0%, transparent 50%),
       hsl(var(--card) / 0.72);
     border-color: hsl(var(--glass-border) / 0.65);
     box-shadow:
-      inset 0 1px 2px hsl(var(--glass-highlight) / 0.24),
+      inset 0 1px 2px hsl(var(--glass-highlight) / 0.22),
       inset 0 -1px 1px hsl(0 0% 0% / 0.08),
       0 12px 40px -10px hsl(0 0% 0% / 0.18);
     transform: translateY(-1px);
@@ -475,13 +475,13 @@
   /* 侧边栏玻璃 */
   .glass-sidebar {
     background:
-      linear-gradient(180deg, hsl(var(--card) / 0.75) 0%, hsl(var(--card) / 0.55) 100%);
-    backdrop-filter: saturate(200%) blur(28px);
-    -webkit-backdrop-filter: saturate(200%) blur(28px);
-    border-right: 1px solid hsl(var(--glass-border) / 0.45);
+      linear-gradient(180deg, hsl(var(--card) / 0.78) 0%, hsl(var(--card) / 0.55) 100%);
+    backdrop-filter: saturate(220%) blur(32px);
+    -webkit-backdrop-filter: saturate(220%) blur(32px);
+    border-right: 1px solid hsl(var(--glass-border) / 0.42);
     box-shadow:
       inset -1px 0 0 hsl(var(--glass-highlight) / 0.08),
-      4px 0 24px -10px hsl(0 0% 0% / 0.14);
+      4px 0 24px -10px hsl(0 0% 0% / 0.12);
   }
 
   /* 用户资料玻璃胶囊 */
@@ -505,11 +505,23 @@
     border-color: hsl(var(--glass-border) / 0.6);
   }
 
+  /* 用户下拉菜单 — 降低透明度、增强毛玻璃 */
+  .user-menu {
+    background: hsl(0 0% 100% / 0.82);
+    backdrop-filter: saturate(220%) blur(24px);
+    -webkit-backdrop-filter: saturate(220%) blur(24px);
+    border: 1px solid hsl(var(--glass-border) / 0.55);
+    box-shadow: 0 16px 48px -12px hsl(0 0% 0% / 0.18);
+  }
+  .dark .user-menu {
+    background: hsl(220 55% 12% / 0.82);
+    border-color: hsl(var(--glass-border) / 0.45);
+  }
+
   /* 悬浮 AI 按钮液态玻璃 */
   .glass-fab {
     position: relative;
-    background:
-      linear-gradient(135deg, hsl(var(--primary)) 0%, hsl(var(--primary) / 0.88) 100%);
+    background: linear-gradient(135deg, hsl(var(--primary)) 0%, hsl(var(--primary) / 0.82) 100%);
     backdrop-filter: saturate(200%) blur(20px);
     -webkit-backdrop-filter: saturate(200%) blur(20px);
     border: 1px solid hsl(var(--primary) / 0.5);
@@ -524,7 +536,7 @@
     position: absolute;
     inset: 0;
     border-radius: inherit;
-    background: linear-gradient(135deg, hsl(0 0% 100% / 0.24), transparent 50%);
+    background: linear-gradient(135deg, hsl(0 0% 100% / 0.22), transparent 50%);
     pointer-events: none;
   }
   .glass-fab:hover {
@@ -538,30 +550,163 @@
     transform: scale(0.96);
   }
 
-  /* 导航项激活态 — 玻璃胶囊 */
+  /* 导航项激活态 — 简化克制 */
   .glass-active {
     position: relative;
-    background:
-      linear-gradient(135deg, hsl(var(--primary) / 0.14) 0%, hsl(var(--primary) / 0.06) 100%),
-      hsl(var(--primary) / 0.08);
-    border: 1px solid hsl(var(--primary) / 0.25);
-    box-shadow:
-      inset 0 1px 1px hsl(var(--glass-highlight) / 0.16),
-      0 0 0 1px hsl(var(--primary) / 0.18),
-      0 0 20px -6px hsl(var(--primary) / 0.35);
+    background: hsl(var(--primary) / 0.08);
+    border: 1px solid hsl(var(--primary) / 0.15);
+    color: hsl(var(--primary));
   }
   .glass-active::before {
     content: "";
     position: absolute;
-    left: 0;
-    top: 50%;
-    height: 1.5rem;
-    width: 0.25rem;
-    transform: translateY(-50%);
-    border-top-right-radius: 999px;
-    border-bottom-right-radius: 999px;
+    inset: 0;
+    border-radius: inherit;
+    background: linear-gradient(135deg, hsl(var(--glass-highlight) / 0.14), transparent 50%);
+    pointer-events: none;
+  }
+
+  /* 星空背景 */
+  .starfield {
+    background-image:
+      radial-gradient(ellipse at 0% 0%, hsl(var(--primary) / 0.06) 0%, transparent 45%),
+      radial-gradient(ellipse at 100% 100%, hsl(var(--accent) / 0.04) 0%, transparent 40%);
+  }
+  .dark .starfield {
+    background-image:
+      radial-gradient(ellipse at 0% 0%, hsl(var(--primary) / 0.10) 0%, transparent 50%),
+      radial-gradient(ellipse at 100% 100%, hsl(var(--accent) / 0.06) 0%, transparent 45%),
+      radial-gradient(ellipse at 50% 0%, hsl(var(--primary) / 0.05) 0%, transparent 60%);
+  }
+
+  /* 侧边栏导航项 */
+  .nav-item {
+    transition: all 0.25s cubic-bezier(0.22, 1, 0.36, 1);
+    color: hsl(var(--muted-foreground));
+  }
+  .nav-item:hover {
+    background: hsl(var(--primary) / 0.04);
+    color: hsl(var(--foreground));
+  }
+  .dark .nav-item:hover {
+    background: hsl(var(--primary) / 0.08);
+  }
+
+  /* 通知气泡 — 三态：图标 / 提示 / 列表 */
+  .idea-toast {
+    position: relative;
+    transform-origin: bottom right;
+    transition: all 0.35s cubic-bezier(0.22, 1, 0.36, 1);
+    max-width: 42px;
+    min-height: 42px;
+    padding: 0;
+    overflow: hidden;
+    border-radius: 50%;
+    cursor: pointer;
+  }
+  .idea-toast.hint,
+  .idea-toast.list {
+    max-width: 260px;
+    border-radius: 1rem;
+    padding: 0.875rem;
+  }
+  .idea-toast.list {
+    cursor: default;
+  }
+  .idea-toast .toast-content {
+    display: none;
+    opacity: 0;
+    transform: scale(0.95);
+    transition: opacity 0.25s, transform 0.25s;
+  }
+  .idea-toast.hint .toast-content,
+  .idea-toast.list .toast-content {
+    display: flex;
+    opacity: 1;
+    transform: scale(1);
+  }
+  .idea-toast.hint .toast-list {
+    display: none;
+  }
+  .idea-toast .toast-icon-only {
+    display: none;
+  }
+  .idea-toast.collapsed .toast-icon-only {
+    display: flex;
+  }
+  .idea-toast.hint .toast-icon-only,
+  .idea-toast.list .toast-icon-only {
+    display: none;
+  }
+  .idea-toast.entering {
+    animation: toast-pop 0.45s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+  }
+
+  /* 最近页面快速切换入口 */
+  .recent-tabs {
+    position: fixed;
+    bottom: 24px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 50;
+    min-width: fit-content;
+    will-change: transform;
+  }
+  .recent-tab {
+    position: relative;
+    margin-right: 4px;
+    transition:
+      background-color 0.2s,
+      border-color 0.2s,
+      color 0.2s,
+      opacity 0.3s,
+      transform 0.3s,
+      max-width 0.35s,
+      margin-right 0.3s,
+      padding-left 0.3s,
+      padding-right 0.3s;
+    opacity: 1;
+    transform: scale(1);
+    max-width: 160px;
+    white-space: nowrap;
+    overflow: hidden;
+  }
+  .recent-tab:last-child {
+    margin-right: 0;
+  }
+  .recent-tab.entering {
+    animation: tab-in 0.35s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+  }
+  .recent-tab.leaving {
+    animation: tab-out 0.28s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+  }
+  .recent-tab:hover {
+    background: hsl(var(--primary) / 0.06);
+    border-color: hsl(var(--primary) / 0.22);
+  }
+  .dark .recent-tab:hover {
+    background: hsl(var(--primary) / 0.09);
+    border-color: hsl(var(--primary) / 0.20);
+  }
+  .recent-tab.active {
+    background: hsl(var(--primary) / 0.10);
+    border-color: hsl(var(--primary) / 0.25);
+    color: hsl(var(--primary));
+  }
+  .dark .recent-tab.active {
+    background: hsl(var(--primary) / 0.16);
+    border-color: hsl(var(--primary) / 0.32);
+  }
+  .recent-tab.active::after {
+    content: '';
+    position: absolute;
+    bottom: -6px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 4px;
+    height: 4px;
+    border-radius: 50%;
     background: hsl(var(--primary));
-    box-shadow: 0 0 12px hsl(var(--primary) / 0.8);
   }
 
   /* 发光边框 */
@@ -600,7 +745,7 @@ html[data-desktop="1"] .desktop-sidebar-full {
 /* 桌面端：液态玻璃卡片增强 */
 html[data-desktop="1"] .glass-card {
   background:
-    linear-gradient(135deg, hsl(var(--glass-highlight) / 0.10) 0%, hsl(var(--glass-highlight) / 0.03) 50%, hsl(var(--glass-highlight) / 0.06) 100%),
+    linear-gradient(160deg, hsl(var(--glass-highlight) / 0.10) 0%, hsl(var(--glass-highlight) / 0.03) 50%, hsl(var(--glass-highlight) / 0.06) 100%),
     hsl(var(--card) / 0.48);
   backdrop-filter: saturate(220%) blur(32px);
   -webkit-backdrop-filter: saturate(220%) blur(32px);
@@ -647,6 +792,49 @@ html[data-desktop="1"] {
   );
   background-size: 200% 100%;
   animation: shimmer 1.6s ease-in-out infinite;
+}
+
+/* 通知气泡动画 */
+@keyframes toast-pop {
+  0% { opacity: 0; transform: scale(0.6) translateY(12px); }
+  60% { opacity: 1; transform: scale(1.03) translateY(-2px); }
+  100% { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+@keyframes pulse-glow {
+  0%, 100% { box-shadow: 0 0 0 0 hsl(var(--primary) / 0.25); }
+  50% { box-shadow: 0 0 0 6px hsl(var(--primary) / 0); }
+}
+
+.idea-toast.collapsed .toast-icon-only {
+  animation: pulse-glow 2s ease-in-out infinite;
+}
+
+/* 最近页面切换动画 */
+@keyframes tab-in {
+  from {
+    opacity: 0;
+    transform: scale(0.85);
+    max-width: 0;
+    padding-left: 0;
+    padding-right: 0;
+    margin-right: 0;
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes tab-out {
+  to {
+    opacity: 0;
+    transform: scale(0.85);
+    max-width: 0;
+    padding-left: 0;
+    padding-right: 0;
+    margin-right: 0;
+  }
 }
 
 /* 主题切换平滑过渡（仅颜色属性） */

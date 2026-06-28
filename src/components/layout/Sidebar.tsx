@@ -14,25 +14,25 @@ import {
   Settings,
   PanelLeft,
   X,
-  ChevronDown,
+  ChevronRight,
   Sparkles,
   LayoutGrid,
   Workflow,
   Bot,
-  MessageCircle,
-  ListTodo,
   Wrench,
   Store,
-  ScrollText,
-  Activity,
-  Users,
-  Database,
-  Bell,
+  ListTodo,
   Radar,
+  MessageCircle,
+  Bell,
+  Activity,
+  Database,
+  ScrollText,
+  Monitor,
+  Users,
   Shield,
   Briefcase,
   Coins,
-  Monitor,
   LogOut,
   Loader2,
   Settings2,
@@ -148,7 +148,6 @@ function SidebarUserProfile() {
   const [loading, setLoading] = useState(true);
   const [menuOpen, setMenuOpen] = useState(false);
   const [signingOut, setSigningOut] = useState(false);
-  const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     fetch("/api/auth/session")
@@ -194,29 +193,12 @@ function SidebarUserProfile() {
   const initial = displayName.charAt(0).toUpperCase();
   const hasAvatar = !!user.avatarUrl;
 
-  const openMenu = () => {
-    if (closeTimerRef.current) {
-      clearTimeout(closeTimerRef.current);
-      closeTimerRef.current = null;
-    }
-    setMenuOpen(true);
-  };
-
-  const closeMenu = () => {
-    closeTimerRef.current = setTimeout(() => {
-      setMenuOpen(false);
-    }, 180);
-  };
-
   return (
-    <div
-      className="relative pb-2"
-      onMouseEnter={openMenu}
-      onMouseLeave={closeMenu}
-    >
+    <div className="relative mt-auto pt-3">
       <button
         type="button"
-        className="glass-user group flex w-full items-center gap-3 rounded-xl px-2.5 py-2.5 transition-all"
+        onClick={() => setMenuOpen((v) => !v)}
+        className="glass-user group flex w-full items-center gap-3 rounded-2xl px-3 py-2.5 text-left transition-all"
         aria-label="用户菜单"
         aria-expanded={menuOpen}
       >
@@ -224,26 +206,30 @@ function SidebarUserProfile() {
           <img
             src={user.avatarUrl}
             alt={displayName}
-            className="h-8 w-8 rounded-full object-cover ring-2 ring-border/60 transition-all group-hover:ring-primary/40"
+            className="h-9 w-9 rounded-full object-cover ring-2 ring-border/60 transition-all group-hover:ring-primary/40"
           />
         ) : (
-          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary text-xs font-bold text-primary-foreground ring-2 ring-border/60 transition-all group-hover:ring-primary/40">
+          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-primary to-accent text-xs font-bold text-white shadow-lg shadow-primary/20">
             {initial}
           </span>
         )}
-        <span className="flex-1 truncate text-left text-sm font-medium text-foreground">
-          {displayName}
-        </span>
+        <div className="min-w-0 flex-1">
+          <div className="truncate text-sm font-semibold text-foreground">{displayName}</div>
+          <div className="truncate text-[11px] text-muted-foreground">Lynx Web 端</div>
+        </div>
+        <ChevronRight
+          className={cn(
+            "h-4 w-4 shrink-0 text-muted-foreground transition-transform duration-300",
+            menuOpen && "rotate-[-90deg]"
+          )}
+        />
       </button>
 
-      {/* 悬浮菜单 */}
       {menuOpen && (
-        <div
-          className="absolute bottom-full left-0 right-0 z-50 mb-2 overflow-hidden rounded-xl border border-border/60 bg-popover/95 shadow-2xl backdrop-blur-xl"
-        >
+        <div className="user-menu absolute bottom-full left-0 right-0 z-50 mb-2 overflow-hidden rounded-2xl p-1.5">
           <button
             onClick={() => { setMenuOpen(false); router.push("/settings/profile"); }}
-            className="flex w-full items-center gap-2.5 px-3 py-2.5 text-sm text-foreground transition-colors hover:bg-primary/10 hover:text-primary"
+            className="flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-sm text-foreground transition-colors hover:bg-primary/10 hover:text-primary"
           >
             <Settings2 className="h-4 w-4 text-muted-foreground" />
             个人资料设置
@@ -252,13 +238,9 @@ function SidebarUserProfile() {
           <button
             onClick={handleSignOut}
             disabled={signingOut}
-            className="flex w-full items-center gap-2.5 px-3 py-2.5 text-sm text-graveyard transition-colors hover:bg-graveyard/10 disabled:opacity-50"
+            className="flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-sm text-graveyard transition-colors hover:bg-graveyard/10 disabled:opacity-50"
           >
-            {signingOut ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : (
-              <LogOut className="h-4 w-4" />
-            )}
+            {signingOut ? <Loader2 className="h-4 w-4 animate-spin" /> : <LogOut className="h-4 w-4" />}
             退出登录
           </button>
         </div>
@@ -274,7 +256,7 @@ export function Sidebar() {
 
   useEffect(() => {
     fetch("/api/auth/session")
-      .then((r) => r.ok ? r.json() : null)
+      .then((r) => (r.ok ? r.json() : null))
       .then((s) => setUserRole((s?.user as { role?: string } | undefined)?.role || null))
       .catch(() => setUserRole(null));
   }, []);
@@ -294,6 +276,13 @@ export function Sidebar() {
     });
     return init;
   });
+
+  // 当前路径切换后，自动展开所在分组
+  useEffect(() => {
+    if (activeGroupId && !expanded[activeGroupId]) {
+      setExpanded((prev) => ({ ...prev, [activeGroupId]: true }));
+    }
+  }, [activeGroupId, expanded]);
 
   const toggleGroup = (id: string) => {
     setExpanded((prev) => ({ ...prev, [id]: !prev[id] }));
@@ -328,7 +317,7 @@ export function Sidebar() {
           mobileOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
         )}
       >
-        {/* 顶部：关闭按钮（仅移动端）+ 展开/收起留空 */}
+        {/* 顶部：关闭按钮（仅移动端） */}
         <div className="flex h-14 items-center justify-end border-b border-border/60 px-1 lg:hidden">
           <button
             onClick={() => setMobileOpen(false)}
@@ -339,13 +328,23 @@ export function Sidebar() {
           </button>
         </div>
 
+        {/* Logo */}
+        <div className="mb-5 mt-3 flex items-center gap-2.5 px-2 lg:mt-0 lg:pt-4">
+          <img
+            src="/lynx-logo-black.png"
+            alt="Lynx"
+            className="h-8 w-8 rounded-lg object-cover shadow-sm"
+            draggable={false}
+          />
+          <span className="text-lg font-bold tracking-tight text-foreground">Lynx</span>
+        </div>
+
         {/* 分组导航 */}
-        <nav className="flex-1 space-y-4 overflow-y-auto py-4">
+        <nav className="flex-1 space-y-1 overflow-y-auto py-2 pr-1">
           {visibleGroups.map((group) => {
             const GroupIcon = group.icon;
             const isGroupActive = group.id === activeGroupId;
             const isExpanded = !!expanded[group.id];
-            const hasActiveItem = isGroupActive;
 
             return (
               <div key={group.id}>
@@ -354,29 +353,29 @@ export function Sidebar() {
                   onClick={() => toggleGroup(group.id)}
                   className={cn(
                     "group flex w-full items-center gap-2.5 rounded-xl px-2.5 py-2.5 text-sm font-semibold transition-all",
-                    hasActiveItem
-                      ? "glass-active text-primary"
-                      : "text-foreground/80 hover:bg-muted/70 hover:text-foreground"
+                    isGroupActive
+                      ? "glass-active"
+                      : "nav-item text-foreground/80 hover:bg-muted/70 hover:text-foreground"
                   )}
                 >
                   <GroupIcon
                     className={cn(
                       "h-[18px] w-[18px] shrink-0 transition-colors",
-                      hasActiveItem ? group.color : "text-muted-foreground group-hover:text-foreground"
+                      isGroupActive ? group.color : "text-muted-foreground group-hover:text-foreground"
                     )}
                   />
                   <span className="flex-1 text-left">{group.label}</span>
-                  <ChevronDown
+                  <ChevronRight
                     className={cn(
-                      "h-4 w-4 text-muted-foreground transition-transform duration-200",
-                      !isExpanded && "-rotate-90"
+                      "h-4 w-4 shrink-0 text-muted-foreground transition-transform duration-300",
+                      isExpanded && "rotate-[-90deg]"
                     )}
                   />
                 </button>
 
-                {/* 组内项目 */}
+                {/* 组内项目（纯文字） */}
                 {isExpanded && (
-                  <div className="mt-1.5 space-y-0.5 pl-2.5">
+                  <div className="mt-1 space-y-0.5 pl-2.5">
                     {group.items.map((item) => (
                       <NavLinkOrButton
                         key={item.href}
@@ -395,7 +394,7 @@ export function Sidebar() {
           })}
         </nav>
 
-        {/* 底部：用户头像昵称（仅移动端抽屉显示） */}
+        {/* 底部：用户头像昵称 */}
         <div className="border-t border-border/60 py-3">
           <SidebarUserProfile />
         </div>
@@ -408,28 +407,18 @@ function NavLinkOrButton({
   item,
   pathname,
   onClick,
-  compact = false,
 }: {
   item: NavItem;
   pathname: string;
   onClick: () => void;
-  compact?: boolean;
 }) {
-  const Icon = item.icon;
   const isActive = !item.disabled && pathname === item.href;
+
   const content = (
     <>
-      <Icon
-        className={cn(
-          "shrink-0 transition-colors",
-          compact ? "h-[18px] w-[18px]" : "h-[18px] w-[18px]",
-          isActive ? item.color : "text-muted-foreground group-hover:text-foreground"
-        )}
-      />
       <span
         className={cn(
-          "flex-1 truncate transition-colors",
-          compact ? "text-sm" : "text-sm",
+          "flex-1 truncate text-sm transition-colors",
           item.disabled && "text-muted-foreground/60"
         )}
       >
@@ -442,11 +431,10 @@ function NavLinkOrButton({
   );
 
   const className = cn(
-    "group relative flex w-full items-center gap-3 rounded-xl px-2.5 py-2.5 transition-all",
-    compact ? "px-2 py-2" : "",
+    "group relative flex w-full items-center rounded-xl px-3 py-2 transition-all",
     isActive
       ? "glass-active font-medium text-primary"
-      : "text-muted-foreground hover:bg-muted/70 hover:text-foreground",
+      : "nav-item text-muted-foreground hover:text-foreground",
     item.disabled && "cursor-not-allowed opacity-70 hover:bg-transparent"
   );
 
@@ -459,11 +447,7 @@ function NavLinkOrButton({
   }
 
   return (
-    <FastLink
-      href={item.href}
-      onClick={onClick}
-      className={className}
-    >
+    <FastLink href={item.href} onClick={onClick} className={className}>
       {content}
     </FastLink>
   );

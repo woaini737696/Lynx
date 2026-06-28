@@ -6,6 +6,7 @@ import { Sidebar } from "./Sidebar";
 import { CaptureBar } from "./CaptureBar";
 import { UserProfileFloat } from "./UserProfileFloat";
 import { TitleBar } from "./TitleBar";
+import { RecentTabs } from "./RecentTabs";
 
 function ConvergeReminder() {
   const router = useRouter();
@@ -88,6 +89,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         </main>
       </div>
       <UserProfileFloat />
+      <RecentTabs />
       <ConvergeReminder />
     </div>
   );
