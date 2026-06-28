@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useLocation } from "react-router-dom";
 import {
   Send,
   Bot,
@@ -18,6 +19,10 @@ import {
   X,
   PanelLeftClose,
   PanelLeftOpen,
+  Target,
+  Brain,
+  BookOpen,
+  Zap,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
@@ -43,12 +48,20 @@ import {
 const WELCOME_MESSAGE: Message = {
   id: "welcome",
   role: "assistant",
-  content: "你好，我是 Lynn · 你的 AI 专属助理。\n\n我可以帮你查询任务、分析灵感、搜索记忆、执行技能，甚至通过 HermesAgent 操控本地电脑。\n\n试试下方的快捷指令，或直接告诉我你想做什么。",
+  content: "你好，我是 Lynn · 你的 AI 专属助理。\n\n我可以帮你查询任务、分析灵感、搜索记忆、执行技能，甚至通过 Lynx Agent 操控本地电脑。\n\n试试下方的快捷指令，或直接告诉我你想做什么。",
   time: new Date().toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit" }),
 };
 
+const SUGGESTIONS = [
+  { icon: Target, text: "今天有哪些任务需要聚焦？", color: "text-northstar" },
+  { icon: Brain, text: "帮我分析最近的灵感趋势", color: "text-cognition" },
+  { icon: BookOpen, text: "从认知库中找一条方法论", color: "text-cognition" },
+  { icon: Zap, text: "快速捕获一条灵感", color: "text-northstar" },
+];
+
 export function AIAssistantPage() {
   const queryClient = useQueryClient();
+  const location = useLocation();
   const [messages, setMessages] = useState<Message[]>([WELCOME_MESSAGE]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
@@ -60,6 +73,7 @@ export function AIAssistantPage() {
   const abortRef = useRef<AbortController | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  const initialPromptHandled = useRef(false);
 
   // 加载会话列表
   const { data: sessions = [] } = useQuery<ChatSession[]>({
@@ -176,6 +190,18 @@ export function AIAssistantPage() {
       setLoading(false);
     }
   }, [input, loading, messages, currentSessionId, queryClient]);
+
+  // 从其他页面（如 AI 工作空间）跳转过来时，自动发送预填指令
+  useEffect(() => {
+    if (initialPromptHandled.current) return;
+    const state = location.state as { initialPrompt?: string } | null;
+    if (state?.initialPrompt) {
+      initialPromptHandled.current = true;
+      // 清除 location.state 避免刷新重复发送
+      window.history.replaceState({}, "");
+      handleSend(state.initialPrompt);
+    }
+  }, [location.state, handleSend]);
 
   // 新建对话
   const handleNewChat = useCallback(() => {
@@ -410,6 +436,27 @@ export function AIAssistantPage() {
               <div className="flex items-center gap-2 text-sm text-muted-foreground">
                 <Loader2 className="h-4 w-4 animate-spin" />
                 Lynn 正在思考...
+              </div>
+            )}
+            {/* 空状态：欢迎语 + 建议卡片 */}
+            {!loading && messages.length === 1 && messages[0].id === "welcome" && (
+              <div className="mt-2 flex flex-col gap-2">
+                <div className="px-1 text-xs font-medium text-muted-foreground">试试这些：</div>
+                <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                  {SUGGESTIONS.map((s, i) => {
+                    const Icon = s.icon;
+                    return (
+                      <button
+                        key={i}
+                        onClick={() => handleSend(s.text)}
+                        className="flex items-center gap-2 rounded-xl border border-border/60 bg-background/40 px-3 py-2.5 text-left text-xs transition-all hover:border-cognition/40 hover:bg-cognition/5"
+                      >
+                        <Icon className={cn("h-3.5 w-3.5 shrink-0", s.color)} />
+                        <span className="text-foreground/80">{s.text}</span>
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
             )}
           </div>
@@ -666,7 +713,7 @@ function MessageBubble({
             {message.provider && (
               <span className="opacity-60">
                 {message.provider}
-                {message.hermesFallback ? " · 回退" : message.hermesMode ? " · Hermes" : ""}
+                {message.hermesFallback ? " · 回退" : message.hermesMode ? " · Lynx" : ""}
               </span>
             )}
             {message.usage?.total_tokens && (

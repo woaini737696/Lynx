@@ -1,5 +1,6 @@
 import { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { useNavigate } from "react-router-dom";
 import {
   TrendingUp,
   FileText,
@@ -16,6 +17,7 @@ import {
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
 import { cloudApi } from "@/lib/cloud-api";
+import { toast } from "@/lib/toast";
 import { HelpButton } from "@/components/ui/HelpButton";
 
 const ICON_MAP: Record<string, React.ElementType> = {
@@ -57,11 +59,13 @@ interface WorkspaceTemplate {
 }
 
 export function AIWorkspacePage() {
+  const navigate = useNavigate();
   const [categoryFilter, setCategoryFilter] = useState("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [selected, setSelected] = useState<WorkspaceTemplate | null>(null);
   const [params, setParams] = useState<Record<string, string>>({});
   const [favorites, setFavorites] = useState<string[]>([]);
+  const [running, setRunning] = useState(false);
 
   const { data: templates = [], isLoading } = useQuery<WorkspaceTemplate[]>({
     queryKey: ["ai-workspace-templates"],
@@ -98,6 +102,34 @@ export function AIWorkspacePage() {
 
   const toggleFavorite = (id: string) => {
     setFavorites((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
+  };
+
+  // 运行模板：构建提示词并跳转到 AI 专属助理执行
+  const handleRun = async () => {
+    if (!selected) return;
+    setRunning(true);
+    try {
+      const parts: string[] = [`请使用「${selected.name}」模板执行任务。`];
+      if (selected.description) {
+        parts.push(`模板说明：${selected.description}`);
+      }
+      const filledParams = selected.parameters
+        .map((p) => ({ label: p.label, value: (params[p.key] || "").trim() }))
+        .filter((p) => p.value);
+      if (filledParams.length > 0) {
+        parts.push("参数：");
+        for (const p of filledParams) {
+          parts.push(`- ${p.label}：${p.value}`);
+        }
+      }
+      parts.push("请根据以上信息生成完整结果。");
+      const prompt = parts.join("\n");
+      setSelected(null);
+      toast.success("已发送到 AI 专属助理");
+      navigate("/ai/assistant", { state: { initialPrompt: prompt } });
+    } finally {
+      setRunning(false);
+    }
   };
 
   if (isLoading) {
@@ -234,8 +266,13 @@ export function AIWorkspacePage() {
                 >
                   取消
                 </button>
-                <button className="btn-primary-glass rounded-xl px-4 py-2 text-sm">
-                  <Play className="mr-1.5 inline h-4 w-4" /> 运行
+                <button
+                  onClick={handleRun}
+                  disabled={running}
+                  className="btn-primary-glass flex items-center gap-1.5 rounded-xl px-4 py-2 text-sm disabled:opacity-50"
+                >
+                  {running ? <Loader2 className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />}
+                  运行
                 </button>
               </div>
             </motion.div>

@@ -48,19 +48,19 @@ export const helpContent: Record<string, HelpContent> = {
     title: "AI 专属助理使用说明",
     paragraphs: [
       "「AI 专属助理」是你的个人智能助手，可以直接用自然语言下达指令。",
-      "输入任务描述后按 Enter 发送，Lynn 会理解意图并调用云端能力或本地 HermesAgent 执行。",
+      "输入任务描述后按 Enter 发送，Lynn 会理解意图并调用云端能力或本地 Lynx Agent 执行。",
       "快捷指令可以帮助你快速发起常见操作。",
     ],
     tips: [
       "支持查询任务、分析趋势、检索认知库等操作",
-      "本地 HermesAgent 安装后可执行电脑操控、文件处理等本地能力",
+      "本地 Lynx Agent 安装后可执行电脑操控、文件处理等本地能力",
       "Shift + Enter 换行，Enter 直接发送",
     ],
   },
   agent: {
-    title: "HermesAgent 使用说明",
+    title: "Lynx Agent 使用说明",
     paragraphs: [
-      "「HermesAgent」是 Lynx 的本地超级助理，负责在你的电脑上执行文件处理、浏览器自动化、桌面 RPA 等高级能力。",
+      "「Lynx Agent」是 Lynx 的本地超级助理，负责在你的电脑上执行文件处理、浏览器自动化、桌面 RPA 等高级能力。",
       "首次使用需要点击「安装 AI 环境」完成依赖准备，然后点击「启动」即可连接云端。",
       "所有本地操作均受三档授权模式保护，确保安全性。",
     ],
