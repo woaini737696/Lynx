@@ -1,0 +1,1689 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+  <meta http-equiv="Pragma" content="no-cache">
+  <meta http-equiv="Expires" content="0">
+  <title>Lynx Android UI — iOS 26 液态玻璃重构方案 v3</title>
+  <style>
+    :root {
+      --void: #02040c;
+      --deep: #070b18;
+      --liquid-1: rgba(255, 255, 255, 0.14);
+      --liquid-2: rgba(255, 255, 255, 0.08);
+      --liquid-3: rgba(255, 255, 255, 0.04);
+      --liquid-border: rgba(255, 255, 255, 0.22);
+      --liquid-highlight: rgba(255, 255, 255, 0.35);
+      --primary: #4B9FFF;
+      --primary-deep: #2563EB;
+      --agent: #30D6B5;
+      --think: #FFC857;
+      --danger: #FF5A5A;
+      --text: #F6F8FF;
+      --muted: #8A93A8;
+      --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+      --ease-glass: cubic-bezier(0.22, 1, 0.36, 1);
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+      background:
+        radial-gradient(ellipse 120% 80% at 20% 10%, rgba(37, 99, 235, 0.25) 0%, transparent 55%),
+        radial-gradient(ellipse 100% 70% at 85% 90%, rgba(48, 214, 181, 0.12) 0%, transparent 50%),
+        radial-gradient(ellipse 60% 50% at 50% 40%, rgba(75, 159, 255, 0.08) 0%, transparent 60%),
+        linear-gradient(180deg, #050a1a 0%, #02040c 50%, #030612 100%);
+      color: var(--text);
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+
+    .preview-layout {
+      display: flex;
+      min-height: 100vh;
+      gap: 40px;
+      padding: 32px;
+    }
+
+    /* 左侧导航 */
+    .nav-panel {
+      width: 300px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      position: sticky;
+      top: 32px;
+      height: calc(100vh - 64px);
+    }
+
+    .brand { padding: 8px 4px 20px; }
+    .brand-title {
+      font-size: 26px;
+      font-weight: 800;
+      letter-spacing: -0.5px;
+      background: linear-gradient(135deg, #fff 0%, var(--primary) 60%, var(--agent) 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+    .brand-subtitle {
+      font-size: 12px;
+      color: var(--muted);
+      margin-top: 8px;
+      line-height: 1.6;
+    }
+
+    .nav-item {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      padding: 16px 18px;
+      border-radius: 20px;
+      cursor: pointer;
+      transition: all 0.35s var(--ease-glass);
+      border: 1px solid transparent;
+      background: var(--liquid-3);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+    }
+    .nav-item:hover {
+      background: var(--liquid-2);
+      border-color: var(--liquid-border);
+      transform: translateX(4px);
+    }
+    .nav-item.active {
+      background: linear-gradient(135deg, rgba(75, 159, 255, 0.18), rgba(48, 214, 181, 0.10));
+      border-color: rgba(75, 159, 255, 0.35);
+      box-shadow: 0 0 0 1px rgba(75, 159, 255, 0.1), 0 12px 40px rgba(37, 99, 235, 0.18);
+    }
+    .nav-icon {
+      width: 40px;
+      height: 40px;
+      border-radius: 14px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: var(--liquid-2);
+      border: 1px solid var(--liquid-border);
+      box-shadow: inset 0 1px 0 rgba(255,255,255,0.15);
+      color: var(--text);
+    }
+    .nav-item.active .nav-icon { background: rgba(75, 159, 255, 0.2); }
+    .nav-label { font-size: 15px; font-weight: 600; }
+    .nav-desc { font-size: 12px; color: var(--muted); margin-top: 3px; }
+
+    /* 右侧展示区 */
+    .display-area {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 28px;
+      min-width: 0;
+    }
+
+    .page-header {
+      text-align: center;
+      max-width: 640px;
+    }
+    .page-header h2 {
+      font-size: 32px;
+      font-weight: 700;
+      letter-spacing: -0.5px;
+      margin-bottom: 10px;
+    }
+    .page-header p {
+      color: var(--muted);
+      font-size: 15px;
+      line-height: 1.7;
+    }
+
+    /* 手机模拟器 */
+    .phone-frame {
+      width: 375px;
+      height: 812px;
+      border-radius: 54px;
+      padding: 14px;
+      background: linear-gradient(145deg, rgba(255,255,255,0.12), rgba(255,255,255,0.04));
+      box-shadow: 0 60px 120px rgba(0, 0, 0, 0.55), 0 0 0 1px rgba(255, 255, 255, 0.12), inset 0 1px 1px rgba(255, 255, 255, 0.2);
+      position: relative;
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+    }
+    .phone-notch {
+      position: absolute;
+      top: 18px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 126px;
+      height: 32px;
+      background: #000;
+      border-radius: 0 0 22px 22px;
+      z-index: 100;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.4);
+    }
+    .phone-screen {
+      width: 100%;
+      height: 100%;
+      border-radius: 42px;
+      overflow: hidden;
+      background: var(--void);
+      position: relative;
+      box-shadow: inset 0 0 60px rgba(0,0,0,0.5);
+    }
+
+    .screen-content {
+      position: absolute;
+      inset: 0;
+      opacity: 0;
+      transform: scale(0.96) translateY(16px);
+      transition: all 0.5s var(--ease-glass);
+      pointer-events: none;
+      overflow: hidden;
+    }
+    .screen-content.active {
+      opacity: 1;
+      transform: scale(1) translateY(0);
+      pointer-events: auto;
+    }
+
+    /* 玻璃材质通用 */
+    .glass {
+      background: var(--liquid-2);
+      border: 1px solid var(--liquid-border);
+      border-top: 1px solid var(--liquid-highlight);
+      border-left: 1px solid var(--liquid-highlight);
+      border-radius: 24px;
+      backdrop-filter: blur(30px) saturate(160%);
+      -webkit-backdrop-filter: blur(30px) saturate(160%);
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.18), inset 0 1px 0 rgba(255, 255, 255, 0.12);
+    }
+    .glass-sm {
+      background: var(--liquid-3);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-top: 1px solid rgba(255, 255, 255, 0.18);
+      border-radius: 18px;
+      backdrop-filter: blur(20px) saturate(140%);
+      -webkit-backdrop-filter: blur(20px) saturate(140%);
+    }
+    .pill { border-radius: 999px; }
+
+    /* iOS 26 图标 — 默认浅色，子元素统一跟随 currentColor */
+    .icon, .icon-sm, .icon-lg {
+      stroke: currentColor;
+      stroke-width: 1.6;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+      fill: none;
+      color: var(--text);
+      flex-shrink: 0;
+    }
+    .icon path, .icon line, .icon circle, .icon rect,
+    .icon polyline, .icon polygon,
+    .icon-sm path, .icon-sm line, .icon-sm circle, .icon-sm rect,
+    .icon-sm polyline, .icon-sm polygon,
+    .icon-lg path, .icon-lg line, .icon-lg circle, .icon-lg rect,
+    .icon-lg polyline, .icon-lg polygon {
+      stroke: currentColor;
+    }
+    .icon-sm { width: 18px; height: 18px; stroke-width: 1.5; }
+    .icon-lg { width: 34px; height: 34px; stroke-width: 1.3; }
+
+    /* ===== 首页 ===== */
+    .home-screen {
+      display: flex;
+      flex-direction: column;
+      height: 100%;
+      padding: 66px 22px 100px;
+      background:
+        radial-gradient(ellipse 100% 70% at 50% 28%, rgba(75, 159, 255, 0.16) 0%, transparent 60%),
+        radial-gradient(ellipse 70% 50% at 80% 85%, rgba(48, 214, 181, 0.08) 0%, transparent 50%),
+        var(--void);
+    }
+
+    .home-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 4px;
+    }
+    .home-greeting {
+      font-size: 17px;
+      font-weight: 700;
+      color: var(--text);
+      letter-spacing: -0.3px;
+    }
+    .home-greeting span {
+      display: block;
+      font-size: 11px;
+      font-weight: 500;
+      color: var(--muted);
+      margin-top: 2px;
+      letter-spacing: 0.2px;
+    }
+
+    .avatar {
+      width: 42px;
+      height: 42px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, var(--primary), var(--agent));
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 15px;
+      font-weight: 700;
+      color: white;
+      border: 2px solid rgba(255, 255, 255, 0.18);
+      box-shadow: 0 4px 20px rgba(75, 159, 255, 0.25), inset 0 1px 2px rgba(255, 255, 255, 0.3);
+      cursor: pointer;
+      transition: transform 0.3s var(--ease-spring);
+    }
+    .avatar:hover { transform: scale(1.08); }
+    .avatar:active { transform: scale(0.95); }
+
+    .ambient {
+      text-align: center;
+      margin: 4px 0 20px;
+    }
+    .ambient-greeting {
+      font-size: 15px;
+      color: var(--muted);
+      letter-spacing: 0.5px;
+      font-weight: 500;
+    }
+    .ambient-status {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      margin-top: 10px;
+      padding: 7px 14px;
+      font-size: 12px;
+      color: var(--agent);
+      background: rgba(48, 214, 181, 0.1);
+      border: 1px solid rgba(48, 214, 181, 0.22);
+      border-radius: 999px;
+    }
+    .status-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--agent);
+      box-shadow: 0 0 8px var(--agent);
+      animation: pulse 2s ease-in-out infinite;
+    }
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.5; }
+    }
+
+    .breath-ball-wrapper {
+      position: relative;
+      width: 140px;
+      height: 140px;
+      margin: 0 auto;
+    }
+    .breath-ball {
+      position: absolute;
+      inset: 0;
+      border-radius: 50%;
+      background:
+        radial-gradient(circle at 30% 25%, rgba(255, 255, 255, 0.25), transparent 45%),
+        radial-gradient(circle at 50% 50%, rgba(75, 159, 255, 0.35), rgba(37, 99, 235, 0.12) 55%, transparent 70%),
+        linear-gradient(135deg, rgba(75, 159, 255, 0.4), rgba(48, 214, 181, 0.15));
+      border: 1px solid rgba(255, 255, 255, 0.25);
+      box-shadow: 0 0 80px rgba(75, 159, 255, 0.28), inset 0 0 40px rgba(255, 255, 255, 0.08), inset 0 1px 2px rgba(255, 255, 255, 0.3);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      animation: breathe 4s ease-in-out infinite;
+      cursor: pointer;
+      z-index: 2;
+      transition: transform 0.2s ease;
+      color: white;
+    }
+    .breath-ball:hover { transform: scale(1.03); }
+    .breath-ball:active { transform: scale(0.97); }
+    .breath-logo {
+      width: 68px;
+      height: 68px;
+      object-fit: contain;
+      filter: drop-shadow(0 4px 12px rgba(0,0,0,0.3));
+      pointer-events: none;
+    }
+    .breath-ball::after {
+      content: '';
+      position: absolute;
+      inset: -2px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, rgba(255,255,255,0.2), transparent 50%, rgba(75,159,255,0.15));
+      z-index: -1;
+      filter: blur(8px);
+    }
+    .breath-orb {
+      position: absolute;
+      inset: -22px;
+      border-radius: 50%;
+      border: 1px solid rgba(75, 159, 255, 0.12);
+      background: radial-gradient(circle, rgba(75, 159, 255, 0.08) 0%, transparent 70%);
+      animation: orbFloat 6s ease-in-out infinite;
+    }
+    .breath-orb:nth-child(2) { inset: -36px; animation-delay: -2s; opacity: 0.6; }
+    @keyframes breathe {
+      0%, 100% { transform: scale(1); }
+      50% { transform: scale(1.05); }
+    }
+    @keyframes orbFloat {
+      0%, 100% { transform: scale(1) rotate(0deg); opacity: 0.5; }
+      50% { transform: scale(1.08) rotate(8deg); opacity: 0.8; }
+    }
+
+    .gesture-hint {
+      margin: 16px auto 0;
+      padding: 8px 16px;
+      font-size: 10px;
+      color: var(--muted);
+      letter-spacing: 0.5px;
+      text-align: center;
+      line-height: 1.8;
+    }
+
+    /* 全局底部 Dock */
+    .core-dock {
+      position: absolute;
+      bottom: 18px;
+      left: 18px;
+      right: 18px;
+      display: flex;
+      justify-content: space-around;
+      align-items: center;
+      padding: 10px 6px;
+      z-index: 100;
+      border-radius: 999px;
+      transition: transform 0.35s var(--ease-glass), opacity 0.35s var(--ease-glass);
+    }
+    .core-dock.hidden {
+      transform: translateY(140%);
+      opacity: 0;
+      pointer-events: none;
+    }
+    .dock-item {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 5px;
+      padding: 8px 14px;
+      border-radius: 18px;
+      cursor: pointer;
+      color: rgba(255,255,255,0.55);
+      transition: all 0.25s var(--ease-glass);
+    }
+    .dock-item:hover { color: rgba(255,255,255,0.9); background: rgba(255,255,255,0.06); }
+    .dock-item.active { color: var(--primary); background: rgba(75, 159, 255, 0.12); }
+    .dock-item svg {
+      width: 24px;
+      height: 24px;
+      transition: transform 0.25s var(--ease-spring);
+    }
+    .dock-item:hover svg { transform: translateY(-3px); }
+    .dock-label { font-size: 9px; letter-spacing: 0.5px; }
+
+    /* 首页灵感速记悬浮按钮 */
+    .idea-fab {
+      position: absolute;
+      right: 22px;
+      bottom: 132px;
+      width: 52px;
+      height: 52px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: linear-gradient(135deg, var(--primary), var(--primary-deep));
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      color: white;
+      cursor: pointer;
+      z-index: 50;
+      box-shadow: 0 8px 28px rgba(37, 99, 235, 0.35), inset 0 1px 2px rgba(255, 255, 255, 0.3);
+      transition: all 0.3s var(--ease-spring);
+    }
+    .idea-fab:hover { transform: scale(1.08) rotate(90deg); }
+    .idea-fab:active { transform: scale(0.92); }
+
+    .timeline {
+      flex: 1;
+      overflow-y: auto;
+      margin-top: 8px;
+      padding-right: 4px;
+      padding-bottom: 20px;
+      -webkit-mask-image: linear-gradient(to bottom, transparent 0, black 18px);
+      mask-image: linear-gradient(to bottom, transparent 0, black 18px);
+    }
+    .timeline::-webkit-scrollbar { width: 3px; }
+    .timeline::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.08); border-radius: 3px; }
+
+    .timeline-header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 12px;
+      margin-top: 8px;
+      font-size: 12px;
+      color: var(--muted);
+    }
+    .timeline-header::after {
+      content: '';
+      flex: 1;
+      height: 1px;
+      background: linear-gradient(90deg, rgba(255,255,255,0.08), transparent);
+    }
+
+    .timeline-item {
+      padding: 16px;
+      margin-bottom: 10px;
+      transition: all 0.25s var(--ease-glass);
+      cursor: pointer;
+    }
+    .timeline-item:hover {
+      background: rgba(255, 255, 255, 0.06);
+      transform: translateX(3px);
+    }
+    .timeline-item:active { transform: scale(0.98); }
+
+    .timeline-meta {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 11px;
+      margin-bottom: 8px;
+    }
+    .timeline-badge {
+      padding: 3px 9px;
+      border-radius: 999px;
+      font-size: 10px;
+      font-weight: 600;
+      background: rgba(75, 159, 255, 0.12);
+      color: var(--primary);
+      border: 1px solid rgba(75, 159, 255, 0.18);
+    }
+    .timeline-time { color: var(--muted); margin-left: auto; font-size: 10px; }
+    .timeline-text {
+      font-size: 13.5px;
+      color: var(--text);
+      line-height: 1.55;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+    }
+
+    /* ===== 设置面板（右侧展开，非全屏） ===== */
+    .settings-scrim {
+      position: absolute;
+      inset: 0;
+      background: rgba(2, 4, 12, 0.55);
+      backdrop-filter: blur(4px);
+      -webkit-backdrop-filter: blur(4px);
+      z-index: 150;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.35s var(--ease-glass);
+    }
+    .settings-scrim.active { opacity: 1; pointer-events: auto; }
+
+    .screen-content.settings-screen {
+      position: absolute;
+      top: 0;
+      right: 0;
+      bottom: 0;
+      left: auto;
+      width: 88%;
+      border-radius: 28px 0 0 28px;
+      background: var(--void);
+      display: flex;
+      flex-direction: column;
+      padding: 66px 0 96px;
+      z-index: 200;
+      transform: translateX(110%);
+      opacity: 1;
+      transition: transform 0.4s var(--ease-glass);
+      box-shadow: -16px 0 60px rgba(0, 0, 0, 0.45);
+    }
+    .screen-content.settings-screen.active { transform: translateX(0); opacity: 1; }
+    .settings-header {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      padding: 0 22px 18px;
+    }
+    .back-btn {
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--text);
+      font-size: 17px;
+      cursor: pointer;
+      transition: all 0.25s var(--ease-glass);
+    }
+    .back-btn:hover { background: rgba(255,255,255,0.08); transform: translateX(-2px); }
+    .back-btn:active { transform: scale(0.92); }
+    .settings-title { font-size: 20px; font-weight: 700; }
+    .settings-hint {
+      font-size: 11px;
+      color: var(--muted);
+      padding: 0 22px;
+      margin-top: -10px;
+      margin-bottom: 18px;
+    }
+    .settings-user-card {
+      margin: 0 22px 20px;
+      padding: 22px;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+    .user-avatar-large {
+      width: 62px;
+      height: 62px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, var(--primary), var(--agent));
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 22px;
+      font-weight: 700;
+      color: white;
+      border: 2px solid rgba(255, 255, 255, 0.2);
+      box-shadow: 0 8px 24px rgba(75, 159, 255, 0.2);
+    }
+    .user-info { flex: 1; }
+    .user-name { font-size: 18px; font-weight: 700; }
+    .user-role { font-size: 12px; color: var(--muted); margin-top: 4px; }
+    .settings-list {
+      flex: 1;
+      overflow-y: auto;
+      padding: 0 22px 24px;
+    }
+    .settings-section-title {
+      font-size: 11px;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 1.2px;
+      margin: 22px 0 10px 4px;
+    }
+    .settings-row {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      padding: 15px 16px;
+      margin-bottom: 10px;
+      cursor: pointer;
+      transition: all 0.25s var(--ease-glass);
+    }
+    .settings-row:hover { background: rgba(255, 255, 255, 0.05); transform: translateX(3px); }
+    .settings-row:active { transform: scale(0.98); }
+    .settings-row-icon {
+      width: 34px;
+      height: 34px;
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      color: var(--text);
+    }
+    .settings-row-text { flex: 1; }
+    .settings-row-label { font-size: 14px; font-weight: 500; }
+    .settings-row-value { font-size: 12px; color: var(--muted); margin-top: 2px; }
+    .settings-row-arrow { color: var(--muted); font-size: 16px; }
+    .settings-logout {
+      margin: 24px 0;
+      padding: 15px;
+      text-align: center;
+      color: var(--danger);
+      font-size: 14px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.25s var(--ease-glass);
+    }
+    .settings-logout:hover { background: rgba(255, 90, 90, 0.08); }
+
+    /* ===== 通话界面 ===== */
+    .call-screen {
+      position: absolute;
+      inset: 0;
+      background:
+        radial-gradient(ellipse 90% 70% at 50% 42%, rgba(75, 159, 255, 0.14) 0%, transparent 60%),
+        radial-gradient(ellipse 50% 40% at 20% 80%, rgba(48, 214, 181, 0.08) 0%, transparent 50%),
+        var(--void);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 66px 28px 110px;
+    }
+    .call-visual {
+      width: 190px;
+      height: 190px;
+      position: relative;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .call-wave {
+      position: absolute;
+      inset: 0;
+      border-radius: 50%;
+      border: 1.5px solid rgba(75, 159, 255, 0.25);
+      background: rgba(75, 159, 255, 0.06);
+      animation: callWave 2.4s ease-out infinite;
+    }
+    .call-wave:nth-child(2) { animation-delay: 0.6s; }
+    .call-wave:nth-child(3) { animation-delay: 1.2s; }
+    @keyframes callWave {
+      0% { transform: scale(0.75); opacity: 0.7; }
+      100% { transform: scale(1.65); opacity: 0; }
+    }
+    .call-avatar {
+      width: 88px;
+      height: 88px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, var(--primary), var(--agent));
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 22px;
+      font-weight: 700;
+      color: white;
+      border: 2px solid rgba(255, 255, 255, 0.2);
+      box-shadow: 0 0 50px rgba(75, 159, 255, 0.35), inset 0 1px 2px rgba(255, 255, 255, 0.3);
+      z-index: 10;
+    }
+    .call-status-pill {
+      margin-top: 36px;
+      padding: 8px 18px;
+      font-size: 13px;
+      color: var(--muted);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      background: rgba(255, 255, 255, 0.04);
+      border-radius: 999px;
+    }
+    .call-timer {
+      margin-top: 14px;
+      font-size: 26px;
+      font-weight: 700;
+      letter-spacing: 1px;
+    }
+    .call-summary {
+      margin-top: 32px;
+      padding: 14px 20px;
+      font-size: 12.5px;
+      color: var(--muted);
+      text-align: center;
+      line-height: 1.7;
+      max-width: 280px;
+    }
+    .call-controls {
+      display: flex;
+      gap: 26px;
+      margin-top: 42px;
+    }
+    .call-btn {
+      width: 62px;
+      height: 62px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      background: rgba(255, 255, 255, 0.08);
+      color: var(--text);
+      cursor: pointer;
+      transition: all 0.25s var(--ease-spring);
+      box-shadow: inset 0 1px 1px rgba(255,255,255,0.12);
+    }
+    .call-btn:hover { transform: scale(1.08); }
+    .call-btn:active { transform: scale(0.92); }
+    .call-btn.end {
+      background: rgba(255, 90, 90, 0.12);
+      border-color: rgba(255, 90, 90, 0.25);
+      color: var(--danger);
+      box-shadow: 0 8px 24px rgba(255, 90, 90, 0.15);
+    }
+    .call-btn.active {
+      color: var(--agent);
+      border-color: rgba(48, 214, 181, 0.25);
+      background: rgba(48, 214, 181, 0.08);
+    }
+    .call-hint {
+      position: absolute;
+      bottom: 42px;
+      font-size: 10px;
+      color: rgba(138, 147, 168, 0.6);
+      letter-spacing: 0.5px;
+    }
+
+    /* ===== 浮层通用 ===== */
+    .panel-screen {
+      position: absolute;
+      inset: 0;
+      background: var(--void);
+      display: flex;
+      flex-direction: column;
+      padding: 66px 22px 110px;
+    }
+    .panel-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 8px;
+    }
+    .panel-title { font-size: 19px; font-weight: 700; }
+    .panel-hint {
+      font-size: 11px;
+      color: var(--muted);
+      margin-left: 50px;
+      margin-bottom: 22px;
+    }
+    .panel-content { flex: 1; overflow-y: auto; }
+
+    .idea-input {
+      width: 100%;
+      min-height: 130px;
+      padding: 18px;
+      font-size: 15px;
+      color: var(--text);
+      line-height: 1.65;
+      resize: none;
+      outline: none;
+      font-family: inherit;
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 24px;
+      transition: all 0.25s var(--ease-glass);
+    }
+    .idea-input:focus {
+      border-color: rgba(75, 159, 255, 0.3);
+      background: rgba(75, 159, 255, 0.04);
+      box-shadow: 0 0 24px rgba(75, 159, 255, 0.1);
+    }
+    .idea-input::placeholder { color: var(--muted); }
+
+    .idea-tags {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-top: 18px;
+    }
+    .idea-tag {
+      padding: 8px 16px;
+      border-radius: 999px;
+      font-size: 12px;
+      color: var(--muted);
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      cursor: pointer;
+      transition: all 0.25s var(--ease-glass);
+    }
+    .idea-tag:hover,
+    .idea-tag.active {
+      background: rgba(75, 159, 255, 0.12);
+      border-color: rgba(75, 159, 255, 0.25);
+      color: var(--primary);
+    }
+
+    .submit-btn {
+      width: 100%;
+      margin-top: 22px;
+      padding: 16px;
+      border-radius: 20px;
+      border: none;
+      background: linear-gradient(135deg, var(--primary), var(--primary-deep));
+      color: white;
+      font-size: 15px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.3s var(--ease-spring);
+      box-shadow: 0 8px 28px rgba(37, 99, 235, 0.3), inset 0 1px 1px rgba(255, 255, 255, 0.25);
+    }
+    .submit-btn:hover { transform: translateY(-2px); box-shadow: 0 12px 36px rgba(37, 99, 235, 0.4); }
+    .submit-btn:active { transform: scale(0.97); }
+
+    /* 任务面板 */
+    .task-tabs {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 18px;
+      padding: 4px;
+      background: rgba(255, 255, 255, 0.03);
+      border-radius: 999px;
+      border: 1px solid rgba(255, 255, 255, 0.06);
+    }
+    .task-tab {
+      flex: 1;
+      padding: 10px;
+      text-align: center;
+      border-radius: 999px;
+      font-size: 13px;
+      color: var(--muted);
+      cursor: pointer;
+      transition: all 0.25s var(--ease-glass);
+    }
+    .task-tab.active {
+      background: rgba(75, 159, 255, 0.15);
+      color: var(--primary);
+      border: 1px solid rgba(75, 159, 255, 0.2);
+      box-shadow: 0 4px 12px rgba(37, 99, 235, 0.12);
+    }
+    .task-item {
+      padding: 16px;
+      margin-bottom: 10px;
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+      cursor: pointer;
+      transition: all 0.25s var(--ease-glass);
+    }
+    .task-item:hover { background: rgba(255, 255, 255, 0.04); transform: translateX(3px); }
+    .task-item:active { transform: scale(0.98); }
+    .task-check {
+      width: 22px;
+      height: 22px;
+      border-radius: 50%;
+      border: 1.5px solid rgba(255, 255, 255, 0.12);
+      margin-top: 2px;
+      flex-shrink: 0;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+    .task-check:hover { border-color: var(--primary); }
+    .task-text { flex: 1; }
+    .task-title { font-size: 13.5px; line-height: 1.5; }
+    .task-meta { font-size: 11px; color: var(--muted); margin-top: 6px; display: flex; gap: 12px; }
+    .task-priority {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      margin-top: 8px;
+      box-shadow: 0 0 8px currentColor;
+    }
+
+    /* ===== Lynx 助理 ===== */
+    .assistant-screen {
+      position: absolute;
+      inset: 0;
+      background: var(--void);
+      display: flex;
+      flex-direction: column;
+      padding: 66px 0 150px;
+    }
+    .assistant-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 22px 18px;
+    }
+    .assistant-title { font-size: 19px; font-weight: 700; }
+    .assistant-header-right {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .assistant-status {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 5px 10px;
+      font-size: 11px;
+      color: var(--agent);
+      background: rgba(48, 214, 181, 0.08);
+      border: 1px solid rgba(48, 214, 181, 0.18);
+      border-radius: 999px;
+    }
+    .assistant-status-dot {
+      width: 5px;
+      height: 5px;
+      border-radius: 50%;
+      background: var(--agent);
+      box-shadow: 0 0 6px var(--agent);
+    }
+    .chat-messages {
+      flex: 1;
+      overflow-y: auto;
+      padding: 0 22px 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+    .chat-bubble {
+      max-width: 78%;
+      padding: 14px 16px;
+      font-size: 13.5px;
+      line-height: 1.55;
+      border-radius: 20px;
+      animation: fadeInUp 0.35s var(--ease-glass);
+    }
+    .chat-bubble.user {
+      align-self: flex-end;
+      background: linear-gradient(135deg, var(--primary), var(--primary-deep));
+      color: white;
+      border-bottom-right-radius: 6px;
+    }
+    .chat-bubble.agent {
+      align-self: flex-start;
+      background: rgba(255, 255, 255, 0.06);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      color: var(--text);
+      border-bottom-left-radius: 6px;
+    }
+    @keyframes fadeInUp {
+      from { opacity: 0; transform: translateY(10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    .chat-input-bar {
+      position: absolute;
+      bottom: 106px;
+      left: 18px;
+      right: 18px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 10px 10px 18px;
+      z-index: 60;
+    }
+    .chat-input {
+      flex: 1;
+      background: transparent;
+      border: none;
+      outline: none;
+      color: var(--text);
+      font-size: 14px;
+      font-family: inherit;
+    }
+    .chat-input::placeholder { color: var(--muted); }
+    .chat-voice-btn, .chat-send-btn {
+      width: 38px;
+      height: 38px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      transition: all 0.25s var(--ease-glass);
+      flex-shrink: 0;
+    }
+    .chat-voice-btn {
+      background: rgba(255, 255, 255, 0.06);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      color: var(--text);
+    }
+    .chat-send-btn {
+      background: linear-gradient(135deg, var(--primary), var(--primary-deep));
+      color: white;
+      border: 1px solid rgba(255, 255, 255, 0.2);
+    }
+    .chat-voice-btn:hover, .chat-send-btn:hover { transform: scale(1.08); }
+    .chat-voice-btn:active, .chat-send-btn:active { transform: scale(0.92); }
+
+    /* ===== 记忆 ===== */
+    .memory-screen {
+      position: absolute;
+      inset: 0;
+      background: var(--void);
+      display: flex;
+      flex-direction: column;
+      padding: 66px 0 110px;
+    }
+    .memory-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 22px 16px;
+    }
+    .memory-title { font-size: 19px; font-weight: 700; }
+    .memory-search {
+      margin: 0 22px 16px;
+      padding: 12px 16px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .memory-search input {
+      flex: 1;
+      background: transparent;
+      border: none;
+      outline: none;
+      color: var(--text);
+      font-size: 14px;
+      font-family: inherit;
+    }
+    .memory-search input::placeholder { color: var(--muted); }
+    .memory-tags {
+      display: flex;
+      gap: 8px;
+      padding: 0 22px 16px;
+      overflow-x: auto;
+    }
+    .memory-tags::-webkit-scrollbar { display: none; }
+    .memory-tag {
+      padding: 7px 14px;
+      border-radius: 999px;
+      font-size: 12px;
+      white-space: nowrap;
+      cursor: pointer;
+      transition: all 0.25s var(--ease-glass);
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      color: var(--muted);
+    }
+    .memory-tag:hover, .memory-tag.active {
+      background: rgba(75, 159, 255, 0.12);
+      border-color: rgba(75, 159, 255, 0.25);
+      color: var(--primary);
+    }
+    .memory-list {
+      flex: 1;
+      overflow-y: auto;
+      padding: 0 22px 16px;
+    }
+    .memory-card {
+      padding: 16px;
+      margin-bottom: 10px;
+      cursor: pointer;
+      transition: all 0.25s var(--ease-glass);
+    }
+    .memory-card:hover { background: rgba(255, 255, 255, 0.06); transform: translateX(3px); }
+    .memory-card-title {
+      font-size: 14px;
+      font-weight: 600;
+      margin-bottom: 6px;
+      line-height: 1.45;
+    }
+    .memory-card-text {
+      font-size: 12.5px;
+      color: var(--muted);
+      line-height: 1.55;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+    }
+    .memory-card-meta {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-top: 10px;
+      font-size: 10px;
+      color: var(--muted);
+    }
+    .memory-card-dot {
+      width: 5px;
+      height: 5px;
+      border-radius: 50%;
+      background: var(--primary);
+      box-shadow: 0 0 6px var(--primary);
+    }
+
+    /* 设计说明卡 */
+    .specs-card { width: 375px; padding: 24px; }
+    .specs-title { font-size: 14px; font-weight: 700; margin-bottom: 16px; color: var(--text); }
+    .color-row { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; font-size: 13px; }
+    .color-swatch {
+      width: 28px;
+      height: 28px;
+      border-radius: 8px;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      box-shadow: inset 0 1px 1px rgba(255,255,255,0.2);
+    }
+    .color-name { flex: 1; }
+    .color-hex { color: var(--muted); font-family: "SF Mono", monospace; font-size: 11px; }
+    .feature-pill {
+      display: inline-flex;
+      padding: 5px 12px;
+      margin: 4px 4px 4px 0;
+      border-radius: 999px;
+      font-size: 11px;
+      color: var(--muted);
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid rgba(255, 255, 255, 0.06);
+    }
+
+    @media (max-width: 980px) {
+      .preview-layout { flex-direction: column; padding: 20px; }
+      .nav-panel { width: 100%; height: auto; position: relative; top: 0; flex-direction: row; flex-wrap: wrap; }
+      .nav-item { flex: 1; min-width: 140px; }
+      .display-area { padding: 0; }
+    }
+  </style>
+</head>
+<body>
+  <div class="preview-layout">
+    <aside class="nav-panel">
+      <div class="brand">
+        <div class="brand-title">Lynx Android</div>
+        <div class="brand-subtitle">iOS 26 液态玻璃重构方案 v3<br>极简 · 人性 · 即时反馈</div>
+      </div>
+
+      <div class="nav-item active" data-screen="home">
+        <div class="nav-icon"><svg class="icon" viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg></div>
+        <div><div class="nav-label">首页 Home</div><div class="nav-desc">呼吸球 + 时间流 + Dock</div></div>
+      </div>
+      <div class="nav-item" data-screen="settings">
+        <div class="nav-icon"><svg class="icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></div>
+        <div><div class="nav-label">设置面板</div><div class="nav-desc">右侧滑入 · 玻璃分组</div></div>
+      </div>
+      <div class="nav-item" data-screen="call">
+        <div class="nav-icon"><svg class="icon" viewBox="0 0 24 24"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg></div>
+        <div><div class="nav-label">全双工通话</div><div class="nav-desc">波纹动画 + 液态控制</div></div>
+      </div>
+      <div class="nav-item" data-screen="idea">
+        <div class="nav-icon"><svg class="icon" viewBox="0 0 24 24"><path d="M12 2a7 7 0 0 0-7 7c0 2.38 1.19 4.47 3 5.74V17a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1v-2.26c1.81-1.27 3-3.36 3-5.74a7 7 0 0 0-7-7z"/><path d="M9 21h6"/></svg></div>
+        <div><div class="nav-label">灵感速记</div><div class="nav-desc">底部浮层 · 胶囊标签</div></div>
+      </div>
+      <div class="nav-item" data-screen="tasks">
+        <div class="nav-icon"><svg class="icon" viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg></div>
+        <div><div class="nav-label">任务 Tasks</div><div class="nav-desc">核心页面 · 药丸 Tab</div></div>
+      </div>
+      <div class="nav-item" data-screen="assistant">
+        <div class="nav-icon"><svg class="icon" viewBox="0 0 24 24"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg></div>
+        <div><div class="nav-label">Lynx 助理</div><div class="nav-desc">聊天 · 玻璃气泡</div></div>
+      </div>
+      <div class="nav-item" data-screen="memory">
+        <div class="nav-icon"><svg class="icon" viewBox="0 0 24 24"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg></div>
+        <div><div class="nav-label">记忆 Memory</div><div class="nav-desc">记忆库 · 搜索标签</div></div>
+      </div>
+    </aside>
+
+    <main class="display-area">
+      <div class="page-header">
+        <h2 id="page-title">首页 Home</h2>
+        <p id="page-desc">深邃星空蓝背景中央悬浮液态呼吸球；底部 Dock 提供点击入口，手势与点击并存；时间流内滚动不触发页面滑动。</p>
+      </div>
+
+      <div class="phone-frame">
+        <div class="phone-notch"></div>
+        <div class="phone-screen">
+          <!-- 首页 -->
+          <div class="screen-content active home-screen" id="screen-home">
+            <div class="home-header">
+              <div class="home-greeting">早上好，Lynn</div>
+              <div class="avatar" data-open="settings">L</div>
+            </div>
+            <div class="ambient">
+              <div class="ambient-status"><span class="status-dot"></span>Lynx Agent 在线</div>
+            </div>
+            <div class="breath-ball-wrapper">
+              <div class="breath-orb"></div>
+              <div class="breath-orb"></div>
+              <div class="breath-ball">
+                <img class="breath-logo" src="/lynx-logo-white.png" alt="Lynx">
+              </div>
+            </div>
+            <div class="timeline">
+              <div class="timeline-header">时间流</div>
+              <div class="timeline-item glass">
+                <div class="timeline-meta">
+                  <span class="timeline-badge">认知</span>
+                  <span class="timeline-time">2 分钟前</span>
+                </div>
+                <div class="timeline-text">建立团队级AI公共空间，系统化收集和归档每个成员的工作成果。</div>
+              </div>
+              <div class="timeline-item glass">
+                <div class="timeline-meta">
+                  <span class="timeline-badge" style="background: rgba(48,214,181,0.12); color: var(--agent); border-color: rgba(48,214,181,0.18);">任务</span>
+                  <span class="timeline-time">15 分钟前</span>
+                </div>
+                <div class="timeline-text">收敛仪式定时器，每晚 23 点强制处理 inbox。</div>
+              </div>
+              <div class="timeline-item glass">
+                <div class="timeline-meta">
+                  <span class="timeline-badge" style="background: rgba(255,200,87,0.12); color: var(--think); border-color: rgba(255,200,87,0.18);">记忆</span>
+                  <span class="timeline-time">昨天</span>
+                </div>
+                <div class="timeline-text">自测对话临时记录，稍后整理进记忆库。</div>
+              </div>
+              <div class="timeline-item glass" style="opacity:0.5;">
+                <div class="timeline-meta"><span class="timeline-badge">提示</span></div>
+                <div class="timeline-text">在列表区域内上下滑动只滚动时间流，不会进入子页面。</div>
+              </div>
+            </div>
+
+            <div class="idea-fab" data-open="idea" title="灵感速记">
+              <svg class="icon" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            </div>
+          </div>
+
+          <!-- 设置面板遮罩 -->
+          <div class="settings-scrim" id="settings-scrim"></div>
+
+          <!-- 设置面板 -->
+          <div class="screen-content settings-screen" id="screen-settings">
+            <div class="settings-header">
+              <div class="back-btn glass"><svg class="icon-sm" viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg></div>
+              <div class="settings-title">设置</div>
+            </div>
+            <div class="settings-hint">← 右滑返回</div>
+            <div class="settings-user-card glass">
+              <div class="user-avatar-large">L</div>
+              <div class="user-info">
+                <div class="user-name">管理员</div>
+                <div class="user-role">admin · LynnHub</div>
+              </div>
+            </div>
+            <div class="settings-list">
+              <div class="settings-section-title">AI & Agent</div>
+              <div class="settings-row glass-sm">
+                <div class="settings-row-icon"><svg class="icon-sm" viewBox="0 0 24 24"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg></div>
+                <div class="settings-row-text"><div class="settings-row-label">AI Key</div><div class="settings-row-value">DeepSeek 默认</div></div>
+                <div class="settings-row-arrow">›</div>
+              </div>
+              <div class="settings-row glass-sm">
+                <div class="settings-row-icon"><svg class="icon-sm" viewBox="0 0 24 24"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg></div>
+                <div class="settings-row-text"><div class="settings-row-label">已配对设备</div><div class="settings-row-value">1 台在线</div></div>
+                <div class="settings-row-arrow">›</div>
+              </div>
+
+              <div class="settings-section-title">数据</div>
+              <div class="settings-row glass-sm">
+                <div class="settings-row-icon"><svg class="icon-sm" viewBox="0 0 24 24"><path d="M12 2a10 10 0 1 0 10 10A10 10 0 0 0 12 2zm0 18a8 8 0 1 1 8-8 8 8 0 0 1-8 8z"/><path d="M12 6v6l4 2"/></svg></div>
+                <div class="settings-row-text"><div class="settings-row-label">记忆节点</div><div class="settings-row-value">128 条</div></div>
+                <div class="settings-row-arrow">›</div>
+              </div>
+              <div class="settings-row glass-sm">
+                <div class="settings-row-icon"><svg class="icon-sm" viewBox="0 0 24 24"><path d="M12 2a10 10 0 1 0 10 10A10 10 0 0 0 12 2zm0 18a8 8 0 1 1 8-8 8 8 0 0 1-8 8z"/><circle cx="12" cy="12" r="3"/></svg></div>
+                <div class="settings-row-text"><div class="settings-row-label">认知分类</div><div class="settings-row-value">12 个分类</div></div>
+                <div class="settings-row-arrow">›</div>
+              </div>
+
+              <div class="settings-section-title">系统</div>
+              <div class="settings-row glass-sm">
+                <div class="settings-row-icon"><svg class="icon-sm" viewBox="0 0 24 24"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg></div>
+                <div class="settings-row-text"><div class="settings-row-label">通知</div><div class="settings-row-value">已开启</div></div>
+                <div class="settings-row-arrow">›</div>
+              </div>
+              <div class="settings-row glass-sm">
+                <div class="settings-row-icon"><svg class="icon-sm" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg></div>
+                <div class="settings-row-text"><div class="settings-row-label">检查更新</div><div class="settings-row-value">v0.1.0</div></div>
+                <div class="settings-row-arrow">›</div>
+              </div>
+
+              <div class="settings-logout glass-sm">退出登录</div>
+            </div>
+          </div>
+
+          <!-- 通话界面 -->
+          <div class="screen-content call-screen" id="screen-call">
+            <div class="call-visual">
+              <div class="call-wave"></div>
+              <div class="call-wave"></div>
+              <div class="call-wave"></div>
+              <div class="call-avatar">L</div>
+            </div>
+            <div class="call-status-pill">Lynx 正在聆听</div>
+            <div class="call-timer">00:24</div>
+            <div class="call-summary glass pill">你可以对我说：整理灵感、跑巡检、生成日报…</div>
+            <div class="call-controls">
+              <div class="call-btn active" title="打断"><svg class="icon" viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12" rx="2"/></svg></div>
+              <div class="call-btn end" title="挂断"><svg class="icon" viewBox="0 0 24 24"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg></div>
+            </div>
+            <div class="call-hint">轻触打断 · 点击红色按钮挂断</div>
+          </div>
+
+          <!-- 灵感速记 -->
+          <div class="screen-content panel-screen" id="screen-idea">
+            <div class="panel-header">
+              <div class="back-btn glass"><svg class="icon-sm" viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg></div>
+              <div class="panel-title">灵感速记</div>
+            </div>
+            <div class="panel-content">
+              <textarea class="idea-input" placeholder="想到什么就写下来…"></textarea>
+              <div class="idea-tags">
+                <div class="idea-tag active">灵感</div>
+                <div class="idea-tag">任务</div>
+                <div class="idea-tag">记忆</div>
+                <div class="idea-tag">对话</div>
+              </div>
+              <button class="submit-btn">保存灵感</button>
+            </div>
+          </div>
+
+          <!-- 任务视图 -->
+          <div class="screen-content panel-screen" id="screen-tasks">
+            <div class="panel-header">
+              <div class="panel-title">任务</div>
+              <div class="avatar" data-open="settings">L</div>
+            </div>
+            <div class="panel-content">
+              <div class="task-tabs glass-sm pill">
+                <div class="task-tab active">进行中</div>
+                <div class="task-tab">已完成</div>
+              </div>
+              <div class="task-item glass-sm">
+                <div class="task-check"></div>
+                <div class="task-text">
+                  <div class="task-title">收敛仪式定时器，每晚 23 点强制处理 inbox</div>
+                  <div class="task-meta"><span>6-14</span><span>高优先级</span></div>
+                </div>
+                <div class="task-priority" style="background: var(--danger);"></div>
+              </div>
+              <div class="task-item glass-sm">
+                <div class="task-check"></div>
+                <div class="task-text">
+                  <div class="task-title">冒烟测试新任务流程</div>
+                  <div class="task-meta"><span>3 天前</span><span>中优先级</span></div>
+                </div>
+                <div class="task-priority" style="background: var(--think);"></div>
+              </div>
+              <div class="task-item glass-sm">
+                <div class="task-check"></div>
+                <div class="task-text">
+                  <div class="task-title">整理记忆库中的重复节点</div>
+                  <div class="task-meta"><span>昨天</span><span>低优先级</span></div>
+                </div>
+                <div class="task-priority" style="background: var(--agent);"></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Lynx 助理 -->
+          <div class="screen-content assistant-screen" id="screen-assistant">
+            <div class="assistant-header">
+              <div class="assistant-title">Lynx Agent</div>
+              <div class="assistant-header-right">
+                <div class="assistant-status"><span class="assistant-status-dot"></span>在线</div>
+                <div class="avatar" data-open="settings">L</div>
+              </div>
+            </div>
+            <div class="chat-messages">
+              <div class="chat-bubble agent">早上好 Lynn，我已同步完今天的任务和记忆。需要我帮你生成日报吗？</div>
+              <div class="chat-bubble user">先整理一下昨晚的灵感</div>
+              <div class="chat-bubble agent">已为你归类出 3 条灵感：1 条可转任务，2 条建议归档到记忆库。</div>
+              <div class="chat-bubble user" style="margin-top:6px;">把第一条转成任务</div>
+            </div>
+            <div class="chat-input-bar glass pill">
+              <input class="chat-input" placeholder="发消息给 Lynx Agent…">
+              <div class="chat-voice-btn"><svg class="icon-sm" viewBox="0 0 24 24"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg></div>
+              <div class="chat-send-btn"><svg class="icon-sm" viewBox="0 0 24 24"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg></div>
+            </div>
+          </div>
+
+          <!-- 记忆 -->
+          <div class="screen-content memory-screen" id="screen-memory">
+            <div class="memory-header">
+              <div class="memory-title">记忆</div>
+              <div class="avatar" data-open="settings">L</div>
+            </div>
+            <div class="memory-search glass-sm">
+              <svg class="icon-sm" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+              <input placeholder="搜索记忆节点…">
+            </div>
+            <div class="memory-tags">
+              <div class="memory-tag active">全部</div>
+              <div class="memory-tag">认知</div>
+              <div class="memory-tag">任务</div>
+              <div class="memory-tag">灵感</div>
+              <div class="memory-tag">对话</div>
+            </div>
+            <div class="memory-list">
+              <div class="memory-card glass-sm">
+                <div class="memory-card-title">团队级 AI 公共空间</div>
+                <div class="memory-card-text">系统化收集和归档每个成员的工作成果，避免信息散落在个人聊天记录中。</div>
+                <div class="memory-card-meta"><span class="memory-card-dot"></span><span>认知</span><span>2 分钟前</span></div>
+              </div>
+              <div class="memory-card glass-sm">
+                <div class="memory-card-title">收敛仪式定时器</div>
+                <div class="memory-card-text">每晚 23 点强制处理 inbox，把临时收集的灵感与任务归位。</div>
+                <div class="memory-card-meta"><span class="memory-card-dot" style="background:var(--agent);"></span><span>任务</span><span>15 分钟前</span></div>
+              </div>
+              <div class="memory-card glass-sm">
+                <div class="memory-card-title">自测对话临时记录</div>
+                <div class="memory-card-text">Lynx Agent 关于日报生成的建议片段，稍后整理进记忆库。</div>
+                <div class="memory-card-meta"><span class="memory-card-dot" style="background:var(--think);"></span><span>对话</span><span>昨天</span></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 全局底部 Dock -->
+          <div class="core-dock glass pill">
+            <div class="dock-item active" data-open="home">
+              <svg class="icon" viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+              <span class="dock-label">首页</span>
+            </div>
+            <div class="dock-item" data-open="assistant">
+              <svg class="icon" viewBox="0 0 24 24"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>
+              <span class="dock-label">Lynx助理</span>
+            </div>
+            <div class="dock-item" data-open="tasks">
+              <svg class="icon" viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+              <span class="dock-label">任务</span>
+            </div>
+            <div class="dock-item" data-open="memory">
+              <svg class="icon" viewBox="0 0 24 24"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg>
+              <span class="dock-label">记忆</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="specs-card glass">
+        <div class="specs-title">设计语言</div>
+        <div class="color-row">
+          <div class="color-swatch" style="background: #02040c;"></div>
+          <div class="color-name">深邃背景 Void</div>
+          <div class="color-hex">#02040c</div>
+        </div>
+        <div class="color-row">
+          <div class="color-swatch" style="background: #4B9FFF;"></div>
+          <div class="color-name">品牌蓝 Primary</div>
+          <div class="color-hex">#4B9FFF</div>
+        </div>
+        <div class="color-row">
+          <div class="color-swatch" style="background: #30D6B5;"></div>
+          <div class="color-name">Agent 青</div>
+          <div class="color-hex">#30D6B5</div>
+        </div>
+        <div class="color-row">
+          <div class="color-swatch" style="background: #FFC857;"></div>
+          <div class="color-name">Think 琥珀</div>
+          <div class="color-hex">#FFC857</div>
+        </div>
+        <div class="color-row">
+          <div class="color-swatch" style="background: #FF5A5A;"></div>
+          <div class="color-name">危险红 Danger</div>
+          <div class="color-hex">#FF5A5A</div>
+        </div>
+        <div style="margin-top: 14px;">
+          <span class="feature-pill">液态玻璃</span>
+          <span class="feature-pill">毛玻璃模糊</span>
+          <span class="feature-pill">高光边缘</span>
+          <span class="feature-pill">药丸圆角</span>
+          <span class="feature-pill">Dock 入口</span>
+          <span class="feature-pill">按压动效</span>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <script>
+    // 根据当前时间动态更新问候语
+    (function updateGreeting() {
+      const hour = new Date().getHours();
+      let text = '早上好';
+      if (hour >= 11 && hour < 13) text = '中午好';
+      else if (hour >= 13 && hour < 18) text = '下午好';
+      else if (hour >= 18 || hour < 5) text = '晚上好';
+      const el = document.querySelector('.home-greeting');
+      if (el) el.textContent = text + '，Lynn';
+    })();
+
+    const navItems = document.querySelectorAll('.nav-item');
+    const screens = document.querySelectorAll('.screen-content');
+    const pageTitle = document.getElementById('page-title');
+    const pageDesc = document.getElementById('page-desc');
+    const dockItems = document.querySelectorAll('.dock-item');
+    const settingsScrim = document.getElementById('settings-scrim');
+    const coreDock = document.querySelector('.core-dock');
+    const corePages = ['home', 'assistant', 'tasks', 'memory'];
+
+    const descriptions = {
+      home: {
+        title: '首页 Home',
+        desc: '深邃星空蓝背景中央悬浮液态呼吸球；左上角显示时间问候；右上角头像进入设置；右下角 FAB 唤起灵感速记；底部 Dock 切换核心页面。'
+      },
+      settings: {
+        title: '设置面板 Settings',
+        desc: '从右侧滑入的展开面板（宽度 88%，非全屏），用户卡片与列表行均使用液态玻璃材质，分组清晰且保持通透感。'
+      },
+      call: {
+        title: '全双工通话 Call',
+        desc: '中央三层液态波纹 + 头像，底部仅保留「打断」与「挂断」两个控制按钮，极简操作。'
+      },
+      idea: {
+        title: '灵感速记 IdeaPanel',
+        desc: '上滑从底部进入的浮层，大面积玻璃输入框 + 胶囊标签 + 渐变主按钮。'
+      },
+      tasks: {
+        title: '任务 Tasks',
+        desc: '底部 Dock 切换的核心页面之一，药丸形 Tab 切换 + 玻璃任务卡片 + 优先级光点。'
+      },
+      assistant: {
+        title: 'Lynx 助理',
+        desc: '与 Lynx Agent 的聊天界面，玻璃气泡 + 底部输入框 + 语音输入入口。'
+      },
+      memory: {
+        title: '记忆 Memory',
+        desc: '个人记忆库浏览页，搜索栏 + 分类标签 + 玻璃记忆卡片。'
+      }
+    };
+
+    function updateDock(screenId) {
+      dockItems.forEach(d => {
+        d.classList.toggle('active', d.dataset.open === screenId);
+      });
+    }
+
+    function switchScreen(screenId) {
+      navItems.forEach(n => n.classList.remove('active'));
+      const nav = document.querySelector(`.nav-item[data-screen="${screenId}"]`);
+      if (nav) nav.classList.add('active');
+      screens.forEach(s => s.classList.remove('active'));
+      document.getElementById('screen-' + screenId).classList.add('active');
+      pageTitle.textContent = descriptions[screenId].title;
+      pageDesc.textContent = descriptions[screenId].desc;
+      updateDock(screenId);
+      // 设置面板遮罩联动
+      if (settingsScrim) {
+        settingsScrim.classList.toggle('active', screenId === 'settings');
+      }
+      // 子页面隐藏 Dock，核心页面显示 Dock
+      if (coreDock) {
+        coreDock.classList.toggle('hidden', !corePages.includes(screenId));
+      }
+    }
+
+    navItems.forEach(item => {
+      item.addEventListener('click', () => switchScreen(item.dataset.screen));
+    });
+
+    dockItems.forEach(item => {
+      item.addEventListener('click', () => switchScreen(item.dataset.open));
+    });
+
+    // 子页面返回按钮统一回到首页
+    document.querySelectorAll('.back-btn').forEach(btn => {
+      btn.addEventListener('click', () => switchScreen('home'));
+    });
+
+    // 设置面板遮罩点击关闭
+    if (settingsScrim) {
+      settingsScrim.addEventListener('click', () => switchScreen('home'));
+    }
+
+    // 首页头像进入设置，右下角 FAB 唤起灵感速记
+    document.querySelectorAll('[data-open]').forEach(el => {
+      if (el.classList.contains('dock-item')) return;
+      el.addEventListener('click', () => switchScreen(el.dataset.open));
+    });
+
+    // 灵感速记面板下滑返回
+    const ideaScreen = document.getElementById('screen-idea');
+    let ideaStartY = 0;
+    let ideaEndY = 0;
+    function handleIdeaSwipe() {
+      if (!ideaScreen || !ideaScreen.classList.contains('active')) return;
+      const diff = ideaEndY - ideaStartY;
+      if (diff > 80) switchScreen('home');
+    }
+    if (ideaScreen) {
+      ideaScreen.addEventListener('touchstart', e => {
+        ideaStartY = e.changedTouches[0].screenY;
+      }, { passive: true });
+      ideaScreen.addEventListener('touchend', e => {
+        ideaEndY = e.changedTouches[0].screenY;
+        handleIdeaSwipe();
+      }, { passive: true });
+      ideaScreen.addEventListener('mousedown', e => { ideaStartY = e.screenY; });
+      ideaScreen.addEventListener('mouseup', e => {
+        ideaEndY = e.screenY;
+        handleIdeaSwipe();
+      });
+    }
+
+    // 四个核心页面左右滑动切换（兼容触摸与鼠标拖拽）
+    const phoneScreen = document.querySelector('.phone-screen');
+    let startX = 0;
+    let endX = 0;
+    let isDragging = false;
+    const swipeThreshold = 60;
+
+    function getCurrentCoreIndex() {
+      return corePages.findIndex(p => document.getElementById('screen-' + p).classList.contains('active'));
+    }
+
+    function handleHorizontalSwipe() {
+      const idx = getCurrentCoreIndex();
+      if (idx === -1) return;
+      const diff = endX - startX;
+      if (Math.abs(diff) < swipeThreshold) return;
+      if (diff < 0 && idx < corePages.length - 1) {
+        switchScreen(corePages[idx + 1]); // 左滑下一页
+      } else if (diff > 0 && idx > 0) {
+        switchScreen(corePages[idx - 1]); // 右滑上一页
+      }
+    }
+
+    if (phoneScreen) {
+      phoneScreen.addEventListener('touchstart', e => {
+        startX = e.changedTouches[0].screenX;
+      }, { passive: true });
+      phoneScreen.addEventListener('touchend', e => {
+        endX = e.changedTouches[0].screenX;
+        handleHorizontalSwipe();
+      }, { passive: true });
+
+      phoneScreen.addEventListener('mousedown', e => {
+        isDragging = true;
+        startX = e.screenX;
+      });
+      phoneScreen.addEventListener('mousemove', e => {
+        if (!isDragging) return;
+        endX = e.screenX;
+      });
+      phoneScreen.addEventListener('mouseup', () => {
+        if (!isDragging) return;
+        isDragging = false;
+        handleHorizontalSwipe();
+      });
+      phoneScreen.addEventListener('mouseleave', () => {
+        isDragging = false;
+      });
+    }
+  </script>
+</body>
+</html>
