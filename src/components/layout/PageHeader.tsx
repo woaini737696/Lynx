@@ -83,15 +83,15 @@ export function Button({
 }) {
   const variants = {
     primary:
-      "btn-primary-glass focus:ring-primary/30",
+      "btn-primary text-primary-foreground focus:ring-primary/30",
     secondary:
-      "glass-btn text-secondary-foreground hover:bg-secondary/80 focus:ring-secondary/30",
+      "btn-glass text-secondary-foreground hover:text-primary focus:ring-primary/20",
     ghost:
-      "glass-btn bg-transparent text-muted-foreground hover:bg-muted/60 hover:text-foreground focus:ring-muted border-transparent",
+      "ios-glass-sm bg-transparent text-muted-foreground hover:bg-primary/10 hover:text-primary focus:ring-primary/20 border-transparent",
     danger:
       "btn-danger-glass focus:ring-destructive/30",
     outline:
-      "glass-btn border border-border/60 bg-card/50 text-foreground hover:bg-muted/70 hover:border-foreground/30 focus:ring-muted",
+      "btn-glass text-foreground hover:text-primary focus:ring-primary/20",
   };
   const sizes = {
     sm: "px-3 py-1.5 text-[11px] gap-1",
@@ -169,7 +169,7 @@ export function Badge({
     task: "bg-task/10 text-task border-task/20",
     graveyard: "bg-graveyard/10 text-graveyard border-graveyard/20",
     cognition: "bg-cognition/10 text-cognition border-cognition/20",
-    default: "bg-muted text-muted-foreground border-border",
+    default: "ios-glass-sm text-muted-foreground border-border/60",
   };
   return (
     <span

@@ -304,7 +304,7 @@ export function DesktopHermesSection() {
               <Wifi className="h-2.5 w-2.5" /> 云端已连接
             </span>
           ) : (
-            <span className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-[10px] text-muted-foreground">
+            <span className="ios-glass-sm inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] text-muted-foreground">
               <WifiOff className="h-2.5 w-2.5" /> 云端未连接
             </span>
           )}
@@ -312,7 +312,7 @@ export function DesktopHermesSection() {
         <button
           type="button"
           onClick={() => setShowSafetyModal(true)}
-          className="inline-flex items-center gap-1 rounded-md border border-northstar/30 bg-northstar/5 px-2 py-1 text-[11px] text-northstar transition-colors hover:bg-northstar/10"
+          className="btn-glass inline-flex items-center gap-1 rounded-md px-2 py-1 text-[11px] text-northstar transition-colors hover:text-northstar"
           title="查看安全操作说明"
         >
           <BookOpen className="h-3 w-3" /> 安全操作说明
@@ -326,7 +326,7 @@ export function DesktopHermesSection() {
       ) : (
         <div className="space-y-4">
           {/* 环境检测与一键安装 */}
-          <div className="rounded-md border border-border/60 bg-muted/20 p-3">
+          <div className="glass-card rounded-xl p-3">
             <div className="mb-2 flex items-center justify-between">
               <div className="text-xs font-medium text-foreground">AI 环境检测</div>
               <Button size="sm" variant="outline" onClick={handleInstall} disabled={installing} className="gap-1.5">
@@ -356,14 +356,14 @@ export function DesktopHermesSection() {
 
             {/* 安装进度 */}
             {installing && installProgress && (
-              <div className="mt-3 rounded-md border border-northstar/30 bg-northstar/5 p-2">
+              <div className="ios-glass-sm mt-3 rounded-xl border-northstar/30 p-2">
                 <div className="mb-1 flex items-center justify-between text-[11px]">
                   <span className="text-foreground">
                     步骤 {installProgress.step}/{installProgress.total}：{installProgress.message}
                   </span>
                   <span className="text-northstar">{installProgress.percent}%</span>
                 </div>
-                <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
+                <div className="h-1.5 w-full overflow-hidden rounded-full bg-background/50">
                   <div
                     className="h-full bg-northstar transition-all duration-300"
                     style={{ width: `${installProgress.percent}%` }}
@@ -374,7 +374,7 @@ export function DesktopHermesSection() {
           </div>
 
           {/* HermesAgent 进程控制 */}
-          <div className="rounded-md border border-border/60 bg-muted/20 p-3">
+          <div className="glass-card rounded-xl p-3">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2 text-xs">
                 <span className={`h-2 w-2 rounded-full ${hasToken ? "bg-green-500" : "bg-gray-400"}`} />
@@ -414,7 +414,7 @@ export function DesktopHermesSection() {
           </div>
 
           {/* 三档授权模式切换器 */}
-          <div className="rounded-md border border-border/60 bg-muted/20 p-3">
+          <div className="glass-card rounded-xl p-3">
             <div className="mb-2 flex items-center gap-2">
               <ShieldCheck className="h-3.5 w-3.5 text-northstar" />
               <span className="text-xs font-medium text-foreground">授权模式（仿 Codex）</span>
@@ -426,10 +426,10 @@ export function DesktopHermesSection() {
                   key={m.value}
                   type="button"
                   onClick={() => handleAuthModeChange(m.value)}
-                  className={`flex flex-col items-start gap-1 rounded-md border p-2.5 text-left transition-colors ${
+                  className={`flex flex-col items-start gap-1 rounded-xl border p-2.5 text-left transition-colors ${
                     currentMode === m.value
                       ? "border-northstar/50 bg-northstar/10"
-                      : "border-border/40 bg-background hover:border-northstar/30"
+                      : "ios-glass-sm border-border/40 hover:border-northstar/30"
                   }`}
                 >
                   <div className={`flex items-center gap-1.5 ${currentMode === m.value ? "text-northstar" : m.color}`}>
@@ -443,7 +443,7 @@ export function DesktopHermesSection() {
           </div>
 
           {/* 授权目录管理 */}
-          <div className="rounded-md border border-border/60 bg-muted/20 p-3">
+          <div className="glass-card rounded-xl p-3">
             <div className="mb-2 flex items-center gap-2">
               <FolderPlus className="h-3.5 w-3.5 text-campaign" />
               <span className="text-xs font-medium text-foreground">授权目录白名单</span>
@@ -455,7 +455,7 @@ export function DesktopHermesSection() {
                 value={newDir}
                 onChange={(e) => setNewDir(e.target.value)}
                 placeholder="输入绝对路径，如 D:\LynnHub\user-data"
-                className="flex-1 rounded-md border border-border/60 bg-background px-3 py-1.5 text-xs"
+                className="ios-glass-sm flex-1 rounded-xl px-3 py-1.5 text-xs outline-none focus:ring-2 focus:ring-primary/20"
                 onKeyDown={(e) => {
                   if (e.key === "Enter") handleAddDir();
                 }}
@@ -471,7 +471,7 @@ export function DesktopHermesSection() {
                 {authorizedDirs.map((dir) => (
                   <div
                     key={dir}
-                    className="flex items-center justify-between rounded-md border border-border/40 bg-background px-2 py-1.5"
+                    className="ios-glass-sm flex items-center justify-between rounded-xl px-2 py-1.5"
                   >
                     <span className="truncate text-[11px] text-foreground" title={dir}>
                       {dir}
@@ -479,7 +479,7 @@ export function DesktopHermesSection() {
                     <button
                       type="button"
                       onClick={() => handleRemoveDir(dir)}
-                      className="shrink-0 rounded p-1 text-muted-foreground hover:bg-red-50 hover:text-red-500"
+                      className="shrink-0 rounded p-1 text-muted-foreground hover:bg-red-500/10 hover:text-red-500"
                       title="移除"
                     >
                       <FolderX className="h-3 w-3" />
@@ -491,7 +491,7 @@ export function DesktopHermesSection() {
           </div>
 
           {/* 紧急停止说明 */}
-          <div className="flex items-start gap-2 rounded-md border border-red-300/30 bg-red-50/40 p-2.5 text-[11px] text-red-700">
+          <div className="ios-glass-sm flex items-start gap-2 rounded-xl border-red-300/30 p-2.5 text-[11px] text-red-700">
             <AlertTriangle className="mt-0.5 h-3 w-3 shrink-0" />
             <div>
               <span className="font-medium">紧急停止：</span>
@@ -557,7 +557,7 @@ function SafetyGuideModal({ open, onClose }: { open: boolean; onClose: () => voi
           </h4>
           <p className="pl-5 text-muted-foreground">
             AI 助理仅能读写「授权目录」内的文件。默认授权目录为
-            <code className="mx-1 rounded bg-muted px-1 py-0.5 text-[10px]">D:\LynnHub\user-data\</code>
+            <code className="ios-glass-sm mx-1 rounded px-1 py-0.5 text-[10px]">D:\LynnHub\user-data\</code>
             ，可在此页面添加或移除。授权目录之外的路径一律拒绝访问。
           </p>
         </section>
@@ -582,13 +582,13 @@ function SafetyGuideModal({ open, onClose }: { open: boolean; onClose: () => voi
           </p>
         </section>
 
-        <section className="rounded-md border border-border/60 bg-muted/30 p-2.5">
+        <section className="glass-card rounded-xl p-2.5">
           <h4 className="mb-1.5 font-semibold text-foreground">数据安全承诺</h4>
           <ul className="space-y-1 pl-5 text-muted-foreground">
             <li>• 所有本地操作在你的电脑上执行，文件内容不上传云端</li>
             <li>• 仅指令文本和执行结果摘要通过 WS 回传到云端（用于多端协同）</li>
             <li>• LLM 调用走你配置的 API Key（DeepSeek / MiMo），不经过中间服务器</li>
-            <li>• Lynx Agent profile 存储在 <code className="rounded bg-muted px-1">D:\LynnHub\.lynnhub\hermes-profiles\</code> 完全本地化</li>
+            <li>• Lynx Agent profile 存储在 <code className="ios-glass-sm rounded px-1 py-0.5">D:\LynnHub\.lynnhub\hermes-profiles\</code> 完全本地化</li>
           </ul>
         </section>
 

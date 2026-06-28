@@ -149,7 +149,7 @@ export default function SettingsPage() {
         <Row label="模型" value={settings.ai.chatModel} />
         <Row label="Base URL" value={settings.ai.chatBaseURL} />
         {!settings.ai.chatProvider && (
-          <div className="mt-3 rounded-md border border-graveyard/30 bg-graveyard/5 p-3 text-xs text-graveyard">
+          <div className="ios-glass-sm mt-3 rounded-xl border-graveyard/30 p-3 text-xs text-graveyard">
             ⚠️ 未配置 LLM API Key（DEEPSEEK_API_KEY / MIMO_API_KEY / AI_API_KEY），对话资产和认知库的 AI 提取会跳过。
             <br />
             配置后重启 dev server 生效。
@@ -170,7 +170,7 @@ export default function SettingsPage() {
         <Row label="模型" value={settings.ai.embeddingModel} />
         <Row label="当前模式" value={settings.ai.embeddingMode} />
         {!settings.ai.embeddingEnabled && (
-          <div className="mt-3 rounded-md border border-campaign/30 bg-campaign/5 p-3 text-xs text-campaign">
+          <div className="ios-glass-sm mt-3 rounded-xl border-campaign/30 p-3 text-xs text-campaign">
             ℹ️ 未配置 embedding，记忆图谱使用 TF-IDF 关键词匹配（可用但精度较低）。
             <br />
             配置 EMBEDDING_API_KEY 后启用向量搜索。
@@ -205,7 +205,7 @@ export default function SettingsPage() {
         <div className="space-y-3 text-xs text-muted-foreground">
           <div>
             <div className="mb-1 font-medium text-foreground">方案 B（国内推荐）：硅基流动</div>
-            <pre className="overflow-x-auto rounded-md bg-muted/30 p-2 text-[11px]">
+            <pre className="ios-glass-sm overflow-x-auto rounded-md p-2 text-[11px]">
 {`AI_BASE_URL=https://api.siliconflow.cn/v1
 AI_API_KEY=sk-你的key
 AI_MODEL=Qwen/Qwen2.5-7B-Instruct
@@ -214,7 +214,7 @@ AI_EMBEDDING_MODEL=BAAI/bge-m3`}
           </div>
           <div>
             <div className="mb-1 font-medium text-foreground">方案 A：OpenAI 官方</div>
-            <pre className="overflow-x-auto rounded-md bg-muted/30 p-2 text-[11px]">
+            <pre className="ios-glass-sm overflow-x-auto rounded-md p-2 text-[11px]">
 {`AI_BASE_URL=https://api.openai.com/v1
 AI_API_KEY=sk-你的key
 AI_MODEL=gpt-4o-mini
@@ -223,13 +223,13 @@ AI_EMBEDDING_MODEL=text-embedding-3-small`}
           </div>
           <div>
             <div className="mb-1 font-medium text-foreground">方案 C：DeepSeek（无 embedding）</div>
-            <pre className="overflow-x-auto rounded-md bg-muted/30 p-2 text-[11px]">
+            <pre className="ios-glass-sm overflow-x-auto rounded-md p-2 text-[11px]">
 {`AI_BASE_URL=https://api.deepseek.com/v1
 AI_API_KEY=sk-你的key
 AI_MODEL=deepseek-chat`}
             </pre>
           </div>
-          <div className="rounded-md bg-muted/20 p-2 text-[11px]">
+          <div className="ios-glass-sm rounded-md p-2 text-[11px]">
             配置步骤：1. 点击上方 .env 打开 → 2. 粘贴方案 → 3. 填入 Key → 4. 保存 → 5. 重启 dev server（Ctrl+C 后 npm run dev）
           </div>
         </div>
@@ -373,17 +373,17 @@ function AIConfigSection({
       </div>
 
       {/* 默认 Provider 切换 */}
-      <div className="mb-5 rounded-xl border border-border bg-muted/20 p-3">
+      <div className="mb-5 ios-glass-sm rounded-xl p-3">
         <div className="mb-2 text-[11px] font-medium text-foreground">默认对话 Provider</div>
         <div className="flex gap-2">
           {(["deepseek", "mimo"] as const).map((p) => (
             <button
               key={p}
               onClick={() => setDefaultProvider(p)}
-              className={`rounded-lg border px-3 py-1.5 text-xs font-medium transition-all ${
+              className={`rounded-lg px-3 py-1.5 text-xs font-medium transition-all ${
                 defaultProvider === p
-                  ? "border-northstar bg-northstar/10 text-northstar"
-                  : "border-border bg-transparent text-muted-foreground hover:bg-muted"
+                  ? "border border-northstar bg-northstar/10 text-northstar"
+                  : "ios-glass-sm border-border/60 text-muted-foreground hover:border-primary/30 hover:text-primary"
               }`}
             >
               {p === "deepseek" ? "DeepSeek" : "小米 MiMo"}
@@ -450,7 +450,7 @@ function ProviderCard({
   onChange: (field: keyof ProviderForm, value: string) => void;
 }) {
   return (
-    <div className="rounded-xl border border-border bg-background/50 p-4">
+    <div className="ios-glass-sm rounded-xl p-4">
       <div className="mb-3 flex items-center justify-between">
         <div>
           <div className="text-xs font-semibold text-foreground">{fields.title}</div>
@@ -488,7 +488,7 @@ function ProviderCard({
                 ? "环境变量已配置，输入可覆盖"
                 : `输入 ${fields.title} API Key`
             }
-            className="w-full rounded-lg border border-border bg-background px-2.5 py-1.5 text-xs outline-none transition-colors focus:border-northstar"
+            className="ios-glass-sm w-full rounded-lg px-2.5 py-1.5 text-xs outline-none transition-colors focus:ring-2 focus:ring-northstar/20"
           />
         </div>
         {/* Base URL */}
@@ -499,7 +499,7 @@ function ProviderCard({
             value={form.baseUrl}
             onChange={(e) => onChange("baseUrl", e.target.value)}
             placeholder={fields.defaultBaseUrl}
-            className="w-full rounded-lg border border-border bg-background px-2.5 py-1.5 text-xs outline-none transition-colors focus:border-northstar"
+            className="ios-glass-sm w-full rounded-lg px-2.5 py-1.5 text-xs outline-none transition-colors focus:ring-2 focus:ring-northstar/20"
           />
         </div>
         {/* Model */}
@@ -510,7 +510,7 @@ function ProviderCard({
             value={form.model}
             onChange={(e) => onChange("model", e.target.value)}
             placeholder={fields.defaultModel}
-            className="w-full rounded-lg border border-border bg-background px-2.5 py-1.5 text-xs outline-none transition-colors focus:border-northstar"
+            className="ios-glass-sm w-full rounded-lg px-2.5 py-1.5 text-xs outline-none transition-colors focus:ring-2 focus:ring-northstar/20"
           />
         </div>
       </div>
