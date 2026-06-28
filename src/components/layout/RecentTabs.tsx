@@ -92,6 +92,7 @@ export function RecentTabs() {
   const [recent, setRecent] = useState<string[]>([]);
   const [displayPages, setDisplayPages] = useState<string[]>([]);
   const [prevRecent, setPrevRecent] = useState<string[]>([]);
+  const [enteringSet, setEnteringSet] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     setMounted(true);
@@ -117,6 +118,14 @@ export function RecentTabs() {
     const prevSet = new Set(prevRecent);
     const currentSet = new Set(recent);
     const removed = prevRecent.filter((p) => !currentSet.has(p));
+    const added = recent.filter((p) => !prevSet.has(p));
+
+    if (added.length > 0) {
+      setDisplayPages(recent);
+      setEnteringSet(new Set(added));
+      const t = setTimeout(() => setEnteringSet(new Set()), 350);
+      return () => clearTimeout(t);
+    }
 
     if (removed.length > 0) {
       setDisplayPages([...recent, ...removed]);
@@ -125,17 +134,12 @@ export function RecentTabs() {
         setPrevRecent(recent);
       }, 300);
       return () => clearTimeout(t);
-    } else {
-      setDisplayPages(recent);
-      if (recent.length !== prevRecent.length || !recent.every((p, i) => p === prevRecent[i])) {
-        setPrevRecent(recent);
-      }
     }
-  }, [recent, prevRecent]);
 
-  const addedSet = useMemo(() => {
-    const prevSet = new Set(prevRecent);
-    return new Set(recent.filter((p) => !prevSet.has(p)));
+    setDisplayPages(recent);
+    if (recent.length !== prevRecent.length || !recent.every((p, i) => p === prevRecent[i])) {
+      setPrevRecent(recent);
+    }
   }, [recent, prevRecent]);
 
   const leavingSet = useMemo(() => {
@@ -148,7 +152,7 @@ export function RecentTabs() {
     <div className="recent-tabs ios-glass rounded-full p-1.5 flex items-center">
       {displayPages.map((page) => {
         const isLeaving = leavingSet.has(page);
-        const isNew = addedSet.has(page);
+        const isNew = enteringSet.has(page);
         const info = getRouteInfo(page);
         const Icon = info.icon;
 

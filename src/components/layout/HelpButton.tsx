@@ -64,7 +64,7 @@ export function HelpButton({ content, contentKey, title = "使用说明" }: Help
           onClick={() => setOpen(false)}
         >
           <div
-            className="glass-card max-h-[85vh] w-full max-w-2xl overflow-y-auto rounded-2xl border border-border bg-card shadow-2xl"
+            className="glass-card max-h-[85vh] w-full max-w-2xl overflow-y-auto rounded-2xl border border-border shadow-2xl"
             onClick={(e) => e.stopPropagation()}
           >
             {/* 头部 */}
