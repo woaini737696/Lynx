@@ -1,16 +1,83 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import Image from "next/image";
 import { useLightningStore } from "@/store/lightning";
 import { ThemeToggle } from "@/components/theme/ThemeToggle";
-import { Search } from "lucide-react";
+import { Search, Download, Monitor, X, Check } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { FastLink } from "./FastLink";
+
+/** 桌面版下载引导弹窗 */
+function DesktopDownloadModal({ open, onClose }: { open: boolean; onClose: () => void }) {
+  if (!open) return null;
+  return (
+    <div
+      className="fixed inset-0 z-[100] flex items-center justify-center bg-black/30 px-4 py-6 backdrop-blur-sm"
+      role="dialog"
+      aria-modal="true"
+      onClick={onClose}
+    >
+      <div
+        className="glass-modal w-full max-w-md rounded-2xl p-6"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="mb-4 flex items-center justify-between">
+          <div className="flex items-center gap-2.5">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10">
+              <Monitor className="h-5 w-5 text-primary" />
+            </div>
+            <h3 className="text-base font-semibold text-foreground">下载 Lynx 桌面版</h3>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="关闭"
+            className="rounded-md p-1 text-muted-foreground transition-colors hover:bg-primary/10 hover:text-primary"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+
+        <div className="space-y-3">
+          <p className="text-sm text-muted-foreground">
+            Lynx 桌面版提供更流畅的原生体验，支持系统托盘、快捷键唤起和离线使用。
+          </p>
+          <div className="ios-glass-sm rounded-xl p-3">
+            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+              <Check className="h-3.5 w-3.5 text-task" />
+              <span>Windows 10/11 原生支持</span>
+            </div>
+            <div className="mt-1.5 flex items-center gap-2 text-xs text-muted-foreground">
+              <Check className="h-3.5 w-3.5 text-task" />
+              <span>自动连接本地服务，无需浏览器</span>
+            </div>
+            <div className="mt-1.5 flex items-center gap-2 text-xs text-muted-foreground">
+              <Check className="h-3.5 w-3.5 text-task" />
+              <span>深色/浅色/系统自适应主题</span>
+            </div>
+          </div>
+          <div className="flex items-center justify-between text-xs text-muted-foreground">
+            <span>版本 v1.0.7</span>
+            <span>约 6 MB</span>
+          </div>
+          <a
+            href="/desktop-native/dist/lynx_1.0.7.exe"
+            download
+            className="btn-primary flex w-full items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-medium text-primary-foreground transition-all"
+          >
+            <Download className="h-4 w-4" />
+            立即下载
+          </a>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 export function CaptureBar() {
   const { open } = useLightningStore();
   const [count, setCount] = useState(0);
+  const [showDownload, setShowDownload] = useState(false);
 
   useEffect(() => {
     let mounted = true;
@@ -36,28 +103,12 @@ export function CaptureBar() {
 
   return (
     <header className="glass-topbar sticky top-0 z-20 flex h-14 shrink-0 items-center justify-between px-4 lg:px-6">
-      {/* 左侧：Lynx Logo + 产品名 */}
-      <div className="flex items-center gap-3">
-        <FastLink
-          href="/"
-          className="flex items-center gap-3 transition-opacity hover:opacity-80"
-        >
-          <Image
-            src="/lynx-logo-black.png"
-            alt="Lynx"
-            width={36}
-            height={36}
-            className="h-9 w-9 rounded-xl shadow-md"
-          />
-          <span className="hidden text-lg font-bold tracking-tight text-foreground lg:block">
-            Lynx
-          </span>
-        </FastLink>
-      </div>
+      {/* 左侧：留空（Logo 已移至侧边栏顶部） */}
+      <div className="flex-1" />
 
-      {/* 右侧：搜索 + Inbox + 闪电输入 + 主题切换（1:1 还原 HTML：纯文字胶囊按钮） */}
+      {/* 右侧：搜索 + Inbox + 闪电输入 + 桌面下载 + 主题切换 */}
       <div className="flex items-center gap-2 sm:gap-3">
-        {/* 搜索 — 1:1 还原 ui-preview-v2.html：纯文字胶囊，⌘K 直接写 */}
+        {/* 搜索 */}
         <button
           onClick={() => window.dispatchEvent(new Event("lynnhub:open-command-palette"))}
           className="ios-glass-sm flex h-9 items-center gap-2 rounded-full px-3 text-xs font-medium text-muted-foreground transition-all hover:text-primary"
@@ -86,7 +137,7 @@ export function CaptureBar() {
           )}
         </FastLink>
 
-        {/* 闪电输入（ios-glass-sm 胶囊） */}
+        {/* 闪电输入 */}
         <button
           onClick={open}
           className="ios-glass-sm hidden h-9 items-center gap-1.5 rounded-full px-3 text-xs font-medium text-muted-foreground transition-all hover:text-primary lg:flex"
@@ -94,6 +145,17 @@ export function CaptureBar() {
         >
           <span>闪电输入</span>
           <span className="text-[10px] opacity-70">Ctrl+J</span>
+        </button>
+
+        {/* 桌面版下载引导 */}
+        <button
+          onClick={() => setShowDownload(true)}
+          className="ios-glass-sm flex h-9 items-center gap-1.5 rounded-full px-3 text-xs font-medium text-muted-foreground transition-all hover:text-primary"
+          aria-label="下载桌面版"
+          title="下载 Lynx 桌面版"
+        >
+          <Download className="h-4 w-4" />
+          <span className="hidden sm:inline">桌面版</span>
         </button>
 
         {/* 主题切换 */}
@@ -104,6 +166,8 @@ export function CaptureBar() {
           <ThemeToggle variant="icon" />
         </div>
       </div>
+
+      <DesktopDownloadModal open={showDownload} onClose={() => setShowDownload(false)} />
     </header>
   );
 }

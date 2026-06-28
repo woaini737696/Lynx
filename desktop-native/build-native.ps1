@@ -2,21 +2,22 @@ param(
     [switch]$UninstallExisting
 )
 # Lynx native desktop build script
-# 生成安装资源 -> 构建 native UI -> 编译 Rust -> NSIS 打包
-# 参数：-UninstallExisting 构建前强制卸载本地已安装版本（测试用）
+# Generate installer assets -> build native UI -> build Rust -> NSIS installer
+# Use -UninstallExisting to force uninstall previous version before build
 
 $ErrorActionPreference = "Stop"
 $root = Split-Path -Parent $MyInvocation.MyCommand.Path
 Set-Location $root
 
-$nsis = Join-Path (Split-Path -Parent $root) "Temp\NSIS\makensis.exe"
+$nsis = "$env:LOCALAPPDATA\tauri\NSIS\makensis.exe"
+if (-not (Test-Path $nsis)) { $nsis = "D:\Lynn宸ヤ綔绌洪棿\LynnHub\Temp\NSIS\makensis.exe" }
 $assetScript = Join-Path $root "..\scripts\generate-desktop-native-assets.py"
 
-# ---------- 可选：卸载本地已安装版本 ----------
+# ---------- Optional: uninstall existing version ----------
 if ($UninstallExisting) {
     Write-Host "==> Uninstalling existing Lynx (if any)..."
 
-    # 先强制关闭进程，避免卸载时文件被占用
+    # Force kill running process to avoid file lock during uninstall
     $proc = Get-Process -Name "lynnhub-desktop-native" -ErrorAction SilentlyContinue
     if ($proc) {
         Write-Host "    Stopping running Lynx process..."
@@ -36,7 +37,7 @@ if ($UninstallExisting) {
         }
     }
 
-    # 如果注册表里没有 InstallLocation，使用默认路径
+    # Fallback to default path if registry has no InstallLocation
     if (-not $instDir) {
         $instDir = "C:\Program Files\Lynx"
     }
@@ -45,7 +46,7 @@ if ($UninstallExisting) {
         Remove-Item -Recurse -Force $instDir -ErrorAction SilentlyContinue
     }
 
-    # 清理注册表残留
+    # Clean registry entries
     if (Test-Path $uninstReg) {
         Remove-Item -Path $uninstReg -Recurse -Force -ErrorAction SilentlyContinue
     }
@@ -57,12 +58,12 @@ if ($UninstallExisting) {
     Start-Sleep -Milliseconds 500
 }
 
-# ---------- 生成安装资源 ----------
+# ---------- Generate installer assets ----------
 Write-Host "==> Generating installer assets..."
 python $assetScript
 if ($LASTEXITCODE -ne 0) { throw "Asset generation failed" }
 
-# ---------- 清理并构建 native UI ----------
+# ---------- Build frontend native UI ----------
 Write-Host "==> Cleaning old web assets..."
 $outDir = Join-Path $root "out"
 if (Test-Path $outDir) {
@@ -70,10 +71,11 @@ if (Test-Path $outDir) {
 }
 
 Write-Host "==> Building native UI..."
-npm run frontend:build
-if ($LASTEXITCODE -ne 0) { throw "Frontend build failed" }
+# Use Start-Process to avoid PowerShell NativeCommandError on stderr
+$npmProc = Start-Process -FilePath "npm.cmd" -ArgumentList "run","frontend:build" -NoNewWindow -Wait -PassThru -RedirectStandardOutput "npm-stdout.log" -RedirectStandardError "npm-stderr.log"
+if ($npmProc.ExitCode -ne 0) { throw "Frontend build failed" }
 
-# 确认 out/app 存在
+# Verify out/app exists
 $appDir = Join-Path $outDir "app"
 $appIndex = Join-Path $appDir "index.html"
 if (-not (Test-Path $appIndex)) {
@@ -81,7 +83,7 @@ if (-not (Test-Path $appIndex)) {
 }
 Write-Host "==> Native UI ready: $appIndex"
 
-# ---------- 复制前端资源到 src-tauri/out/app（供 build.rs 校验 frontendDist） ----------
+# ---------- Stage frontend assets to src-tauri/out/app (build.rs reads frontendDist) ----------
 Write-Host "==> Staging frontend assets for Rust build..."
 $tauriOutDir = Join-Path $root "src-tauri\out\app"
 if (Test-Path $tauriOutDir) {
@@ -91,17 +93,18 @@ New-Item -ItemType Directory -Path $tauriOutDir -Force | Out-Null
 Copy-Item -Path "$appDir\*" -Destination $tauriOutDir -Recurse -Force
 Write-Host "==> Frontend assets staged at: $tauriOutDir"
 
-# ---------- 编译 Rust binary ----------
+# ---------- Build Rust binary ----------
 Write-Host "==> Building Rust binary..."
 Push-Location (Join-Path $root "src-tauri")
 try {
-    cargo build --release
-    if ($LASTEXITCODE -ne 0) { throw "Rust build failed" }
+    # Use Start-Process to avoid PowerShell NativeCommandError on stderr
+    $cargoProc = Start-Process -FilePath "cargo.exe" -ArgumentList "build","--release" -NoNewWindow -Wait -PassThru -RedirectStandardOutput "cargo-stdout.log" -RedirectStandardError "cargo-stderr.log"
+    if ($cargoProc.ExitCode -ne 0) { throw "Rust build failed" }
 } finally {
     Pop-Location
 }
 
-# 将二进制复制到固定位置，供 NSIS 打包
+# Copy binary to fixed location for NSIS packaging
 $here = (Get-Location).Path
 $binDir = Join-Path $here "bin"
 New-Item -ItemType Directory -Path $binDir -Force | Out-Null
@@ -111,14 +114,15 @@ if (-not (Test-Path $builtExe)) { throw "Built binary not found at $builtExe" }
 Copy-Item -Path $builtExe -Destination $binExe -Force
 Write-Host "==> Binary staged: $binExe"
 
-# ---------- 编译 NSIS 安装包 ----------
+# ---------- Build NSIS installer ----------
 Write-Host "==> Compiling NSIS installer..."
 $distDir = Join-Path $root "dist"
 New-Item -ItemType Directory -Path $distDir -Force | Out-Null
-& $nsis /INPUTCHARSET UTF8 installer.nsi
-if ($LASTEXITCODE -ne 0) { throw "NSIS compile failed" }
+# Use Start-Process to avoid PowerShell NativeCommandError on stderr
+$nsisProc = Start-Process -FilePath $nsis -ArgumentList "/INPUTCHARSET UTF8","installer.nsi" -NoNewWindow -Wait -PassThru -RedirectStandardOutput "nsis-stdout.log" -RedirectStandardError "nsis-stderr.log"
+if ($nsisProc.ExitCode -ne 0) { throw "NSIS compile failed" }
 
-$exe = Join-Path $root "dist\lynx_1.0.0.exe"
+$exe = Join-Path $root "dist\lynx_1.0.5.exe"
 if (Test-Path $exe) {
     $size = (Get-Item $exe).Length
     Write-Host "==> Installer ready: $exe ($size bytes)"

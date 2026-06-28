@@ -522,7 +522,7 @@ export default function RolesPage() {
           onClick={() => setDeleteTarget(null)}
         >
           <div
-            className="w-full max-w-sm rounded-2xl glass-card p-6 shadow-2xl"
+            className="w-full max-w-sm rounded-2xl glass-modal p-6"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="mb-4 flex items-center gap-3">

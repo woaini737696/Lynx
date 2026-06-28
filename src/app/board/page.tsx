@@ -346,7 +346,7 @@ export default function BoardPage() {
             ) : null}
             <Link
               href="/board/trash"
-              className="inline-flex items-center justify-center gap-1.5 rounded-xl glass-card px-3 py-1.5 text-[11px] font-medium text-foreground transition-all hover:bg-muted hover:border-foreground/30 focus:outline-none focus:ring-2 focus:ring-muted active:scale-[0.97]"
+              className="inline-flex items-center justify-center gap-1.5 rounded-xl glass-card px-3 py-1.5 text-[11px] font-medium text-foreground transition-all hover:bg-primary/10 hover:border-foreground/30 focus:outline-none focus:ring-2 focus:ring-muted active:scale-[0.97]"
               title="回收站"
             >
               <Trash2 className="h-3.5 w-3.5" />
@@ -393,7 +393,7 @@ export default function BoardPage() {
                       setError(null);
                     }}
                     disabled={isFull}
-                    className="flex h-7 w-7 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:opacity-40"
+                    className="flex h-7 w-7 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-primary/10 hover:text-foreground disabled:opacity-40"
                   >
                     <Plus className="h-3.5 w-3.5" />
                   </button>
@@ -478,7 +478,7 @@ export default function BoardPage() {
       <Card className="mt-4 p-0">
         <button
           onClick={() => setShowDone((v) => !v)}
-          className="flex w-full items-center justify-between border-b border-border px-4 py-3 text-left transition-colors hover:bg-muted/30"
+          className="flex w-full items-center justify-between border-b border-border px-4 py-3 text-left transition-colors hover:bg-primary/10"
         >
           <div className="flex items-center gap-2">
             {showDone ? (
@@ -549,7 +549,7 @@ export default function BoardPage() {
 
       {/* 认知确认弹窗：任务完成时 AI 提取认知，用户确认后入库 */}
       {cognitionModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4 backdrop-blur-sm">
           <Card className="w-full max-w-2xl">
             <div className="mb-4 flex items-center justify-between">
               <div className="flex items-center gap-2">

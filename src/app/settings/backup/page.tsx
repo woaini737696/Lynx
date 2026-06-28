@@ -264,7 +264,7 @@ export default function BackupPage() {
                     "flex cursor-pointer items-center gap-2 rounded-lg border p-2.5 text-xs transition-colors",
                     checked
                       ? "border-northstar/40 bg-northstar/5 text-foreground"
-                      : "border-border bg-muted/20 text-muted-foreground hover:bg-muted/40"
+                      : "border-border bg-muted/20 text-muted-foreground hover:bg-primary/10"
                   )}
                 >
                   <input
