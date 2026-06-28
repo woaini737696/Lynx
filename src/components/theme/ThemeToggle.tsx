@@ -54,7 +54,7 @@ export function ThemeToggle({
   return (
     <button
       onClick={() => setTheme(next)}
-      className="inline-flex h-8 w-8 items-center justify-center rounded-xl border border-border bg-muted/60 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+      className="ios-glass-sm inline-flex h-8 w-8 items-center justify-center rounded-xl text-muted-foreground transition-colors hover:bg-primary/10 hover:text-primary"
       aria-label="切换主题"
     >
       {resolvedTheme === "dark" ? (

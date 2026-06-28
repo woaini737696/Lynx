@@ -282,7 +282,7 @@ export function LightningInput() {
           </span>
           <button
             onClick={close}
-            className="ml-auto inline-flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+            className="ml-auto inline-flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-primary/10 hover:text-primary"
             aria-label="关闭"
           >
             <X className="h-4 w-4" />
@@ -298,7 +298,7 @@ export function LightningInput() {
           disabled={status === "saving"}
           placeholder="想到什么就写什么，分类交给系统..."
           rows={4}
-          className="min-h-[110px] w-full resize-none rounded-2xl border border-border bg-background px-4 py-3 text-sm text-foreground outline-none ring-offset-background transition-all placeholder:text-muted-foreground/60 focus:border-northstar focus:ring-2 focus:ring-northstar/20 disabled:opacity-50"
+          className="ios-glass-sm min-h-[110px] w-full resize-none rounded-2xl px-4 py-3 text-sm text-foreground outline-none transition-all placeholder:text-muted-foreground/60 focus:border-northstar focus:ring-2 focus:ring-northstar/20 disabled:opacity-50"
         />
 
         {/* 附件上传区域 */}
@@ -309,7 +309,7 @@ export function LightningInput() {
               {attachments.map((att, i) => (
                 <div
                   key={i}
-                  className="group relative flex items-center gap-2 rounded-lg border border-border bg-muted/30 px-2 py-1.5"
+                  className="ios-glass-sm group relative flex items-center gap-2 rounded-lg px-2 py-1.5"
                 >
                   {att.type === "image" ? (
                     // eslint-disable-next-line @next/next/no-img-element
@@ -319,7 +319,7 @@ export function LightningInput() {
                       className="h-8 w-8 rounded object-cover"
                     />
                   ) : (
-                    <div className="flex h-8 w-8 items-center justify-center rounded bg-muted">
+                    <div className="ios-glass-sm flex h-8 w-8 items-center justify-center rounded">
                       <FileText className="h-4 w-4 text-muted-foreground" />
                     </div>
                   )}
@@ -349,7 +349,7 @@ export function LightningInput() {
               "flex items-center gap-2 rounded-xl border border-dashed px-3 py-2 transition-colors",
               dragOver
                 ? "border-northstar bg-northstar/5"
-                : "border-border/60 bg-muted/10"
+                : "border-border/60 bg-transparent"
             )}
           >
             <input
@@ -363,7 +363,7 @@ export function LightningInput() {
             <button
               onClick={handleFileInputClick}
               disabled={uploading || status === "saving"}
-              className="inline-flex items-center gap-1.5 rounded-lg px-2 py-1 text-[11px] text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:opacity-50"
+              className="inline-flex items-center gap-1.5 rounded-lg px-2 py-1 text-[11px] text-muted-foreground transition-colors hover:bg-primary/10 hover:text-primary disabled:opacity-50"
             >
               {uploading ? (
                 <>
