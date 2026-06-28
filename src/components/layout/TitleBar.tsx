@@ -50,7 +50,7 @@ export function TitleBar() {
   if (!getCurrentWindow()) return null;
 
   return (
-    <div className="glass-bar flex h-9 w-full shrink-0 select-none items-center justify-between px-2">
+    <div className="glass-topbar flex h-9 w-full shrink-0 select-none items-center justify-between px-2">
       {/* 左侧：Lynx 品牌标识（黑底白色猞猁高清 logo） */}
       <div className="flex items-center gap-2 pl-1">
         <Image
@@ -76,7 +76,7 @@ export function TitleBar() {
         <button
           type="button"
           onClick={() => windowMinimize()}
-          className="flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+          className="flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-primary/10 hover:text-primary"
           aria-label="最小化"
         >
           <Minus className="h-3.5 w-3.5" />
@@ -84,7 +84,7 @@ export function TitleBar() {
         <button
           type="button"
           onClick={() => windowToggleMaximize()}
-          className="flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+          className="flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-primary/10 hover:text-primary"
           aria-label={isMaximized ? "还原" : "最大化"}
         >
           {isMaximized ? (

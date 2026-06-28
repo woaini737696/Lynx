@@ -693,7 +693,7 @@ function QuickLink({
         "ios-glass group flex items-center gap-3 rounded-2xl p-4 transition-all hover:-translate-y-0.5 hover:shadow-md"
       )}
     >
-      <div className={cn("flex h-10 w-10 items-center justify-center rounded-xl bg-muted/50", color)}>
+      <div className={cn("ios-glass-sm flex h-10 w-10 items-center justify-center rounded-xl", color)}>
         <Icon className="h-5 w-5" />
       </div>
       <div className="flex-1">
@@ -790,7 +790,7 @@ function CompactTemplateCard({
       </div>
 
       <div className="mb-2 flex items-center gap-2">
-        <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-muted/60">
+        <div className="ios-glass-sm flex h-7 w-7 items-center justify-center rounded-lg">
           <Icon className="h-3.5 w-3.5 text-foreground/80" />
         </div>
         <Badge color={CATEGORY_COLOR[template.category]}>
@@ -849,7 +849,7 @@ function DistillModal({
         {/* 头部 */}
         <div className="mb-5 flex items-start justify-between">
           <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-muted/60">
+            <div className="ios-glass-sm flex h-10 w-10 items-center justify-center rounded-xl">
               <Icon className="h-5 w-5" />
             </div>
             <div>
@@ -861,7 +861,7 @@ function DistillModal({
           </div>
           <button
             onClick={onClose}
-            className="rounded-lg p-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+            className="rounded-lg p-1.5 text-muted-foreground transition-colors hover:bg-primary/10 hover:text-primary"
             aria-label="关闭"
           >
             <X className="h-4 w-4" />
@@ -872,7 +872,7 @@ function DistillModal({
         <div className="mb-5 flex flex-wrap items-center gap-1.5">
           {template.steps.map((s, i) => (
             <div key={s} className="flex items-center gap-1.5">
-              <span className="inline-flex items-center gap-1 rounded-md bg-muted/50 px-2 py-1 text-[10px] text-muted-foreground">
+              <span className="ios-glass-sm inline-flex items-center gap-1 rounded-md px-2 py-1 text-[10px] text-muted-foreground">
                 <span className="text-foreground/40">{i + 1}</span>
                 {s}
               </span>
@@ -960,7 +960,7 @@ function DistillModal({
                 <Badge color="default">未配置 Key</Badge>
               )}
             </div>
-            <pre className="max-h-[40vh] overflow-y-auto whitespace-pre-wrap rounded-xl border border-border bg-muted/30 p-3 text-[11px] leading-relaxed text-foreground/90">
+            <pre className="glass-card max-h-[40vh] overflow-y-auto whitespace-pre-wrap rounded-xl border border-border p-3 text-[11px] leading-relaxed text-foreground/90">
               {result}
             </pre>
             <div className="mt-2 flex justify-end gap-2">
@@ -1134,7 +1134,7 @@ function TemplateEditor({
             {isEdit && onOpenVersionHistory && (
               <button
                 onClick={onOpenVersionHistory}
-                className="flex items-center gap-1 rounded-lg border border-border px-2 py-1 text-[11px] text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                className="flex items-center gap-1 rounded-lg border border-border px-2 py-1 text-[11px] text-muted-foreground transition-colors hover:bg-primary/10 hover:text-primary"
                 title="查看历史版本"
               >
                 <GitBranch className="h-3 w-3" />
@@ -1143,7 +1143,7 @@ function TemplateEditor({
             )}
             <button
               onClick={onClose}
-              className="rounded-lg p-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+              className="rounded-lg p-1.5 text-muted-foreground transition-colors hover:bg-primary/10 hover:text-primary"
               aria-label="关闭"
             >
               <X className="h-4 w-4" />
@@ -1522,7 +1522,7 @@ function VersionHistoryModal({
           </div>
           <button
             onClick={onClose}
-            className="rounded-lg p-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+            className="rounded-lg p-1.5 text-muted-foreground transition-colors hover:bg-primary/10 hover:text-primary"
             aria-label="关闭"
           >
             <X className="h-4 w-4" />
@@ -1555,12 +1555,12 @@ function VersionHistoryModal({
                       "cursor-pointer p-3 transition-colors",
                       selectedVersion === v.version
                         ? "bg-cognition/10"
-                        : "hover:bg-muted/50"
+                        : "hover:bg-primary/10 hover:text-primary"
                     )}
                   >
                     <div className="flex items-center justify-between">
                       <span className="flex items-center gap-1.5 text-xs font-medium">
-                        <span className="inline-flex h-5 min-w-[2rem] items-center justify-center rounded bg-muted px-1 text-[10px] text-foreground/80">
+                        <span className="ios-glass-sm inline-flex h-5 min-w-[2rem] items-center justify-center rounded px-1 text-[10px] text-foreground/80">
                           v{v.version}
                         </span>
                         {v.name}
@@ -1616,7 +1616,7 @@ function VersionHistoryModal({
                   <div className="mb-1 text-[10px] font-medium text-muted-foreground">
                     提示词模板
                   </div>
-                  <pre className="max-h-40 overflow-y-auto whitespace-pre-wrap rounded-lg border border-border bg-muted/30 p-2 text-[10px] leading-relaxed text-foreground/90">
+                  <pre className="glass-card max-h-40 overflow-y-auto whitespace-pre-wrap rounded-lg border border-border p-2 text-[10px] leading-relaxed text-foreground/90">
                     {selected.promptTemplate || "（空）"}
                   </pre>
                 </div>
@@ -1624,7 +1624,7 @@ function VersionHistoryModal({
                   <div className="mb-1 text-[10px] font-medium text-muted-foreground">
                     正文内容
                   </div>
-                  <pre className="max-h-40 overflow-y-auto whitespace-pre-wrap rounded-lg border border-border bg-muted/30 p-2 text-[10px] leading-relaxed text-foreground/90">
+                  <pre className="glass-card max-h-40 overflow-y-auto whitespace-pre-wrap rounded-lg border border-border p-2 text-[10px] leading-relaxed text-foreground/90">
                     {selected.content || "（空）"}
                   </pre>
                 </div>

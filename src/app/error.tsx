@@ -40,20 +40,20 @@ export default function GlobalError({
       )}
       {/* 开发环境显示详细错误堆栈，便于调试 */}
       {isDev && error.stack && (
-        <pre className="mb-6 max-h-[40vh] w-full max-w-2xl overflow-auto rounded-xl border border-border bg-muted/50 p-4 text-left font-mono text-[11px] leading-relaxed text-muted-foreground">
+        <pre className="glass-card mb-6 max-h-[40vh] w-full max-w-2xl overflow-auto rounded-xl border border-border p-4 text-left font-mono text-[11px] leading-relaxed text-muted-foreground">
           {error.stack}
         </pre>
       )}
       <div className="flex items-center gap-3">
         <button
           onClick={reset}
-          className="inline-flex items-center gap-2 rounded-xl bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
+          className="btn-primary inline-flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-medium text-primary-foreground transition-colors"
         >
           <RefreshCw className="h-4 w-4" /> 重试
         </button>
         <a
           href="/"
-          className="inline-flex items-center gap-2 rounded-xl border border-border bg-card px-4 py-2 text-sm font-medium text-foreground transition-colors hover:bg-muted"
+          className="ios-glass-sm inline-flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-medium text-foreground transition-colors"
         >
           <Home className="h-4 w-4" /> 返回首页
         </a>

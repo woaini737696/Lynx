@@ -533,7 +533,7 @@ export default function SkillsPage() {
                     "group flex items-center gap-2 rounded-xl px-3 py-2 text-xs font-medium transition-all",
                     isActive
                       ? "bg-primary/10 text-primary"
-                      : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                      : "text-muted-foreground hover:bg-primary/10 hover:text-primary"
                   )}
                 >
                   <Icon className="h-3.5 w-3.5 shrink-0" />
@@ -544,7 +544,7 @@ export default function SkillsPage() {
                         "rounded-full px-1.5 py-0 text-[10px]",
                         isActive
                           ? "bg-primary/20 text-primary"
-                          : "bg-muted text-muted-foreground"
+                          : "ios-glass-sm text-muted-foreground"
                       )}
                     >
                       {count}
@@ -752,7 +752,7 @@ function SkillCard({
           {skill.tags.slice(0, 4).map((t, i) => (
             <span
               key={i}
-              className="rounded-md bg-muted/50 px-1.5 py-0.5 text-[10px] text-muted-foreground"
+              className="ios-glass-sm rounded-md px-1.5 py-0.5 text-[10px] text-muted-foreground"
             >
               {t}
             </span>
@@ -770,7 +770,7 @@ function SkillCard({
           <Tag className="h-3 w-3" />
           {skill.parameters.length} 参数
         </span>
-        <span className="rounded bg-muted/50 px-1 py-0">
+        <span className="ios-glass-sm rounded px-1 py-0">
           {SOURCE_LABEL[skill.source] || skill.source}
         </span>
       </div>
@@ -899,11 +899,11 @@ function SkillEditModal({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-start justify-center bg-black/50 p-4 pt-[6vh] backdrop-blur-sm animate-in fade-in duration-200"
+      className="fixed inset-0 z-50 flex items-start justify-center bg-black/30 p-4 pt-[6vh] backdrop-blur-sm animate-in fade-in duration-200"
       onClick={onClose}
     >
       <div
-        className="max-h-[88vh] w-full max-w-3xl overflow-y-auto rounded-3xl border border-border bg-card p-5 shadow-2xl transition-all animate-in zoom-in-95 duration-200 sm:p-6"
+        className="max-h-[88vh] w-full max-w-3xl overflow-y-auto glass-card p-5 shadow-2xl transition-all animate-in zoom-in-95 duration-200 sm:p-6"
         onClick={(e) => e.stopPropagation()}
       >
         {/* 头部 */}
@@ -916,7 +916,7 @@ function SkillEditModal({
           </div>
           <button
             onClick={onClose}
-            className="rounded-lg p-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+            className="rounded-lg p-1.5 text-muted-foreground transition-colors hover:bg-primary/10 hover:text-primary"
             aria-label="关闭"
           >
             <X className="h-4 w-4" />
@@ -1056,7 +1056,7 @@ function SkillEditModal({
               </Button>
             </div>
             {parameters.length === 0 ? (
-              <div className="rounded-xl border border-dashed border-border bg-muted/20 p-4 text-center text-[11px] text-muted-foreground">
+              <div className="glass-card border-dashed border-border p-4 text-center text-[11px] text-muted-foreground">
                 暂无参数，点击右上角添加
               </div>
             ) : (
@@ -1136,11 +1136,11 @@ function VersionDetailModal({
 
   return (
     <div
-      className="fixed inset-0 z-[70] flex items-start justify-center bg-black/50 p-4 pt-[6vh] backdrop-blur-sm animate-in fade-in duration-200"
+      className="fixed inset-0 z-[70] flex items-start justify-center bg-black/30 p-4 pt-[6vh] backdrop-blur-sm animate-in fade-in duration-200"
       onClick={onClose}
     >
       <div
-        className="max-h-[88vh] w-full max-w-3xl overflow-y-auto rounded-3xl border border-border bg-card p-5 shadow-2xl animate-in zoom-in-95 duration-200 sm:p-6"
+        className="max-h-[88vh] w-full max-w-3xl overflow-y-auto glass-card p-5 shadow-2xl animate-in zoom-in-95 duration-200 sm:p-6"
         onClick={(e) => e.stopPropagation()}
       >
         {/* 头部 */}
@@ -1152,7 +1152,7 @@ function VersionDetailModal({
           </div>
           <button
             onClick={onClose}
-            className="rounded-lg p-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+            className="rounded-lg p-1.5 text-muted-foreground transition-colors hover:bg-primary/10 hover:text-primary"
             aria-label="关闭"
           >
             <X className="h-4 w-4" />
@@ -1228,7 +1228,7 @@ function VersionDetailModal({
               <label className="mb-1 block text-[10px] font-medium text-muted-foreground">
                 提示词模板（promptTemplate）
               </label>
-              <pre className="max-h-40 overflow-y-auto whitespace-pre-wrap rounded-xl border border-border bg-muted/20 p-3 text-[11px] leading-relaxed">
+              <pre className="ios-glass-sm max-h-40 overflow-y-auto whitespace-pre-wrap rounded-xl p-3 text-[11px] leading-relaxed">
                 {detail.promptTemplate || "（空）"}
               </pre>
             </div>
@@ -1238,7 +1238,7 @@ function VersionDetailModal({
               <label className="mb-1 block text-[10px] font-medium text-muted-foreground">
                 参数配置（parameters / config）
               </label>
-              <pre className="max-h-40 overflow-y-auto whitespace-pre-wrap rounded-xl border border-border bg-muted/20 p-3 text-[11px] leading-relaxed">
+              <pre className="ios-glass-sm max-h-40 overflow-y-auto whitespace-pre-wrap rounded-xl p-3 text-[11px] leading-relaxed">
                 {detail.parameters && detail.parameters.length > 0
                   ? JSON.stringify(detail.parameters, null, 2)
                   : "（空）"}
@@ -1250,7 +1250,7 @@ function VersionDetailModal({
               <label className="mb-1 block text-[10px] font-medium text-muted-foreground">
                 Markdown 正文（content）
               </label>
-              <pre className="max-h-60 overflow-y-auto whitespace-pre-wrap rounded-xl border border-border bg-muted/20 p-3 text-[11px] leading-relaxed">
+              <pre className="ios-glass-sm max-h-60 overflow-y-auto whitespace-pre-wrap rounded-xl p-3 text-[11px] leading-relaxed">
                 {detail.content || "（空）"}
               </pre>
             </div>
@@ -1292,11 +1292,11 @@ function RollbackConfirmDialog({
 }) {
   return (
     <div
-      className="fixed inset-0 z-[80] flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm animate-in fade-in duration-200"
+      className="fixed inset-0 z-[80] flex items-center justify-center bg-black/30 p-4 backdrop-blur-sm animate-in fade-in duration-200"
       onClick={onCancel}
     >
       <div
-        className="w-full max-w-sm rounded-2xl border border-border bg-card p-5 shadow-2xl animate-in zoom-in-95 duration-200"
+        className="w-full max-w-sm glass-card p-5 shadow-2xl animate-in zoom-in-95 duration-200"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="mb-3 flex items-center gap-2">
@@ -1428,7 +1428,7 @@ function VersionHistoryPanel({
 
   if (versions.length === 0) {
     return (
-      <div className="rounded-xl border border-dashed border-border bg-muted/20 p-8 text-center">
+      <div className="glass-card border-dashed border-border p-8 text-center">
         <History className="mx-auto mb-2 h-6 w-6 text-muted-foreground/50" />
         <p className="text-xs text-muted-foreground">
           暂无历史版本，保存修改后会自动生成版本快照
@@ -1467,7 +1467,7 @@ function VersionHistoryPanel({
             "flex items-center gap-3 rounded-xl border p-3 transition-colors",
             selectedVersions.includes(v.version)
               ? "border-cognition/40 bg-cognition/5"
-              : "border-border bg-muted/20"
+              : "border-border ios-glass-sm"
           )}
         >
           <input
@@ -1630,11 +1630,11 @@ function DiffModal({
 
   return (
     <div
-      className="fixed inset-0 z-[70] flex items-start justify-center bg-black/50 p-4 pt-[4vh] backdrop-blur-sm animate-in fade-in duration-200"
+      className="fixed inset-0 z-[70] flex items-start justify-center bg-black/30 p-4 pt-[4vh] backdrop-blur-sm animate-in fade-in duration-200"
       onClick={onClose}
     >
       <div
-        className="flex max-h-[92vh] min-h-[60vh] w-full max-w-6xl flex-col overflow-hidden rounded-3xl border border-border bg-card shadow-2xl animate-in zoom-in-95 duration-200"
+        className="flex max-h-[92vh] min-h-[60vh] w-full max-w-6xl flex-col overflow-hidden glass-card shadow-2xl animate-in zoom-in-95 duration-200"
         onClick={(e) => e.stopPropagation()}
       >
         {/* 头部：标题 + 版本标识 */}
@@ -1643,7 +1643,7 @@ function DiffModal({
             <GitCompare className="h-5 w-5 text-cognition" />
             <h2 className="text-base font-semibold">版本对比</h2>
             <div className="ml-2 flex items-center gap-1.5 text-xs text-muted-foreground">
-              <span className="rounded-md bg-muted/60 px-2 py-0.5 font-medium text-foreground">
+              <span className="ios-glass-sm rounded-md px-2 py-0.5 font-medium text-foreground">
                 v{versionA}
               </span>
               <span>→</span>
@@ -1654,7 +1654,7 @@ function DiffModal({
           </div>
           <button
             onClick={onClose}
-            className="rounded-lg p-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+            className="rounded-lg p-1.5 text-muted-foreground transition-colors hover:bg-primary/10 hover:text-primary"
             aria-label="关闭"
           >
             <X className="h-4 w-4" />
@@ -1681,7 +1681,7 @@ function DiffModal({
 
         {/* 统计栏：新增/删除/修改行数 */}
         {diffResult && (
-          <div className="flex shrink-0 items-center gap-4 border-b border-border/60 bg-muted/20 px-4 py-2 text-[11px] sm:px-5">
+          <div className="ios-glass-sm flex shrink-0 items-center gap-4 border-b border-border/60 px-4 py-2 text-[11px] sm:px-5">
             <span className="flex items-center gap-1">
               <span className="h-2 w-2 rounded-full bg-green-500" />
               新增{" "}
@@ -1767,7 +1767,7 @@ function DiffView({ diff }: { diff: DiffResult }) {
     <div className="flex h-full min-h-0">
       {/* 左侧：旧版本 */}
       <div className="flex w-1/2 flex-col border-r border-border/60">
-        <div className="shrink-0 border-b border-border/60 bg-muted/30 px-3 py-1.5 text-[10px] font-medium text-muted-foreground">
+        <div className="ios-glass-sm shrink-0 border-b border-border/60 px-3 py-1.5 text-[10px] font-medium text-muted-foreground">
           旧版本
         </div>
         <div
@@ -1795,7 +1795,7 @@ function DiffView({ diff }: { diff: DiffResult }) {
 
       {/* 右侧：新版本 */}
       <div className="flex w-1/2 flex-col">
-        <div className="shrink-0 border-b border-border/60 bg-muted/30 px-3 py-1.5 text-[10px] font-medium text-muted-foreground">
+        <div className="ios-glass-sm shrink-0 border-b border-border/60 px-3 py-1.5 text-[10px] font-medium text-muted-foreground">
           新版本
         </div>
         <div
@@ -1837,7 +1837,7 @@ function ParamEditor({
 }) {
   const [showAdvanced, setShowAdvanced] = useState(false);
   return (
-    <div className="rounded-xl border border-border bg-muted/20 p-3">
+    <div className="glass-card p-3">
       <div className="grid grid-cols-1 gap-2 sm:grid-cols-4">
         <input
           value={param.key}
@@ -1969,11 +1969,11 @@ function ImportModal({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-start justify-center bg-black/50 p-4 pt-[10vh] backdrop-blur-sm animate-in fade-in duration-200"
+      className="fixed inset-0 z-50 flex items-start justify-center bg-black/30 p-4 pt-[10vh] backdrop-blur-sm animate-in fade-in duration-200"
       onClick={onClose}
     >
       <div
-        className="max-h-[80vh] w-full max-w-2xl overflow-y-auto rounded-3xl border border-border bg-card p-5 shadow-2xl transition-all animate-in zoom-in-95 duration-200 sm:p-6"
+        className="max-h-[80vh] w-full max-w-2xl overflow-y-auto glass-card p-5 shadow-2xl transition-all animate-in zoom-in-95 duration-200 sm:p-6"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="mb-5 flex items-center justify-between">
@@ -1983,7 +1983,7 @@ function ImportModal({
           </div>
           <button
             onClick={onClose}
-            className="rounded-lg p-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+            className="rounded-lg p-1.5 text-muted-foreground transition-colors hover:bg-primary/10 hover:text-primary"
             aria-label="关闭"
           >
             <X className="h-4 w-4" />
@@ -1991,7 +1991,7 @@ function ImportModal({
         </div>
 
         <div className="space-y-3">
-          <div className="rounded-xl border border-dashed border-border bg-muted/20 p-4">
+          <div className="glass-card border-dashed border-border p-4">
             <input
               type="file"
               accept=".md,.markdown,.txt"
@@ -2239,11 +2239,11 @@ function AIGenerateModal({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-start justify-center bg-black/50 p-4 pt-[6vh] backdrop-blur-sm animate-in fade-in duration-200"
+      className="fixed inset-0 z-50 flex items-start justify-center bg-black/30 p-4 pt-[6vh] backdrop-blur-sm animate-in fade-in duration-200"
       onClick={handleClose}
     >
       <div
-        className="max-h-[88vh] w-full max-w-3xl overflow-y-auto rounded-3xl border border-border bg-card p-5 shadow-2xl transition-all animate-in zoom-in-95 duration-200 sm:p-6"
+        className="max-h-[88vh] w-full max-w-3xl overflow-y-auto glass-card p-5 shadow-2xl transition-all animate-in zoom-in-95 duration-200 sm:p-6"
         onClick={(e) => e.stopPropagation()}
       >
         {/* 头部 */}
@@ -2254,7 +2254,7 @@ function AIGenerateModal({
           </div>
           <button
             onClick={handleClose}
-            className="rounded-lg p-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+            className="rounded-lg p-1.5 text-muted-foreground transition-colors hover:bg-primary/10 hover:text-primary"
             aria-label="关闭"
           >
             <X className="h-4 w-4" />
@@ -2304,7 +2304,7 @@ function AIGenerateModal({
             )}
 
             {/* AI 输出文本（打字机效果，delta 实时追加）*/}
-            <div className="rounded-xl border border-border bg-muted/20 p-3">
+            <div className="glass-card p-3">
               <div className="mb-1.5 flex items-center justify-between">
                 <span className="text-[10px] font-medium text-muted-foreground">
                   AI 输出
@@ -2393,7 +2393,7 @@ function AIGenerateModal({
                 补充对话（可选）
               </label>
               {conversation.length > 0 && (
-                <div className="mb-2 max-h-40 space-y-2 overflow-y-auto rounded-xl border border-border bg-muted/20 p-3">
+                <div className="glass-card mb-2 max-h-40 space-y-2 overflow-y-auto p-3">
                   {conversation.map((msg, i) => (
                     <div
                       key={i}
@@ -2407,7 +2407,7 @@ function AIGenerateModal({
                           "max-w-[80%] rounded-lg px-2.5 py-1.5 text-[11px]",
                           msg.role === "user"
                             ? "bg-primary/10 text-primary"
-                            : "bg-muted text-foreground"
+                            : "ios-glass-sm text-foreground"
                         )}
                       >
                         {msg.content}
@@ -2506,7 +2506,7 @@ function GeneratedSkillPreview({
       </div>
 
       {/* 预览内容 */}
-      <div className="space-y-3 rounded-xl border border-border bg-muted/20 p-4">
+      <div className="glass-card space-y-3 p-4">
         <div className="flex items-center gap-2">
           <h3 className="text-sm font-semibold">
             {skill.name || "(未命名)"}
@@ -2525,7 +2525,7 @@ function GeneratedSkillPreview({
             {skill.tags.map((t, i) => (
               <span
                 key={i}
-                className="rounded-md bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground"
+                className="ios-glass-sm rounded-md px-1.5 py-0.5 text-[10px] text-muted-foreground"
               >
                 {t}
               </span>
@@ -2541,7 +2541,7 @@ function GeneratedSkillPreview({
               {skill.parameters.map((p, i) => (
                 <span
                   key={i}
-                  className="rounded-md bg-muted/60 px-1.5 py-0.5 text-[10px]"
+                  className="ios-glass-sm rounded-md px-1.5 py-0.5 text-[10px]"
                 >
                   {p.key}
                   {p.required ? "*" : ""}

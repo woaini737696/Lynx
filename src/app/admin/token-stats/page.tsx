@@ -246,7 +246,7 @@ export default function TokenStatsPage() {
                 {summary.yesterday.count} 次对话
               </p>
             </div>
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-muted text-muted-foreground">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl ios-glass-sm text-muted-foreground">
               <Calendar className="h-5 w-5" />
             </div>
           </div>
@@ -311,7 +311,7 @@ export default function TokenStatsPage() {
                       </div>
                       <span className="font-medium text-foreground">{formatTokens(p.tokens)} 词元</span>
                     </div>
-                    <div className="h-1.5 overflow-hidden rounded-full bg-muted">
+                    <div className="h-1.5 overflow-hidden rounded-full ios-glass-sm">
                       <div
                         className="h-full rounded-full bg-cognition transition-all"
                         style={{ width: `${pct}%` }}
@@ -368,7 +368,7 @@ export default function TokenStatsPage() {
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-xs">
-            <thead className="border-b border-border bg-muted/30 text-muted-foreground">
+            <thead className="border-b border-border ios-glass-sm text-muted-foreground">
               <tr>
                 <th className="px-3 py-2 text-left font-medium">时间</th>
                 <th className="px-3 py-2 text-left font-medium">Provider</th>
@@ -390,7 +390,7 @@ export default function TokenStatsPage() {
                 records.map((r) => {
                   const badge = r.provider ? PROVIDER_BADGE[r.provider] : null;
                   return (
-                    <tr key={r.id} className="hover:bg-muted/30">
+                    <tr key={r.id} className="hover:bg-primary/10 hover:text-primary">
                       <td className="whitespace-nowrap px-3 py-2 text-muted-foreground">
                         {formatTime(r.createdAt)}
                       </td>
@@ -457,11 +457,11 @@ export default function TokenStatsPage() {
       {/* ===== 词元排行榜弹窗 ===== */}
       {showLeaderboard && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4 backdrop-blur-sm"
           onClick={() => setShowLeaderboard(false)}
         >
           <div
-            className="max-h-[80vh] w-full max-w-2xl overflow-hidden rounded-2xl border border-border bg-card shadow-2xl"
+            className="max-h-[80vh] w-full max-w-2xl overflow-hidden rounded-2xl glass-card shadow-2xl"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between border-b border-border px-5 py-3">
@@ -472,7 +472,7 @@ export default function TokenStatsPage() {
               </div>
               <button
                 onClick={() => setShowLeaderboard(false)}
-                className="rounded-lg p-1 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                className="rounded-lg p-1 text-muted-foreground transition-colors hover:bg-primary/10 hover:text-primary"
               >
                 <X className="h-4 w-4" />
               </button>
@@ -493,7 +493,7 @@ export default function TokenStatsPage() {
                         i === 0 ? "bg-yellow-500/20 text-yellow-600 dark:text-yellow-400"
                         : i === 1 ? "bg-gray-400/20 text-gray-500 dark:text-gray-300"
                         : i === 2 ? "bg-orange-700/20 text-orange-600 dark:text-orange-400"
-                        : "bg-muted text-muted-foreground"
+                        : "ios-glass-sm text-muted-foreground"
                       }`}>
                         {i + 1}
                       </div>

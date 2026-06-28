@@ -1,6 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
-import { AppShell } from "@/components/layout/AppShell";
+import { AppShellWrapper } from "@/components/layout/AppShellWrapper";
 import { LightningInput } from "@/components/lightning/LightningInput";
 import { CommandPalette } from "@/components/layout/CommandPalette";
 import { SuppressDevErrors } from "@/components/layout/SuppressDevErrors";
@@ -16,7 +16,7 @@ import { RoutePreloader } from "@/components/layout/RoutePreloader";
 import { SWRProvider } from "@/components/providers/SWRProvider";
 
 export const metadata: Metadata = {
-  title: "Lynx · 个人认知操作系统",
+  title: "LYNX · AI工作站",
   description: "灵感收敛 · 工作聚焦 · 记忆复利",
   manifest: "/manifest.webmanifest",
   appleWebApp: {
@@ -55,7 +55,7 @@ export default function RootLayout({
               <DesktopBridge />
               <DesktopBehavior />
               <RoutePreloader />
-              <AppShell>{children}</AppShell>
+              <AppShellWrapper>{children}</AppShellWrapper>
               <LightningInput />
               <CommandPalette />
               <ReminderManager />

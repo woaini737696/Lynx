@@ -16,7 +16,7 @@ export function ThemeToggle({
   useEffect(() => setMounted(true), []);
   if (!mounted) {
     return (
-      <div className="h-8 w-8 animate-pulse rounded-xl bg-muted" />
+      <div className="ios-glass-sm h-8 w-8 animate-pulse rounded-xl" />
     );
   }
 

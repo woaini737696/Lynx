@@ -82,7 +82,7 @@ export function Modal({ open, onClose, title, children, size = "md", className }
 
   return (
     <div
-      className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 px-4 py-6"
+      className="fixed inset-0 z-[100] flex items-center justify-center bg-black/30 px-4 py-6"
       role="dialog"
       aria-modal="true"
       onClick={onClose}

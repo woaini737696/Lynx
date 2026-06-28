@@ -432,7 +432,7 @@ export default function AssetsPage() {
           {uploads.map((u) => (
             <div
               key={u.id}
-              className="flex items-center gap-2 rounded-xl border border-border bg-card px-3 py-2 text-xs"
+              className="ios-glass-sm flex items-center gap-2 rounded-xl px-3 py-2 text-xs"
             >
               <span className="flex-1 truncate text-foreground">{u.filename}</span>
               {u.status === "reading" && (
@@ -491,13 +491,13 @@ export default function AssetsPage() {
             value={title}
             onChange={(e) => setTitle(e.target.value)}
             placeholder="对话标题（可选，默认取前 50 字）"
-            className="mt-3 w-full rounded-xl border border-border bg-background px-3 py-2 text-xs outline-none transition-colors focus:border-campaign"
+            className="ios-glass-sm mt-3 w-full rounded-xl border-0 bg-transparent px-3 py-2 text-xs outline-none transition-colors focus:outline-none focus:ring-2 focus:ring-campaign/20"
           />
           <textarea
             value={rawContent}
             onChange={(e) => setRawContent(e.target.value)}
             placeholder="粘贴对话原文，或点击下方按钮上传文件..."
-            className="mt-3 min-h-[120px] w-full resize-none rounded-xl border border-border bg-background px-3 py-2 text-xs outline-none transition-colors focus:border-campaign"
+            className="ios-glass-sm mt-3 min-h-[120px] w-full resize-none rounded-xl border-0 bg-transparent px-3 py-2 text-xs outline-none transition-colors focus:outline-none focus:ring-2 focus:ring-campaign/20"
           />
           {/* 文件上传按钮 */}
           <div className="mt-2 flex items-center gap-2">

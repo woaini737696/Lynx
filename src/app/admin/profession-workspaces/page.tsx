@@ -186,7 +186,7 @@ export default function ProfessionWorkspacesPage() {
       <div className="p-4 sm:p-8">
         <PageHeader title="职业工作空间" subtitle="为不同岗位定制 AI 工作空间" />
         <Card className="flex flex-col items-center justify-center py-16 text-center">
-          <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-muted">
+          <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-2xl ios-glass-sm">
             <Briefcase className="h-6 w-6 text-muted-foreground" />
           </div>
           <h3 className="text-base font-semibold text-foreground">权限不足</h3>
@@ -207,7 +207,7 @@ export default function ProfessionWorkspacesPage() {
       />
 
       {/* 说明卡片 */}
-      <Card className="mb-6 bg-muted/20">
+      <Card className="mb-6">
         <div className="mb-3 flex items-center gap-2">
           <Sparkles className="h-4 w-4 text-cognition" />
           <h3 className="text-sm font-semibold text-foreground">工作空间 3 维度</h3>
@@ -218,7 +218,7 @@ export default function ProfessionWorkspacesPage() {
             { icon: "🧠", label: "默认模型/推理模式", desc: "进入 AI 助理页默认使用" },
             { icon: "🔧", label: "可见 AI 工具白名单", desc: "该岗位可调用哪些工具" },
           ].map((d, i) => (
-            <div key={i} className="rounded-lg border border-border bg-card p-2.5">
+            <div key={i} className="rounded-lg glass-card p-2.5">
               <div className="flex items-center gap-1.5 text-xs font-medium text-foreground">
                 <span>{d.icon}</span>
                 {d.label}
@@ -325,10 +325,10 @@ function WorkspaceCard({
                   className="rounded border border-border bg-background/50 px-2 py-1 text-sm font-semibold text-foreground focus:border-cognition/50 focus:outline-none"
                 />
                 <div className="mt-1 flex items-center gap-1.5">
-                  <code className="rounded bg-muted px-1.5 py-0.5 text-[10px] font-mono text-muted-foreground">
+                  <code className="rounded ios-glass-sm px-1.5 py-0.5 text-[10px] font-mono text-muted-foreground">
                     {editForm.profession}
                   </code>
-                  <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">
+                  <span className="rounded ios-glass-sm px-1.5 py-0.5 text-[10px] text-muted-foreground">
                     编辑中
                   </span>
                 </div>
@@ -336,7 +336,7 @@ function WorkspaceCard({
             </div>
             <button
               onClick={onCancelEdit}
-              className="rounded-lg p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
+              className="rounded-lg p-1 text-muted-foreground hover:bg-primary/10 hover:text-primary"
             >
               <X className="h-4 w-4" />
             </button>
@@ -492,14 +492,14 @@ function WorkspaceCard({
                     className={`flex w-full items-start gap-2 rounded border px-2 py-1 text-left text-[11px] transition-all ${
                       checked
                         ? "border-cognition/40 bg-cognition/5"
-                        : "border-border bg-card/30 hover:bg-muted/30"
+                        : "ios-glass-sm hover:bg-primary/10 hover:text-primary"
                     }`}
                   >
                     <span
                       className={`mt-0.5 flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded border transition-colors ${
                         checked
                           ? "border-cognition bg-cognition text-primary-foreground"
-                          : "border-border bg-card"
+                          : "glass-card"
                       }`}
                     >
                       {checked && <Check className="h-2.5 w-2.5" />}
@@ -561,7 +561,7 @@ function WorkspaceCard({
         {/* 头部 */}
         <div className="flex items-start justify-between">
           <div className="flex items-center gap-2">
-            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-muted text-xl">
+            <div className="flex h-9 w-9 items-center justify-center rounded-xl ios-glass-sm text-xl">
               {ws.icon}
             </div>
             <div>
@@ -579,7 +579,7 @@ function WorkspaceCard({
               已自定义
             </span>
           ) : (
-            <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">
+            <span className="rounded ios-glass-sm px-1.5 py-0.5 text-[10px] text-muted-foreground">
               默认
             </span>
           )}
@@ -641,7 +641,7 @@ function WorkspaceCard({
               <button
                 onClick={onReset}
                 title="重置为默认配置"
-                className="rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
+                className="rounded p-1 text-muted-foreground hover:bg-primary/10 hover:text-primary"
               >
                 <RotateCcw className="h-3 w-3" />
               </button>

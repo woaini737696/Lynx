@@ -177,7 +177,7 @@ export default function SearchPage() {
                 ? "输入关键词搜索灵感、任务、认知、记忆..."
                 : "用自然语言描述，语义匹配最相关的内容..."
             }
-            className="w-full rounded-xl border border-border bg-card py-2.5 pl-9 pr-3 text-sm outline-none transition-colors placeholder:text-muted-foreground/60 focus:border-primary/40"
+            className="ios-glass-sm w-full rounded-xl border-0 bg-transparent py-2.5 pl-9 pr-3 text-sm outline-none transition-colors placeholder:text-muted-foreground/60 focus:outline-none focus:ring-2 focus:ring-primary/20"
             autoFocus
           />
           {loading && (
@@ -187,7 +187,7 @@ export default function SearchPage() {
       </div>
 
       {/* 模式切换 */}
-      <div className="mb-5 flex rounded-xl border border-border bg-card p-0.5 sm:w-auto">
+      <div className="ios-glass-sm mb-5 flex rounded-xl p-0.5 sm:w-auto">
         <button
           onClick={() => switchMode("keyword")}
           className={cn(

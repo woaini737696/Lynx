@@ -163,7 +163,7 @@ const NODE_STYLES: Record<FlowNode["type"], { color: string; bg: string; icon: R
 };
 
 const STATUS_STYLES: Record<FlowNode["status"], string> = {
-  idle: "border-border bg-muted/30",
+  idle: "border-border ios-glass-sm",
   running: "border-cognition/40 bg-cognition/5 animate-pulse",
   done: "border-task/30 bg-task/5",
   error: "border-graveyard/40 bg-graveyard/5",
@@ -1384,7 +1384,7 @@ export default function AIFlowsPage() {
         action={
           <div className="flex items-center gap-2">
             {/* 模式切换：列表 / 可视化编排 */}
-            <div className="flex items-center rounded-xl border border-border bg-card p-0.5">
+            <div className="glass-card flex items-center p-0.5">
               <button
                 onClick={() => setMode("list")}
                 className={cn(
@@ -1447,10 +1447,10 @@ export default function AIFlowsPage() {
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   placeholder="搜索工作流名称或描述..."
-                  className="w-full rounded-xl border border-border bg-card py-2 pl-9 pr-3 text-sm outline-none transition-colors focus:border-cognition"
+                  className="ios-glass-sm w-full rounded-xl border border-border py-2 pl-9 pr-3 text-sm outline-none transition-colors focus:border-cognition"
                 />
               </div>
-              <div className="flex items-center rounded-xl border border-border bg-card p-0.5">
+              <div className="ios-glass-sm flex items-center rounded-xl border border-border p-0.5">
                 {(["all", "enabled", "disabled"] as const).map((s) => (
                   <button
                     key={s}
@@ -1543,7 +1543,7 @@ export default function AIFlowsPage() {
                         <span
                           className={cn(
                             "inline-flex items-center gap-1 rounded-full px-1.5 py-0.5",
-                            flow.enabled ? "bg-task/10 text-task" : "bg-muted text-muted-foreground"
+                            flow.enabled ? "bg-task/10 text-task" : "ios-glass-sm text-muted-foreground"
                           )}
                         >
                           {flow.enabled ? "启用" : "停用"}
@@ -1719,7 +1719,7 @@ export default function AIFlowsPage() {
                 <button
                   onClick={zoomOut}
                   disabled={zoom <= 0.4}
-                  className="flex h-7 w-7 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:opacity-40"
+                  className="flex h-7 w-7 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-primary/10 hover:text-primary disabled:opacity-40"
                   title="缩小"
                 >
                   <ZoomOut className="h-3.5 w-3.5" />
@@ -1730,14 +1730,14 @@ export default function AIFlowsPage() {
                 <button
                   onClick={zoomIn}
                   disabled={zoom >= 2}
-                  className="flex h-7 w-7 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:opacity-40"
+                  className="flex h-7 w-7 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-primary/10 hover:text-primary disabled:opacity-40"
                   title="放大"
                 >
                   <ZoomIn className="h-3.5 w-3.5" />
                 </button>
                 <button
                   onClick={zoomReset}
-                  className="flex h-7 w-7 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                  className="flex h-7 w-7 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-primary/10 hover:text-primary"
                   title="重置缩放"
                 >
                   <Maximize className="h-3.5 w-3.5" />
@@ -1811,7 +1811,7 @@ export default function AIFlowsPage() {
                     key={type}
                     draggable
                     onDragStart={(e) => handlePanelDragStart(e, type)}
-                    className="flex cursor-grab items-center gap-2.5 rounded-xl border border-border bg-card p-2.5 transition-all hover:-translate-y-0.5 hover:border-cognition/40 hover:shadow-sm active:cursor-grabbing"
+                    className="glass-card flex cursor-grab items-center gap-2.5 p-2.5 transition-all hover:-translate-y-0.5 hover:border-cognition/40 hover:shadow-sm active:cursor-grabbing"
                   >
                     <div className={cn("flex h-8 w-8 items-center justify-center rounded-lg", style.bg)}>
                       <Icon className={cn("h-4 w-4", style.color)} />
@@ -1823,7 +1823,7 @@ export default function AIFlowsPage() {
                   </div>
                 );
               })}
-              <div className="mt-2 rounded-xl border border-dashed border-border bg-muted/20 p-2.5 text-[10px] leading-relaxed text-muted-foreground">
+              <div className="glass-card mt-2 rounded-xl border border-dashed border-border p-2.5 text-[10px] leading-relaxed text-muted-foreground">
                 拖拽节点到画布创建；拖拽右侧圆点连线；双击节点配置参数；Ctrl+滚轮缩放；Delete 删除。
               </div>
             </div>
@@ -1845,7 +1845,7 @@ export default function AIFlowsPage() {
                   setEditingNodeId(null);
                 }}
                 style={{ cursor: isPanning ? "grabbing" : spacePressedRef.current ? "grab" : "default" }}
-                className="relative h-[calc(100vh-280px)] min-h-[480px] overflow-auto rounded-2xl border border-border bg-card/40"
+                className="glass-card relative h-[calc(100vh-280px)] min-h-[480px] overflow-auto rounded-2xl border border-border"
               >
                 <div
                   className="relative origin-top-left"
@@ -2158,7 +2158,7 @@ export default function AIFlowsPage() {
                     </div>
                     <button
                       onClick={() => setShowLogs(false)}
-                      className="rounded-md p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
+                      className="rounded-md p-1 text-muted-foreground hover:bg-primary/10 hover:text-primary"
                     >
                       <X className="h-3 w-3" />
                     </button>
@@ -2231,7 +2231,7 @@ export default function AIFlowsPage() {
       {/* ============ 节点右键菜单 ============ */}
       {contextMenu && (
         <div
-          className="fixed z-50 min-w-[140px] rounded-xl border border-border bg-card p-1 shadow-lg"
+          className="glass-card fixed z-50 min-w-[140px] p-1 shadow-lg"
           style={{ left: contextMenu.x, top: contextMenu.y }}
           onClick={(e) => e.stopPropagation()}
           onContextMenu={(e) => {
@@ -2244,7 +2244,7 @@ export default function AIFlowsPage() {
               setConfigNodeId(contextMenu.nodeId);
               setContextMenu(null);
             }}
-            className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-xs text-foreground transition-colors hover:bg-muted"
+            className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-xs text-foreground transition-colors hover:bg-primary/10 hover:text-primary"
           >
             <Settings className="h-3 w-3" /> 配置节点
           </button>
@@ -2253,7 +2253,7 @@ export default function AIFlowsPage() {
               duplicateNode(contextMenu.nodeId);
               setContextMenu(null);
             }}
-            className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-xs text-foreground transition-colors hover:bg-muted"
+            className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-xs text-foreground transition-colors hover:bg-primary/10 hover:text-primary"
           >
             <Copy className="h-3 w-3" /> 复制节点
           </button>
@@ -2461,7 +2461,7 @@ function NodeConfigPanel({
       onClick={onClose}
     >
       <div
-        className="flex max-h-[90vh] w-full max-w-md flex-col overflow-hidden rounded-2xl border border-border bg-card shadow-lg"
+        className="glass-card flex max-h-[90vh] w-full max-w-md flex-col overflow-hidden rounded-2xl shadow-lg"
         onClick={(e) => e.stopPropagation()}
       >
         {/* 头部 */}
@@ -2477,7 +2477,7 @@ function NodeConfigPanel({
           </div>
           <button
             onClick={onClose}
-            className="rounded-md p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
+            className="rounded-md p-1 text-muted-foreground hover:bg-primary/10 hover:text-primary"
           >
             <X className="h-4 w-4" />
           </button>
@@ -2634,7 +2634,7 @@ function NodeConfigPanel({
                 className="w-full rounded-xl border border-border bg-background px-3 py-2 font-mono text-sm outline-none focus:border-cognition"
               />
               <p className="mt-1 text-[10px] text-muted-foreground">
-                支持 ==、!=、&gt;、&lt;、&amp;&amp;、|| · 用 <code className="rounded bg-muted px-1">upstream</code> 引用上游输出
+                支持 ==、!=、&gt;、&lt;、&amp;&amp;、|| · 用 <code className="ios-glass-sm rounded px-1">upstream</code> 引用上游输出
               </p>
             </div>
           )}
@@ -2705,7 +2705,7 @@ function NodeConfigPanel({
                   className="flex-1 rounded-xl border border-border bg-background px-3 py-2 font-mono text-sm outline-none focus:border-cognition"
                 />
               </div>
-              <p className="text-[10px] text-muted-foreground">URL 中可用 <code className="rounded bg-muted px-1">{"{{upstream}}"}</code> 引用上游输出</p>
+              <p className="text-[10px] text-muted-foreground">URL 中可用 <code className="ios-glass-sm rounded px-1">{"{{upstream}}"}</code> 引用上游输出</p>
             </div>
           )}
 
@@ -2805,7 +2805,7 @@ function NodeConfigPanel({
                       "rounded-md border px-2 py-1 text-[10px] transition-colors",
                       config.delayMs === q.val
                         ? "border-cognition bg-cognition/10 text-cognition"
-                        : "border-border text-muted-foreground hover:bg-muted"
+                        : "border-border text-muted-foreground hover:bg-primary/10 hover:text-primary"
                     )}
                   >
                     {q.label}
@@ -2942,7 +2942,7 @@ function TemplatePanel({
       onClick={onClose}
     >
       <div
-        className="w-full max-w-2xl rounded-2xl border border-border bg-card p-5 shadow-lg"
+        className="glass-card w-full max-w-2xl rounded-2xl p-5 shadow-lg"
         onClick={(e) => e.stopPropagation()}
       >
         {/* 头部 */}
@@ -2953,7 +2953,7 @@ function TemplatePanel({
           </div>
           <button
             onClick={onClose}
-            className="rounded-md p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
+            className="rounded-md p-1 text-muted-foreground hover:bg-primary/10 hover:text-primary"
           >
             <X className="h-4 w-4" />
           </button>
@@ -2973,7 +2973,7 @@ function TemplatePanel({
                 onClick={() => onSelect(tpl)}
                 className="flex items-start gap-3 rounded-xl border border-border bg-background p-3 text-left transition-all hover:-translate-y-0.5 hover:border-cognition/40 hover:shadow-sm"
               >
-                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-muted">
+                <div className="ios-glass-sm flex h-10 w-10 shrink-0 items-center justify-center rounded-lg">
                   <Icon className={cn("h-5 w-5", tpl.color)} />
                 </div>
                 <div className="min-w-0 flex-1">
@@ -3027,7 +3027,7 @@ function ExecutionHistoryModal({
       onClick={onClose}
     >
       <div
-        className="flex max-h-[85vh] w-full max-w-3xl flex-col rounded-2xl border border-border bg-card shadow-lg"
+        className="glass-card flex max-h-[85vh] w-full max-w-3xl flex-col rounded-2xl shadow-lg"
         onClick={(e) => e.stopPropagation()}
       >
         {/* 头部 */}
@@ -3035,19 +3035,19 @@ function ExecutionHistoryModal({
           <div className="flex items-center gap-2">
             <History className="h-4 w-4 text-cognition" />
             <h3 className="text-sm font-semibold">执行历史</h3>
-            <span className="ml-1 rounded-full bg-muted px-2 py-0.5 text-[10px] text-muted-foreground">
+            <span className="ios-glass-sm ml-1 rounded-full px-2 py-0.5 text-[10px] text-muted-foreground">
               共 {total} 条
             </span>
           </div>
           <button
             onClick={onClose}
-            className="rounded-md p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
+            className="rounded-md p-1 text-muted-foreground hover:bg-primary/10 hover:text-primary"
           >
             <X className="h-4 w-4" />
           </button>
         </div>
 
-        {/* 列表区域 */}
+        {/* 历史列表 */}
         <div className="flex-1 overflow-y-auto px-5 py-4">
           {loading ? (
             <div className="flex items-center justify-center py-12">
@@ -3081,7 +3081,7 @@ function ExecutionHistoryModal({
                     {/* 概要行 */}
                     <button
                       onClick={() => onToggleExpand(item.id)}
-                      className="flex w-full items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-muted/30"
+                      className="flex w-full items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-primary/10 hover:text-primary"
                     >
                       {/* 成功/失败状态 */}
                       {item.success ? (
@@ -3138,7 +3138,7 @@ function ExecutionHistoryModal({
 
                     {/* 展开详情 */}
                     {isExpanded && (
-                      <div className="border-t border-border bg-muted/20 px-4 py-3 space-y-3">
+                      <div className="glass-card border-t border-border px-4 py-3 space-y-3">
                         {/* 最终输出 */}
                         {item.finalOutput && (
                           <div>
@@ -3178,7 +3178,7 @@ function ExecutionHistoryModal({
                                       "flex items-start gap-2 rounded-lg px-2.5 py-1.5 text-[11px]",
                                       nr.status === "done" && "bg-task/5",
                                       nr.status === "error" && "bg-graveyard/5",
-                                      nr.status === "skipped" && "bg-muted/30"
+                                      nr.status === "skipped" && "ios-glass-sm"
                                     )}
                                   >
                                     {nr.status === "done" && (

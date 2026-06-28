@@ -57,7 +57,7 @@ function ToolbarButton({
         "flex h-7 w-7 items-center justify-center rounded-lg transition-colors",
         active
           ? "bg-primary/10 text-primary"
-          : "text-muted-foreground hover:bg-muted hover:text-foreground",
+          : "text-muted-foreground hover:bg-primary/10 hover:text-foreground",
         disabled && "cursor-not-allowed opacity-40 hover:bg-transparent"
       )}
     >
@@ -126,7 +126,7 @@ export function RichTextEditor({
       )}
     >
       {/* 工具栏 */}
-      <div className="flex flex-wrap items-center gap-0.5 border-b border-border/60 bg-card/50 px-1.5 py-1">
+      <div className="ios-glass-sm flex flex-wrap items-center gap-0.5 border-b border-border/60 px-1.5 py-1">
         <ToolbarButton
           editor={editor}
           active={editor.isActive("bold")}

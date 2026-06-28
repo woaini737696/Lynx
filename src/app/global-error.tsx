@@ -69,7 +69,7 @@ export default function GlobalError({
         {/* 开发环境显示详细错误堆栈，便于调试 */}
         {process.env.NODE_ENV !== "production" && error.stack && (
           <pre
-            className="mb-6 max-h-[40vh] w-full max-w-2xl overflow-auto rounded-xl border border-border bg-muted p-4 text-left font-mono text-[11px] leading-relaxed text-muted-foreground"
+            className="glass-card mb-6 max-h-[40vh] w-full max-w-2xl overflow-auto rounded-xl border border-border p-4 text-left font-mono text-[11px] leading-relaxed text-muted-foreground"
           >
             {error.stack}
           </pre>
@@ -77,13 +77,13 @@ export default function GlobalError({
         <div className="flex items-center gap-3">
           <button
             onClick={reset}
-            className="btn-doubao inline-flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-medium"
+            className="btn-primary inline-flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-medium"
           >
             <RefreshCw className="h-4 w-4" /> 重试
           </button>
           <a
             href="/"
-            className="glass-btn inline-flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-medium text-muted-foreground transition hover:text-foreground"
+            className="ios-glass-sm inline-flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-medium text-muted-foreground transition hover:text-foreground"
           >
             <Home className="h-4 w-4" /> 返回首页
           </a>

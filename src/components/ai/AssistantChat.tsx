@@ -1068,7 +1068,7 @@ export function AssistantChat({ onClose }: AssistantChatProps = {}) {
               disabled={sessionLoading}
               aria-label="切换会话"
               title="切换会话"
-              className="flex min-w-0 max-w-full items-center gap-1 rounded-md px-1 py-0.5 text-left transition-colors hover:bg-muted focus:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-60"
+              className="flex min-w-0 max-w-full items-center gap-1 rounded-md px-1 py-0.5 text-left transition-colors hover:bg-primary/10 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-60"
             >
               <div className="min-w-0">
                 <h2 className="truncate text-sm font-semibold text-foreground">
@@ -1093,8 +1093,8 @@ export function AssistantChat({ onClose }: AssistantChatProps = {}) {
 
             {/* 会话下拉列表 */}
             {showSessionList && (
-              <div className="absolute left-0 right-0 top-full z-50 mt-1 max-h-72 overflow-hidden rounded-lg border border-border bg-card shadow-lg">
-                <div className="flex items-center justify-between border-b border-border px-2 py-1.5">
+              <div className="user-menu absolute left-0 right-0 top-full z-50 mt-1 max-h-72 overflow-hidden rounded-2xl p-1 shadow-2xl">
+                <div className="flex items-center justify-between px-2 py-1.5">
                   <span className="text-[10px] font-medium text-muted-foreground">
                     历史会话
                   </span>
@@ -1102,7 +1102,7 @@ export function AssistantChat({ onClose }: AssistantChatProps = {}) {
                     type="button"
                     onClick={handleNewSession}
                     disabled={sending || voiceCallActive}
-                    className="rounded px-1.5 py-0.5 text-[10px] font-medium text-northstar transition-colors hover:bg-northstar/10 disabled:opacity-50"
+                    className="rounded-lg px-1.5 py-0.5 text-[10px] font-medium text-northstar transition-colors hover:bg-primary/10 disabled:opacity-50"
                   >
                     + 新对话
                   </button>
@@ -1119,7 +1119,7 @@ export function AssistantChat({ onClose }: AssistantChatProps = {}) {
                         type="button"
                         onClick={() => handleSwitchSession(s.id)}
                         disabled={sending}
-                        className={`flex w-full items-center gap-1.5 px-2.5 py-1.5 text-left text-[11px] transition-colors hover:bg-muted/60 disabled:opacity-50 ${
+                        className={`flex w-full items-center gap-1.5 rounded-xl px-2.5 py-1.5 text-left text-[11px] transition-colors hover:bg-primary/10 disabled:opacity-50 ${
                           s.id === currentSessionId
                             ? "bg-cognition/10 text-cognition"
                             : "text-foreground"
@@ -1168,7 +1168,7 @@ export function AssistantChat({ onClose }: AssistantChatProps = {}) {
               onClick={onClose}
               aria-label="关闭"
               title="关闭"
-              className="flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              className="flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-primary/10 hover:text-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
               <X className="h-4 w-4" />
             </button>
@@ -1178,17 +1178,17 @@ export function AssistantChat({ onClose }: AssistantChatProps = {}) {
 
       {/* ===== 语音通话状态条 ===== */}
       {voiceCallActive && (
-        <div className="flex shrink-0 items-center gap-2 border-b border-cognition/20 bg-cognition/5 px-3 py-1.5">
+        <div className="ios-glass-sm flex shrink-0 items-center gap-2 border-b-0 px-3 py-1.5">
           <div
             className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full ${
               voiceCallPhase === "connecting"
-                ? "bg-muted animate-pulse"
+                ? "ios-glass-sm animate-pulse"
                 : voiceCallPhase === "listening"
                 ? "bg-northstar animate-pulse"
                 : voiceCallPhase === "speaking"
                 ? "bg-cognition animate-pulse"
                 : voiceCallPhase === "thinking"
-                ? "bg-muted"
+                ? "ios-glass-sm"
                 : voiceCallPhase === "error"
                 ? "bg-graveyard"
                 : "bg-cognition/70"
@@ -1265,7 +1265,7 @@ export function AssistantChat({ onClose }: AssistantChatProps = {}) {
                   </span>
                 )}
               </div>
-              <p className="rounded-2xl rounded-tl-sm bg-muted px-3.5 py-2.5 text-sm text-foreground">
+              <p className="chat-bubble-ai rounded-2xl rounded-tl-sm px-3.5 py-2.5 text-sm text-foreground">
                 {sessionLoading
                   ? "正在加载会话..."
                   : `你好，我是 ${displayName}，有什么可以帮你？`}
@@ -1324,8 +1324,8 @@ export function AssistantChat({ onClose }: AssistantChatProps = {}) {
                     <div
                       className={`max-w-[80%] whitespace-pre-wrap break-words px-3.5 py-2 text-sm leading-relaxed ${
                         isUser
-                          ? "rounded-2xl rounded-tr-sm bg-primary text-primary-foreground"
-                          : "rounded-2xl rounded-tl-sm bg-muted text-foreground"
+                          ? "chat-bubble-user rounded-2xl rounded-tr-sm"
+                          : "chat-bubble-ai rounded-2xl rounded-tl-sm text-foreground"
                       }`}
                     >
                       {isStreaming && !m.content ? (
@@ -1349,7 +1349,7 @@ export function AssistantChat({ onClose }: AssistantChatProps = {}) {
                       {m.provider && <span className="uppercase">{m.provider}</span>}
                       {m.model && <span>· {m.model}</span>}
                       {m.usage?.total_tokens != null && (
-                        <span className="rounded bg-muted px-1 py-0.5">
+                        <span className="ios-glass-sm rounded px-1 py-0.5">
                           {m.usage.total_tokens} 词元
                           {m.usage.prompt_tokens != null && m.usage.completion_tokens != null && (
                             <span className="text-muted-foreground/50">
@@ -1374,7 +1374,7 @@ export function AssistantChat({ onClose }: AssistantChatProps = {}) {
                   {larkCard && <LarkTaskCard {...larkCard} />}
                   {/* 通用工具调用卡片（可展开查看参数与完整结果） */}
                   {showGenericTool && m.toolCalled && (
-                    <div className="ml-8 max-w-[85%] overflow-hidden rounded-xl border border-cognition/30 bg-cognition/5">
+                    <div className="ml-8 max-w-[85%] overflow-hidden rounded-xl border border-cognition/30 glass-card">
                       <button
                         type="button"
                         onClick={() => toggleToolExpand(i)}
@@ -1398,7 +1398,7 @@ export function AssistantChat({ onClose }: AssistantChatProps = {}) {
                           <div className="mb-1.5 text-[10px] text-muted-foreground">
                             参数：
                           </div>
-                          <pre className="mb-2 overflow-x-auto rounded-lg bg-muted/50 p-2 text-[11px] leading-relaxed">
+                          <pre className="ios-glass-sm mb-2 overflow-x-auto rounded-lg p-2 text-[11px] leading-relaxed">
                             <code className="font-mono text-foreground">
                               {JSON.stringify(m.toolCalled.args, null, 2)}
                             </code>
@@ -1406,7 +1406,7 @@ export function AssistantChat({ onClose }: AssistantChatProps = {}) {
                           <div className="mb-1.5 text-[10px] text-muted-foreground">
                             结果：
                           </div>
-                          <pre className="max-h-60 overflow-auto rounded-lg bg-muted/50 p-2 text-[11px] leading-relaxed">
+                          <pre className="ios-glass-sm max-h-60 overflow-auto rounded-lg p-2 text-[11px] leading-relaxed">
                             <code className="font-mono text-foreground">
                               {JSON.stringify(m.toolCalled.result, null, 2)}
                             </code>
@@ -1429,7 +1429,7 @@ export function AssistantChat({ onClose }: AssistantChatProps = {}) {
 
       {/* ===== 快捷技能区（输入框上方，横向滚动）===== */}
       {!voiceCallActive && (
-        <div className="shrink-0 border-t border-border bg-background px-2 py-2">
+        <div className="glass-topbar shrink-0 border-t-0 px-2 py-2">
           <div className="flex items-center gap-1.5 overflow-x-auto pb-1 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
             {/* 「技能」下拉：点击展开所有 6 个快捷技能，选中后填入输入框 */}
             <div ref={skillMenuRef} className="relative shrink-0">
@@ -1446,7 +1446,7 @@ export function AssistantChat({ onClose }: AssistantChatProps = {}) {
                 disabled={sending}
                 title="选择技能填入输入框"
                 aria-label="选择技能"
-                className="inline-flex items-center gap-1 rounded-full border border-cognition/40 bg-cognition/5 px-2 py-1 text-[11px] font-medium text-cognition transition-all hover:bg-cognition/10 disabled:opacity-50"
+                className="ios-glass-sm inline-flex items-center gap-1 rounded-full px-2 py-1 text-[11px] font-medium text-cognition transition-all hover:border-cognition/40 disabled:opacity-50"
               >
                 <Wrench className="h-3 w-3" />
                 <span>技能</span>
@@ -1456,10 +1456,10 @@ export function AssistantChat({ onClose }: AssistantChatProps = {}) {
               </button>
               {showSkillMenu && createPortal(
                 <div
-                  className="fixed z-[9999] w-56 max-h-72 overflow-hidden rounded-lg border border-border bg-card shadow-xl"
+                  className="user-menu fixed z-[9999] w-56 max-h-72 overflow-hidden rounded-2xl p-1 shadow-2xl"
                   style={{ top: `${skillMenuPos.top}px`, left: `${skillMenuPos.left}px`, transform: "translateY(-100%)" }}
                 >
-                  <div className="border-b border-border px-2 py-1.5">
+                  <div className="px-2 py-1.5">
                     <span className="text-[10px] font-medium text-muted-foreground">
                       选择技能（点击填入输入框）
                     </span>
@@ -1475,7 +1475,7 @@ export function AssistantChat({ onClose }: AssistantChatProps = {}) {
                         }}
                         disabled={sending}
                         title={cmd.description}
-                        className="flex w-full items-start gap-2 px-2.5 py-1.5 text-left text-[11px] text-foreground transition-colors hover:bg-muted/60 disabled:opacity-50"
+                        className="flex w-full items-start gap-2 rounded-xl px-2.5 py-1.5 text-left text-[11px] text-foreground transition-colors hover:bg-primary/10 disabled:opacity-50"
                       >
                         <span className="text-sm leading-none">{cmd.icon}</span>
                         <div className="min-w-0 flex-1">
@@ -1498,7 +1498,7 @@ export function AssistantChat({ onClose }: AssistantChatProps = {}) {
                 onClick={() => handleQuickCommand(cmd)}
                 disabled={sending}
                 title={cmd.description}
-                className="inline-flex shrink-0 items-center gap-1 rounded-full border border-border bg-card px-2 py-1 text-[11px] text-foreground transition-all hover:border-cognition/40 hover:bg-cognition/5 disabled:opacity-50"
+                className="ios-glass-sm inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-1 text-[11px] text-foreground transition-all hover:border-cognition/40 hover:text-cognition disabled:opacity-50"
               >
                 <span className="text-xs">{cmd.icon}</span>
                 <span>{cmd.label}</span>
@@ -1509,7 +1509,7 @@ export function AssistantChat({ onClose }: AssistantChatProps = {}) {
       )}
 
       {/* ===== 输入区（固定底部）===== */}
-      <div className="shrink-0 border-t border-border bg-background px-3 py-2.5">
+      <div className="glass-topbar shrink-0 border-t-0 px-3 py-2.5">
         <div className="flex items-end gap-2">
           <textarea
             ref={textareaRef}
@@ -1527,7 +1527,7 @@ export function AssistantChat({ onClose }: AssistantChatProps = {}) {
                 ? "AI 思考中..."
                 : "输入消息，Enter 发送，Shift+Enter 换行"
             }
-            className="max-h-32 min-h-[40px] flex-1 resize-none rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-70"
+            className="ios-glass-sm max-h-32 min-h-[40px] flex-1 resize-none rounded-xl px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-70"
           />
           <button
             type="button"

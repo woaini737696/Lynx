@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import { NavLink, useNavigate } from "react-router-dom";
-import { User, LogOut, Settings, HelpCircle } from "lucide-react";
+import { User, LogOut, Settings } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
 import { useAuthStore } from "@/stores/authStore";
@@ -10,7 +10,6 @@ import { Logo } from "@/components/ui/Logo";
 
 const menuItems = [
   { to: "/settings", label: "设置", icon: Settings },
-  { to: "/help", label: "帮助中心", icon: HelpCircle },
 ];
 
 const CLOSE_DELAY = 180;

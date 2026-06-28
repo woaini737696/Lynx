@@ -417,7 +417,7 @@ export default function BoardPage() {
                       if (e.key === "Escape") setAdding(null);
                     }}
                     placeholder={`添加${meta.label}...`}
-                    className="w-full rounded-xl border border-border bg-background px-3 py-2 text-xs outline-none transition-colors focus:border-primary"
+                    className="ios-glass-sm w-full rounded-xl border-0 bg-transparent px-3 py-2 text-xs outline-none transition-colors focus:outline-none focus:ring-2 focus:ring-primary/20"
                   />
                   <div className="mt-2 flex items-center justify-end gap-2">
                     <Button size="sm" variant="ghost" onClick={() => setAdding(null)}>

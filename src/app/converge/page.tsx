@@ -158,7 +158,7 @@ export default function ConvergePage() {
               <span>已完成 {done}/{total}</span>
               <span>{progress}%</span>
             </div>
-            <div className="mt-1.5 h-2.5 rounded-full bg-muted/70 overflow-hidden">
+            <div className="ios-glass-sm mt-1.5 h-2.5 overflow-hidden rounded-full">
               <div
                 className="h-full rounded-full bg-primary transition-all"
                 style={{ width: `${progress}%` }}
@@ -202,7 +202,7 @@ export default function ConvergePage() {
                     <div className="flex-1 min-w-0">
                       <div className="text-sm leading-relaxed">{idea.content}</div>
                       <div className="mt-1.5 text-[10px] text-muted-foreground/80">
-                        <span className="inline-flex items-center gap-1 rounded-lg bg-muted px-1.5 py-0.5">
+                        <span className="ios-glass-sm inline-flex items-center gap-1 rounded-lg px-1.5 py-0.5">
                           {idea.source === "lightning" ? "⚡ 闪电输入" : "💬 对话提取"}
                         </span>
                       </div>
@@ -245,7 +245,7 @@ export default function ConvergePage() {
           </div>
 
           {filtered.length === 0 && (
-            <div className="rounded-xl border border-dashed border-border bg-muted/30 px-4 py-12 text-center text-sm text-muted-foreground">
+            <div className="glass-card rounded-xl border border-dashed border-border px-4 py-12 text-center text-sm text-muted-foreground">
               没有匹配的灵感
             </div>
           )}
@@ -267,7 +267,7 @@ export default function ConvergePage() {
               <Trash2 className="h-4 w-4" />
               <span className="text-sm font-semibold">送入灵感墓地</span>
             </div>
-            <p className="mb-4 rounded-xl bg-muted/50 p-2 text-sm text-foreground/80">{abandoning.content}</p>
+            <p className="glass-card mb-4 rounded-xl p-2 text-sm text-foreground/80">{abandoning.content}</p>
             <div className="mb-3 space-y-1">
               <label className="text-[11px] text-muted-foreground">放弃原因（必填）</label>
               <textarea value={reason} onChange={(e) => setReason(e.target.value)} className="min-h-[72px] w-full resize-none rounded-xl border border-border bg-background px-3 py-2 text-xs outline-none transition-colors focus:border-graveyard" placeholder="为什么放弃..." />

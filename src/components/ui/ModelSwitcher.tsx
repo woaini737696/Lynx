@@ -169,7 +169,7 @@ export function ModelSwitcher({
       </Button>
 
       {open && (
-        <div className="absolute right-0 z-50 mt-1 min-w-[260px] overflow-hidden rounded-xl border border-border bg-card shadow-lg animate-in fade-in zoom-in-95 duration-150">
+        <div className="user-menu absolute right-0 z-50 mt-1 min-w-[260px] overflow-hidden rounded-xl shadow-lg animate-in fade-in zoom-in-95 duration-150">
           {/* Provider 分组 */}
           <div className="border-b border-border px-3 py-2 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
             服务商
@@ -192,7 +192,7 @@ export function ModelSwitcher({
                       "flex w-full items-center gap-2 px-3 py-2 text-left transition-colors",
                       selected
                         ? "bg-cognition/10 text-cognition"
-                        : "text-foreground hover:bg-muted",
+                        : "text-foreground hover:bg-primary/10 hover:text-primary",
                       !p.available && "cursor-not-allowed opacity-50"
                     )}
                   >
@@ -232,7 +232,7 @@ export function ModelSwitcher({
                           "flex w-full items-center gap-2 px-3 py-2 text-left transition-colors",
                           selected
                             ? "bg-cognition/10 text-cognition"
-                            : "text-foreground hover:bg-muted"
+                            : "text-foreground hover:bg-primary/10 hover:text-primary"
                         )}
                       >
                         <div className="min-w-0 flex-1">
@@ -275,7 +275,7 @@ export function ModelSwitcher({
                           "flex w-full items-center gap-2 px-3 py-2 text-left transition-colors",
                           selected
                             ? "bg-cognition/10 text-cognition"
-                            : "text-foreground hover:bg-muted"
+                            : "text-foreground hover:bg-primary/10 hover:text-primary"
                         )}
                       >
                         <div className="min-w-0 flex-1">
