@@ -1,5 +1,10 @@
-// NextAuth middleware：保护路由，未登录重定向到 /login
+// NextAuth middleware：保护路由，未登录重定向到首页并弹出登录窗
 // App 端通过 Authorization: Bearer <token> 访问 /api/*，由 route handler 的 requireAuth 校验
+//
+// 重定向策略（2026-06-28 重构）：
+// - 首次访问（无 session cookie）：重定向到 /?login=1
+// - 会话过期（有 cookie 但无效）：重定向到 /?expired=1
+// - 不再使用独立 /login 页面，改为首页内弹窗登录
 import { auth } from "@/auth";
 import { NextResponse } from "next/server";
 import { unauthorized } from "@/lib/api-response";
@@ -14,6 +19,9 @@ const publicPatterns = [
   // 公共技能评论查询（GET 公开，POST 内部 requireAuth）
   /^\/api\/skills\/[^/]+\/reviews$/,
 ];
+
+// 首页作为公开落地页：未登录用户可访问首页，由前端弹窗处理登录
+const PUBLIC_LANDING = /^\/$/;
 
 export default auth((req) => {
   const { pathname, searchParams } = req.nextUrl;
@@ -51,10 +59,27 @@ export default auth((req) => {
       });
     }
 
-    const loginUrl = new URL("/login", req.nextUrl.origin);
-    loginUrl.searchParams.set("callbackUrl", pathname);
-    loginUrl.searchParams.set("expired", "1");
-    return NextResponse.redirect(loginUrl);
+    // 首页作为公开落地页：未登录直接放行，由前端 AuthProvider 弹出登录窗
+    if (PUBLIC_LANDING.test(pathname)) {
+      return NextResponse.next();
+    }
+
+    // 区分首次访问 vs 会话过期：
+    // - 有 session cookie 但 req.auth 为 null → 会话过期
+    // - 无 session cookie → 首次访问
+    const sessionCookieName =
+      process.env.NODE_ENV === "production"
+        ? "__Secure-authjs.session-token"
+        : "authjs.session-token";
+    const hasSessionCookie = Boolean(req.cookies.get(sessionCookieName)?.value);
+
+    const homeUrl = new URL("/", req.nextUrl.origin);
+    if (hasSessionCookie) {
+      homeUrl.searchParams.set("expired", "1");
+    } else {
+      homeUrl.searchParams.set("login", "1");
+    }
+    return NextResponse.redirect(homeUrl);
   }
 
   // 路由守卫：/admin/* 仅 admin 可访问（服务端校验，避免普通用户看到 admin 页面骨架）

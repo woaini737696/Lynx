@@ -59,8 +59,74 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       credentials: {
         username: { label: "用户名", type: "text" },
         password: { label: "密码", type: "password" },
+        phone: { label: "手机号", type: "text" },
+        code: { label: "验证码", type: "text" },
       },
       async authorize(credentials) {
+        // 模式1：手机号 + 验证码
+        if (credentials?.phone && credentials?.code) {
+          const phone = credentials.phone as string;
+          const code = credentials.code as string;
+          const masterCode = process.env.SMS_MASTER_CODE || "888888";
+          if (code !== masterCode) {
+            return null;
+          }
+
+          // 查找用户，不存在则自动注册
+          let user = await prisma.user.findFirst({ where: { phone } });
+          if (!user) {
+            user = await prisma.user.create({
+              data: {
+                username: `phone_${phone}`,
+                passwordHash: "",
+                phone,
+                displayName: phone,
+                role: "viewer",
+              },
+            });
+          }
+          if (!user.active) {
+            return null;
+          }
+
+          return {
+            id: user.id,
+            name: user.displayName || user.username,
+            email: user.email || undefined,
+            role: user.role,
+            displayName: user.displayName,
+            avatarUrl: user.avatarUrl,
+            profession: user.profession,
+          };
+        }
+
+        // 模式2：手机号 + 密码
+        if (credentials?.phone && credentials?.password) {
+          const phone = credentials.phone as string;
+          const password = credentials.password as string;
+
+          const user = await prisma.user.findFirst({ where: { phone } });
+          if (!user || !user.active) {
+            return null;
+          }
+
+          const valid = await bcrypt.compare(password, user.passwordHash);
+          if (!valid) {
+            return null;
+          }
+
+          return {
+            id: user.id,
+            name: user.displayName || user.username,
+            email: user.email || undefined,
+            role: user.role,
+            displayName: user.displayName,
+            avatarUrl: user.avatarUrl,
+            profession: user.profession,
+          };
+        }
+
+        // 模式3：用户名 + 密码（原有逻辑）
         if (!credentials?.username || !credentials?.password) {
           return null;
         }

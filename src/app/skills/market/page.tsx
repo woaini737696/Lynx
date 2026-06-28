@@ -268,7 +268,7 @@ function SkillMarketContent() {
       typeof window !== "undefined"
         ? window.location.pathname
         : "/skills/market";
-    router.push(`/login?callbackUrl=${encodeURIComponent(cb)}`);
+    router.push(`/?login=1&callbackUrl=${encodeURIComponent(cb)}`);
   };
 
   // 加载广场技能到我的技能库
@@ -789,7 +789,7 @@ function SkillDetailModal({
           typeof window !== "undefined"
             ? window.location.pathname
             : "/skills/market";
-        router.push(`/login?callbackUrl=${encodeURIComponent(cb)}`);
+        router.push(`/?login=1&callbackUrl=${encodeURIComponent(cb)}`);
       } else {
         toast(data.error || "提交失败", "error");
       }

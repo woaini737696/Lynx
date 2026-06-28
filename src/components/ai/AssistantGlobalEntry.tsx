@@ -116,7 +116,7 @@ export function AssistantGlobalEntry() {
                 type="button"
                 onClick={() => {
                   setShowLoginModal(false);
-                  window.location.href = "/login";
+                  window.location.href = "/?expired=1";
                 }}
                 className="w-full rounded-lg bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground transition-colors hover:opacity-90 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               >
