@@ -2457,11 +2457,11 @@ function NodeConfigPanel({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4"
+      className="fixed inset-0 z-[100] flex items-center justify-center bg-black/30 p-4"
       onClick={onClose}
     >
       <div
-        className="glass-card flex max-h-[90vh] w-full max-w-md flex-col overflow-hidden rounded-2xl shadow-lg"
+        className="glass-modal flex max-h-[90vh] w-full max-w-md flex-col overflow-hidden rounded-2xl"
         onClick={(e) => e.stopPropagation()}
       >
         {/* 头部 */}
@@ -2938,11 +2938,11 @@ function TemplatePanel({
 }) {
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4"
+      className="fixed inset-0 z-[100] flex items-center justify-center bg-black/30 p-4"
       onClick={onClose}
     >
       <div
-        className="glass-card w-full max-w-2xl rounded-2xl p-5 shadow-lg"
+        className="glass-modal w-full max-w-2xl rounded-2xl p-5"
         onClick={(e) => e.stopPropagation()}
       >
         {/* 头部 */}
@@ -3023,11 +3023,11 @@ function ExecutionHistoryModal({
 }) {
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4"
+      className="fixed inset-0 z-[100] flex items-center justify-center bg-black/30 p-4"
       onClick={onClose}
     >
       <div
-        className="glass-card flex max-h-[85vh] w-full max-w-3xl flex-col rounded-2xl shadow-lg"
+        className="glass-modal flex max-h-[85vh] w-full max-w-3xl flex-col rounded-2xl"
         onClick={(e) => e.stopPropagation()}
       >
         {/* 头部 */}

@@ -65,10 +65,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => window.removeEventListener("auth:unauthorized", handler);
   }, []);
 
-  // 登录成功后：关闭弹窗 + 刷新页面状态
+  // 登录成功后：关闭弹窗 + 通知全局组件刷新登录状态 + router.refresh
   const handleSuccess = useCallback(() => {
     setIsOpen(false);
     setExpired(false);
+    // 派发登录成功事件，Sidebar 等组件监听后立即重新 fetch session
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(new Event("auth:login-success"));
+    }
     router.refresh();
   }, [router]);
 

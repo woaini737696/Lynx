@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useRef, useCallback } from "react";
+import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import { Search, Command, ArrowRight, Target, Inbox, Brain, BookOpen, KanbanSquare, Skull, Moon, Settings, Sparkles, LayoutGrid, Workflow, Bot, Clock, TrendingUp, Zap, Terminal, Star } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -497,20 +498,20 @@ export function CommandPalette() {
     el?.scrollIntoView({ block: "nearest" });
   }, [activeIndex, activeTab, isCommandMode]);
 
-  if (!open) return null;
+  if (!open || typeof document === "undefined") return null;
 
   const showEmpty =
     (isCommandMode && !isSearchCommand && filteredCommands.length === 0 && commandQuery.length > 0) ||
     (isSearchCommand && !loading && results.length === 0) ||
     (!isCommandMode && query.trim() && !loading && displayItems.length === 0);
 
-  return (
+  return createPortal(
     <div
-      className="fixed inset-0 z-[90] flex items-start justify-center bg-black/30 p-4 pt-[10vh] backdrop-blur-sm"
+      className="fixed inset-0 z-[200] flex items-start justify-center bg-black/30 p-4 pt-[10vh] backdrop-blur-xl"
       onClick={() => setOpen(false)}
     >
       <div
-        className="glass-card flex max-h-[80vh] w-full max-w-xl flex-col overflow-hidden rounded-2xl shadow-2xl"
+        className="glass-modal flex max-h-[80vh] w-full max-w-xl flex-col overflow-hidden rounded-3xl"
         onClick={(e) => e.stopPropagation()}
       >
         {/* 搜索输入 */}
@@ -790,6 +791,7 @@ export function CommandPalette() {
           </span>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

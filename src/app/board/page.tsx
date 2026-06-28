@@ -379,7 +379,7 @@ export default function BoardPage() {
                       "ml-1 rounded-full px-2 py-0.5 text-[10px] font-medium",
                       isFull
                         ? "bg-graveyard/10 text-graveyard"
-                        : "bg-muted text-muted-foreground"
+                        : "ios-glass-sm text-muted-foreground"
                     )}
                   >
                     {col.tasks.length}/{meta.limit}
@@ -432,7 +432,7 @@ export default function BoardPage() {
 
               <div className="flex-1 space-y-2 p-3">
                 {col.tasks.length === 0 ? (
-                  <div className="flex h-24 flex-col items-center justify-center rounded-xl border border-dashed border-border bg-muted/30 text-center">
+                  <div className="flex h-24 flex-col items-center justify-center rounded-xl border border-dashed border-border ios-glass-sm text-center">
                     <span className="text-xs text-muted-foreground">暂无{meta.label}</span>
                   </div>
                 ) : (
@@ -500,7 +500,7 @@ export default function BoardPage() {
         {showDone && (
           <div className="space-y-2 p-3">
             {doneTasks.length === 0 ? (
-              <div className="flex h-20 flex-col items-center justify-center rounded-xl border border-dashed border-border bg-muted/30 text-center">
+              <div className="flex h-20 flex-col items-center justify-center rounded-xl border border-dashed border-border ios-glass-sm text-center">
                 <span className="text-xs text-muted-foreground">暂无已完成任务</span>
               </div>
             ) : (
@@ -568,7 +568,7 @@ export default function BoardPage() {
             </div>
 
             {/* 任务内容摘要 */}
-            <div className="mb-3 rounded-lg border border-border bg-muted/30 p-2.5">
+            <div className="mb-3 rounded-lg border border-border ios-glass-sm p-2.5">
               <div className="text-[10px] text-muted-foreground">完成任务</div>
               <p className="mt-0.5 text-xs text-foreground line-clamp-2">
                 {cognitionModal.taskContent}

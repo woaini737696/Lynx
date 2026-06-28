@@ -1315,11 +1315,11 @@ function HermesHelpModal({ onClose }: { onClose: () => void }) {
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4 backdrop-blur-sm"
+      className="fixed inset-0 z-[100] flex items-center justify-center bg-black/30 p-4 backdrop-blur-xl"
       onClick={onClose}
     >
       <div
-        className="glass-card max-h-[85vh] w-full max-w-2xl overflow-y-auto rounded-2xl shadow-2xl"
+        className="glass-modal max-h-[85vh] w-full max-w-2xl overflow-y-auto rounded-2xl"
         onClick={(e) => e.stopPropagation()}
       >
         {/* 头部 */}

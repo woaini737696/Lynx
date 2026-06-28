@@ -817,11 +817,11 @@ function SkillDetailModal({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-start justify-center bg-black/30 p-4 pt-[6vh] backdrop-blur-sm animate-in fade-in duration-200"
+      className="fixed inset-0 z-[100] flex items-start justify-center bg-black/30 p-4 pt-[6vh] backdrop-blur-xl animate-in fade-in duration-200"
       onClick={onClose}
     >
       <div
-        className="max-h-[88vh] w-full max-w-2xl overflow-y-auto glass-card p-5 shadow-2xl transition-all animate-in zoom-in-95 duration-200 sm:p-6"
+        className="max-h-[88vh] w-full max-w-2xl overflow-y-auto glass-modal p-5 transition-all animate-in zoom-in-95 duration-200 sm:p-6"
         onClick={(e) => e.stopPropagation()}
       >
         {/* 头部 */}

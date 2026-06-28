@@ -899,11 +899,11 @@ function SkillEditModal({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-start justify-center bg-black/30 p-4 pt-[6vh] backdrop-blur-sm animate-in fade-in duration-200"
+      className="fixed inset-0 z-[100] flex items-start justify-center bg-black/30 p-4 pt-[6vh] backdrop-blur-xl animate-in fade-in duration-200"
       onClick={onClose}
     >
       <div
-        className="max-h-[88vh] w-full max-w-3xl overflow-y-auto glass-card p-5 shadow-2xl transition-all animate-in zoom-in-95 duration-200 sm:p-6"
+        className="max-h-[88vh] w-full max-w-3xl overflow-y-auto glass-modal p-5 transition-all animate-in zoom-in-95 duration-200 sm:p-6"
         onClick={(e) => e.stopPropagation()}
       >
         {/* 头部 */}
@@ -1136,11 +1136,11 @@ function VersionDetailModal({
 
   return (
     <div
-      className="fixed inset-0 z-[70] flex items-start justify-center bg-black/30 p-4 pt-[6vh] backdrop-blur-sm animate-in fade-in duration-200"
+      className="fixed inset-0 z-[100] flex items-start justify-center bg-black/30 p-4 pt-[6vh] backdrop-blur-xl animate-in fade-in duration-200"
       onClick={onClose}
     >
       <div
-        className="max-h-[88vh] w-full max-w-3xl overflow-y-auto glass-card p-5 shadow-2xl animate-in zoom-in-95 duration-200 sm:p-6"
+        className="max-h-[88vh] w-full max-w-3xl overflow-y-auto glass-modal p-5 animate-in zoom-in-95 duration-200 sm:p-6"
         onClick={(e) => e.stopPropagation()}
       >
         {/* 头部 */}
@@ -1292,11 +1292,11 @@ function RollbackConfirmDialog({
 }) {
   return (
     <div
-      className="fixed inset-0 z-[80] flex items-center justify-center bg-black/30 p-4 backdrop-blur-sm animate-in fade-in duration-200"
+      className="fixed inset-0 z-[100] flex items-center justify-center bg-black/30 p-4 backdrop-blur-xl animate-in fade-in duration-200"
       onClick={onCancel}
     >
       <div
-        className="w-full max-w-sm glass-card p-5 shadow-2xl animate-in zoom-in-95 duration-200"
+        className="w-full max-w-sm glass-modal p-5 animate-in zoom-in-95 duration-200"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="mb-3 flex items-center gap-2">
@@ -1630,11 +1630,11 @@ function DiffModal({
 
   return (
     <div
-      className="fixed inset-0 z-[70] flex items-start justify-center bg-black/30 p-4 pt-[4vh] backdrop-blur-sm animate-in fade-in duration-200"
+      className="fixed inset-0 z-[100] flex items-start justify-center bg-black/30 p-4 pt-[4vh] backdrop-blur-xl animate-in fade-in duration-200"
       onClick={onClose}
     >
       <div
-        className="flex max-h-[92vh] min-h-[60vh] w-full max-w-6xl flex-col overflow-hidden glass-card shadow-2xl animate-in zoom-in-95 duration-200"
+        className="flex max-h-[92vh] min-h-[60vh] w-full max-w-6xl flex-col overflow-hidden glass-modal animate-in zoom-in-95 duration-200"
         onClick={(e) => e.stopPropagation()}
       >
         {/* 头部：标题 + 版本标识 */}
@@ -1969,11 +1969,11 @@ function ImportModal({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-start justify-center bg-black/30 p-4 pt-[10vh] backdrop-blur-sm animate-in fade-in duration-200"
+      className="fixed inset-0 z-[100] flex items-start justify-center bg-black/30 p-4 pt-[10vh] backdrop-blur-xl animate-in fade-in duration-200"
       onClick={onClose}
     >
       <div
-        className="max-h-[80vh] w-full max-w-2xl overflow-y-auto glass-card p-5 shadow-2xl transition-all animate-in zoom-in-95 duration-200 sm:p-6"
+        className="max-h-[80vh] w-full max-w-2xl overflow-y-auto glass-modal p-5 transition-all animate-in zoom-in-95 duration-200 sm:p-6"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="mb-5 flex items-center justify-between">
@@ -2239,11 +2239,11 @@ function AIGenerateModal({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-start justify-center bg-black/30 p-4 pt-[6vh] backdrop-blur-sm animate-in fade-in duration-200"
+      className="fixed inset-0 z-[100] flex items-start justify-center bg-black/30 p-4 pt-[6vh] backdrop-blur-xl animate-in fade-in duration-200"
       onClick={handleClose}
     >
       <div
-        className="max-h-[88vh] w-full max-w-3xl overflow-y-auto glass-card p-5 shadow-2xl transition-all animate-in zoom-in-95 duration-200 sm:p-6"
+        className="max-h-[88vh] w-full max-w-3xl overflow-y-auto glass-modal p-5 transition-all animate-in zoom-in-95 duration-200 sm:p-6"
         onClick={(e) => e.stopPropagation()}
       >
         {/* 头部 */}

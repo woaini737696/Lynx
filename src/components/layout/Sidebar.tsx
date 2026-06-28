@@ -172,28 +172,39 @@ function SidebarUserProfile() {
     }
 
     // 2. fetch 最新 session 更新（同时刷新缓存）
-    fetch("/api/auth/session")
-      .then((r) => (r.ok ? r.json() : null))
-      .then((s) => {
-        if (s?.user) {
-          setUser(s.user);
-          try {
-            localStorage.setItem("lynx-sidebar-user", JSON.stringify(s.user));
-          } catch {
-            // localStorage 不可用，忽略
+    const refreshSession = () => {
+      fetch("/api/auth/session")
+        .then((r) => (r.ok ? r.json() : null))
+        .then((s) => {
+          if (s?.user) {
+            setUser(s.user);
+            try {
+              localStorage.setItem("lynx-sidebar-user", JSON.stringify(s.user));
+            } catch {
+              // localStorage 不可用，忽略
+            }
+          } else {
+            // session 失效，清除缓存显示未登录
+            setUser(null);
+            try {
+              localStorage.removeItem("lynx-sidebar-user");
+            } catch {
+              // ignore
+            }
           }
-        } else {
-          // session 失效，清除缓存显示未登录
-          setUser(null);
-          try {
-            localStorage.removeItem("lynx-sidebar-user");
-          } catch {
-            // ignore
-          }
-        }
-      })
-      .catch(() => {})
-      .finally(() => setLoading(false));
+        })
+        .catch(() => {})
+        .finally(() => setLoading(false));
+    };
+    refreshSession();
+
+    // 3. 监听登录成功事件，立即无感刷新登录状态
+    const onLoginSuccess = () => {
+      setLoading(true);
+      refreshSession();
+    };
+    window.addEventListener("auth:login-success", onLoginSuccess);
+    return () => window.removeEventListener("auth:login-success", onLoginSuccess);
   }, []);
 
   // 点击外部或按 Esc 收起菜单
@@ -430,7 +441,7 @@ export function Sidebar() {
         )}
       >
         {/* 顶部：Logo 区域（固定展示） + 移动端关闭按钮 */}
-        <div className="flex h-14 items-center justify-between border-b border-border/40 px-1.5">
+        <div className="flex h-14 items-center justify-between px-1.5">
           <FastLink href="/" className="flex items-center gap-2 transition-opacity hover:opacity-80">
             <Image
               src="/lynx-icon-128.png"

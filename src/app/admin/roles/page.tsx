@@ -313,11 +313,11 @@ export default function RolesPage() {
       {/* 新建/编辑弹窗 */}
       {modalMode && (
         <div
-          className="fixed inset-0 z-[80] flex items-center justify-center bg-black/30 p-4 backdrop-blur-sm"
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/30 p-4 backdrop-blur-xl"
           onClick={closeModal}
         >
           <div
-            className="flex max-h-[90vh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl glass-card shadow-2xl"
+            className="flex max-h-[90vh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl glass-modal"
             onClick={(e) => e.stopPropagation()}
           >
             {/* 头部 */}

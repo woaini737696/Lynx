@@ -86,14 +86,14 @@ function AsyncLoadingOverlay({ tasks }: { tasks: AsyncTask[] }) {
 
   return (
     <div
-      className="fixed inset-0 z-[120] flex items-center justify-center bg-black/30 backdrop-blur-sm animate-in fade-in"
+      className="fixed inset-0 z-[100] flex items-center justify-center bg-black/30 backdrop-blur-xl animate-in fade-in"
       role="status"
       aria-live="polite"
     >
       <div
         className={cn(
-          "glass-card flex flex-col items-center gap-3 rounded-2xl px-8 py-6",
-          "shadow-2xl animate-in zoom-in-95"
+          "glass-modal flex flex-col items-center gap-3 rounded-2xl px-8 py-6",
+          "animate-in zoom-in-95"
         )}
       >
         {/* 旋转图标 + 呼吸光晕 */}
