@@ -6,6 +6,9 @@ import { cloudApi } from "@/lib/cloud-api";
 import { toast } from "@/lib/toast";
 import { useQueryClient } from "@tanstack/react-query";
 
+/** 自定义事件名：外部按钮通过此事件唤起闪电输入 */
+export const OPEN_LIGHTNING_INPUT_EVENT = "lynx-open-lightning-input";
+
 /**
  * 灵感速记（闪电输入）- 同步 Web 端 LightningInput
  * 全局快捷键 Ctrl+J / Cmd+J 唤起，Enter 保存，Esc 关闭
@@ -26,7 +29,7 @@ export function LightningInput() {
     }, 200);
   }, []);
 
-  // 全局快捷键 Ctrl+J / Cmd+J
+  // 全局快捷键 Ctrl+J / Cmd+J + 自定义事件
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if ((e.ctrlKey || e.metaKey) && (e.key === "j" || e.key === "J")) {
@@ -35,8 +38,13 @@ export function LightningInput() {
       }
       if (e.key === "Escape") close();
     };
+    const openHandler = () => setOpen(true);
     window.addEventListener("keydown", handler);
-    return () => window.removeEventListener("keydown", handler);
+    window.addEventListener(OPEN_LIGHTNING_INPUT_EVENT, openHandler);
+    return () => {
+      window.removeEventListener("keydown", handler);
+      window.removeEventListener(OPEN_LIGHTNING_INPUT_EVENT, openHandler);
+    };
   }, [close]);
 
   useEffect(() => {

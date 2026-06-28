@@ -1,10 +1,9 @@
-import { useEffect, useCallback } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { useQuery } from "@tanstack/react-query";
 import { cloudApi } from "@/lib/cloud-api";
 import type { Idea } from "@/types/api";
-import { useState } from "react";
 
 /**
  * AI 助理悬浮入口 - 同步 Web 端 AssistantFloatingButton
@@ -15,9 +14,6 @@ export function AssistantFloatingButton() {
   const navigate = useNavigate();
   const location = useLocation();
   const [showHint, setShowHint] = useState(false);
-
-  // 在 AI 助理页面不显示
-  if (location.pathname.startsWith("/ai/assistant")) return null;
 
   // 全局快捷键 Alt+J
   useEffect(() => {
@@ -30,6 +26,9 @@ export function AssistantFloatingButton() {
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
   }, [navigate]);
+
+  // 在 AI 助理页面不显示
+  if (location.pathname.startsWith("/ai/assistant")) return null;
 
   return (
     <div
