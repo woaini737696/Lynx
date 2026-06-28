@@ -26,8 +26,7 @@ import {
   Trash2,
   GitBranch,
 } from "lucide-react";
-import { PageHeader, Card, Button, Badge } from "@/components/layout/PageHeader";
-import { HelpButton } from "@/components/layout/HelpButton";
+import { Card, Button, Badge } from "@/components/layout/PageHeader";
 import { Modal } from "@/components/ui/Modal";
 import { toast } from "@/components/ui/toast";
 import { cn } from "@/lib/utils";
@@ -367,22 +366,22 @@ export default function AIWorkspacePage() {
 
   return (
     <div className="p-4 sm:p-8">
-      <PageHeader
-        title="AI 工作空间"
-        subtitle="将重复性 AI 协同工作固化为参数化模板，一键启动蒸馏流程"
-        action={
-          <div className="flex items-center gap-2">
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => openTemplateEditor(null)}
-            >
-              <Plus className="h-3.5 w-3.5" /> 新建模板
-            </Button>
-            <HelpButton contentKey="ai-workspace" />
-          </div>
-        }
-      />
+      <div className="mb-6 flex items-end justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-foreground">AI 工作空间</h1>
+          <p className="mt-1 text-sm text-muted-foreground">预置蒸馏模板 + 自定义工作流，一键运行</p>
+        </div>
+        <div className="ios-glass-sm flex h-10 items-center gap-2 rounded-full px-3">
+          <Search className="h-4 w-4 text-muted-foreground" />
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="搜索模板..."
+            className="bg-transparent text-sm text-foreground outline-none placeholder:text-muted-foreground sm:w-40"
+          />
+        </div>
+      </div>
 
       {/* 快速入口 */}
       <div className="mb-6 grid grid-cols-1 gap-3 sm:grid-cols-3">
@@ -420,33 +419,15 @@ export default function AIWorkspacePage() {
           <button
             onClick={() => setShowFavoritesOnly((v) => !v)}
             className={cn(
-              "flex items-center gap-1 rounded-lg border px-2 py-1 text-[11px] transition-colors",
+              "ios-glass-sm flex items-center gap-1 rounded-full px-3 py-1.5 text-xs font-medium transition-colors",
               showFavoritesOnly
-                ? "border-northstar bg-northstar/10 text-northstar"
-                : "border-border text-muted-foreground hover:bg-muted"
+                ? "btn-primary text-white"
+                : "text-muted-foreground hover:text-primary"
             )}
           >
             <Star className={cn("h-3 w-3", showFavoritesOnly && "fill-current")} />
             收藏
           </button>
-          {/* 搜索框 */}
-          <div className="relative">
-            <Search className="absolute left-2 top-1/2 h-3 w-3 -translate-y-1/2 text-muted-foreground" />
-            <input
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="搜索模板..."
-              className="w-32 rounded-lg border border-border bg-background py-1 pl-7 pr-2 text-[11px] outline-none transition-colors focus:border-cognition/40 sm:w-48"
-            />
-            {searchQuery && (
-              <button
-                onClick={() => setSearchQuery("")}
-                className="absolute right-1.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-              >
-                <X className="h-3 w-3" />
-              </button>
-            )}
-          </div>
         </div>
       </div>
 
@@ -457,10 +438,10 @@ export default function AIWorkspacePage() {
             key={f.key}
             onClick={() => setCategoryFilter(f.key)}
             className={cn(
-              "rounded-lg px-2.5 py-1 text-[11px] font-medium transition-colors",
+              "rounded-full px-3 py-1.5 text-xs font-medium transition-colors",
               categoryFilter === f.key
-                ? "border border-cognition bg-cognition/10 text-cognition"
-                : "border border-border bg-card text-muted-foreground hover:bg-muted hover:text-foreground"
+                ? "btn-primary text-white"
+                : "ios-glass-sm text-muted-foreground hover:text-primary"
             )}
           >
             {f.label}
@@ -512,7 +493,7 @@ export default function AIWorkspacePage() {
 
       {/* 全部模板（紧凑网格） */}
       {filteredTemplates.length === 0 ? (
-        <div className="rounded-2xl border border-dashed border-border bg-card/40 p-8 text-center text-xs text-muted-foreground">
+        <div className="ios-glass rounded-2xl border border-dashed border-border p-8 text-center text-xs text-muted-foreground">
           {searchQuery ? "未找到匹配的模板" : "暂无模板"}
         </div>
       ) : (
@@ -558,7 +539,7 @@ export default function AIWorkspacePage() {
       </div>
 
       {history.length === 0 ? (
-        <div className="rounded-2xl border border-dashed border-border bg-card/40 p-8 text-center text-xs text-muted-foreground">
+        <div className="ios-glass rounded-2xl border border-dashed border-border p-8 text-center text-xs text-muted-foreground">
           暂无执行记录，点击上方模板开始
         </div>
       ) : (
@@ -709,7 +690,7 @@ function QuickLink({
     <a
       href={href}
       className={cn(
-        "group flex items-center gap-3 rounded-2xl border border-border bg-card p-4 transition-all hover:-translate-y-0.5 hover:shadow-md"
+        "ios-glass group flex items-center gap-3 rounded-2xl p-4 transition-all hover:-translate-y-0.5 hover:shadow-md"
       )}
     >
       <div className={cn("flex h-10 w-10 items-center justify-center rounded-xl bg-muted/50", color)}>
@@ -746,7 +727,7 @@ function CompactTemplateCard({
   return (
     <div
       onClick={onOpen}
-      className="group relative cursor-pointer rounded-xl border border-border bg-card p-3 transition-all hover:-translate-y-0.5 hover:shadow-md"
+      className="ios-glass group relative cursor-pointer rounded-2xl p-5 transition-all hover:-translate-y-0.5 hover:shadow-md"
     >
       {/* 顶部右侧操作区 */}
       <div className="absolute right-2 top-2 flex items-center gap-0.5">
@@ -862,7 +843,7 @@ function DistillModal({
       onClick={onClose}
     >
       <div
-        className="max-h-[84vh] w-full max-w-2xl overflow-y-auto rounded-3xl border border-border bg-card p-5 shadow-2xl transition-all animate-in zoom-in-95 duration-200 sm:p-6"
+        className="glass-card max-h-[84vh] w-full max-w-2xl overflow-y-auto rounded-3xl p-5 shadow-2xl transition-all animate-in zoom-in-95 duration-200 sm:p-6"
         onClick={(e) => e.stopPropagation()}
       >
         {/* 头部 */}
@@ -1136,7 +1117,7 @@ function TemplateEditor({
       onClick={onClose}
     >
       <div
-        className="max-h-[88vh] w-full max-w-2xl overflow-y-auto rounded-3xl border border-border bg-card p-5 shadow-2xl transition-all animate-in zoom-in-95 duration-200 sm:p-6"
+        className="glass-card max-h-[88vh] w-full max-w-2xl overflow-y-auto rounded-3xl p-5 shadow-2xl transition-all animate-in zoom-in-95 duration-200 sm:p-6"
         onClick={(e) => e.stopPropagation()}
       >
         {/* 头部 */}
@@ -1294,7 +1275,7 @@ function TemplateEditor({
               {parameters.map((p, i) => (
                 <div
                   key={i}
-                  className="rounded-xl border border-border bg-muted/20 p-2.5"
+                  className="ios-glass-sm rounded-xl p-2.5"
                 >
                   <div className="mb-1.5 flex items-center justify-between">
                     <span className="text-[10px] font-medium text-muted-foreground">
@@ -1525,7 +1506,7 @@ function VersionHistoryModal({
       onClick={onClose}
     >
       <div
-        className="max-h-[88vh] w-full max-w-3xl overflow-hidden rounded-3xl border border-border bg-card shadow-2xl transition-all animate-in zoom-in-95 duration-200"
+        className="glass-card max-h-[88vh] w-full max-w-3xl overflow-hidden rounded-3xl shadow-2xl transition-all animate-in zoom-in-95 duration-200"
         onClick={(e) => e.stopPropagation()}
       >
         {/* 头部 */}

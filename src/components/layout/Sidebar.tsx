@@ -379,12 +379,14 @@ export function Sidebar() {
     return init;
   });
 
-  // 当前路径切换后，自动展开所在分组
+  // 当前路径切换后，自动展开所在分组（仅在 activeGroupId 变化时触发，避免用户手动收起后被强制展开）
+  const prevActiveGroupIdRef = useRef<string | null>(activeGroupId);
   useEffect(() => {
-    if (activeGroupId && !expanded[activeGroupId]) {
+    if (activeGroupId && activeGroupId !== prevActiveGroupIdRef.current && !expanded[activeGroupId]) {
       setExpanded((prev) => ({ ...prev, [activeGroupId]: true }));
     }
-  }, [activeGroupId, expanded]);
+    prevActiveGroupIdRef.current = activeGroupId;
+  }, [activeGroupId]);
 
   const toggleGroup = (id: string) => {
     setExpanded((prev) => ({ ...prev, [id]: !prev[id] }));
@@ -430,17 +432,6 @@ export function Sidebar() {
           </button>
         </div>
 
-        {/* Logo */}
-        <div className="mb-5 mt-3 flex items-center gap-2.5 px-2 lg:mt-0 lg:pt-4">
-          <img
-            src="/lynx-logo-black.png"
-            alt="Lynx"
-            className="h-8 w-8 rounded-lg object-cover shadow-sm"
-            draggable={false}
-          />
-          <span className="text-lg font-bold tracking-tight text-foreground">Lynx</span>
-        </div>
-
         {/* 分组导航 */}
         <nav className="flex-1 space-y-1 overflow-y-auto py-2 pr-1">
           {visibleGroups.map((group) => {
@@ -470,7 +461,7 @@ export function Sidebar() {
                   <ChevronRight
                     className={cn(
                       "h-4 w-4 shrink-0 text-muted-foreground transition-transform duration-300",
-                      isExpanded && "rotate-[-90deg]"
+                      isExpanded && "rotate-90"
                     )}
                   />
                 </button>
@@ -535,7 +526,7 @@ function NavLinkOrButton({
   const className = cn(
     "group relative flex w-full items-center rounded-xl px-3 py-2 transition-all",
     isActive
-      ? "glass-active font-medium text-primary"
+      ? "glass-active font-medium text-primary before:absolute before:left-[6px] before:top-1/2 before:h-4 before:w-0.5 before:-translate-y-1/2 before:rounded-full before:bg-primary"
       : "nav-item text-muted-foreground hover:text-foreground",
     item.disabled && "cursor-not-allowed opacity-70 hover:bg-transparent"
   );
