@@ -283,3 +283,79 @@ html.theme-transition * {
   transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
   transition-duration: 200ms;
 }
+
+/* ============ AI 助理 Markdown 内容样式 ============ */
+.md-content {
+  line-height: 1.6;
+}
+.md-content .md-paragraph {
+  margin: 0.4em 0;
+}
+.md-content .md-heading {
+  font-weight: 600;
+  margin: 0.6em 0 0.3em;
+}
+.md-content .md-h1 {
+  font-size: 1.25em;
+}
+.md-content .md-h2 {
+  font-size: 1.15em;
+}
+.md-content .md-h3 {
+  font-size: 1.05em;
+}
+.md-content .md-list {
+  margin: 0.4em 0;
+  padding-left: 1.4em;
+}
+.md-content .md-list li {
+  margin: 0.15em 0;
+}
+.md-content .md-quote {
+  border-left: 3px solid hsl(var(--primary) / 0.4);
+  padding: 0.3em 0.8em;
+  margin: 0.5em 0;
+  background: hsl(var(--muted) / 0.3);
+  border-radius: 0 0.5rem 0.5rem 0;
+  color: hsl(var(--foreground) / 0.85);
+  font-style: italic;
+}
+.md-content .md-code-block {
+  background: hsl(0 0% 0% / 0.35);
+  border: 1px solid hsl(var(--border) / 0.5);
+  border-radius: 0.6rem;
+  padding: 0.7em 0.9em;
+  margin: 0.5em 0;
+  overflow-x: auto;
+  font-family: "Cascadia Code", "Fira Code", "JetBrains Mono", Consolas, monospace;
+  font-size: 0.85em;
+  line-height: 1.5;
+}
+.md-content .md-code-block code {
+  background: transparent;
+  padding: 0;
+  color: hsl(var(--foreground) / 0.92);
+  white-space: pre;
+}
+.md-content .md-inline-code {
+  background: hsl(var(--muted) / 0.6);
+  border-radius: 0.3rem;
+  padding: 0.1em 0.35em;
+  font-family: "Cascadia Code", "Fira Code", "JetBrains Mono", Consolas, monospace;
+  font-size: 0.88em;
+  color: hsl(var(--primary));
+}
+.md-content .md-bold {
+  font-weight: 600;
+}
+.md-content .md-italic {
+  font-style: italic;
+}
+.md-content .md-link {
+  color: hsl(var(--primary));
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.md-content .md-link:hover {
+  opacity: 0.8;
+}
