@@ -1,6 +1,7 @@
 "use client";
 
 import { usePathname } from "next/navigation";
+import Image from "next/image";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Target,
@@ -291,9 +292,11 @@ function SidebarUserProfile() {
         aria-expanded={menuOpen}
       >
         {hasAvatar ? (
-          <img
-            src={user.avatarUrl}
+          <Image
+            src={user.avatarUrl || ""}
             alt={displayName}
+            width={36}
+            height={36}
             className="h-9 w-9 rounded-full object-cover ring-2 ring-border/60 transition-all group-hover:ring-primary/40"
           />
         ) : (
@@ -382,8 +385,11 @@ export function Sidebar() {
   // 当前路径切换后，自动展开所在分组（仅在 activeGroupId 变化时触发，避免用户手动收起后被强制展开）
   const prevActiveGroupIdRef = useRef<string | null>(activeGroupId);
   useEffect(() => {
-    if (activeGroupId && activeGroupId !== prevActiveGroupIdRef.current && !expanded[activeGroupId]) {
-      setExpanded((prev) => ({ ...prev, [activeGroupId]: true }));
+    if (activeGroupId && activeGroupId !== prevActiveGroupIdRef.current) {
+      setExpanded((prev) => {
+        if (prev[activeGroupId]) return prev;
+        return { ...prev, [activeGroupId]: true };
+      });
     }
     prevActiveGroupIdRef.current = activeGroupId;
   }, [activeGroupId]);

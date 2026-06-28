@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Image from "next/image";
 import { useLightningStore } from "@/store/lightning";
 import { ThemeToggle } from "@/components/theme/ThemeToggle";
 import { Search, Command } from "lucide-react";
@@ -41,9 +42,11 @@ export function CaptureBar() {
           href="/"
           className="flex items-center gap-3 transition-opacity hover:opacity-80"
         >
-          <img
+          <Image
             src="/lynx-logo-black.png"
             alt="Lynx"
+            width={36}
+            height={36}
             className="h-9 w-9 rounded-xl shadow-md"
           />
           <span className="hidden text-lg font-bold tracking-tight text-foreground lg:block">

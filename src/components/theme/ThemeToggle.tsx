@@ -34,7 +34,7 @@ export function ThemeToggle({
               key={item.key}
               onClick={() => setTheme(item.key)}
               className={cn(
-                "rounded-full px-2.5 py-1 text-[10px] font-medium transition-all",
+                "flex h-full items-center rounded-full px-2.5 text-[10px] font-medium transition-all",
                 active
                   ? "bg-primary text-primary-foreground shadow-sm"
                   : "text-muted-foreground hover:text-foreground"
