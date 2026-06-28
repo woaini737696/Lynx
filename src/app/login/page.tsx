@@ -68,7 +68,7 @@ function LoginForm() {
         />
         <div className="text-center">
           <h1 className="text-xl font-semibold tracking-tight text-foreground">
-            Lynx
+            LYNX
           </h1>
           <p className="mt-1 text-xs text-muted-foreground">
             Lynx AI工作台，不用学，直接干

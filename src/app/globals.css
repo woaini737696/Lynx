@@ -91,9 +91,20 @@
   }
   body {
     @apply bg-background text-foreground antialiased;
+    /* 1:1 还原 ui-preview-v2.html：body 直接承载左上角星空渐变，确保不被覆盖 */
+    background-image:
+      radial-gradient(ellipse at 0% 0%, rgba(15, 98, 254, 0.06) 0%, transparent 45%),
+      radial-gradient(ellipse at 100% 100%, rgba(0, 184, 212, 0.04) 0%, transparent 40%);
+    background-attachment: fixed;
     font-feature-settings: "rlig" 1, "calt" 1;
     font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei",
       "Helvetica Neue", "Segoe UI", system-ui, sans-serif;
+  }
+  .dark body {
+    background-image:
+      radial-gradient(ellipse at 0% 0%, rgba(37, 99, 235, 0.10) 0%, transparent 50%),
+      radial-gradient(ellipse at 100% 100%, rgba(6, 182, 212, 0.06) 0%, transparent 45%),
+      radial-gradient(ellipse at 50% 0%, rgba(15, 98, 254, 0.04) 0%, transparent 60%);
   }
   ::selection {
     background: hsl(var(--primary) / 0.25);
@@ -241,6 +252,32 @@
     box-shadow:
       0 0 0 1px rgba(80, 150, 255, 0.35),
       0 8px 22px -6px rgba(37, 99, 235, 0.45);
+  }
+
+  /* 玻璃按钮（1:1 还原 HTML btn-glass） */
+  .btn-glass {
+    position: relative;
+    background: rgba(255, 255, 255, 0.58);
+    border: 1px solid rgba(12, 55, 150, 0.16);
+    box-shadow:
+      inset 0 1px 1px rgba(255, 255, 255, 0.48),
+      0 2px 8px -2px rgba(0, 0, 0, 0.06);
+    transition: all 0.25s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  .btn-glass:hover {
+    border-color: rgba(11, 61, 158, 0.25);
+    background: rgba(255, 255, 255, 0.70);
+  }
+  .dark .btn-glass {
+    background: rgba(13, 22, 45, 0.55);
+    border-color: rgba(100, 150, 255, 0.12);
+    box-shadow:
+      inset 0 1px 1px rgba(255, 255, 255, 0.05),
+      0 2px 8px -2px rgba(0, 0, 0, 0.20);
+  }
+  .dark .btn-glass:hover {
+    border-color: rgba(100, 150, 255, 0.20);
+    background: rgba(20, 30, 60, 0.65);
   }
 
   /* 顶部导航栏 — 液态玻璃 */
@@ -465,7 +502,8 @@
   }
 
   /* 用户资料玻璃胶囊（1:1 还原 HTML user-card） */
-  .glass-user {
+  .glass-user,
+  .user-card {
     position: relative;
     background:
       linear-gradient(135deg, rgba(255,255,255,0.48) 0%, transparent 50%),
@@ -478,10 +516,12 @@
       inset 0 1px 1px rgba(255, 255, 255, 0.48);
     transition: all 0.25s cubic-bezier(0.22, 1, 0.36, 1);
   }
-  .glass-user:hover {
+  .glass-user:hover,
+  .user-card:hover {
     border-color: rgba(11, 61, 158, 0.25);
   }
-  .dark .glass-user {
+  .dark .glass-user,
+  .dark .user-card {
     background:
       linear-gradient(135deg, rgba(255,255,255,0.05) 0%, transparent 50%),
       rgba(13, 22, 45, 0.55);
@@ -490,7 +530,8 @@
       0 1px 3px rgba(0, 0, 0, 0.20),
       inset 0 1px 1px rgba(255, 255, 255, 0.05);
   }
-  .dark .glass-user:hover {
+  .dark .glass-user:hover,
+  .dark .user-card:hover {
     border-color: rgba(100, 150, 255, 0.18);
   }
 

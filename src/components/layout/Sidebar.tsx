@@ -245,7 +245,7 @@ function SidebarUserProfile() {
     // 显示中性占位（默认头像 + 加载提示），不显示"未登录"避免误导
     return (
       <div className="relative mt-auto pt-3">
-        <div className="glass-user group flex w-full items-center gap-3 rounded-2xl px-3 py-2.5 text-left opacity-60">
+        <div className="user-card group flex w-full items-center gap-3 rounded-2xl px-3 py-2.5 text-left opacity-60">
           <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-primary to-accent text-xs font-bold text-white shadow-lg shadow-primary/20">
             <Loader2 className="h-3.5 w-3.5 animate-spin" />
           </span>
@@ -264,7 +264,7 @@ function SidebarUserProfile() {
         <button
           type="button"
           onClick={() => router.push("/login")}
-          className="glass-user group flex w-full items-center gap-3 rounded-2xl px-3 py-2.5 text-left transition-all"
+          className="user-card group flex w-full items-center gap-3 rounded-2xl px-3 py-2.5 text-left transition-all"
           aria-label="前往登录"
         >
           <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-primary to-accent text-xs font-bold text-white shadow-lg shadow-primary/20">
@@ -288,7 +288,7 @@ function SidebarUserProfile() {
       <button
         type="button"
         onClick={() => setMenuOpen((v) => !v)}
-        className="glass-user group flex w-full items-center gap-3 rounded-2xl px-3 py-2.5 text-left transition-all"
+        className="user-card group flex w-full items-center gap-3 rounded-2xl px-3 py-2.5 text-left transition-all"
         aria-label="用户菜单"
         aria-expanded={menuOpen}
       >
@@ -312,12 +312,12 @@ function SidebarUserProfile() {
         {/* 1:1 还原 ui-preview-v2.html：默认向左 -90deg，展开向上 -180deg */}
         <ChevronDown
           className="h-4 w-4 shrink-0 text-muted-foreground transition-transform duration-300"
-          style={{ transform: menuOpen ? "rotate(-180deg)" : "rotate(-90deg)" }}
+          style={{ transform: menuOpen ? "rotate(0deg)" : "rotate(-90deg)" }}
         />
       </button>
 
       {menuOpen && (
-        <div className="user-menu absolute bottom-full left-0 right-0 z-50 mb-2 overflow-hidden rounded-2xl border border-border/60 p-1.5 shadow-2xl">
+        <div className="user-menu absolute bottom-full left-0 right-0 z-50 mb-2 overflow-hidden rounded-2xl p-1.5">
           <button
             onClick={() => { setMenuOpen(false); router.push("/settings/profile"); }}
             className="flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-sm text-foreground transition-colors hover:bg-primary/10 hover:text-primary"
