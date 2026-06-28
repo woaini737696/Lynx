@@ -321,7 +321,7 @@ function MemberMultiSelect({
                 <label
                   key={id}
                   className={cn(
-                    "flex cursor-pointer items-center gap-2 rounded-lg px-2 py-1.5 text-xs hover:bg-muted/50",
+                    "flex cursor-pointer items-center gap-2 rounded-lg px-2 py-1.5 text-xs hover:bg-primary/10",
                     checked && "bg-cognition/5"
                   )}
                 >
@@ -1924,7 +1924,7 @@ function SubtaskInline({
           {subtasks.map((st) => (
             <div
               key={st.guid}
-              className="flex items-center gap-2 rounded-lg px-2 py-1.5 text-[11px] hover:bg-muted/50"
+              className="flex items-center gap-2 rounded-lg px-2 py-1.5 text-[11px] hover:bg-primary/10"
             >
               <button
                 onClick={() => !st.completed && handleCompleteSubtask(st.guid)}
@@ -2047,7 +2047,7 @@ function CreateTaskModal({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4"
       onClick={onClose}
     >
       <Card
@@ -2500,7 +2500,7 @@ function TaskDetailDrawer({
   const overdue = isOverdue(task.due, task.completed);
 
   return (
-    <div className="fixed inset-0 z-50 flex justify-end bg-black/40" onClick={onClose}>
+    <div className="fixed inset-0 z-50 flex justify-end bg-black/30" onClick={onClose}>
       <div
         ref={drawerRef}
         onClick={(e) => e.stopPropagation()}
@@ -2801,7 +2801,7 @@ function TaskDetailDrawer({
                 {subtasks.map((st) => (
                   <div
                     key={st.guid}
-                    className="flex items-center gap-2 rounded-lg border border-border/60 px-2.5 py-2 text-xs hover:bg-muted/30"
+                    className="flex items-center gap-2 rounded-lg border border-border/60 px-2.5 py-2 text-xs hover:bg-primary/10"
                   >
                     <button
                       onClick={() =>
@@ -3574,7 +3574,7 @@ function WebhookPanel({
                 disabled={simulating}
                 onClick={() => onSimulate(evt.type)}
                 className={cn(
-                  "rounded-md ios-glass-sm px-2 py-1.5 text-[11px] font-medium transition-colors hover:bg-muted/40 disabled:opacity-50",
+                  "rounded-md ios-glass-sm px-2 py-1.5 text-[11px] font-medium transition-colors hover:bg-primary/10 disabled:opacity-50",
                   evt.color
                 )}
               >
@@ -3649,7 +3649,7 @@ function WebhookConfigWizard({ onClose }: { onClose: () => void }) {
     },
   ];
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4">
       <Card className="w-full max-w-lg max-h-[80vh] overflow-y-auto">
         <div className="flex items-center justify-between border-b border-border/60 px-4 py-3">
           <div className="flex items-center gap-2">

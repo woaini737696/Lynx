@@ -99,7 +99,7 @@ export function AssistantGlobalEntry() {
       {/* 未登录引导弹窗 */}
       {showLoginModal && (
         <div
-          className="fixed inset-0 z-[80] flex items-center justify-center bg-black/50 px-4"
+          className="fixed inset-0 z-[80] flex items-center justify-center bg-black/30 px-4"
           role="dialog"
           aria-modal="true"
           aria-label="登录提示"

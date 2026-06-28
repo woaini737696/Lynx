@@ -461,7 +461,7 @@ export default function TokenStatsPage() {
           onClick={() => setShowLeaderboard(false)}
         >
           <div
-            className="max-h-[80vh] w-full max-w-2xl overflow-hidden rounded-2xl glass-card shadow-2xl"
+            className="max-h-[80vh] w-full max-w-2xl overflow-hidden rounded-2xl glass-modal"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between border-b border-border px-5 py-3">

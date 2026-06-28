@@ -584,7 +584,7 @@ function FileLink({
   return (
     <a
       href={`file:///${absolutePath.replace(/\\/g, "/")}`}
-      className="flex items-center gap-3 rounded-md border border-border/60 bg-muted/20 p-3 text-xs transition-colors hover:border-northstar/50 hover:bg-muted/40"
+      className="flex items-center gap-3 rounded-md border border-border/60 bg-muted/20 p-3 text-xs transition-colors hover:border-northstar/50 hover:bg-primary/10"
     >
       <FileText className="h-4 w-4 shrink-0 text-northstar" />
       <div className="flex-1">

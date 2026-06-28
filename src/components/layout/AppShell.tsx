@@ -44,8 +44,8 @@ function ConvergeReminder() {
   if (!mounted || !visible) return null;
 
   return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 p-4 backdrop-blur-xl">
-      <div className="glass-card w-[90vw] max-w-[420px] rounded-3xl border border-northstar/20 p-6 text-center shadow-2xl sm:p-8">
+    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/30 p-4 backdrop-blur-xl">
+      <div className="glass-modal w-[90vw] max-w-[420px] rounded-3xl p-6 text-center sm:p-8">
         <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-northstar/10 text-3xl">
           🌙
         </div>

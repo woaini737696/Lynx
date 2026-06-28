@@ -247,7 +247,7 @@ Function onInstall
   ; 注册表
   SetRegView 64
   WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\Lynx" "DisplayName" "Lynx"
-  WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\Lynx" "DisplayVersion" "1.0.0"
+  WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\Lynx" "DisplayVersion" "1.0.5"
   WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\Lynx" "Publisher" "Lynx"
   WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\Lynx" "InstallLocation" "$INSTALL_DIR"
   WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\Lynx" "UninstallString" '"$INSTALL_DIR\uninst.exe"'

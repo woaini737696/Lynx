@@ -407,7 +407,7 @@ export function Sidebar() {
       {/* 移动端遮罩 */}
       {mobileOpen && (
         <div
-          className="fixed inset-0 z-40 bg-black/50 backdrop-blur-md lg:hidden"
+          className="fixed inset-0 z-40 bg-black/30 backdrop-blur-md lg:hidden"
           onClick={() => setMobileOpen(false)}
         />
       )}
@@ -423,15 +423,25 @@ export function Sidebar() {
 
       <aside
         className={cn(
-          "desktop-sidebar-full glass-sidebar fixed left-0 top-0 z-50 flex h-screen w-[230px] flex-col px-3 transition-all duration-300 ease-[cubic-bezier(0.32,0.72,0,1)] lg:sticky lg:top-0 lg:h-full",
+          "desktop-sidebar-full glass-sidebar fixed left-0 top-0 z-50 flex h-screen w-[200px] flex-col px-2.5 transition-all duration-300 ease-[cubic-bezier(0.32,0.72,0,1)] lg:sticky lg:top-0 lg:h-full",
           mobileOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
         )}
       >
-        {/* 顶部：关闭按钮（仅移动端） */}
-        <div className="flex h-14 items-center justify-end border-b border-border/60 px-1 lg:hidden">
+        {/* 顶部：Logo 区域（固定展示） + 移动端关闭按钮 */}
+        <div className="flex h-14 items-center justify-between border-b border-border/40 px-1.5">
+          <FastLink href="/" className="flex items-center gap-2 transition-opacity hover:opacity-80">
+            <Image
+              src="/lynx-icon-128.png"
+              alt="Lynx"
+              width={28}
+              height={28}
+              className="h-7 w-7 rounded-lg shadow-md"
+            />
+            <span className="text-base font-bold tracking-tight text-foreground">LYNX</span>
+          </FastLink>
           <button
             onClick={() => setMobileOpen(false)}
-            className="flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-primary/10 hover:text-primary"
+            className="flex h-7 w-7 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-primary/10 hover:text-primary lg:hidden"
             aria-label="关闭菜单"
           >
             <X className="h-4 w-4" />
@@ -451,7 +461,7 @@ export function Sidebar() {
                 <button
                   onClick={() => toggleGroup(group.id)}
                   className={cn(
-                    "group flex w-full items-center gap-2.5 rounded-xl px-2.5 py-2.5 text-sm font-semibold transition-all",
+                    "group flex w-full items-center gap-2 rounded-xl px-2 py-2 text-[13px] font-semibold transition-all",
                     isGroupActive
                       ? "glass-active"
                       : "nav-item text-foreground/80 hover:bg-primary/10 hover:text-foreground"
@@ -459,7 +469,7 @@ export function Sidebar() {
                 >
                   <GroupIcon
                     className={cn(
-                      "h-[18px] w-[18px] shrink-0 transition-colors",
+                      "h-4 w-4 shrink-0 transition-colors",
                       isGroupActive ? group.color : "text-muted-foreground group-hover:text-foreground"
                     )}
                   />
@@ -474,7 +484,7 @@ export function Sidebar() {
 
                 {/* 组内项目（纯文字） */}
                 {isExpanded && (
-                  <div className="mt-1 space-y-0.5 pl-2.5">
+                  <div className="mt-1 space-y-0.5 pl-2">
                     {group.items.map((item) => (
                       <NavLinkOrButton
                         key={item.href}
@@ -517,7 +527,7 @@ function NavLinkOrButton({
     <>
       <span
         className={cn(
-          "flex-1 truncate text-sm transition-colors",
+          "flex-1 truncate text-[13px] transition-colors",
           item.disabled && "text-muted-foreground/60"
         )}
       >
@@ -530,7 +540,7 @@ function NavLinkOrButton({
   );
 
   const className = cn(
-    "group relative flex w-full items-center rounded-xl px-3 py-2 transition-all",
+    "group relative flex w-full items-center rounded-xl px-2.5 py-1.5 transition-all",
     isActive
       ? "glass-active font-medium text-primary"
       : "nav-item text-muted-foreground hover:text-foreground",

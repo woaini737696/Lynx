@@ -477,7 +477,7 @@ export default function InboxPage() {
             </Button>
             <a
               href="/settings"
-              className="inline-flex h-8 items-center justify-center rounded-xl border border-border bg-transparent px-3 text-[11px] text-foreground transition-all hover:bg-muted"
+              className="inline-flex h-8 items-center justify-center rounded-xl border border-border bg-transparent px-3 text-[11px] text-foreground transition-all hover:bg-primary/10"
               title="提醒设置"
             >
               <Settings className="h-3.5 w-3.5" />
@@ -499,7 +499,7 @@ export default function InboxPage() {
             </div>
             <button
               onClick={() => setShowRevivePanel(false)}
-              className="rounded-lg p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
+              className="rounded-lg p-1 text-muted-foreground hover:bg-primary/10 hover:text-foreground"
             >
               <X className="h-3.5 w-3.5" />
             </button>
@@ -533,7 +533,7 @@ export default function InboxPage() {
                   </div>
                   <button
                     onClick={() => dismissRevive(s.graveyardId)}
-                    className="shrink-0 rounded-lg p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
+                    className="shrink-0 rounded-lg p-1 text-muted-foreground hover:bg-primary/10 hover:text-foreground"
                     title="忽略"
                   >
                     <X className="h-3 w-3" />
@@ -718,7 +718,7 @@ export default function InboxPage() {
                               href={att.url}
                               target="_blank"
                               rel="noopener noreferrer"
-                              className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-muted/30 px-2 py-1 text-[10px] text-foreground/80 transition-colors hover:bg-muted"
+                              className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-muted/30 px-2 py-1 text-[10px] text-foreground/80 transition-colors hover:bg-primary/10"
                               title={att.name}
                             >
                               <FileText className="h-3 w-3 text-muted-foreground" />
@@ -798,7 +798,7 @@ export default function InboxPage() {
       {/* 放弃弹窗 */}
       {abandoning && (
         <div
-          className="fixed inset-0 z-[70] flex items-center justify-center bg-black/60 p-4 backdrop-blur-md"
+          className="fixed inset-0 z-[70] flex items-center justify-center bg-black/30 p-4 backdrop-blur-md"
           onClick={() => setAbandoning(null)}
         >
           <div
@@ -847,7 +847,7 @@ export default function InboxPage() {
 
       {/* AI 对话助理抽屉 */}
       {chatIdea && (
-        <div className="fixed inset-0 z-[80] flex justify-end bg-black/50 backdrop-blur-sm">
+        <div className="fixed inset-0 z-[80] flex justify-end bg-black/30 backdrop-blur-sm">
           {/* 背景点击关闭 */}
           <div className="absolute inset-0" onClick={closeChat} />
 
@@ -868,7 +868,7 @@ export default function InboxPage() {
               </div>
               <button
                 onClick={closeChat}
-                className="rounded-lg p-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                className="rounded-lg p-1.5 text-muted-foreground transition-colors hover:bg-primary/10 hover:text-foreground"
               >
                 <X className="h-4 w-4" />
               </button>

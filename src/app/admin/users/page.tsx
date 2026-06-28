@@ -418,7 +418,7 @@ export default function UsersPage() {
           onClick={closeModal}
         >
           <div
-            className="w-full max-w-md rounded-2xl glass-card p-6 shadow-2xl"
+            className="w-full max-w-md rounded-2xl glass-modal p-6"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="mb-5 flex items-center justify-between">
@@ -597,7 +597,7 @@ export default function UsersPage() {
           onClick={() => setDeleteTarget(null)}
         >
           <div
-            className="w-full max-w-sm rounded-2xl glass-card p-6 shadow-2xl"
+            className="w-full max-w-sm rounded-2xl glass-modal p-6"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="mb-4 flex items-center gap-3">

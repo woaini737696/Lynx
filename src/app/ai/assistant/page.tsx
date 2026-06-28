@@ -2510,7 +2510,7 @@ export default function AIAssistantPage() {
                       setShowSessionList(false);
                     }}
                     className={cn(
-                      "flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-xs transition-colors hover:bg-muted/50",
+                      "flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-xs transition-colors hover:bg-primary/10",
                       currentSessionId === s.id && "bg-cognition/10 text-cognition"
                     )}
                   >
@@ -2660,7 +2660,7 @@ export default function AIAssistantPage() {
                       type="button"
                       onClick={() => { if (speakingId === msg.id) stopSpeaking(); else speak(msg.content, msg.id); }}
                       title={speakingId === msg.id ? "停止播报" : "语音播报"}
-                      className="inline-flex items-center gap-1 rounded-md px-1 py-0.5 transition-colors hover:bg-muted hover:text-foreground"
+                      className="inline-flex items-center gap-1 rounded-md px-1 py-0.5 transition-colors hover:bg-primary/10 hover:text-foreground"
                     >
                       {ttsLoadingId === msg.id ? <Loader2 className="h-3 w-3 animate-spin" />
                         : <Volume2 className={cn("h-3 w-3", speakingId === msg.id && "text-cognition")} />}
@@ -2695,7 +2695,7 @@ export default function AIAssistantPage() {
                         "inline-flex h-6 w-6 items-center justify-center rounded-md transition-colors disabled:cursor-not-allowed disabled:opacity-40",
                         msg.feedback === "good"
                           ? "bg-task/15 text-task"
-                          : "text-muted-foreground/60 hover:bg-muted hover:text-foreground"
+                          : "text-muted-foreground/60 hover:bg-primary/10 hover:text-foreground"
                       )}
                     >
                       {submittingFeedback === msg.id &&
@@ -2733,7 +2733,7 @@ export default function AIAssistantPage() {
                         "inline-flex h-6 w-6 items-center justify-center rounded-md transition-colors disabled:cursor-not-allowed disabled:opacity-40",
                         msg.feedback === "bad"
                           ? "bg-graveyard/15 text-graveyard"
-                          : "text-muted-foreground/60 hover:bg-muted hover:text-foreground"
+                          : "text-muted-foreground/60 hover:bg-primary/10 hover:text-foreground"
                       )}
                     >
                       {submittingFeedback === msg.id &&
@@ -2780,7 +2780,7 @@ export default function AIAssistantPage() {
                           setAnnotationReason("");
                         }}
                         disabled={submittingFeedback === msg.id}
-                        className="rounded-md px-2 py-1 text-[10px] text-muted-foreground transition-colors hover:bg-muted disabled:opacity-50"
+                        className="rounded-md px-2 py-1 text-[10px] text-muted-foreground transition-colors hover:bg-primary/10 disabled:opacity-50"
                       >
                         取消
                       </button>
@@ -3034,11 +3034,11 @@ export default function AIAssistantPage() {
       </div>
 
       {settingsOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={() => setSettingsOpen(false)}>
-          <div className="flex max-h-[90vh] w-full max-w-md flex-col rounded-2xl bg-card shadow-xl" onClick={(e) => e.stopPropagation()}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4" onClick={() => setSettingsOpen(false)}>
+          <div className="flex max-h-[90vh] w-full max-w-md flex-col rounded-2xl glass-modal" onClick={(e) => e.stopPropagation()}>
             <div className="flex shrink-0 items-center justify-between border-b border-border px-6 py-4">
               <h2 className="text-lg font-semibold">助理设置</h2>
-              <button onClick={() => setSettingsOpen(false)} className="rounded-full p-1 hover:bg-muted">
+              <button onClick={() => setSettingsOpen(false)} className="rounded-full p-1 hover:bg-primary/10">
                 <X className="h-4 w-4" />
               </button>
             </div>
@@ -3070,7 +3070,7 @@ export default function AIAssistantPage() {
                         "flex h-8 w-8 items-center justify-center rounded-lg border text-lg transition",
                         settings.assistantAvatar === emoji
                           ? "border-cognition bg-cognition/10"
-                          : "border-border bg-background hover:bg-muted"
+                          : "border-border bg-background hover:bg-primary/10"
                       )}
                     >
                       {emoji}
@@ -3599,7 +3599,7 @@ export default function AIAssistantPage() {
                             <button
                               onClick={() => deleteTaskPattern(p.id)}
                               title="删除模式"
-                              className="rounded p-1 text-muted-foreground hover:bg-muted hover:text-red-500"
+                              className="rounded p-1 text-muted-foreground hover:bg-primary/10 hover:text-red-500"
                             >
                               <Trash2 className="h-3 w-3" />
                             </button>
@@ -3624,7 +3624,7 @@ export default function AIAssistantPage() {
 
       {showSkillPanel && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4"
           onClick={() => {
             if (!skillExecuting) {
               setShowSkillPanel(false);
@@ -3633,7 +3633,7 @@ export default function AIAssistantPage() {
           }}
         >
           <div
-            className="flex max-h-[85vh] w-full max-w-lg flex-col rounded-2xl bg-card shadow-xl"
+            className="flex max-h-[85vh] w-full max-w-lg flex-col rounded-2xl glass-modal"
             onClick={(e) => e.stopPropagation()}
           >
             {/* 头部 */}
@@ -3663,7 +3663,7 @@ export default function AIAssistantPage() {
                     setSelectedSkill(null);
                   }
                 }}
-                className="rounded-full p-1 hover:bg-muted"
+                className="rounded-full p-1 hover:bg-primary/10"
               >
                 <X className="h-4 w-4" />
               </button>
@@ -3719,7 +3719,7 @@ export default function AIAssistantPage() {
                               "rounded-full px-2.5 py-0.5 text-[11px] transition-colors",
                               skillCategory === "all"
                                 ? "bg-cognition/10 text-cognition"
-                                : "bg-muted text-muted-foreground hover:bg-muted/70"
+                                : "ios-glass-sm text-muted-foreground hover:text-primary"
                             )}
                           >
                             全部
@@ -3732,7 +3732,7 @@ export default function AIAssistantPage() {
                                 "rounded-full px-2.5 py-0.5 text-[11px] transition-colors",
                                 skillCategory === cat
                                   ? "bg-cognition/10 text-cognition"
-                                  : "bg-muted text-muted-foreground hover:bg-muted/70"
+                                  : "ios-glass-sm text-muted-foreground hover:text-primary"
                               )}
                             >
                               {cat}
@@ -3825,7 +3825,7 @@ export default function AIAssistantPage() {
                                       "rounded-md p-1 transition-colors",
                                       favoriteIds.has(skill.id)
                                         ? "text-yellow-500 hover:bg-yellow-50"
-                                        : "text-muted-foreground hover:bg-muted hover:text-yellow-500"
+                                        : "text-muted-foreground hover:bg-primary/10 hover:text-yellow-500"
                                     )}
                                     title={favoriteIds.has(skill.id) ? "取消收藏" : "收藏"}
                                   >

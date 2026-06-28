@@ -157,7 +157,7 @@ export default function CognitionPage() {
               "rounded-full border px-3 py-1 text-xs transition-all",
               filter === key
                 ? "border-cognition bg-cognition/10 font-medium text-cognition"
-                : "glass-card text-muted-foreground hover:bg-muted"
+                : "glass-card text-muted-foreground hover:bg-primary/10"
             )}
           >
             {label}

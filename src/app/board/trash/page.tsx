@@ -219,11 +219,11 @@ export default function TrashPage() {
       {/* 永久删除确认弹窗 */}
       {confirmDeleteId && (
         <div
-          className="fixed inset-0 z-[80] flex items-center justify-center bg-black/60 p-4 backdrop-blur-md"
+          className="fixed inset-0 z-[80] flex items-center justify-center bg-black/30 p-4 backdrop-blur-md"
           onClick={() => setConfirmDeleteId(null)}
         >
           <div
-            className="w-full max-w-sm rounded-3xl border border-graveyard/30 bg-card p-5 shadow-2xl"
+            className="w-full max-w-sm rounded-3xl border border-graveyard/30 glass-modal p-5"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="mb-3 flex items-center gap-2 text-graveyard">

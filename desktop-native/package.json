@@ -1,6 +1,6 @@
 {
   "name": "lynnhub-desktop-native",
-  "version": "1.0.0",
+  "version": "1.0.5",
   "private": true,
   "description": "Lynx 原生桌面端 - 本地前端 + 云端 API + NSIS 安装包",
   "scripts": {
@@ -8,9 +8,7 @@
     "build": "tauri build",
     "tauri": "tauri",
     "frontend:dev": "cd native-ui && npm run dev",
-    "frontend:build": "cd native-ui && npm run build",
-    "sidecar:dev": "node sidecar/dev-agent.js",
-    "sidecar:build": "node sidecar/build-agent.js"
+    "frontend:build": "cd native-ui && npm run build"
   },
   "dependencies": {
     "@tauri-apps/api": "^2.1.1",

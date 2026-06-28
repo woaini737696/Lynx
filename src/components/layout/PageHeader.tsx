@@ -87,7 +87,7 @@ export function Button({
     secondary:
       "btn-glass text-secondary-foreground hover:text-primary focus:ring-primary/20",
     ghost:
-      "ios-glass-sm bg-transparent text-muted-foreground hover:bg-primary/10 hover:text-primary focus:ring-primary/20 border-transparent",
+      "text-muted-foreground hover:bg-primary/10 hover:text-primary focus:ring-primary/20",
     danger:
       "btn-danger-glass focus:ring-destructive/30",
     outline:

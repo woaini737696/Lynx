@@ -1314,7 +1314,7 @@ export default function MemoryPage() {
                     "rounded-lg px-2 py-1 text-[11px] font-medium transition-colors",
                     timeRange === r.key
                       ? "bg-cognition/10 text-cognition"
-                      : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                      : "text-muted-foreground hover:bg-primary/10 hover:text-foreground"
                   )}
                 >
                   {r.label}
@@ -1439,14 +1439,14 @@ export default function MemoryPage() {
               <div className="absolute right-3 top-3 flex flex-col gap-1">
                 <button
                   onClick={() => setScale((s) => Math.min(s + 0.2, 2))}
-                  className="flex h-7 w-7 items-center justify-center rounded-lg glass-card text-muted-foreground shadow-sm backdrop-blur hover:bg-muted"
+                  className="flex h-7 w-7 items-center justify-center rounded-lg glass-card text-muted-foreground shadow-sm backdrop-blur hover:bg-primary/10"
                   aria-label="放大"
                 >
                   <ZoomIn className="h-3.5 w-3.5" />
                 </button>
                 <button
                   onClick={() => setScale((s) => Math.max(s - 0.2, 0.5))}
-                  className="flex h-7 w-7 items-center justify-center rounded-lg glass-card text-muted-foreground shadow-sm backdrop-blur hover:bg-muted"
+                  className="flex h-7 w-7 items-center justify-center rounded-lg glass-card text-muted-foreground shadow-sm backdrop-blur hover:bg-primary/10"
                   aria-label="缩小"
                 >
                   <ZoomOut className="h-3.5 w-3.5" />
@@ -1463,14 +1463,14 @@ export default function MemoryPage() {
                       initSimulation(filteredNodes, filteredEdges);
                     }
                   }}
-                  className="flex h-7 w-7 items-center justify-center rounded-lg glass-card text-muted-foreground shadow-sm backdrop-blur hover:bg-muted"
+                  className="flex h-7 w-7 items-center justify-center rounded-lg glass-card text-muted-foreground shadow-sm backdrop-blur hover:bg-primary/10"
                   aria-label="重置视角"
                 >
                   <RotateCcw className="h-3.5 w-3.5" />
                 </button>
                 <button
                   onClick={() => setSimulating((s) => !s)}
-                  className="flex h-7 w-7 items-center justify-center rounded-lg glass-card text-muted-foreground shadow-sm backdrop-blur hover:bg-muted"
+                  className="flex h-7 w-7 items-center justify-center rounded-lg glass-card text-muted-foreground shadow-sm backdrop-blur hover:bg-primary/10"
                   aria-label={simulating ? "暂停" : "播放"}
                 >
                   {simulating ? <Pause className="h-3.5 w-3.5" /> : <Play className="h-3.5 w-3.5" />}
@@ -1481,7 +1481,7 @@ export default function MemoryPage() {
                     "flex h-7 w-7 items-center justify-center rounded-lg border shadow-sm backdrop-blur",
                     clustering
                       ? "border-cognition bg-cognition/15 text-cognition"
-                      : "border-border bg-card/90 text-muted-foreground hover:bg-muted"
+                      : "border-border bg-card/90 text-muted-foreground hover:bg-primary/10"
                   )}
                   aria-label="聚类开关"
                 >
@@ -1669,13 +1669,13 @@ export default function MemoryPage() {
                   </button>
                   <button
                     onClick={selectAllVisible}
-                    className="rounded-md border border-border bg-background px-2 py-1 text-[11px] text-foreground/80 transition-colors hover:bg-muted"
+                    className="rounded-md border border-border bg-background px-2 py-1 text-[11px] text-foreground/80 transition-colors hover:bg-primary/10"
                   >
                     全选 ({listNodes.length})
                   </button>
                   <button
                     onClick={clearSelection}
-                    className="rounded-md border border-border bg-background px-2 py-1 text-[11px] text-muted-foreground transition-colors hover:bg-muted"
+                    className="rounded-md border border-border bg-background px-2 py-1 text-[11px] text-muted-foreground transition-colors hover:bg-primary/10"
                   >
                     清空
                   </button>
@@ -1730,7 +1730,7 @@ export default function MemoryPage() {
                             ? "border-cognition/50 bg-cognition/10"
                             : isSelected
                             ? "border-cognition/50 bg-cognition/10"
-                            : "ios-glass-sm hover:bg-muted/40"
+                            : "ios-glass-sm hover:bg-primary/10"
                         )}
                       >
                         {/* 批量选择复选框 */}
@@ -1780,7 +1780,7 @@ export default function MemoryPage() {
                               setEditingId(node.id);
                               setEditingLabel(displayLabel);
                             }}
-                            className="rounded p-1 text-muted-foreground hover:bg-muted hover:text-cognition"
+                            className="rounded p-1 text-muted-foreground hover:bg-primary/10 hover:text-cognition"
                             aria-label="编辑"
                           >
                             <Pencil className="h-3 w-3" />
@@ -1791,7 +1791,7 @@ export default function MemoryPage() {
                               handleDelete(node.id);
                             }}
                             disabled={deletingId === node.id}
-                            className="rounded p-1 text-muted-foreground hover:bg-muted hover:text-graveyard disabled:opacity-50"
+                            className="rounded p-1 text-muted-foreground hover:bg-primary/10 hover:text-graveyard disabled:opacity-50"
                             aria-label="删除"
                           >
                             <Trash2 className="h-3 w-3" />
@@ -1852,11 +1852,11 @@ export default function MemoryPage() {
       {/* 批量删除确认弹窗 */}
       {showBatchConfirm && (
         <div
-          className="fixed inset-0 z-[80] flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm"
+          className="fixed inset-0 z-[80] flex items-center justify-center bg-black/30 p-4 backdrop-blur-sm"
           onClick={() => setShowBatchConfirm(false)}
         >
           <div
-            className="w-full max-w-sm rounded-2xl border border-border bg-card p-5 shadow-2xl"
+            className="w-full max-w-sm rounded-2xl border border-border glass-modal p-5"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="mb-3 flex items-center gap-2 text-sm font-semibold text-graveyard">
@@ -1949,11 +1949,11 @@ export default function MemoryPage() {
 
       {showHelp && (
         <div
-          className="fixed inset-0 z-[70] flex items-center justify-center bg-black/60 p-4 backdrop-blur-md"
+          className="fixed inset-0 z-[70] flex items-center justify-center bg-black/30 p-4 backdrop-blur-md"
           onClick={() => setShowHelp(false)}
         >
           <div
-            className="w-full max-w-md rounded-3xl border border-cognition/30 bg-card p-5 shadow-2xl"
+            className="w-full max-w-md rounded-3xl border border-cognition/30 glass-modal p-5"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="mb-4 flex items-center gap-2 text-cognition">

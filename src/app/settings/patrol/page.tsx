@@ -663,7 +663,7 @@ export default function PatrolSettingsPage() {
                     "rounded-lg border px-2.5 py-1 text-[11px] transition-colors",
                     cronSchedule === preset.cron
                       ? "border-primary bg-primary/10 text-primary"
-                      : "border-border bg-transparent text-muted-foreground hover:bg-muted"
+                      : "border-border bg-transparent text-muted-foreground hover:bg-primary/10"
                   )}
                 >
                   {preset.label}
@@ -1022,7 +1022,7 @@ export default function PatrolSettingsPage() {
                 "rounded-lg px-2.5 py-1 text-[11px] font-medium transition-colors",
                 chatMode === "create"
                   ? "bg-primary text-primary-foreground"
-                  : "text-muted-foreground hover:bg-muted"
+                  : "text-muted-foreground hover:bg-primary/10"
               )}
             >
               创建新规则
@@ -1037,7 +1037,7 @@ export default function PatrolSettingsPage() {
                 "rounded-lg px-2.5 py-1 text-[11px] font-medium transition-colors",
                 chatMode === "edit"
                   ? "bg-primary text-primary-foreground"
-                  : "text-muted-foreground hover:bg-muted"
+                  : "text-muted-foreground hover:bg-primary/10"
               )}
             >
               编辑现有规则
@@ -1562,7 +1562,7 @@ function AddRuleForm({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4 backdrop-blur-sm">
       <Card className="w-full max-w-lg">
         <div className="mb-4 flex items-center justify-between">
           <h2 className="text-sm font-semibold">
@@ -1646,7 +1646,7 @@ function AddRuleForm({
                     "rounded-lg border px-2.5 py-1 text-[11px] transition-colors",
                     form.notifyChannels.includes(ch)
                       ? "border-primary bg-primary/10 text-primary"
-                      : "border-border bg-transparent text-muted-foreground hover:bg-muted"
+                      : "border-border bg-transparent text-muted-foreground hover:bg-primary/10"
                   )}
                 >
                   {CHANNEL_LABELS[ch] || ch}

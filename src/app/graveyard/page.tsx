@@ -569,11 +569,11 @@ export default function GraveyardPage() {
       {/* 详情弹窗 */}
       {detailItem && (
         <div
-          className="fixed inset-0 z-[70] flex items-center justify-center bg-black/60 p-4 backdrop-blur-md"
+          className="fixed inset-0 z-[70] flex items-center justify-center bg-black/30 p-4 backdrop-blur-md"
           onClick={() => setDetailItem(null)}
         >
           <div
-            className="w-full max-w-lg max-h-[80vh] overflow-auto rounded-3xl border border-graveyard/30 bg-card p-5 shadow-2xl"
+            className="w-full max-w-lg max-h-[80vh] overflow-auto rounded-3xl border border-graveyard/30 glass-modal p-5"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="mb-4 flex items-center justify-between">
@@ -583,7 +583,7 @@ export default function GraveyardPage() {
               </div>
               <button
                 onClick={() => setDetailItem(null)}
-                className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-primary/10 hover:text-foreground"
                 aria-label="关闭"
               >
                 <X className="h-4 w-4" />
@@ -657,7 +657,7 @@ export default function GraveyardPage() {
       {/* 编辑弹窗 */}
       {editItem && (
         <div
-          className="fixed inset-0 z-[75] flex items-center justify-center bg-black/60 p-4 backdrop-blur-md"
+          className="fixed inset-0 z-[75] flex items-center justify-center bg-black/30 p-4 backdrop-blur-md"
           onClick={() => setEditItem(null)}
         >
           <div
@@ -671,7 +671,7 @@ export default function GraveyardPage() {
               </div>
               <button
                 onClick={() => setEditItem(null)}
-                className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-primary/10 hover:text-foreground"
                 aria-label="关闭"
               >
                 <X className="h-4 w-4" />
@@ -733,11 +733,11 @@ export default function GraveyardPage() {
       {/* 删除确认弹窗 */}
       {confirmDeleteId && (
         <div
-          className="fixed inset-0 z-[80] flex items-center justify-center bg-black/60 p-4 backdrop-blur-md"
+          className="fixed inset-0 z-[80] flex items-center justify-center bg-black/30 p-4 backdrop-blur-md"
           onClick={() => setConfirmDeleteId(null)}
         >
           <div
-            className="w-full max-w-sm rounded-3xl border border-graveyard/30 bg-card p-5 shadow-2xl"
+            className="w-full max-w-sm rounded-3xl border border-graveyard/30 glass-modal p-5"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="mb-3 flex items-center gap-2 text-graveyard">
