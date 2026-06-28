@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Image from "next/image";
 import { Minus, Square, X, Maximize2 } from "lucide-react";
 import {
   isDesktop,
@@ -52,9 +53,11 @@ export function TitleBar() {
     <div className="glass-bar flex h-9 w-full shrink-0 select-none items-center justify-between px-2">
       {/* 左侧：Lynx 品牌标识（黑底白色猞猁高清 logo） */}
       <div className="flex items-center gap-2 pl-1">
-        <img
+        <Image
           src="/lynx-logo-black.png"
           alt="Lynx"
+          width={20}
+          height={20}
           className="h-5 w-5 rounded-[6px] object-cover shadow-sm"
           draggable={false}
         />

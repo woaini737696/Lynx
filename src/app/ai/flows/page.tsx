@@ -306,8 +306,7 @@ export default function AIFlowsPage() {
           }
         }
       })
-      .catch((e) => {
-        console.error("获取工作流列表失败:", e);
+      .catch(() => {
         toast("获取工作流列表失败", "error");
       })
       .finally(() => setLoading(false));
@@ -1660,7 +1659,7 @@ export default function AIFlowsPage() {
         /* ============ 可视化编排 ============ */
         <div className="flex flex-col gap-4">
           {/* AI 辅助生成条 + 工具栏 */}
-          <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-border bg-card p-3 shadow-soft">
+          <div className="glass-card flex flex-wrap items-center gap-2 rounded-2xl p-3">
             <Button
               size="sm"
               variant={aiPanelOpen ? "primary" : "outline"}
@@ -2024,7 +2023,7 @@ export default function AIFlowsPage() {
                         onContextMenu={(e) => handleNodeContextMenu(e, node)}
                         onClick={(e) => e.stopPropagation()}
                         className={cn(
-                          "group absolute flex select-none items-center gap-2.5 rounded-xl border bg-card px-3 shadow-soft transition-shadow duration-200 hover:shadow-md",
+                          "group absolute flex select-none items-center gap-2.5 rounded-xl ios-glass-sm px-3 transition-shadow duration-200 hover:shadow-md",
                           isSelected
                             ? "border-cognition/40 ring-2 ring-cognition/40"
                             : "border-border hover:border-cognition/30"
@@ -2146,7 +2145,7 @@ export default function AIFlowsPage() {
 
               {/* 运行日志面板 */}
               {showLogs && (
-                <div className="mt-3 rounded-2xl border border-border bg-card p-3 shadow-soft">
+                <div className="glass-card mt-3 rounded-2xl p-3">
                   <div className="mb-2 flex items-center justify-between">
                     <div className="flex items-center gap-2">
                       <FileText className="h-3.5 w-3.5 text-cognition" />

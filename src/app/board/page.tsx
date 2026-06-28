@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
 import { Check, Plus, RotateCcw, X, Target, Swords, ListChecks, ChevronDown, ChevronRight, TrendingUp, Brain, Loader2, Trash2 } from "lucide-react";
 import { AnimatePresence, motion } from "framer-motion";
@@ -77,7 +77,7 @@ export default function BoardPage() {
   const [savingCognitions, setSavingCognitions] = useState(false);
 
   // 加载任务列表
-  const loadTasks = async () => {
+  const loadTasks = useCallback(async () => {
     setLoading(true);
     try {
       const res = await fetch("/api/tasks");
@@ -98,16 +98,15 @@ export default function BoardPage() {
             .sort((a, b) => (b.updatedAt || "").localeCompare(a.updatedAt || ""))
         );
       }
-    } catch (e) {
-      console.error(e);
+    } catch {
       toast("加载看板失败", "error");
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   // 加载统计
-  const loadStats = async () => {
+  const loadStats = useCallback(async () => {
     try {
       const res = await fetch("/api/tasks/stats");
       if (res.ok) {
@@ -121,10 +120,10 @@ export default function BoardPage() {
           );
         }
       }
-    } catch (e) {
-      console.error(e);
+    } catch {
+      // ignore
     }
-  };
+  }, []);
 
   useEffect(() => {
     let mounted = true;
@@ -145,8 +144,7 @@ export default function BoardPage() {
       mounted = false;
       window.removeEventListener("message", handleMsg);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [loadTasks, loadStats]);
 
   const toggleDone = async (task: Task) => {
     const newStatus = task.status === "done" ? "active" : "done";

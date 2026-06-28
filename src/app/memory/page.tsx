@@ -346,8 +346,8 @@ export default function MemoryPage() {
       worker = new Worker(
         new URL("../../workers/force-simulation.worker.ts", import.meta.url)
       );
-    } catch (e) {
-      console.error("创建力导向 Worker 失败:", e);
+    } catch {
+      toast("创建力导向 Worker 失败", "error");
       return;
     }
     workerRef.current = worker;
@@ -384,8 +384,8 @@ export default function MemoryPage() {
       }
     };
 
-    worker.onerror = (e) => {
-      console.error("力导向 Worker 错误:", e);
+    worker.onerror = () => {
+      // Worker 运行时错误，已降级为静态渲染
     };
 
     return () => {
@@ -590,8 +590,7 @@ export default function MemoryPage() {
       } finally {
         setDeletingId(null);
       }
-    },
-    [load, selectedId]
+    }, [load, selectedId, runAsync]
   );
 
   // ---- 编辑记忆标签 ----
@@ -628,9 +627,11 @@ export default function MemoryPage() {
   const selectedNode = filteredNodes.find((n) => n.id === selectedId) || null;
   const hoveredNode = filteredNodes.find((n) => n.id === hoveredId) || null;
   const activeNode = selectedNode || hoveredNode;
-  const activeIds = activeNode
-    ? new Set<string>([activeNode.id, ...activeNode.connections])
-    : null;
+  const activeIds = useMemo(() => {
+    return activeNode
+      ? new Set<string>([activeNode.id, ...activeNode.connections])
+      : null;
+  }, [activeNode]);
 
   // 二级关联（双击展开）
   const expandedNode = expandedId ? filteredNodes.find((n) => n.id === expandedId) : null;

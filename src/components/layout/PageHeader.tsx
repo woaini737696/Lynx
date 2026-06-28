@@ -50,9 +50,8 @@ export function Card({
       onClick={onClick}
       onContextMenu={onContextMenu}
       className={cn(
-        "glass-card relative rounded-xl border border-border/40 bg-card/60 p-5 sm:p-6",
-        "shadow-[0_1px_2px_hsl(0_0%_0%/0.04),0_2px_8px_-2px_hsl(0_0%_0%/0.06)]",
-        hover && "transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[0_2px_6px_hsl(0_0%_0_/0.06),0_6px_20px_-4px_hsl(0_0%_0_/0.08)]",
+        "glass-card relative rounded-2xl p-5 sm:p-6",
+        hover && "transition-all duration-200 hover:-translate-y-0.5",
         onClick && "cursor-pointer",
         className
       )}
@@ -195,7 +194,7 @@ export function Surface({
   return (
     <div
       className={cn(
-        "rounded-2xl border border-border bg-card p-5 shadow-soft sm:p-6",
+        "glass-card rounded-2xl p-5 sm:p-6",
         className
       )}
     >

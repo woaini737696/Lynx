@@ -4,28 +4,28 @@
 
 @layer base {
   :root {
-    /* 浅色主题 — 1:1 还原 HTML：深空蓝灰底 #eef1f8 */
-    --background: 222 20% 95%;
-    --foreground: 222 47% 8%;
-    --card: 0 0% 100%;
-    --card-foreground: 222 47% 8%;
-    --popover: 0 0% 100%;
-    --popover-foreground: 222 47% 8%;
+    /* 1:1 还原 ui-preview-v2.html */
+    --background: 222 37% 95%;        /* #eef1f8 */
+    --foreground: 222 47% 9%;         /* #0a1020 */
+    --card: 0 0% 100% / 0.58;
+    --card-foreground: 222 47% 9%;
+    --popover: 0 0% 100% / 0.72;
+    --popover-foreground: 222 47% 9%;
     /* 主色：深邃星空蓝 #0b3d9e */
     --primary: 217 86% 33%;
     --primary-foreground: 0 0% 100%;
     --primary-soft: 217 90% 95%;
     --secondary: 220 18% 96%;
-    --secondary-foreground: 222 47% 8%;
-    --muted: 222 18% 94%;
-    --muted-foreground: 222 15% 45%;
+    --secondary-foreground: 222 47% 9%;
+    --muted: 222 18% 45%;             /* #5d6b87 */
+    --muted-foreground: 222 18% 45%;
     /* 强调色：深青 #0088a3 */
     --accent: 190 100% 32%;
     --accent-foreground: 0 0% 100%;
     --destructive: 0 84% 60%;
     --destructive-foreground: 0 0% 100%;
-    --border: 222 35% 86%;
-    --input: 222 35% 86%;
+    --border: 217 86% 33% / 0.12;
+    --input: 217 86% 33% / 0.12;
     --ring: 217 86% 33%;
     --radius: 0.85rem;
 
@@ -47,9 +47,9 @@
     /* 深色主题 — 深空黑蓝 #030713 */
     --background: 220 70% 4%;
     --foreground: 220 20% 96%;
-    --card: 220 55% 12%;
+    --card: 220 55% 12% / 0.55;
     --card-foreground: 220 20% 96%;
-    --popover: 220 55% 12%;
+    --popover: 220 55% 12% / 0.72;
     --popover-foreground: 220 20% 96%;
     /* 主色：更亮的宇宙蓝 #2563eb */
     --primary: 217 90% 58%;
@@ -57,15 +57,15 @@
     --primary-soft: 217 60% 16%;
     --secondary: 220 35% 13%;
     --secondary-foreground: 220 20% 96%;
-    --muted: 220 30% 12%;
-    --muted-foreground: 220 15% 65%;
+    --muted: 220 20% 60%;             /* #8b9ab8 */
+    --muted-foreground: 220 20% 65%;
     /* 强调色：霓虹青 #06b6d4 */
     --accent: 189 90% 43%;
     --accent-foreground: 220 70% 4%;
     --destructive: 0 72% 58%;
     --destructive-foreground: 0 0% 100%;
-    --border: 220 40% 18%;
-    --input: 220 40% 18%;
+    --border: 217 90% 58% / 0.10;
+    --input: 217 90% 58% / 0.10;
     --ring: 217 90% 58%;
 
     /* Lynx 语义色 - 深色 */
@@ -130,7 +130,8 @@
     border: 1px solid rgba(12, 55, 150, 0.16);
     box-shadow:
       inset 0 1px 1px rgba(255,255,255,0.48),
-      0 8px 32px -8px rgba(12, 55, 150, 0.08);
+      inset 0 -1px 1px rgba(0, 0, 0, 0.03),
+      0 8px 32px -8px rgba(5, 12, 32, 0.16);
     border-radius: 1.1rem;
     transition: all 0.3s cubic-bezier(0.22, 1, 0.36, 1);
     overflow: hidden;
@@ -139,6 +140,7 @@
     content: "";
     position: absolute;
     inset: 0;
+    border-radius: inherit;
     background: linear-gradient(135deg, rgba(255,255,255,0.14) 0%, transparent 50%);
     pointer-events: none;
   }
@@ -146,76 +148,73 @@
     background:
       linear-gradient(160deg, rgba(255,255,255,0.05) 0%, transparent 55%),
       rgba(13, 22, 45, 0.55);
-    border: 1px solid rgba(80, 130, 230, 0.10);
+    border: 1px solid rgba(100, 150, 255, 0.12);
     box-shadow:
       inset 0 1px 1px rgba(255,255,255,0.05),
-      0 8px 32px -8px rgba(0, 0, 0, 0.45);
+      0 8px 32px -8px rgba(0, 0, 0, 0.55);
   }
   .dark .ios-glass::before {
-    background: linear-gradient(135deg, rgba(255,255,255,0.05) 0%, transparent 50%);
+    background: linear-gradient(135deg, rgba(255,255,255,0.06) 0%, transparent 50%);
   }
   .ios-glass:hover {
     border-color: rgba(11, 61, 158, 0.22);
     box-shadow:
       inset 0 1px 1px rgba(255,255,255,0.48),
-      0 10px 36px -8px rgba(12, 55, 150, 0.12);
+      inset 0 -1px 1px rgba(0, 0, 0, 0.04),
+      0 12px 40px -10px rgba(5, 12, 32, 0.18);
   }
   .dark .ios-glass:hover {
     border-color: rgba(100, 150, 255, 0.22);
     box-shadow:
       inset 0 1px 1px rgba(255,255,255,0.05),
-      0 10px 36px -8px rgba(0, 0, 0, 0.35);
+      0 12px 40px -10px rgba(0, 0, 0, 0.35);
   }
 
   /* 小型玻璃控件（1:1 还原 HTML ios-glass-sm）— 按钮、标签、输入框 */
   .ios-glass-sm {
     position: relative;
     background:
-      linear-gradient(160deg, rgba(255,255,255,0.45) 0%, transparent 50%),
-      rgba(255,255,255,0.55);
+      linear-gradient(160deg, rgba(255,255,255,0.48) 0%, transparent 50%),
+      rgba(255,255,255,0.58);
     backdrop-filter: saturate(200%) blur(18px);
     -webkit-backdrop-filter: saturate(200%) blur(18px);
-    border: 1px solid rgba(12, 55, 150, 0.14);
+    border: 1px solid rgba(12, 55, 150, 0.16);
     box-shadow:
-      inset 0 0.5px 1px rgba(255, 255, 255, 0.45),
-      0 2px 8px -2px rgba(12, 55, 150, 0.05);
+      inset 0 0.5px 1px rgba(255, 255, 255, 0.48),
+      0 1px 3px rgba(0, 0, 0, 0.04);
     transition: all 0.25s cubic-bezier(0.22, 1, 0.36, 1);
     overflow: hidden;
   }
-  .ios-glass-sm::before {
-    content: "";
-    position: absolute;
-    inset: 0;
-    background: linear-gradient(135deg, rgba(255, 255, 255, 0.12), transparent 50%);
-    pointer-events: none;
-  }
   .ios-glass-sm:hover {
-    border-color: rgba(12, 55, 150, 0.22);
+    background:
+      linear-gradient(160deg, rgba(255,255,255,0.48) 0%, transparent 40%),
+      rgba(255,255,255,0.58);
+    border-color: rgba(12, 55, 150, 0.24);
   }
   .dark .ios-glass-sm {
     background:
       linear-gradient(160deg, rgba(255,255,255,0.05) 0%, transparent 50%),
       rgba(13, 22, 45, 0.55);
-    border-color: rgba(80, 130, 230, 0.10);
+    border: 1px solid rgba(100, 150, 255, 0.12);
     box-shadow:
       inset 0 0.5px 1px rgba(255, 255, 255, 0.05),
-      0 2px 8px -2px rgba(0, 0, 0, 0.25);
-  }
-  .dark .ios-glass-sm::before {
-    background: linear-gradient(135deg, rgba(255, 255, 255, 0.05), transparent 50%);
+      0 1px 3px rgba(0, 0, 0, 0.20);
   }
   .dark .ios-glass-sm:hover {
-    border-color: rgba(100, 150, 255, 0.22);
+    background:
+      linear-gradient(160deg, rgba(255,255,255,0.05) 0%, transparent 40%),
+      rgba(13, 22, 45, 0.55);
+    border-color: rgba(100, 150, 255, 0.20);
   }
 
-  /* 主按钮（1:1 还原 HTML btn-primary — 轻盈深邃蓝） */
+  /* 主按钮（1:1 还原 HTML btn-primary） */
   .btn-primary {
     position: relative;
     overflow: hidden;
-    background: #0b3d9e;
+    background: linear-gradient(135deg, #0b3d9e 0%, #0a4fd1 100%);
     box-shadow:
-      0 0 0 1px rgba(11, 61, 158, 0.20),
-      0 4px 14px -4px rgba(11, 61, 158, 0.30);
+      0 0 0 1px rgba(11, 61, 158, 0.35),
+      0 6px 18px -6px rgba(11, 61, 158, 0.45);
     transition: all 0.25s cubic-bezier(0.22, 1, 0.36, 1);
   }
   .btn-primary::before {
@@ -223,25 +222,25 @@
     position: absolute;
     inset: 0;
     border-radius: inherit;
-    background: linear-gradient(135deg, rgba(255, 255, 255, 0.10), transparent 50%);
+    background: linear-gradient(135deg, rgba(255, 255, 255, 0.16), transparent 50%);
     pointer-events: none;
   }
   .btn-primary:hover {
     filter: brightness(1.06);
     box-shadow:
-      0 0 0 1px rgba(11, 61, 158, 0.28),
-      0 6px 18px -4px rgba(11, 61, 158, 0.40);
+      0 0 0 1px rgba(11, 61, 158, 0.45),
+      0 8px 22px -6px rgba(11, 61, 158, 0.55);
   }
   .dark .btn-primary {
-    background: #2563eb;
+    background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
     box-shadow:
-      0 0 0 1px rgba(80, 150, 255, 0.15),
-      0 4px 14px -4px rgba(37, 99, 235, 0.25);
+      0 0 0 1px rgba(80, 150, 255, 0.25),
+      0 6px 18px -6px rgba(37, 99, 235, 0.35);
   }
   .dark .btn-primary:hover {
     box-shadow:
-      0 0 0 1px rgba(80, 150, 255, 0.22),
-      0 6px 18px -4px rgba(37, 99, 235, 0.35);
+      0 0 0 1px rgba(80, 150, 255, 0.35),
+      0 8px 22px -6px rgba(37, 99, 235, 0.45);
   }
 
   /* 顶部导航栏 — 液态玻璃 */
@@ -324,43 +323,6 @@
     transform: translateY(0) scale(0.97);
   }
 
-  /* 玻璃态主按钮 */
-  .btn-glass {
-    position: relative;
-    overflow: hidden;
-    border-radius: 0.85rem;
-    background:
-      linear-gradient(135deg, hsl(var(--glass-highlight) / 0.10) 0%, hsl(var(--glass-highlight) / 0.03) 100%),
-      hsl(var(--card) / 0.45);
-    color: hsl(var(--foreground));
-    border: 1px solid hsl(var(--glass-border) / 0.45);
-    font-weight: 500;
-    box-shadow:
-      inset 0 0.5px 1px hsl(var(--glass-highlight) / 0.14),
-      0 2px 8px -2px hsl(0 0% 0% / 0.08);
-    transition: all 0.3s cubic-bezier(0.22, 1, 0.36, 1);
-  }
-  .btn-glass::before {
-    content: "";
-    position: absolute;
-    inset: 0;
-    background: linear-gradient(135deg, hsl(var(--glass-highlight) / 0.12), transparent 50%);
-    pointer-events: none;
-  }
-  .btn-glass:hover {
-    background:
-      linear-gradient(135deg, hsl(var(--glass-highlight) / 0.16) 0%, hsl(var(--glass-highlight) / 0.06) 100%),
-      hsl(var(--card) / 0.62);
-    border-color: hsl(var(--glass-border) / 0.65);
-    transform: translateY(-1px);
-    box-shadow:
-      inset 0 0.5px 1px hsl(var(--glass-highlight) / 0.18),
-      0 6px 20px -4px hsl(0 0% 0% / 0.14);
-  }
-  .btn-glass:active {
-    transform: translateY(0) scale(0.97);
-  }
-
   /* 主按钮 — 液态玻璃发光版 */
   .btn-primary-glass {
     position: relative;
@@ -435,61 +397,7 @@
     transform: translateY(0) scale(0.97);
   }
 
-  /* iOS pill（胶囊按钮/标签） */
-  .ios-pill {
-    position: relative;
-    display: inline-flex;
-    align-items: center;
-    gap: 0.35rem;
-    white-space: nowrap;
-    border-radius: 999px;
-    padding: 0.35rem 0.85rem;
-    font-size: 0.75rem;
-    font-weight: 500;
-    background:
-      linear-gradient(135deg, hsl(var(--glass-highlight) / 0.10) 0%, hsl(var(--glass-highlight) / 0.04) 100%),
-      hsl(var(--muted) / 0.35);
-    color: hsl(var(--foreground) / 0.85);
-    border: 1px solid hsl(var(--glass-border) / 0.4);
-    box-shadow:
-      inset 0 0.5px 1px hsl(var(--glass-highlight) / 0.12),
-      0 2px 6px -2px hsl(0 0% 0% / 0.06);
-    backdrop-filter: saturate(180%) blur(12px);
-    -webkit-backdrop-filter: saturate(180%) blur(12px);
-    transition: all 0.25s cubic-bezier(0.22, 1, 0.36, 1);
-    cursor: pointer;
-  }
-  .ios-pill:hover {
-    background:
-      linear-gradient(135deg, hsl(var(--glass-highlight) / 0.16) 0%, hsl(var(--glass-highlight) / 0.06) 100%),
-      hsl(var(--muted) / 0.5);
-    border-color: hsl(var(--glass-border) / 0.6);
-    transform: translateY(-1px);
-  }
-
-  /* 柔和卡片阴影（兼容旧版） */
-  .card-doubao {
-    @apply rounded-xl border border-border bg-card;
-    box-shadow:
-      0 1px 2px hsl(0 0% 0% / 0.04),
-      0 2px 8px -2px hsl(0 0% 0% / 0.06);
-  }
-  .card-doubao:hover {
-    box-shadow:
-      0 2px 6px hsl(0 0% 0% / 0.06),
-      0 6px 20px -4px hsl(0 0% 0% / 0.08);
-  }
-
-  /* 聚焦输入框 */
-  .input-doubao {
-    @apply rounded-xl border border-border bg-card transition-all;
-  }
-  .input-doubao:focus {
-    @apply border-primary;
-    box-shadow:
-      0 0 0 3px hsl(var(--primary) / 0.12),
-      0 0 18px -4px hsl(var(--primary) / 0.25);
-  }
+  /* iOS pill（胶囊按钮/标签） — 已废弃，使用 ios-glass-sm 替代 */
 
   /* 液态玻璃质感卡片（1:1 还原 HTML ios-glass） */
   .glass-card {
@@ -503,7 +411,8 @@
     border-radius: 1.1rem;
     box-shadow:
       inset 0 1px 1px rgba(255, 255, 255, 0.48),
-      0 8px 32px -8px rgba(12, 55, 150, 0.08);
+      inset 0 -1px 1px rgba(0, 0, 0, 0.03),
+      0 8px 32px -8px rgba(5, 12, 32, 0.16);
     overflow: hidden;
     transition: all 0.3s cubic-bezier(0.22, 1, 0.36, 1);
   }
@@ -518,7 +427,8 @@
     border-color: rgba(11, 61, 158, 0.22);
     box-shadow:
       inset 0 1px 1px rgba(255, 255, 255, 0.48),
-      0 10px 36px -8px rgba(12, 55, 150, 0.12);
+      inset 0 -1px 1px rgba(0, 0, 0, 0.04),
+      0 12px 40px -10px rgba(5, 12, 32, 0.18);
   }
   .dark .glass-card {
     background:
@@ -527,16 +437,16 @@
     border-color: rgba(80, 130, 230, 0.10);
     box-shadow:
       inset 0 1px 1px rgba(255, 255, 255, 0.05),
-      0 8px 32px -8px rgba(0, 0, 0, 0.45);
+      0 8px 32px -8px rgba(0, 0, 0, 0.55);
   }
   .dark .glass-card::before {
-    background: linear-gradient(135deg, rgba(255, 255, 255, 0.05), transparent 50%);
+    background: linear-gradient(135deg, rgba(255, 255, 255, 0.06), transparent 50%);
   }
   .dark .glass-card:hover {
     border-color: rgba(100, 150, 255, 0.22);
     box-shadow:
       inset 0 1px 1px rgba(255, 255, 255, 0.05),
-      0 10px 36px -8px rgba(0, 0, 0, 0.35);
+      0 12px 40px -10px rgba(0, 0, 0, 0.35);
   }
 
   /* 侧边栏玻璃（1:1 还原 HTML glass-sidebar） */
@@ -835,19 +745,6 @@
   .dark .recent-tab.active::after {
     background: #60a5fa;
   }
-
-  /* 发光边框 */
-  .glow-border {
-    border-color: hsl(var(--primary) / 0.45);
-    box-shadow:
-      0 0 0 1px hsl(var(--primary) / 0.25),
-      0 0 24px -8px hsl(var(--primary) / 0.35);
-  }
-
-  /* 发光文字 */
-  .glow-text {
-    text-shadow: 0 0 18px hsl(var(--primary) / 0.5);
-  }
 }
 
 /* ============ 桌面端专属样式（Tauri 环境） ============ */
@@ -961,10 +858,9 @@ html.theme-transition * {
   .ios-glass:hover,
   .ios-glass-sm:hover,
   .glass-card:hover,
-  .glass-btn:hover,
-  .btn-doubao:hover,
-  .btn-glass:hover,
-  .ios-pill:hover {
+  .glass-fab:hover,
+  .btn-primary-glass:hover,
+  .btn-danger-glass:hover {
     transform: none !important;
   }
 }

@@ -174,8 +174,7 @@ export default function PatrolSettingsPage() {
         const data = await res.json();
         setRules(data.rules || []);
       }
-    } catch (e) {
-      console.error(e);
+    } catch {
       toast("加载规则失败", "error");
     }
   }, []);
@@ -188,8 +187,8 @@ export default function PatrolSettingsPage() {
         const data = await res.json();
         setLogs(data.logs || []);
       }
-    } catch (e) {
-      console.error(e);
+    } catch {
+      toast("加载日志失败", "error");
     }
   }, []);
 
@@ -201,8 +200,8 @@ export default function PatrolSettingsPage() {
         const data = await res.json();
         setCronJobs(data.jobs || []);
       }
-    } catch (e) {
-      console.error(e);
+    } catch {
+      toast("加载 Cron 任务失败", "error");
     }
   }, []);
 

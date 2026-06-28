@@ -103,9 +103,8 @@ export default function InboxPage() {
         } else if (res.status >= 500) {
           setLoadError("服务器异常，加载灵感失败");
         }
-      } catch (e) {
+      } catch {
         if (!mounted) return;
-        console.error(e);
         setLoadError("网络错误，加载灵感失败");
       } finally {
         if (mounted) setLoading(false);
@@ -706,6 +705,7 @@ export default function InboxPage() {
                               className="relative overflow-hidden rounded-lg border border-border transition-transform hover:scale-[1.02]"
                               title={att.name}
                             >
+                              {/* eslint-disable-next-line @next/next/no-img-element */}
                               <img
                                 src={att.url}
                                 alt={att.name}
@@ -1044,6 +1044,7 @@ export default function InboxPage() {
           >
             <X className="h-5 w-5" />
           </button>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src={previewImage}
             alt="预览"

@@ -1048,6 +1048,7 @@ export function AssistantChat({ onClose }: AssistantChatProps = {}) {
         <div className="flex min-w-0 flex-1 items-center gap-2">
           <div className="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-full bg-primary text-primary-foreground">
             {settings.avatarUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
               <img
                 src={settings.avatarUrl}
                 alt="avatar"
@@ -1252,6 +1253,7 @@ export function AssistantChat({ onClose }: AssistantChatProps = {}) {
             <div className="flex max-w-[85%] items-end gap-2">
               <div className="flex h-7 w-7 shrink-0 items-center justify-center overflow-hidden rounded-full bg-primary text-primary-foreground">
                 {settings.avatarUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element
                   <img
                     src={settings.avatarUrl}
                     alt="avatar"
@@ -1306,6 +1308,7 @@ export function AssistantChat({ onClose }: AssistantChatProps = {}) {
                     {!isUser && (
                       <div className="flex h-6 w-6 shrink-0 items-center justify-center overflow-hidden rounded-full bg-primary text-primary-foreground">
                         {settings.avatarUrl ? (
+                          // eslint-disable-next-line @next/next/no-img-element
                           <img
                             src={settings.avatarUrl}
                             alt="avatar"

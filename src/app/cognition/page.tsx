@@ -24,7 +24,7 @@ interface Cognition {
 
 export default function CognitionPage() {
   const { data, error, isLoading, mutate } = useCognitions();
-  const cognitions: Cognition[] = data?.cognitions || [];
+  const cognitions = useMemo<Cognition[]>(() => data?.cognitions || [], [data?.cognitions]);
   const loading = isLoading && !data;
   const [filter, setFilter] = useState<CognitionType | "all">("all");
   const [showExtract, setShowExtract] = useState(false);
@@ -77,8 +77,7 @@ export default function CognitionPage() {
       } else {
         toast("删除失败", "error");
       }
-    } catch (err) {
-      console.error("删除失败:", err);
+    } catch {
       toast("删除失败", "error");
     }
   };

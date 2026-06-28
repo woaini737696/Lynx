@@ -254,7 +254,7 @@ export function LightningInput() {
     >
       <div
         className={cn(
-          "w-full max-w-xl rounded-3xl border bg-card p-5 shadow-2xl transition-all animate-in zoom-in-95 duration-200 sm:p-6",
+          "w-full max-w-xl rounded-3xl glass-card p-5 shadow-2xl transition-all animate-in zoom-in-95 duration-200 sm:p-6",
           statusMeta.border,
           statusMeta.shadow
         )}
@@ -312,6 +312,7 @@ export function LightningInput() {
                   className="group relative flex items-center gap-2 rounded-lg border border-border bg-muted/30 px-2 py-1.5"
                 >
                   {att.type === "image" ? (
+                    // eslint-disable-next-line @next/next/no-img-element
                     <img
                       src={att.url}
                       alt={att.name}
