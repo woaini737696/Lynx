@@ -244,7 +244,7 @@ export function UserAIKeyConfig() {
         <div className="ios-glass-sm rounded-lg p-3 text-[11px] text-muted-foreground">
           <p className="mb-1 flex items-center gap-1 font-medium text-foreground">
             <CheckCircle2 className="h-3 w-3 text-cognition" />
-            使用说明
+            配置提示
           </p>
           <ul className="ml-4 list-disc space-y-0.5">
             <li>配置你自己的 Key 后，AI 对话将消耗你的配额，不影响管理员配额</li>

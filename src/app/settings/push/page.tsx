@@ -551,11 +551,11 @@ export default function PushSettingsPage() {
         </div>
       </Card>
 
-      {/* 使用说明 */}
+      {/* 通知方式对比（详细说明见右上角使用说明弹窗） */}
       <Card>
         <div className="mb-3 flex items-center gap-2">
           <AlertCircle className="h-4 w-4 text-cognition" />
-          <h2 className="text-sm font-semibold">使用说明</h2>
+          <h2 className="text-sm font-semibold">通知方式对比</h2>
         </div>
         <div className="space-y-2 text-xs text-muted-foreground">
           <p>
@@ -570,7 +570,7 @@ export default function PushSettingsPage() {
             <strong className="text-foreground">飞书通知</strong>
             ：通过飞书机器人 Webhook 推送到群聊，适合团队协作场景。
           </p>
-          <p className="rounded-lg bg-muted/30 px-3 py-2 text-[11px]">
+          <p className="ios-glass-sm rounded-lg px-3 py-2 text-[11px]">
             注意：巡检通知会同时尝试所有已启用的渠道，确保重要提醒不遗漏。
             如果浏览器不支持或通知权限被拒绝，将无法使用对应渠道。
           </p>

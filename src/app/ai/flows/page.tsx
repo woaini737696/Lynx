@@ -537,9 +537,11 @@ export default function AIFlowsPage() {
     const canvas = canvasRef.current;
     if (!canvas) return { x: 0, y: 0 };
     const rect = canvas.getBoundingClientRect();
+    // 画布容器有 16px padding（为端口圆点预留空间，避免 overflow-auto 裁剪）
+    const pad = 16;
     return {
-      x: (clientX - rect.left + canvas.scrollLeft) / zoomRef.current,
-      y: (clientY - rect.top + canvas.scrollTop) / zoomRef.current,
+      x: (clientX - rect.left - pad + canvas.scrollLeft) / zoomRef.current,
+      y: (clientY - rect.top - pad + canvas.scrollTop) / zoomRef.current,
     };
   };
 
@@ -1421,11 +1423,9 @@ export default function AIFlowsPage() {
                 <Network className="h-3.5 w-3.5" /> 可视化编排
               </button>
             </div>
-            {mode === "list" && (
-              <Button onClick={() => setShowTemplates(true)}>
-                <Plus className="h-3.5 w-3.5" /> 新建工作流
-              </Button>
-            )}
+            <Button onClick={() => setShowTemplates(true)}>
+              <Plus className="h-3.5 w-3.5" /> 新建工作流
+            </Button>
             <HelpButton contentKey="ai-flows" />
           </div>
         }
@@ -1488,7 +1488,7 @@ export default function AIFlowsPage() {
                       onClick={() => setSelectedFlow(flow.id)}
                       className={cn(
                         "cursor-pointer transition-all",
-                        selectedFlow === flow.id && "ring-2 ring-cognition/40"
+                        selectedFlow === flow.id && "border-cognition/40"
                       )}
                     >
                       {/* 卡片头部：名称 + 启用状态 */}
@@ -1658,8 +1658,8 @@ export default function AIFlowsPage() {
       ) : (
         /* ============ 可视化编排 ============ */
         <div className="flex flex-col gap-4">
-          {/* AI 辅助生成条 + 工具栏 */}
-          <div className="glass-card flex flex-wrap items-center gap-2 rounded-2xl p-3">
+          {/* AI 辅助生成条 + 工具栏（单行不换行，避免 tab 切换时高度跳动） */}
+          <div className="glass-card flex items-center gap-2 overflow-x-auto rounded-2xl p-3">
             <Button
               size="sm"
               variant={aiPanelOpen ? "primary" : "outline"}
@@ -1713,7 +1713,7 @@ export default function AIFlowsPage() {
               )}
             </div>
             {/* 工具栏右侧操作 */}
-            <div className="flex flex-wrap items-center gap-2">
+            <div className="flex items-center gap-2">
             {/* 缩放控制 */}
               <div className="flex items-center rounded-xl border border-border bg-background p-0.5">
                 <button
@@ -1845,7 +1845,7 @@ export default function AIFlowsPage() {
                   setEditingNodeId(null);
                 }}
                 style={{ cursor: isPanning ? "grabbing" : spacePressedRef.current ? "grab" : "default" }}
-                className="glass-card relative h-[calc(100vh-280px)] min-h-[480px] overflow-auto rounded-2xl border border-border"
+                className="glass-card relative h-[calc(100vh-280px)] min-h-[480px] overflow-auto rounded-2xl border border-border p-4"
               >
                 <div
                   className="relative origin-top-left"
@@ -2023,10 +2023,10 @@ export default function AIFlowsPage() {
                         onContextMenu={(e) => handleNodeContextMenu(e, node)}
                         onClick={(e) => e.stopPropagation()}
                         className={cn(
-                          "group absolute flex select-none items-center gap-2.5 rounded-xl ios-glass-sm px-3 transition-shadow duration-200 hover:shadow-md",
+                          "group absolute flex select-none items-center gap-2.5 rounded-xl ios-glass-sm px-3",
                           isSelected
-                            ? "border-cognition/40 ring-2 ring-cognition/40"
-                            : "border-border hover:border-cognition/30"
+                            ? "border-cognition/50 z-10"
+                            : "border-border"
                         )}
                         style={{
                           left: node.x,
@@ -2041,7 +2041,7 @@ export default function AIFlowsPage() {
                           data-port="input"
                           data-node-id={node.id}
                           className={cn(
-                            "absolute -left-2 top-1/2 flex h-4 w-4 -translate-y-1/2 items-center justify-center rounded-full border-2 bg-background transition-all hover:scale-125",
+                            "absolute -left-2 top-1/2 z-20 flex h-4 w-4 -translate-y-1/2 items-center justify-center rounded-full border-2 bg-background",
                             tempConnect
                               ? "scale-125 border-cognition bg-cognition/10"
                               : "border-border hover:border-cognition"
@@ -2118,7 +2118,7 @@ export default function AIFlowsPage() {
                           data-node-id={node.id}
                           onMouseDown={(e) => handleOutputPortMouseDown(e, node.id)}
                           className={cn(
-                            "absolute -right-2 top-1/2 flex h-4 w-4 -translate-y-1/2 cursor-crosshair items-center justify-center rounded-full border-2 bg-background transition-all hover:scale-125",
+                            "absolute -right-2 top-1/2 z-20 flex h-4 w-4 -translate-y-1/2 cursor-crosshair items-center justify-center rounded-full border-2 bg-background",
                             isSelected
                               ? "border-cognition"
                               : "border-border group-hover:border-cognition/60"
@@ -2196,6 +2196,7 @@ export default function AIFlowsPage() {
       {/* ============ 节点配置面板（弹窗）============ */}
       {configNode && (
         <NodeConfigPanel
+          key={configNode.id}
           node={configNode}
           onClose={() => setConfigNodeId(null)}
           onUpdateLabel={(label) => updateNodeLabel(configNode.id, label)}
