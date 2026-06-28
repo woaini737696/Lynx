@@ -957,37 +957,24 @@ function HermesConfigSection() {
       <div className="mb-4 rounded-md border border-northstar/20 bg-northstar/5 p-3 text-xs text-muted-foreground">
         <div className="mb-1 flex items-center justify-between">
           <div className="font-medium text-foreground">🤖 Lynx Agent 是什么？</div>
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={() => setShowHermesHelp(true)}
-              className="inline-flex items-center gap-1 text-[11px] text-northstar hover:underline"
-              title="查看完整使用说明"
-            >
-              <BookOpen className="h-3 w-3" /> 使用说明
-            </button>
-            <button
-              type="button"
-              onClick={handleOpenDashboard}
-              disabled={openingDashboard}
-              className="inline-flex items-center gap-1 text-[11px] text-campaign hover:underline disabled:opacity-50"
-              title={isInstalled ? "确保 Dashboard 服务已启动并在新标签页打开" : "请先安装 Lynx Agent"}
-            >
-              {openingDashboard ? (
-                <><Loader2 className="h-3 w-3 animate-spin" /> 启动中...</>
-              ) : (
-                <><ExternalLink className="h-3 w-3" /> 打开 Dashboard</>
-              )}
-            </button>
-          </div>
+          <button
+            type="button"
+            onClick={handleOpenDashboard}
+            disabled={openingDashboard}
+            className="inline-flex items-center gap-1 text-[11px] text-campaign hover:underline disabled:opacity-50"
+            title={isInstalled ? "确保 Dashboard 服务已启动并在新标签页打开" : "请先安装 Lynx Agent"}
+          >
+            {openingDashboard ? (
+              <><Loader2 className="h-3 w-3 animate-spin" /> 启动中...</>
+            ) : (
+              <><ExternalLink className="h-3 w-3" /> 打开 Dashboard</>
+            )}
+          </button>
         </div>
         基于 Hermes Agent 技术深度定制开发，让 AI 助理升级为 Lynx 超级助理，可以直接操控你的电脑（桌面控制、Shell 命令、系统级 CLI、浏览器控制、应用控制），并且拥有自主学习能力（你重复做 2 次的工作，Lynx 超级助理会自主学习并打包成技能 Skill），自我成长能力（你每次的对话和操作，Lynx 超级助理会自动提取关键记忆，保证永远不会失忆），实现「AI 自动化工作流」，无需学习开箱即用。所有操作都在本地执行，数据不出本机，保证你的隐私。
       </div>
 
-      {/* 使用说明弹窗 */}
-      {showHermesHelp && (
-        <HermesHelpModal onClose={() => setShowHermesHelp(false)} />
-      )}
+      {/* Lynx Agent 使用说明已整合到右上角 HelpButton 弹窗（contentKey="settings"） */}
 
       {/* 安装状态 */}
       <div className="mb-4 space-y-2">

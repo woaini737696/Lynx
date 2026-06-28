@@ -337,11 +337,11 @@ export default function LarkBotSettingsPage() {
         </Button>
       </Card>
 
-      {/* 使用说明 */}
+      {/* 配置指引（详细说明见右上角使用说明弹窗） */}
       <Card>
         <div className="mb-3 flex items-center gap-2">
           <MessageCircle className="h-4 w-4 text-muted-foreground" />
-          <h2 className="text-sm font-semibold">使用说明</h2>
+          <h2 className="text-sm font-semibold">配置指引</h2>
         </div>
         <div className="space-y-2 text-xs text-muted-foreground">
           <div>

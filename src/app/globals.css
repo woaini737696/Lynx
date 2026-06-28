@@ -452,16 +452,16 @@
   .glass-card {
     position: relative;
     background:
-      linear-gradient(160deg, rgba(255,255,255,0.48) 0%, transparent 55%),
-      rgba(255,255,255,0.58);
-    backdrop-filter: saturate(200%) blur(28px);
-    -webkit-backdrop-filter: saturate(200%) blur(28px);
-    border: 1px solid rgba(12, 55, 150, 0.16);
+      linear-gradient(160deg, rgba(255,255,255,0.56) 0%, transparent 55%),
+      rgba(255,255,255,0.72);
+    backdrop-filter: saturate(220%) blur(28px);
+    -webkit-backdrop-filter: saturate(220%) blur(28px);
+    border: 1px solid rgba(255, 255, 255, 0.5);
     border-radius: 1.1rem;
     box-shadow:
-      inset 0 1px 1px rgba(255, 255, 255, 0.48),
-      inset 0 -1px 1px rgba(0, 0, 0, 0.03),
-      0 8px 32px -8px rgba(5, 12, 32, 0.16);
+      inset 0 1px 1px rgba(255, 255, 255, 0.6),
+      inset 0 -1px 1px rgba(0, 0, 0, 0.02),
+      0 8px 32px -8px rgba(5, 12, 32, 0.12);
     overflow: hidden;
     transition: all 0.3s cubic-bezier(0.22, 1, 0.36, 1);
   }
@@ -469,7 +469,7 @@
     content: "";
     position: absolute;
     inset: 0;
-    background: linear-gradient(135deg, rgba(255, 255, 255, 0.14), transparent 50%);
+    background: linear-gradient(135deg, rgba(255, 255, 255, 0.2), transparent 50%);
     pointer-events: none;
   }
   .glass-card:hover {
@@ -481,21 +481,21 @@
   }
   .dark .glass-card {
     background:
-      linear-gradient(160deg, rgba(255,255,255,0.05) 0%, transparent 55%),
-      rgba(13, 22, 45, 0.55);
-    border-color: rgba(80, 130, 230, 0.10);
+      linear-gradient(160deg, rgba(120,170,255,0.08) 0%, transparent 55%),
+      rgba(28, 40, 72, 0.62);
+    border-color: rgba(120, 170, 255, 0.16);
     box-shadow:
-      inset 0 1px 1px rgba(255, 255, 255, 0.05),
-      0 8px 32px -8px rgba(0, 0, 0, 0.55);
+      inset 0 1px 1px rgba(255, 255, 255, 0.08),
+      0 8px 32px -8px rgba(0, 0, 0, 0.5);
   }
   .dark .glass-card::before {
-    background: linear-gradient(135deg, rgba(255, 255, 255, 0.06), transparent 50%);
+    background: linear-gradient(135deg, rgba(120, 170, 255, 0.08), transparent 50%);
   }
   .dark .glass-card:hover {
-    border-color: rgba(100, 150, 255, 0.22);
+    border-color: rgba(120, 170, 255, 0.28);
     box-shadow:
-      inset 0 1px 1px rgba(255, 255, 255, 0.05),
-      0 12px 40px -10px rgba(0, 0, 0, 0.35);
+      inset 0 1px 1px rgba(255, 255, 255, 0.08),
+      0 12px 40px -10px rgba(0, 0, 0, 0.3);
   }
 
   /* 侧边栏玻璃（1:1 还原 HTML glass-sidebar） */
@@ -563,32 +563,33 @@
   /* 弹窗/模态框 — 继承 user-menu 白色液态玻璃标准（iOS 26 Liquid Glass） */
   .glass-modal {
     position: relative;
-    background: rgba(255, 255, 255, 0.82);
-    backdrop-filter: saturate(220%) blur(28px);
-    -webkit-backdrop-filter: saturate(220%) blur(28px);
-    border: 1px solid rgba(12, 55, 150, 0.16);
+    background: rgba(255, 255, 255, 0.92);
+    backdrop-filter: saturate(240%) blur(32px);
+    -webkit-backdrop-filter: saturate(240%) blur(32px);
+    border: 1px solid rgba(255, 255, 255, 0.6);
     box-shadow:
-      0 24px 64px -16px rgba(0, 0, 0, 0.22),
-      0 0 0 1px rgba(255, 255, 255, 0.12) inset;
+      0 24px 64px -16px rgba(0, 0, 0, 0.18),
+      0 0 0 1px rgba(255, 255, 255, 0.5) inset,
+      0 1px 0 0 rgba(255, 255, 255, 0.8) inset;
     overflow: hidden;
   }
   .glass-modal::before {
     content: "";
     position: absolute;
     inset: 0;
-    background: linear-gradient(135deg, rgba(255, 255, 255, 0.14), transparent 50%);
+    background: linear-gradient(135deg, rgba(255, 255, 255, 0.22), transparent 50%);
     pointer-events: none;
     border-radius: inherit;
   }
   .dark .glass-modal {
-    background: rgba(13, 22, 45, 0.82);
-    border-color: rgba(80, 130, 230, 0.14);
+    background: rgba(28, 40, 72, 0.88);
+    border-color: rgba(120, 170, 255, 0.2);
     box-shadow:
-      0 24px 64px -16px rgba(0, 0, 0, 0.55),
-      0 0 0 1px rgba(255, 255, 255, 0.04) inset;
+      0 24px 64px -16px rgba(0, 0, 0, 0.5),
+      0 0 0 1px rgba(120, 170, 255, 0.1) inset;
   }
   .dark .glass-modal::before {
-    background: linear-gradient(135deg, rgba(255, 255, 255, 0.06), transparent 50%);
+    background: linear-gradient(135deg, rgba(120, 170, 255, 0.1), transparent 50%);
   }
 
   /* 聊天消息气泡（深浅色模式协调） */

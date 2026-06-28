@@ -60,11 +60,11 @@ export function HelpButton({ content, contentKey, title = "使用说明" }: Help
 
       {open && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4 backdrop-blur-sm"
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/30 p-4 backdrop-blur-xl"
           onClick={() => setOpen(false)}
         >
           <div
-            className="glass-card max-h-[85vh] w-full max-w-2xl overflow-y-auto rounded-2xl border border-border shadow-2xl"
+            className="glass-modal max-h-[85vh] w-full max-w-2xl overflow-y-auto rounded-3xl"
             onClick={(e) => e.stopPropagation()}
           >
             {/* 头部 */}
