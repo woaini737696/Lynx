@@ -1,13 +1,13 @@
 ; ============================================================
 ; Lynx native desktop NSIS installer
-; Style: iOS liquid-glass deep-sea single-page installer
+; Style: iOS liquid-glass deep-sea custom page
 ; Output: dist\lynx_1.0.0.exe
 ; ============================================================
 
-!include "MUI2.nsh"
+!include "nsDialogs.nsh"
 !include "LogicLib.nsh"
 !include "x64.nsh"
-!include "nsDialogs.nsh"
+!include "WinMessages.nsh"
 
 ; ---------- Product info ----------
 !define PRODUCT_NAME      "Lynx"
@@ -17,6 +17,7 @@
 !define PRODUCT_DIR_REGKEY "Software\Microsoft\Windows\CurrentVersion\App Paths\lynnhub-desktop-native.exe"
 !define PRODUCT_UNINST_KEY "Software\Microsoft\Windows\CurrentVersion\Uninstall\${PRODUCT_NAME}"
 !define PRODUCT_UNINST_ROOT_KEY "HKLM"
+!define PRODUCT_EXE       "lynnhub-desktop-native.exe"
 
 ; ---------- Output ----------
 Name "${PRODUCT_NAME} ${PRODUCT_VERSION}"
@@ -35,185 +36,330 @@ VIAddVersionKey "LegalCopyright"  "2026 ${PRODUCT_PUBLISHER}"
 VIAddVersionKey "FileVersion"     "${PRODUCT_VERSION}"
 VIAddVersionKey "ProductVersion"  "${PRODUCT_VERSION}"
 
-; ---------- Deep-sea brand palette ----------
-!define BRAND_BG      "060D18"
-!define BRAND_PANEL   "0F1B2E"
-!define BRAND_TEXT    "F9FAFB"
-!define BRAND_SECOND  "9CA3AF"
-!define BRAND_MUTED   "6B7280"
-!define BRAND_BLUE    "2563EB"
-!define BRAND_BLUE_LT "3B82F6"
-!define BRAND_GLOW    "1D4ED8"
+; ---------- Window size ----------
+!define WINDOW_W 540
+!define WINDOW_H 458          ; includes title bar/borders for ~520x420 client
+!define CLIENT_W 520
+!define CLIENT_H 420
 
-; ---------- MUI settings ----------
-!define MUI_ABORTWARNING
-!define MUI_ABORTWARNING_TEXT "Cancel ${PRODUCT_NAME} installation?"
-!define MUI_ICON "src-tauri\icons\icon.ico"
-!define MUI_UNICON "src-tauri\icons\icon.ico"
+; ---------- Control handles ----------
+Var BG_BITMAP
+Var DLG_ITEM
 
-!define MUI_INSTFILESPAGE_FINISHHEADER_TEXT "${PRODUCT_NAME} installed"
-!define MUI_INSTFILESPAGE_FINISHHEADER_SUBTEXT "Starting ${PRODUCT_NAME}..."
-!define MUI_INSTFILESPAGE_ABORTHEADER_TEXT "Installation cancelled"
-!define MUI_INSTFILESPAGE_ABORTHEADER_SUBTEXT "${PRODUCT_NAME} installation was not completed."
+Var TITLE_FONT
+Var BODY_FONT
+Var SMALL_FONT
 
-!define MUI_INSTFILESPAGE_PROGRESSBAR "smooth"
-!define MUI_INSTALLCOLORS "${BRAND_BLUE_LT} ${BRAND_BG}"
+Var HWND_BG
+Var HWND_PATH_INPUT
+Var HWND_SHORTCUT_CHK
+Var HWND_INSTALL_BTN
 
-; ---------- Page flow ----------
-Page custom CustomInstallPage CustomInstallPageLeave
-!define MUI_PAGE_CUSTOMFUNCTION_SHOW InstFilesShow
-!insertmacro MUI_PAGE_INSTFILES
+Var HWND_PROGRESS
+Var HWND_STATUS_LABEL
 
-!insertmacro MUI_UNPAGE_CONFIRM
-!insertmacro MUI_UNPAGE_INSTFILES
-!insertmacro MUI_UNPAGE_FINISH
+Var HWND_SUCCESS_ICON
+Var HWND_SUCCESS_LABEL
+Var HWND_LAUNCH_BTN
 
-!insertmacro MUI_LANGUAGE "SimpChinese"
+Var INSTALL_RUNNING
+Var CREATE_SHORTCUT
 
-; ---------- Custom page variables ----------
-Var Dialog
-Var PathEdit
-Var DesktopCheckbox
-Var InstallBtn
+; ---------- Helper: kill running process ----------
+Function KillLynxProcess
+  StrCpy $R2 0
+  loop:
+    ExecWait 'taskkill /F /IM ${PRODUCT_EXE} /T' $R0
+    Sleep 600
+    IntOp $R2 $R2 + 1
+    ${If} $R2 < 3
+      Goto loop
+    ${EndIf}
+FunctionEnd
 
-; ---------- Init: uninstall existing version ----------
+; ---------- Init: detect existing install and extract UI assets ----------
 Function .onInit
+  SetShellVarContext all
   ${If} ${RunningX64}
     SetRegView 64
   ${EndIf}
 
+  StrCpy $CREATE_SHORTCUT 1
+
+  ; Extract background bitmap to plugins dir for runtime UI
+  InitPluginsDir
+  File /oname=$PLUGINSDIR\installer-bg.bmp "assets\installer-bg.bmp"
+
+  ; Detect previous installation
   ReadRegStr $R0 HKLM "${PRODUCT_UNINST_KEY}" "UninstallString"
+  ReadRegStr $R1 HKLM "${PRODUCT_UNINST_KEY}" "InstallLocation"
+
   ${If} $R0 != ""
-    MessageBox MB_OKCANCEL|MB_ICONEXCLAMATION \
-      "An older version of ${PRODUCT_NAME} was detected.$\nClick OK to remove it first, then continue." \
-      IDOK uninst
-    Abort
-    uninst:
+    ${If} $R1 == ""
+      StrCpy $R1 "$PROGRAMFILES64\${PRODUCT_NAME}"
+    ${EndIf}
+
+    ${If} ${Silent}
+      Call KillLynxProcess
       ClearErrors
-      ExecWait '$R0 /S _?=$INSTDIR'
-      IfErrors no_remove_uninstaller
-        Delete "$R0"
-        RMDir /r "$INSTDIR"
-      no_remove_uninstaller:
+      ExecWait '"$R0" /S _?=$R1' $R4
+      ${If} ${FileExists} "$R1\${PRODUCT_EXE}"
+        RMDir /r "$R1"
+      ${EndIf}
+      DeleteRegKey HKLM "${PRODUCT_UNINST_KEY}"
+      DeleteRegKey HKLM "${PRODUCT_DIR_REGKEY}"
+    ${Else}
+      MessageBox MB_OKCANCEL|MB_ICONEXCLAMATION "检测到已安装 ${PRODUCT_NAME}。$\n点击“确定”将关闭现有进程并卸载旧版本，然后继续安装。$\n点击“取消”将退出安装程序。" IDOK do_uninst
+      Abort
+      do_uninst:
+        Call KillLynxProcess
+        ClearErrors
+        ExecWait '"$R0" /S _?=$R1' $R4
+        ${If} ${FileExists} "$R1\${PRODUCT_EXE}"
+          RMDir /r "$R1"
+        ${EndIf}
+        DeleteRegKey HKLM "${PRODUCT_UNINST_KEY}"
+        DeleteRegKey HKLM "${PRODUCT_DIR_REGKEY}"
+    ${EndIf}
   ${EndIf}
 FunctionEnd
 
-; ---------- Custom install page: deep-sea liquid glass ----------
-Function CustomInstallPage
+; ---------- GUI init: resize and center window ----------
+Function .onGUIInit
+  System::Call 'gdi32::CreateFont(i -32, i 0, i 0, i 0, i 700, i 0, i 0, i 0, i 1, i 0, i 0, i 5, i 0, t "Microsoft YaHei") i .r0'
+  StrCpy $TITLE_FONT $R0
+
+  System::Call 'gdi32::CreateFont(i -15, i 0, i 0, i 0, i 400, i 0, i 0, i 0, i 1, i 0, i 0, i 5, i 0, t "Microsoft YaHei") i .r0'
+  StrCpy $BODY_FONT $R0
+
+  System::Call 'gdi32::CreateFont(i -11, i 0, i 0, i 0, i 400, i 0, i 0, i 0, i 1, i 0, i 0, i 5, i 0, t "Microsoft YaHei") i .r0'
+  StrCpy $SMALL_FONT $R0
+
+  ; Resize and center window (hardcoded full window size for ~520x420 client)
+  System::Call 'user32::GetSystemMetrics(i 0) i .r6'
+  System::Call 'user32::GetSystemMetrics(i 1) i .r7'
+
+  IntOp $R8 $R6 - ${WINDOW_W}
+  IntOp $R8 $R8 / 2
+  IntOp $R9 $R7 - ${WINDOW_H}
+  IntOp $R9 $R9 / 2
+
+  System::Call 'user32::SetWindowPos(i $HWNDPARENT, i 0, i r8, i r9, i ${WINDOW_W}, i ${WINDOW_H}, i 0x16)'
+FunctionEnd
+
+; ---------- Styled button: transparent label over pre-rendered glass button ----------
+Function CreateButtonStatic
+  Pop $R5        ; parent HWND
+  Pop $R4        ; x
+  Pop $R3        ; y
+  Pop $R2        ; w
+  Pop $R1        ; h
+  Pop $R0        ; text
+
+  nsDialogs::CreateControl "STATIC" ${WS_VISIBLE}|${WS_CHILD}|${SS_CENTER}|${SS_NOTIFY} $R4 $R3 $R2 $R1 $R0
+  Pop $R5
+
+  SetCtlColors $R5 FFFFFF transparent
+  SendMessage $R5 ${WM_SETFONT} $BODY_FONT 1
+
+  Push $R5
+FunctionEnd
+
+; ---------- Load bitmap from file ----------
+Function LoadBitmapFile
+  Pop $R0        ; file path
+  System::Call 'user32::LoadImage(i 0, t r0, i 0, i 0, i 0, i 0x0010) i .r1'
+  Push $R1
+FunctionEnd
+
+; ---------- Main custom page ----------
+Function ShowMainPage
   nsDialogs::Create 1018
-  Pop $Dialog
-  ${If} $Dialog == error
+  Pop $DLG_ITEM
+
+  ${If} $DLG_ITEM == error
     Abort
   ${EndIf}
 
-  ; Hide default Next/Back/Cancel buttons
-  GetDlgItem $R0 $HWNDPARENT 1
-  ShowWindow $R0 ${SW_HIDE}
-  GetDlgItem $R0 $HWNDPARENT 2
-  ShowWindow $R0 ${SW_HIDE}
-  GetDlgItem $R0 $HWNDPARENT 3
-  ShowWindow $R0 ${SW_HIDE}
+  SetCtlColors $DLG_ITEM "" 0F1B2E
 
-  ; Dark dialog background (visible around edges)
-  SetCtlColors $Dialog ${BRAND_TEXT} ${BRAND_BG}
+  ; Load background image (includes glass panel, logo, title, button background, progress track)
+  Push "$PLUGINSDIR\installer-bg.bmp"
+  Call LoadBitmapFile
+  Pop $BG_BITMAP
 
-  ; Full-page background bitmap
-  File "assets\installer-bg.bmp"
-  ${NSD_CreateBitmap} 0 0 520 420 ""
-  Pop $R0
-  ${NSD_SetImage} $R0 "$PLUGINSDIR\installer-bg.bmp" $R1
+  nsDialogs::CreateControl "STATIC" ${WS_VISIBLE}|${WS_CHILD}|${SS_BITMAP}|${SS_REALSIZEIMAGE} 0 0 ${CLIENT_W} ${CLIENT_H} ""
+  Pop $HWND_BG
+  SendMessage $HWND_BG ${STM_SETIMAGE} ${IMAGE_BITMAP} $BG_BITMAP
 
-  ; Logo overlay (128x128, centered)
-  File "assets\installer-logo.bmp"
-  ${NSD_CreateBitmap} 196 70 128 128 ""
-  Pop $R0
-  ${NSD_SetImage} $R0 "$PLUGINSDIR\installer-logo.bmp" $R1
+  ; Path input (matches glass input area in background)
+  nsDialogs::CreateControl "EDIT" ${WS_VISIBLE}|${WS_CHILD}|${ES_AUTOHSCROLL} 80 260 360 34 $INSTDIR
+  Pop $HWND_PATH_INPUT
+  SetCtlColors $HWND_PATH_INPUT F2F4F7 101B2E
+  SendMessage $HWND_PATH_INPUT ${WM_SETFONT} $BODY_FONT 1
 
-  ; Common font
-  CreateFont $R2 "Microsoft YaHei" "10" "400"
+  ; Shortcut checkbox
+  nsDialogs::CreateControl "BUTTON" ${WS_VISIBLE}|${WS_CHILD}|${BS_AUTOCHECKBOX} 80 302 200 18 "创建桌面快捷方式"
+  Pop $HWND_SHORTCUT_CHK
+  SetCtlColors $HWND_SHORTCUT_CHK E2E8F0 transparent
+  SendMessage $HWND_SHORTCUT_CHK ${WM_SETFONT} $SMALL_FONT 1
+  ${NSD_Check} $HWND_SHORTCUT_CHK
 
-  ; Install path input (dark glass look)
-  ${NSD_CreateText} 80 260 270 28 "$INSTDIR"
-  Pop $PathEdit
-  SetCtlColors $PathEdit ${BRAND_TEXT} ${BRAND_PANEL}
-  SendMessage $PathEdit ${WM_SETFONT} $R2 0
+  ; Install button (transparent label over pre-rendered blue glass button)
+  Push "立即安装"
+  Push 44
+  Push 360
+  Push 330
+  Push 80
+  Push $DLG_ITEM
+  Call CreateButtonStatic
+  Pop $HWND_INSTALL_BTN
+  ${NSD_OnClick} $HWND_INSTALL_BTN OnInstallClick
 
-  ; Browse button
-  ${NSD_CreateButton} 360 260 80 28 "Browse..."
-  Pop $R0
-  SetCtlColors $R0 ${BRAND_TEXT} ${BRAND_PANEL}
-  SendMessage $R0 ${WM_SETFONT} $R2 0
-  ${NSD_OnClick} $R0 OnBrowseClick
+  ; Progress bar (hidden initially)
+  nsDialogs::CreateControl "msctls_progress32" ${WS_VISIBLE}|${WS_CHILD}|0x0001 80 346 360 10 ""
+  Pop $HWND_PROGRESS
+  SendMessage $HWND_PROGRESS ${PBM_SETRANGE} 0 0x00010064
+  ShowWindow $HWND_PROGRESS ${SW_HIDE}
 
-  ; Desktop shortcut checkbox
-  ${NSD_CreateCheckbox} 80 302 300 18 "Create desktop shortcut"
-  Pop $DesktopCheckbox
-  SetCtlColors $DesktopCheckbox ${BRAND_TEXT} ${BRAND_PANEL}
-  SendMessage $DesktopCheckbox ${WM_SETFONT} $R2 0
-  ${NSD_Check} $DesktopCheckbox
+  ; Status label (hidden)
+  nsDialogs::CreateControl "STATIC" ${WS_VISIBLE}|${WS_CHILD}|${SS_CENTER} 0 360 ${CLIENT_W} 20 ""
+  Pop $HWND_STATUS_LABEL
+  SetCtlColors $HWND_STATUS_LABEL A0AAB9 transparent
+  SendMessage $HWND_STATUS_LABEL ${WM_SETFONT} $SMALL_FONT 1
+  ShowWindow $HWND_STATUS_LABEL ${SW_HIDE}
 
-  ; Install button (blue)
-  ${NSD_CreateButton} 80 342 360 42 "Install Now"
-  Pop $InstallBtn
-  SetCtlColors $InstallBtn ${BRAND_TEXT} ${BRAND_BLUE}
-  CreateFont $R3 "Microsoft YaHei" "12" "700"
-  SendMessage $InstallBtn ${WM_SETFONT} $R3 0
-  ${NSD_OnClick} $InstallBtn OnInstallClick
+  ; Success icon (hidden)
+  nsDialogs::CreateControl "STATIC" ${WS_VISIBLE}|${WS_CHILD}|${SS_CENTER} 0 260 ${CLIENT_W} 48 "✓"
+  Pop $HWND_SUCCESS_ICON
+  SetCtlColors $HWND_SUCCESS_ICON 3B82F6 transparent
+  SendMessage $HWND_SUCCESS_ICON ${WM_SETFONT} $TITLE_FONT 1
+  ShowWindow $HWND_SUCCESS_ICON ${SW_HIDE}
+
+  ; Success label (hidden)
+  nsDialogs::CreateControl "STATIC" ${WS_VISIBLE}|${WS_CHILD}|${SS_CENTER} 0 310 ${CLIENT_W} 24 "安装完成"
+  Pop $HWND_SUCCESS_LABEL
+  SetCtlColors $HWND_SUCCESS_LABEL FFFFFF transparent
+  SendMessage $HWND_SUCCESS_LABEL ${WM_SETFONT} $BODY_FONT 1
+  ShowWindow $HWND_SUCCESS_LABEL ${SW_HIDE}
+
+  ; Launch button (hidden, same location as install button)
+  Push "立即体验"
+  Push 44
+  Push 360
+  Push 330
+  Push 80
+  Push $DLG_ITEM
+  Call CreateButtonStatic
+  Pop $HWND_LAUNCH_BTN
+  ${NSD_OnClick} $HWND_LAUNCH_BTN OnLaunchClick
+  ShowWindow $HWND_LAUNCH_BTN ${SW_HIDE}
+
+  StrCpy $INSTALL_RUNNING 0
 
   nsDialogs::Show
 FunctionEnd
 
-Function OnBrowseClick
-  nsDialogs::SelectFolderDialog "Select ${PRODUCT_NAME} install location" "$INSTDIR"
-  Pop $R0
-  ${If} $R0 != error
-    ${NSD_SetText} $PathEdit "$R0\${PRODUCT_NAME}"
-  ${EndIf}
-FunctionEnd
-
 Function OnInstallClick
-  ; Simulate click on the hidden Next button to proceed to instfiles
-  SendMessage $HWNDPARENT ${WM_COMMAND} 1 0
+  ${If} $INSTALL_RUNNING == 1
+    Return
+  ${EndIf}
+  StrCpy $INSTALL_RUNNING 1
+
+  ; Read path from input
+  System::Call 'user32::GetWindowText(i $HWND_PATH_INPUT, t .r0, i 512)'
+  ${If} $R0 != ""
+    StrCpy $INSTDIR $R0
+  ${EndIf}
+
+  ; Validate
+  ${If} $INSTDIR == ""
+    MessageBox MB_OK|MB_ICONEXCLAMATION "请选择安装目录"
+    StrCpy $INSTALL_RUNNING 0
+    Return
+  ${EndIf}
+
+  ; Check existing files in target dir
+  ${If} ${FileExists} "$INSTDIR\${PRODUCT_EXE}"
+    MessageBox MB_OKCANCEL|MB_ICONEXCLAMATION "目标目录已存在 ${PRODUCT_NAME}。$\n点击“确定”覆盖安装，点击“取消”返回。" IDOK ok_overwrite
+    StrCpy $INSTALL_RUNNING 0
+    Return
+    ok_overwrite:
+      Call KillLynxProcess
+  ${EndIf}
+
+  ; Get shortcut checkbox state
+  ${NSD_GetState} $HWND_SHORTCUT_CHK $CREATE_SHORTCUT
+
+  ; Switch to progress state
+  ShowWindow $HWND_PATH_INPUT ${SW_HIDE}
+  ShowWindow $HWND_SHORTCUT_CHK ${SW_HIDE}
+  ShowWindow $HWND_INSTALL_BTN ${SW_HIDE}
+
+  ShowWindow $HWND_PROGRESS ${SW_SHOW}
+  ShowWindow $HWND_STATUS_LABEL ${SW_SHOW}
+
+  Call DoInstall
 FunctionEnd
 
-Function CustomInstallPageLeave
-  ${NSD_GetText} $PathEdit $INSTDIR
-  ${If} $INSTDIR == ""
-    MessageBox MB_OK|MB_ICONEXCLAMATION "Please select an install path."
-    Abort
+Function UpdateStatus
+  Pop $R0
+  ${If} $HWND_STATUS_LABEL != 0
+    SendMessage $HWND_STATUS_LABEL ${WM_SETTEXT} 0 "STR:$R0"
   ${EndIf}
 FunctionEnd
 
-; ---------- Instfiles page: dark theme, hide cancel ----------
-Function InstFilesShow
-  SetCtlColors $HWNDPARENT ${BRAND_TEXT} ${BRAND_BG}
-  GetDlgItem $R0 $HWNDPARENT 3
-  ShowWindow $R0 ${SW_HIDE}
+Function SetProgress
+  Pop $R0
+  ${If} $HWND_PROGRESS != 0
+    SendMessage $HWND_PROGRESS ${PBM_SETPOS} $R0 0
+  ${EndIf}
 FunctionEnd
 
-; ---------- Install section ----------
-Section "Lynx Main" SecMain
-  SectionIn RO
+Function DoInstall
+  Call KillLynxProcess
+
+  ${IfNot} ${Silent}
+    Push "正在准备安装..."
+    Call UpdateStatus
+    Push 10
+    Call SetProgress
+  ${EndIf}
+
+  SetShellVarContext all
   SetOutPath "$INSTDIR"
-  SetOverwrite ifnewer
+  SetOverwrite on
 
-  DetailPrint "Preparing ${PRODUCT_NAME} installation..."
-  File "bin\lynnhub-desktop-native.exe"
+  ${IfNot} ${Silent}
+    Push "正在安装 ${PRODUCT_NAME} 主程序..."
+    Call UpdateStatus
+    Push 30
+    Call SetProgress
+  ${EndIf}
+  File "bin\${PRODUCT_EXE}"
 
-  DetailPrint "Extracting frontend resources..."
-  SetOutPath "$INSTDIR\out"
-  File /r "out\*.*"
+  ${IfNot} ${Silent}
+    Push "正在释放前端资源..."
+    Call UpdateStatus
+    Push 60
+    Call SetProgress
+  ${EndIf}
+  SetOutPath "$INSTDIR\out\app"
+  File /r "out\app\*.*"
 
+  ${IfNot} ${Silent}
+    Push "正在写入注册表信息..."
+    Call UpdateStatus
+    Push 80
+    Call SetProgress
+  ${EndIf}
   SetOutPath "$INSTDIR"
   WriteUninstaller "$INSTDIR\uninstall.exe"
 
-  ; App path registry
-  WriteRegStr HKLM "${PRODUCT_DIR_REGKEY}" "" "$INSTDIR\lynnhub-desktop-native.exe"
-
-  ; Uninstall info
+  WriteRegStr HKLM "${PRODUCT_DIR_REGKEY}" "" "$INSTDIR\${PRODUCT_EXE}"
   WriteRegStr HKLM "${PRODUCT_UNINST_KEY}" "DisplayName"     "${PRODUCT_NAME}"
-  WriteRegStr HKLM "${PRODUCT_UNINST_KEY}" "UninstallString" "$\"$INSTDIR\uninstall.exe$\""
-  WriteRegStr HKLM "${PRODUCT_UNINST_KEY}" "DisplayIcon"     "$INSTDIR\lynnhub-desktop-native.exe"
+  WriteRegStr HKLM "${PRODUCT_UNINST_KEY}" "UninstallString" "$INSTDIR\uninstall.exe"
+  WriteRegStr HKLM "${PRODUCT_UNINST_KEY}" "DisplayIcon"     "$INSTDIR\${PRODUCT_EXE}"
   WriteRegStr HKLM "${PRODUCT_UNINST_KEY}" "Publisher"       "${PRODUCT_PUBLISHER}"
   WriteRegStr HKLM "${PRODUCT_UNINST_KEY}" "DisplayVersion"  "${PRODUCT_VERSION}"
   WriteRegStr HKLM "${PRODUCT_UNINST_KEY}" "URLInfoAbout"    "${PRODUCT_WEB_SITE}"
@@ -223,36 +369,89 @@ Section "Lynx Main" SecMain
   WriteRegDWORD HKLM "${PRODUCT_UNINST_KEY}" "NoRepair" 1
   WriteRegDWORD HKLM "${PRODUCT_UNINST_KEY}" "EstimatedSize" 48000
 
-  ; Desktop shortcut
-  ${If} ${Silent}
-    CreateShortcut "$DESKTOP\${PRODUCT_NAME}.lnk" "$INSTDIR\lynnhub-desktop-native.exe" "" "$INSTDIR\lynnhub-desktop-native.exe" 0
-  ${Else}
-    ${NSD_GetState} $DesktopCheckbox $R0
-    ${If} $R0 == "1"
-      CreateShortcut "$DESKTOP\${PRODUCT_NAME}.lnk" "$INSTDIR\lynnhub-desktop-native.exe" "" "$INSTDIR\lynnhub-desktop-native.exe" 0
+  ${If} $CREATE_SHORTCUT == 1
+    ${IfNot} ${Silent}
+      Push "正在创建桌面快捷方式..."
+      Call UpdateStatus
     ${EndIf}
+    CreateShortcut "$DESKTOP\${PRODUCT_NAME}.lnk" "$INSTDIR\${PRODUCT_EXE}" "" "$INSTDIR\${PRODUCT_EXE}" 0
   ${EndIf}
 
-  ; Launch after install
-  Exec "$INSTDIR\lynnhub-desktop-native.exe"
+  ${IfNot} ${Silent}
+    Push 100
+    Call SetProgress
+    Push "安装完成"
+    Call UpdateStatus
+
+    ShowWindow $HWND_PROGRESS ${SW_HIDE}
+    ShowWindow $HWND_STATUS_LABEL ${SW_HIDE}
+    ShowWindow $HWND_SUCCESS_ICON ${SW_SHOW}
+    ShowWindow $HWND_SUCCESS_LABEL ${SW_SHOW}
+    ShowWindow $HWND_LAUNCH_BTN ${SW_SHOW}
+  ${EndIf}
+FunctionEnd
+
+Function OnLaunchClick
+  Exec '"$INSTDIR\${PRODUCT_EXE}"'
+  Quit
+FunctionEnd
+
+Function ShowMainPageLeave
+  ; Prevent leaving page by normal navigation
+FunctionEnd
+
+; ---------- Page flow ----------
+Page custom ShowMainPage ShowMainPageLeave
+Page instfiles
+
+UninstPage uninstConfirm
+UninstPage instfiles
+
+Section "Lynx"
+  ${If} ${Silent}
+    Call DoInstall
+  ${EndIf}
 SectionEnd
 
-; ---------- Uninstall section ----------
-Section "Uninstall"
+; ---------- Uninstall init ----------
+Function un.onInit
+  SetShellVarContext all
   ${If} ${RunningX64}
     SetRegView 64
   ${EndIf}
 
-  Delete "$INSTDIR\lynnhub-desktop-native.exe"
-  Delete "$INSTDIR\uninstall.exe"
+  ReadRegStr $INSTDIR HKLM "${PRODUCT_UNINST_KEY}" "InstallLocation"
+  ${If} $INSTDIR == ""
+    StrCpy $INSTDIR "$PROGRAMFILES64\${PRODUCT_NAME}"
+  ${EndIf}
+
+  Call un.KillLynxProcess
+FunctionEnd
+
+Function un.KillLynxProcess
+  StrCpy $R2 0
+  un_loop:
+    ExecWait 'taskkill /F /IM ${PRODUCT_EXE} /T' $R0
+    Sleep 600
+    IntOp $R2 $R2 + 1
+    ${If} $R2 < 3
+      Goto un_loop
+    ${EndIf}
+FunctionEnd
+
+; ---------- Uninstall section ----------
+Section "Uninstall"
+  SetShellVarContext all
+  ${If} ${RunningX64}
+    SetRegView 64
+  ${EndIf}
+
+  Delete /REBOOTOK "$INSTDIR\${PRODUCT_EXE}"
   RMDir /r "$INSTDIR\out"
-
   Delete "$DESKTOP\${PRODUCT_NAME}.lnk"
-
+  Delete /REBOOTOK "$INSTDIR\uninstall.exe"
   DeleteRegKey HKLM "${PRODUCT_UNINST_KEY}"
   DeleteRegKey HKLM "${PRODUCT_DIR_REGKEY}"
-
-  RMDir "$INSTDIR"
-
+  RMDir /r "$INSTDIR"
   SetAutoClose true
 SectionEnd

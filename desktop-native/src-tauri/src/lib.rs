@@ -54,7 +54,7 @@ impl Default for AppState {
             authorized_dirs: Mutex::new(vec![default_dir]),
             ws_connected: AtomicBool::new(false),
             user_token: Mutex::new(None),
-            cloud_endpoint: Mutex::new("http://localhost:5176".to_string()),
+            cloud_endpoint: Mutex::new("https://app.lynnhub.com".to_string()),
         }
     }
 }
@@ -134,10 +134,10 @@ fn is_emergency_stop() -> bool {
     EMERGENCY_STOP.load(Ordering::SeqCst)
 }
 
-/// 设置用户 Token（登录后调用）
+/// 设置用户 Token（登录后调用；空字符串表示清除）
 #[tauri::command]
 fn set_user_token(state: tauri::State<Arc<AppState>>, token: String) -> Result<(), String> {
-    *state.user_token.lock().map_err(|e| e.to_string())? = Some(token);
+    *state.user_token.lock().map_err(|e| e.to_string())? = if token.is_empty() { None } else { Some(token) };
     Ok(())
 }
 
@@ -461,6 +461,14 @@ pub fn run() {
 
     log::info!("LynnHub 桌面端启动中...");
 
+    // 将当前工作目录设置为 binary 所在目录，确保 frontendDist 相对路径（out/app）正确解析
+    if let Ok(exe_path) = std::env::current_exe() {
+        if let Some(exe_dir) = exe_path.parent() {
+            let _ = std::env::set_current_dir(exe_dir);
+            log::info!("工作目录已设置为: {}", exe_dir.display());
+        }
+    }
+
     let app_state = Arc::new(AppState::default());
 
     tauri::Builder::default()
@@ -471,6 +479,7 @@ pub fn run() {
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_http::init())
+        .plugin(tauri_plugin_store::Builder::default().build())
         // 全局快捷键：Ctrl+Shift+L 唤起/隐藏主窗口（豆包/Kimi 式唤起）
         // 注：避开 Ctrl+Space（中文输入法切换冲突）
         .plugin(
