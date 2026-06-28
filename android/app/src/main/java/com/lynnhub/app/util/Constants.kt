@@ -11,7 +11,5 @@ object Constants {
     const val USER_PREFS = "user_prefs"
 
     /** 主题模式 */
-    const val THEME_LIGHT = "light"
     const val THEME_DARK = "dark"
-    const val THEME_SYSTEM = "system"
 }

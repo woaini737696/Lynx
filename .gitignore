@@ -106,3 +106,25 @@ screen_test*.png
 test_ui.xml
 /test-screenshots/
 /desktop/src-tauri/target/
+
+# P1 清理后补充：根目录杂散文件
+/pip-cache/
+*.tmp
+# 根目录 UI dump XML（注意不匹配 android res 下的 xml）
+/home*.xml
+/p_*.xml
+/test_*.xml
+/u.xml
+# 根目录设计稿 HTML
+/Lynx_*.html
+# Android 测试截图
+/android/test-screenshots/
+# 桌面端构建日志
+/npm-*.log
+/cargo-*.log
+/nsis-*.log
+/desktop-native/npm-*.log
+/desktop-native/cargo-*.log
+/desktop-native/nsis-*.log
+/desktop-native/*-build*.log
+/desktop-native/build-native*.log

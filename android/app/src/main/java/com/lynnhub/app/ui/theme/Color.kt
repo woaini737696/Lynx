@@ -41,17 +41,3 @@ val Divider = Color(0x08FFFFFF)          // rgba(255,255,255,0.03)
 // ---------- 渐变 ----------
 val GradientPrimary = listOf(Primary, Agent)  // 主按钮渐变
 val GradientBreath = listOf(PrimaryGlow, Color(0x082B7FFF))  // 呼吸球渐变
-
-// ---------- 兼容旧代码（避免大量编译错误，后续逐步移除） ----------
-@Deprecated("v6 已弃用，使用 Primary", ReplaceWith("Primary"))
-val Amber500 = Primary
-@Deprecated("v6 已弃用，使用 Agent", ReplaceWith("Agent"))
-val Orange500 = Agent
-@Deprecated("v6 已弃用，使用 Agent", ReplaceWith("Agent"))
-val Green500 = Agent
-@Deprecated("v6 已弃用，使用 Danger", ReplaceWith("Danger"))
-val Red500 = Danger
-@Deprecated("v6 已弃用，使用 Primary", ReplaceWith("Primary"))
-val Blue500 = Primary
-@Deprecated("v6 已弃用，使用 Think", ReplaceWith("Think"))
-val Purple500 = Think

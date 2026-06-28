@@ -183,22 +183,3 @@ export function Badge({
     </span>
   );
 }
-
-export function Surface({
-  children,
-  className,
-}: {
-  children: React.ReactNode;
-  className?: string;
-}) {
-  return (
-    <div
-      className={cn(
-        "glass-card rounded-2xl p-5 sm:p-6",
-        className
-      )}
-    >
-      {children}
-    </div>
-  );
-}
