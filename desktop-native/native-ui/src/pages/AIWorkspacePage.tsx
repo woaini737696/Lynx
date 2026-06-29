@@ -70,10 +70,10 @@ export function AIWorkspacePage() {
   const { data: templates = [], isLoading } = useQuery<WorkspaceTemplate[]>({
     queryKey: ["ai-workspace-templates"],
     queryFn: async () => {
-      const res = await cloudApi.get<{ customs?: WorkspaceTemplate[]; builtIns?: WorkspaceTemplate[] }>(
+      const res = await cloudApi.get<{ customs?: WorkspaceTemplate[]; builtins?: WorkspaceTemplate[] }>(
         "/api/ai/distill/templates"
       );
-      return [...(res.builtIns || []), ...(res.customs || [])];
+      return [...(res.builtins || []), ...(res.customs || [])];
     },
   });
 
@@ -142,7 +142,7 @@ export function AIWorkspacePage() {
   }
 
   return (
-    <div className="mx-auto max-w-7xl">
+    <div className="mx-auto max-w-7xl px-4 py-4">
       <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div className="flex flex-1 items-start justify-between gap-3">
           <div>

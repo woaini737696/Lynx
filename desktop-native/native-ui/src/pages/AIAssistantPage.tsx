@@ -81,7 +81,11 @@ const SUGGESTIONS = [
   { icon: Zap, text: "快速捕获一条灵感", color: "text-northstar" },
 ];
 
-export function AIAssistantPage() {
+interface AIAssistantPageProps {
+  inDrawer?: boolean;
+}
+
+export function AIAssistantPage({ inDrawer = false }: AIAssistantPageProps) {
   const queryClient = useQueryClient();
   const location = useLocation();
   const [messages, setMessages] = useState<Message[]>([buildWelcomeMessage("Lynn")]);
@@ -376,64 +380,103 @@ export function AIAssistantPage() {
   }, [feedbackTarget, feedbackReason]);
 
   return (
-    <div className="mx-auto flex h-full max-w-4xl flex-col">
-      {/* 页头 */}
-      <div className="mb-4 flex items-center justify-between">
-        <div className="flex items-center gap-3">
+    <div className={cn("flex h-full min-h-[calc(100vh-100px)] flex-col", inDrawer ? "" : "mx-auto max-w-4xl px-4 py-2")}>
+      {/* 页头（抽屉模式隐藏，由抽屉自带 header） */}
+      {!inDrawer && (
+        <div className="mb-4 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => setShowSessionList((v) => !v)}
+              title={showSessionList ? "隐藏历史会话" : "显示历史会话"}
+              className="flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-primary/10 hover:text-foreground"
+            >
+              {showSessionList ? <PanelLeftClose className="h-4 w-4" /> : <PanelLeftOpen className="h-4 w-4" />}
+            </button>
+            <img
+              src={assistantAvatarUrl}
+              alt={assistantName}
+              className="h-10 w-10 rounded-xl object-cover shadow-md"
+              draggable={false}
+              onError={(e) => {
+                (e.currentTarget as HTMLImageElement).style.display = "none";
+              }}
+            />
+            <div>
+              <h1 className="text-2xl font-bold tracking-tight text-foreground">{assistantName} · 超级助理</h1>
+              <p className="mt-0.5 text-sm text-muted-foreground">
+                基于记忆图谱和认知库 · 支持 Function Calling
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setShowSettings(true)}
+              title="助理设置"
+              className="flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-primary/10 hover:text-foreground"
+            >
+              <Settings className="h-4 w-4" />
+            </button>
+            <button
+              onClick={handleNewChat}
+              title="新建对话"
+              className="btn-glass flex h-8 items-center gap-1.5 px-3 text-xs"
+            >
+              <Plus className="h-3.5 w-3.5" />
+              <span>新对话</span>
+            </button>
+            {messages.length > 1 && (
+              <button
+                onClick={() => setConfirmClear(true)}
+                title="清空当前对话"
+                className="flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+              </button>
+            )}
+            <HelpButton module="ai-assistant" />
+          </div>
+        </div>
+      )}
+
+      {/* 抽屉模式：顶部操作栏（简化版） */}
+      {inDrawer && (
+        <div className="flex items-center justify-between border-b border-border/40 px-3 py-2">
           <button
             onClick={() => setShowSessionList((v) => !v)}
             title={showSessionList ? "隐藏历史会话" : "显示历史会话"}
-            className="flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-primary/10 hover:text-foreground"
+            className="flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-primary/10 hover:text-foreground"
           >
-            {showSessionList ? <PanelLeftClose className="h-4 w-4" /> : <PanelLeftOpen className="h-4 w-4" />}
+            {showSessionList ? <PanelLeftClose className="h-3.5 w-3.5" /> : <PanelLeftOpen className="h-3.5 w-3.5" />}
           </button>
-          {/* 头像 + 标题（对齐 Web 端：使用 lynx PNG 图标 + 可配置助理名） */}
-          <img
-            src={assistantAvatarUrl}
-            alt={assistantName}
-            className="h-10 w-10 rounded-xl object-cover shadow-md"
-            draggable={false}
-            onError={(e) => {
-              (e.currentTarget as HTMLImageElement).style.display = "none";
-            }}
-          />
-          <div>
-            <h1 className="text-2xl font-bold tracking-tight text-foreground">{assistantName} · 超级助理</h1>
-            <p className="mt-0.5 text-sm text-muted-foreground">
-              基于记忆图谱和认知库 · 支持 Function Calling
-            </p>
+          <div className="flex items-center gap-1">
+            <button
+              onClick={() => setShowSettings(true)}
+              title="助理设置"
+              className="flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-primary/10 hover:text-foreground"
+            >
+              <Settings className="h-3.5 w-3.5" />
+            </button>
+            <button
+              onClick={handleNewChat}
+              title="新建对话"
+              className="flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-primary/10 hover:text-foreground"
+            >
+              <Plus className="h-3.5 w-3.5" />
+            </button>
+            {messages.length > 1 && (
+              <button
+                onClick={() => setConfirmClear(true)}
+                title="清空当前对话"
+                className="flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+              </button>
+            )}
           </div>
         </div>
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => setShowSettings(true)}
-            title="助理设置"
-            className="flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-primary/10 hover:text-foreground"
-          >
-            <Settings className="h-4 w-4" />
-          </button>
-          <button
-            onClick={handleNewChat}
-            title="新建对话"
-            className="btn-glass flex h-8 items-center gap-1.5 px-3 text-xs"
-          >
-            <Plus className="h-3.5 w-3.5" />
-            <span>新对话</span>
-          </button>
-          {messages.length > 1 && (
-            <button
-              onClick={() => setConfirmClear(true)}
-              title="清空当前对话"
-              className="flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
-            >
-              <Trash2 className="h-3.5 w-3.5" />
-            </button>
-          )}
-          <HelpButton module="ai-assistant" />
-        </div>
-      </div>
+      )}
 
-      <div className="flex flex-1 gap-3 overflow-hidden">
+      <div className="flex flex-1 gap-3 overflow-hidden px-3 pb-3">
         {/* 历史会话侧边栏 */}
         <AnimatePresence>
           {showSessionList && (

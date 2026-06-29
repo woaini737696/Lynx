@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
-import { Search, X, CornerDownLeft } from "lucide-react";
+import { Search, X, CornerDownLeft, Zap } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
+import { OPEN_LIGHTNING_INPUT_EVENT } from "@/components/lightning/LightningInput";
 
 const suggestions = [
   { id: "focus", label: "今日聚焦", to: "/focus" },
@@ -73,19 +74,30 @@ export function QuickSearch() {
 
   return (
     <>
-      <button
-        onClick={() => setOpen(true)}
-        className="glass-btn flex h-9 w-full max-w-md items-center justify-between gap-3 rounded-lg px-3 text-sm text-muted-foreground transition-all hover:text-foreground"
-      >
-        <div className="flex items-center gap-2">
-          <Search className="h-4 w-4" />
+      <div className="flex items-center gap-2 px-4 py-2">
+        <button
+          onClick={() => setOpen(true)}
+          className="glass-btn flex h-9 flex-1 max-w-md items-center gap-3 rounded-lg px-3 text-sm text-muted-foreground transition-all hover:text-foreground"
+        >
+          <Search className="h-4 w-4 shrink-0" />
           <span>快速搜索...</span>
-        </div>
-        {/* 快捷键提示 - 修复位置：紧贴右侧，使用 Ctrl+K 文字（Windows 桌面端） */}
-        <kbd className="flex shrink-0 items-center gap-0.5 rounded border border-border/60 bg-muted/30 px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground">
-          Ctrl K
-        </kbd>
-      </button>
+          <kbd className="flex shrink-0 items-center gap-0.5 rounded border border-border/60 bg-muted/30 px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground">
+            Ctrl K
+          </kbd>
+        </button>
+
+        <button
+          onClick={() => window.dispatchEvent(new CustomEvent(OPEN_LIGHTNING_INPUT_EVENT))}
+          className="glass-btn flex h-9 items-center gap-1.5 rounded-lg px-3 text-sm font-medium text-muted-foreground transition-all hover:text-primary"
+          aria-label="闪电输入"
+        >
+          <Zap className="h-4 w-4 shrink-0 text-primary" />
+          <span>记录灵感</span>
+          <kbd className="flex shrink-0 items-center gap-0.5 rounded border border-border/60 bg-muted/30 px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground">
+            Ctrl J
+          </kbd>
+        </button>
+      </div>
 
       <AnimatePresence>
         {open && (

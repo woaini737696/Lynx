@@ -76,8 +76,8 @@ export function InboxPage() {
   const { data: ideas = [], isLoading } = useQuery<Idea[]>({
     queryKey: ["inbox"],
     queryFn: async () => {
-      const res = await cloudApi.get<{ ideas?: Idea[] }>("/api/ideas");
-      return res.ideas || [];
+      const res = await cloudApi.get<{ data?: Idea[]; total?: number }>("/api/ideas");
+      return res.data || [];
     },
   });
 
@@ -323,7 +323,7 @@ export function InboxPage() {
   };
 
   return (
-    <div className="mx-auto max-w-5xl">
+    <div className="mx-auto max-w-5xl px-4 py-4">
       {/* 页头 */}
       <div className="mb-6 flex items-end justify-between">
         <div>

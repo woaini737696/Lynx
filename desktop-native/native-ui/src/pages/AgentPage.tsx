@@ -3,7 +3,7 @@ import { HelpButton } from "@/components/ui/HelpButton";
 
 export function AgentPage() {
   return (
-    <div className="mx-auto max-w-3xl">
+    <div className="mx-auto max-w-3xl px-4 py-4">
       <div className="mb-6 flex items-start justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold tracking-tight text-foreground">Lynx Agent</h1>

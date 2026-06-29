@@ -3,8 +3,6 @@ import {
   Routes,
   Route,
   Navigate,
-  useLocation,
-  useNavigate,
 } from "react-router-dom";
 import { AppLayout } from "./components/layout/AppLayout";
 import { FocusPage } from "./pages/FocusPage";
@@ -19,15 +17,16 @@ import { SkillsPage } from "./pages/SkillsPage";
 import { AgentPage } from "./pages/AgentPage";
 import { WalletPage } from "./pages/WalletPage";
 import { MembershipPage } from "./pages/MembershipPage";
-import { LoginPage } from "./pages/LoginPage";
 import { SettingsPage } from "./pages/SettingsPage";
 import { Toaster } from "./components/ui/Toaster";
 import { useEffect, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { applyTheme, getStoredTheme } from "./lib/theme";
 import { useUIStore } from "./stores/uiStore";
 import { useAuthStore } from "./stores/authStore";
 import { loadAuth, clearAuth } from "./lib/auth-persistence";
 import { AUTH_EXPIRED_EVENT, cloudApi } from "./lib/cloud-api";
+import { openLoginModal } from "./lib/login-modal";
 import { Loader2 } from "lucide-react";
 
 function ThemeSync() {
@@ -41,13 +40,11 @@ function ThemeSync() {
 }
 
 function AuthInitializer({ children }: { children: React.ReactNode }) {
-  const navigate = useNavigate();
-  const location = useLocation();
-  const { token, setCredentials, signOut, setLoading, setInitialized, loading, initialized } =
+  const { setCredentials, signOut, setLoading, setInitialized, loading } =
     useAuthStore();
+  const queryClient = useQueryClient();
   const [bootstrapping, setBootstrapping] = useState(true);
 
-  // bootstrap：加载本地 token 并调用 /api/user/profile 验证有效性
   useEffect(() => {
     let mounted = true;
 
@@ -55,14 +52,10 @@ function AuthInitializer({ children }: { children: React.ReactNode }) {
       try {
         const auth = await loadAuth();
         if (auth && mounted) {
-          // 主动验证 token 是否仍然有效，避免带着过期 token 进入应用
           try {
-            // 先设置 credentials，让 cloudApi 能带上 token
             setCredentials(auth);
-            // 用 cloudApi（前端 fetch）验证 token 有效性
             await cloudApi.get("/api/user/profile");
           } catch (err) {
-            // token 无效或网络错误，清除本地登录态，按未登录处理
             console.warn("本地 token 验证失败，清除登录态:", err);
             await clearAuth();
             signOut();
@@ -87,32 +80,22 @@ function AuthInitializer({ children }: { children: React.ReactNode }) {
     };
   }, [setCredentials, setLoading, setInitialized, signOut]);
 
-  // 监听全局 401 事件：清除登录态并跳转登录页
   useEffect(() => {
     const handler = async () => {
-      console.warn("收到 auth-expired 事件，清除登录态并跳转登录页");
+      console.warn("收到 auth-expired 事件，清除登录态并打开登录弹窗");
       try {
         await clearAuth();
       } catch (err) {
         console.error("清除登录态失败", err);
       }
       signOut();
-      navigate("/login", { replace: true });
+      // 清除所有 react-query 缓存，避免过期数据残留
+      queryClient.clear();
+      openLoginModal({ expired: true });
     };
     window.addEventListener(AUTH_EXPIRED_EVENT, handler);
     return () => window.removeEventListener(AUTH_EXPIRED_EVENT, handler);
-  }, [signOut, navigate]);
-
-  useEffect(() => {
-    if (!initialized || bootstrapping) return;
-
-    const isAuthRoute = location.pathname === "/login";
-    if (!token && !isAuthRoute) {
-      navigate("/login", { replace: true });
-    } else if (token && isAuthRoute) {
-      navigate("/focus", { replace: true });
-    }
-  }, [token, initialized, bootstrapping, location.pathname, navigate]);
+  }, [signOut, queryClient]);
 
   if (bootstrapping || loading) {
     return (
@@ -138,7 +121,6 @@ export function App() {
       <ThemeSync />
       <AuthInitializer>
         <Routes>
-          <Route path="/login" element={<LoginPage />} />
           <Route path="/" element={<AppLayout />}>
             <Route index element={<Navigate to="/focus" replace />} />
             <Route path="focus" element={<FocusPage />} />

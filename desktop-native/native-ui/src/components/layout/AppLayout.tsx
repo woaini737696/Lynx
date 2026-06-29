@@ -1,48 +1,65 @@
 import { Outlet } from "react-router-dom";
+import { useEffect } from "react";
 import { TitleBar } from "./TitleBar";
 import { Sidebar } from "./Sidebar";
 import { QuickSearch } from "./QuickSearch";
-import { LightningInput, OPEN_LIGHTNING_INPUT_EVENT } from "@/components/lightning/LightningInput";
+import { LightningInput } from "@/components/lightning/LightningInput";
 import { AssistantFloatingButton, IdeaReminder } from "@/components/ai/AssistantFloatingButton";
-import { Zap } from "lucide-react";
+import { AssistantDrawer } from "@/components/ai/AssistantDrawer";
+import { useAssistantDrawer } from "@/lib/assistant-drawer";
+import { LoginModal } from "@/components/auth/LoginModal";
+import { useLoginModal, openLoginModal } from "@/lib/login-modal";
+import { LOGIN_REQUIRED_EVENT } from "@/lib/cloud-api";
 
 export function AppLayout() {
-  // 闪电输入快捷键在 LightningInput 组件内部处理，这里通过自定义事件打开
-  const handleLightning = () => {
-    window.dispatchEvent(new CustomEvent(OPEN_LIGHTNING_INPUT_EVENT));
-  };
+  const { open: drawerOpen, closeDrawer } = useAssistantDrawer();
+  const loginModal = useLoginModal();
+
+  // 全局禁用右键（空白区域），带 data-context-menu 的元素和输入框除外
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      if (target.closest("[data-context-menu]")) return;
+      if (target.closest("input") || target.closest("textarea") || target.closest("select")) return;
+      e.preventDefault();
+    };
+    document.addEventListener("contextmenu", handler);
+    return () => document.removeEventListener("contextmenu", handler);
+  }, []);
+
+  // 监听未登录 401 事件，弹出登录弹窗
+  useEffect(() => {
+    const handler = () => {
+      openLoginModal();
+    };
+    window.addEventListener(LOGIN_REQUIRED_EVENT, handler);
+    return () => window.removeEventListener(LOGIN_REQUIRED_EVENT, handler);
+  }, []);
 
   return (
-    <div className="flex h-screen w-screen flex-col overflow-hidden bg-background">
+    <div className="flex h-screen w-screen flex-col overflow-hidden bg-background text-foreground">
       <TitleBar />
       <div className="flex flex-1 overflow-hidden">
         <Sidebar />
-        <main className="flex flex-1 flex-col overflow-hidden bg-background/50">
-          {/* 顶部栏：快速搜索 + 灵感速记按钮 */}
-          <div className="flex h-14 shrink-0 items-center gap-3 border-b border-border/40 px-5">
-            <div className="flex-1">
-              <QuickSearch />
-            </div>
-            <button
-              onClick={handleLightning}
-              className="ios-glass flex h-9 items-center gap-1.5 rounded-full px-3 text-xs font-medium text-foreground transition-colors hover:bg-primary/8"
-              title="灵感速记 (Ctrl+J)"
-              aria-label="灵感速记"
-            >
-              <Zap className="h-3.5 w-3.5 text-northstar" />
-              <span>灵感速记</span>
-            </button>
-          </div>
-          <div className="flex-1 overflow-auto p-5">
+        <main className="flex flex-1 flex-col overflow-hidden">
+          <QuickSearch />
+          <div className="flex-1 overflow-y-auto">
             <Outlet />
           </div>
         </main>
       </div>
 
-      {/* 全局悬浮组件 */}
       <LightningInput />
       <IdeaReminder />
       <AssistantFloatingButton />
+      <AssistantDrawer open={drawerOpen} onClose={closeDrawer} />
+      <LoginModal
+        open={loginModal.open}
+        mode={loginModal.mode}
+        expired={loginModal.expired}
+        onModeChange={loginModal.setMode}
+        onClose={loginModal.closeModal}
+      />
     </div>
   );
 }

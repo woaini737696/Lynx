@@ -343,7 +343,7 @@ export function MembershipPage() {
 
   if (!membership || !plansData) {
     return (
-      <div className="mx-auto max-w-5xl">
+      <div className="mx-auto max-w-5xl px-4 py-4">
         <MembershipHeader onRefresh={handleRefresh} />
         <div className="flex flex-col items-center gap-2 py-16 text-center">
           <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-muted/30">
@@ -359,7 +359,7 @@ export function MembershipPage() {
   const currentTierIndex = plansData.plans.findIndex((p) => p.tier === currentTier);
 
   return (
-    <div className="mx-auto max-w-5xl">
+    <div className="mx-auto max-w-5xl px-4 py-4">
       <MembershipHeader onRefresh={handleRefresh} />
 
       {/* ============ 当前会员状态卡片 ============ */}

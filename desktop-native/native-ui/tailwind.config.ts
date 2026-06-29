@@ -52,14 +52,14 @@ const config: Config = {
       },
       fontFamily: {
         sans: ["-apple-system", "BlinkMacSystemFont", "Segoe UI", "PingFang SC", "Microsoft YaHei", "sans-serif"],
-        mono: ["ui-monospace", "SFMono-Regular", "Menlo", "Monaco", "Consolas", "monospace"],
+        mono: ["ui-monospace", "SFMono-Regular", "Menaco", "Consolas", "monospace"],
       },
       boxShadow: {
         soft: "0 2px 15px -3px hsl(var(--foreground) / 0.07), 0 4px 6px -4px hsl(var(--foreground) / 0.05)",
       },
     },
   },
-  plugins: [require("tailwindcss-animate")],
+  plugins: [],
 };
 
 export default config;
