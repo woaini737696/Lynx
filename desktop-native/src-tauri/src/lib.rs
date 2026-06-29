@@ -54,7 +54,7 @@ impl Default for AppState {
             authorized_dirs: Mutex::new(vec![default_dir]),
             ws_connected: AtomicBool::new(false),
             user_token: Mutex::new(None),
-            cloud_endpoint: Mutex::new("https://ai.lynxdo.com:8443".to_string()),
+            cloud_endpoint: Mutex::new("https://ai.lynxdo.com".to_string()),
         }
     }
 }
@@ -402,7 +402,11 @@ async fn cloud_request(
         builder = builder.json(b);
     }
 
-    let resp = builder.send().await.map_err(|e| format!("请求失败 [{} {}]: {}", payload.method, url, e))?;
+    let resp = builder.send().await.map_err(|e| {
+        let msg = format!("请求失败 [{} {}]: {}", payload.method, url, e);
+        log::error!("[cloud_request] {}", msg);
+        msg
+    })?;
     let status = resp.status().as_u16();
     let data = resp.json::<serde_json::Value>().await.unwrap_or_else(|_| serde_json::Value::Null);
 
