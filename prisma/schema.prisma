@@ -54,6 +54,13 @@ model User {
   larkTasks         LarkTask[]
   larkTaskComments  LarkTaskComment[]
   larkWebhookEvents LarkWebhookEvent[]
+
+  // ===== 货币体系 & 会员 =====
+  wallet              UserWallet?
+  creditTransactions  CreditTransaction[]
+  sCoinTransactions   SCoinTransaction[]
+  membership          Membership?
+  subscriptionOrders  SubscriptionOrder[]
 }
 
 // 角色权限配置
@@ -923,4 +930,159 @@ model AgentAuditLog {
   @@index([action])
   @@index([level])
   @@index([result])
+}
+
+// 系统配置（key-value）：存储万能验证码、功能开关等全局配置
+model SystemConfig {
+  id        String   @id @default(cuid())
+  key       String   @unique @db.VarChar(64) // 如 "master_code"、"master_code_enabled"
+  value     String   @db.Text
+  updatedAt DateTime @updatedAt
+  updatedBy String?  @db.VarChar(64) // 管理员 userId
+}
+
+// 邀请码：管理员批量生成，用户注册时必须提供有效邀请码
+model InviteCode {
+  id        String    @id @default(cuid())
+  code      String    @unique @db.VarChar(32) // 邀请码（8位大写字母+数字）
+  status    String    @default("unused") @db.VarChar(16) // unused | used | disabled
+  createdBy String    @db.VarChar(64) // 创建者 userId
+  usedBy    String?   @db.VarChar(64) // 使用者 userId
+  usedAt    DateTime?
+  expiresAt DateTime? // 过期时间（null 表示永久有效）
+  remark    String?   @db.VarChar(200) // 备注（如"市场部批量"）
+  createdAt DateTime  @default(now())
+
+  @@index([status])
+  @@index([createdBy])
+}
+
+// ============ 货币体系 & 会员机制 ============
+
+// 用户钱包：Credits 点数（系统消耗币）+ S币（系统交易币）
+// Credits：购买 AI 词元、系统权益、会员等。15 Credits = 1 基础 token
+// S币：购买技能、蒸馏知识、AI 工作流、抵扣会员现金（1元 = 50 S币）
+model UserWallet {
+  id                  String   @id @default(cuid())
+  userId              String   @unique
+  // Credits 余额（BigInt 支持亿级数值，如 30亿 = 3,000,000,000）
+  credits             BigInt   @default(0)
+  // S币 余额
+  sCoins              Int      @default(0)
+  // 冻结的 Credits（预扣未结算，如 AI 对话进行中）
+  frozenCredits       BigInt   @default(0)
+  // 累计统计
+  totalCreditsEarned  BigInt   @default(0)
+  totalCreditsSpent   BigInt   @default(0)
+  totalSCoinsEarned   Int      @default(0)
+  totalSCoinsSpent    Int      @default(0)
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+// Credits 交易流水
+model CreditTransaction {
+  id           String   @id @default(cuid())
+  userId       String
+  // earn | spend | freeze | unfreeze | refund
+  type         String   @db.VarChar(16)
+  // 金额（正数）
+  amount       BigInt
+  // 操作后余额
+  balanceAfter BigInt
+  // 原因：ai_chat | buy_membership | membership_gift | sign_in | task_reward | recharge | admin_adjust | buy_token_pack
+  reason       String   @db.VarChar(64)
+  description  String?  @db.VarChar(500)
+  // 元数据：{model, inputTokens, outputTokens, multiplier, orderId, ...}
+  metadata     Json?
+  createdAt    DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@index([reason])
+  @@index([type])
+}
+
+// S币 交易流水
+model SCoinTransaction {
+  id           String   @id @default(cuid())
+  userId       String
+  // earn | spend
+  type         String   @db.VarChar(16)
+  amount       Int
+  balanceAfter Int
+  // 原因：buy_skill | buy_knowledge | buy_flow | sell_skill | membership_gift | sign_in | tip | membership_offset
+  reason       String   @db.VarChar(64)
+  description  String?  @db.VarChar(500)
+  metadata     Json?
+  createdAt    DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@index([reason])
+}
+
+// 会员订阅
+model Membership {
+  id              String   @id @default(cuid())
+  userId          String   @unique
+  // FREE | LITE | PRO | MAX | ULTRA
+  tier            String   @default("FREE") @db.VarChar(16)
+  // ACTIVE | EXPIRED | CANCELLED | PENDING
+  status          String   @default("ACTIVE") @db.VarChar(16)
+  // 订阅开始时间
+  startedAt       DateTime?
+  // 到期时间（null = 永久免费版）
+  expiresAt       DateTime?
+  // 自动续费
+  autoRenew       Boolean  @default(false)
+  // 计费周期：monthly | quarterly | yearly
+  billingCycle    String?  @db.VarChar(16)
+  // 已支付金额
+  pricePaid       Decimal? @db.Decimal(10, 2)
+  // 上次 Credits 月度发放时间
+  lastCreditsGrant DateTime?
+  // 上次 S币 月度发放时间
+  lastSCoinsGrant  DateTime?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+// 订阅订单
+model SubscriptionOrder {
+  id            String    @id @default(cuid())
+  userId        String
+  // LITE | PRO | MAX | ULTRA
+  tier          String    @db.VarChar(16)
+  // monthly | quarterly | yearly
+  cycle         String    @db.VarChar(16)
+  // 订单金额（元）
+  amount        Decimal   @db.Decimal(10, 2)
+  // S币抵扣金额（元）
+  sCoinOffset   Decimal   @db.Decimal(10, 2) @default(0)
+  // 抵扣使用的 S币数量
+  sCoinUsed     Int       @default(0)
+  // 实付金额（元）= amount - sCoinOffset
+  actualAmount  Decimal   @db.Decimal(10, 2)
+  // pending | paid | failed | refunded | cancelled
+  status        String    @default("pending") @db.VarChar(16)
+  // 支付方式：alipay | wechat | scoin_only | manual
+  paymentMethod String?   @db.VarChar(32)
+  // 第三方支付流水号
+  tradeNo       String?   @db.VarChar(100)
+  paidAt        DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime? @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@index([status])
+  @@index([tier])
 }

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { getEffectiveMasterCode, isMasterCodeEnabled } from "@/lib/auth-config";
 
 const lastSendMap = new Map<string, number>();
 
@@ -18,15 +19,23 @@ export async function POST(req: NextRequest) {
     }
     lastSendMap.set(phone, now);
 
-    // 万能验证码（从环境变量读取，默认 888888）
-    // 开发环境不实际发送短信，前端会提示输入万能验证码
-    const masterCode = process.env.SMS_MASTER_CODE || "888888";
+    // 万能验证码：从数据库读取（管理员在设置页配置和开关）
+    const enabled = await isMasterCodeEnabled();
+    const masterCode = await getEffectiveMasterCode();
+
+    // 开发环境且万能码启用时返回 devHint，方便测试
+    const devHint =
+      process.env.NODE_ENV === "development" && enabled && masterCode
+        ? `开发环境万能码: ${masterCode}`
+        : undefined;
 
     return NextResponse.json({
       ok: true,
-      message: "验证码已发送",
-      // 开发环境提示万能码（生产环境移除此字段）
-      devHint: process.env.NODE_ENV === "development" ? `开发环境万能码: ${masterCode}` : undefined,
+      message: enabled
+        ? "验证码已发送"
+        : "验证码登录未启用，请使用手机号+密码登录",
+      masterCodeEnabled: enabled,
+      devHint,
     });
   } catch {
     return NextResponse.json({ error: "请求失败" }, { status: 500 });

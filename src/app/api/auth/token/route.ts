@@ -1,14 +1,14 @@
 // App 端 Token 登录端点
-// 支持三种登录模式（与 NextAuth Credentials Provider 对齐）：
-//   1. 用户名 + 密码  → { username, password }
-//   2. 手机号 + 验证码 → { phone, code }
-//   3. 手机号 + 密码   → { phone, password }
+// 支持的登录模式：
+//   1. 手机号 + 验证码 → { phone, code }  （需管理员在设置页启用万能验证码）
+//   2. 手机号 + 密码   → { phone, password }  （主推，所有账号必须绑定手机号）
 // 签发 JWT 返回。App 端用该 token 作为 Authorization: Bearer 凭证。
 
 import { NextRequest, NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/db";
 import { signToken } from "@/lib/jwt";
+import { getEffectiveMasterCode } from "@/lib/auth-config";
 import { getLogger } from "@/lib/logger";
 
 const logger = getLogger("auth-token");
@@ -23,38 +23,36 @@ export async function POST(req: NextRequest) {
 
     let user: Awaited<ReturnType<typeof prisma.user.findFirst>> = null;
 
-    // 模式 2：手机号 + 验证码
+    // 模式 1：手机号 + 验证码（依赖管理员在设置页启用的万能验证码）
     if (body?.phone && body?.code) {
       const phone = String(body.phone);
       const code = String(body.code);
       if (!isValidPhone(phone)) {
         return NextResponse.json({ error: "手机号格式不正确" }, { status: 400 });
       }
-      const masterCode = process.env.SMS_MASTER_CODE;
+      const masterCode = await getEffectiveMasterCode();
       if (!masterCode) {
-        return NextResponse.json({ error: "验证码登录未配置，请联系管理员" }, { status: 503 });
+        return NextResponse.json(
+          { error: "验证码登录未启用，请使用手机号+密码登录" },
+          { status: 503 }
+        );
       }
       if (code !== masterCode) {
         return NextResponse.json({ error: "验证码错误" }, { status: 401 });
       }
-      // 查找用户，不存在则自动注册（与 NextAuth authorize 逻辑一致）
+      // 查找用户，不存在则返回提示（不再自动注册，必须通过注册流程+邀请码）
       user = await prisma.user.findFirst({ where: { phone } });
       if (!user) {
-        user = await prisma.user.create({
-          data: {
-            username: `phone_${phone}`,
-            passwordHash: "",
-            phone,
-            displayName: phone,
-            role: "viewer",
-          },
-        });
+        return NextResponse.json(
+          { error: "该手机号未注册，请先注册" },
+          { status: 404 }
+        );
       }
       if (!user.active) {
         return NextResponse.json({ error: "账号已禁用" }, { status: 401 });
       }
     }
-    // 模式 3：手机号 + 密码
+    // 模式 2：手机号 + 密码（主推登录方式）
     else if (body?.phone && body?.password) {
       const phone = String(body.phone);
       const password = String(body.password);
@@ -70,32 +68,11 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: "手机号或密码错误" }, { status: 401 });
       }
     }
-    // 模式 1：用户名 + 密码
     else {
-      const username = body?.username;
-      const password = body?.password;
-      if (!username || !password) {
-        return NextResponse.json(
-          { error: "用户名和密码不能为空" },
-          { status: 400 }
-        );
-      }
-      user = await prisma.user.findUnique({
-        where: { username: String(username) },
-      });
-      if (!user || !user.active) {
-        return NextResponse.json(
-          { error: "用户名或密码错误" },
-          { status: 401 }
-        );
-      }
-      const valid = await bcrypt.compare(String(password), user.passwordHash);
-      if (!valid) {
-        return NextResponse.json(
-          { error: "用户名或密码错误" },
-          { status: 401 }
-        );
-      }
+      return NextResponse.json(
+        { error: "请提供手机号+密码 或 手机号+验证码" },
+        { status: 400 }
+      );
     }
 
     const token = await signToken({

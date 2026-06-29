@@ -31,6 +31,7 @@ import {
   Star,
   Power,
   Plus,
+  ShieldCheck,
 } from "lucide-react";
 import { PageHeader, Card, Button, LoadingState } from "@/components/layout/PageHeader";
 import { HelpButton } from "@/components/layout/HelpButton";
@@ -38,13 +39,15 @@ import { Modal } from "@/components/ui/Modal";
 import { toast } from "@/components/ui/toast";
 import { UserAIKeyConfig } from "@/components/settings/UserAIKeyConfig";
 import { DesktopHermesSection } from "@/components/settings/DesktopHermesSection";
+import { AuthConfigSection } from "@/components/settings/AuthConfigSection";
 
 /** 设置页 Tab */
-type SettingsTab = "ai" | "agent" | "system" | "files";
+type SettingsTab = "ai" | "agent" | "auth" | "system" | "files";
 
 const TABS: { key: SettingsTab; label: string; icon: React.ReactNode }[] = [
   { key: "ai", label: "AI 模型", icon: <KeyRound className="h-3.5 w-3.5" /> },
   { key: "agent", label: "Lynx Agent", icon: <Cpu className="h-3.5 w-3.5" /> },
+  { key: "auth", label: "认证", icon: <ShieldCheck className="h-3.5 w-3.5" /> },
   { key: "system", label: "系统状态", icon: <Database className="h-3.5 w-3.5" /> },
   { key: "files", label: "配置文件", icon: <FileText className="h-3.5 w-3.5" /> },
 ];
@@ -77,7 +80,7 @@ export default function SettingsPage() {
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<SettingsTab>("ai");
   // 已访问过的 tab，避免重复 mount/unmount 造成频繁请求
-  const [visitedTabs, setVisitedTabs] = useState<Set<SettingsTab>>(new Set(["ai"]));
+  const [visitedTabs, setVisitedTabs] = useState<Set<SettingsTab>>(new Set(["ai", "auth"]));
 
   useEffect(() => {
     let mounted = true;
@@ -194,6 +197,13 @@ export default function SettingsPage() {
         <div className={activeTab === "agent" ? "block" : "hidden"}>
           <DesktopHermesSection />
           <HermesConfigSection />
+        </div>
+      )}
+
+      {/* 认证 Tab：万能验证码 + 邀请码管理（仅 admin 可见 API 数据） */}
+      {visitedTabs.has("auth") && (
+        <div className={activeTab === "auth" ? "block" : "hidden"}>
+          <AuthConfigSection />
         </div>
       )}
 
