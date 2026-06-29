@@ -39,12 +39,23 @@ if ($LASTEXITCODE -ne 0) {
 $ErrorActionPreference = $prevEAP
 
 # 3. Prisma generate
-Write-Host "[2/6] Prisma generate..." -ForegroundColor Yellow
+Write-Host "[2/7] Prisma generate..." -ForegroundColor Yellow
 npx prisma generate 2>&1 | Write-Host
 if ($LASTEXITCODE -ne 0) { throw "prisma generate 失败" }
 
-# 4. Next.js 构建 (standalone)
-Write-Host "[3/6] Next.js 构建 (standalone)..." -ForegroundColor Yellow
+# 4. 本地预编译 WS 网关（esbuild 打包成纯 JS，服务器零依赖运行）
+Write-Host "[3/7] 预编译 WS 网关 (esbuild -> 纯 JS)..." -ForegroundColor Yellow
+$compileEAP = $ErrorActionPreference
+$ErrorActionPreference = "Continue"
+node scripts/compile-ws-gateway.mjs 2>&1 | Write-Host
+$compileExit = $LASTEXITCODE
+$ErrorActionPreference = $compileEAP
+if ($compileExit -ne 0) { throw "ws-gateway 预编译失败" }
+if (-not (Test-Path "scripts/ws-gateway.compiled.js")) { throw "ws-gateway.compiled.js 未生成" }
+Write-Host "  ws-gateway.compiled.js 已生成" -ForegroundColor Green
+
+# 5. Next.js 构建 (standalone)
+Write-Host "[4/7] Next.js 构建 (standalone)..." -ForegroundColor Yellow
 $buildEAP = $ErrorActionPreference
 $ErrorActionPreference = "Continue"
 npm run build 2>&1 | Write-Host
@@ -52,13 +63,20 @@ $buildExit = $LASTEXITCODE
 $ErrorActionPreference = $buildEAP
 if ($buildExit -ne 0) { throw "next build 失败" }
 
-# 5. 复制 standalone 产物
-Write-Host "[4/6] 打包 standalone 产物..." -ForegroundColor Yellow
+# 6. 复制 standalone 产物
+Write-Host "[5/7] 打包 standalone 产物..." -ForegroundColor Yellow
 $StandaloneDir = "$DistDir\$PkgName\standalone"
 New-Item -ItemType Directory -Path $StandaloneDir -Force | Out-Null
 
 # 复制 standalone server.js + node_modules
 Copy-Item -Recurse "$ProjectRoot\.next\standalone\*" $StandaloneDir
+
+# 手动复制 @prisma/client 和 .prisma/client（Next.js standalone trace 会漏掉，但 WS 网关独立进程需要从 node_modules 解析）
+New-Item -ItemType Directory -Path "$StandaloneDir\node_modules\@prisma" -Force | Out-Null
+Copy-Item -Recurse "$ProjectRoot\node_modules\@prisma\client" "$StandaloneDir\node_modules\@prisma\client" -Force
+New-Item -ItemType Directory -Path "$StandaloneDir\node_modules\.prisma" -Force | Out-Null
+Copy-Item -Recurse "$ProjectRoot\node_modules\.prisma\client" "$StandaloneDir\node_modules\.prisma\client" -Force
+Write-Host "  Prisma Client 已手动复制到 standalone/node_modules" -ForegroundColor Green
 
 # 复制 .next/static（standalone 不含 static，需手动复制）
 New-Item -ItemType Directory -Path "$StandaloneDir\.next\static" -Force | Out-Null
@@ -80,6 +98,12 @@ if (Test-Path "$ProjectRoot\prisma\seed.ts") {
   Copy-Item "$ProjectRoot\prisma\seed.ts" "$StandaloneDir\prisma\"
 }
 
+# 复制预编译的 WS 网关（服务器零依赖运行，不需要 tsx）
+New-Item -ItemType Directory -Path "$StandaloneDir\scripts" -Force | Out-Null
+Copy-Item "$ProjectRoot\scripts\ws-gateway.compiled.js" "$StandaloneDir\scripts\"
+Copy-Item "$ProjectRoot\scripts\start-ws-gateway.js" "$StandaloneDir\scripts\"
+Write-Host "  WS 网关预编译产物已复制到 standalone/scripts/" -ForegroundColor Green
+
 # 复制生产环境 .env.production 到 standalone/.env
 if (Test-Path "$ProjectRoot\.env.production") {
   Copy-Item "$ProjectRoot\.env.production" "$StandaloneDir\.env"
@@ -89,9 +113,9 @@ if (Test-Path "$ProjectRoot\.env.production") {
   throw "请先创建 .env.production 文件"
 }
 
-# 6. 构建并打包官网 (web_Lynx - Vite + React 项目)
+# 7. 构建并打包官网 (web_Lynx - Vite + React 项目)
 # 官网构建失败不阻塞主应用部署（官网可能已部署，无需每次重建）
-Write-Host "[5/6] 构建官网 (web_Lynx)..." -ForegroundColor Yellow
+Write-Host "[6/7] 构建官网 (web_Lynx)..." -ForegroundColor Yellow
 $WebsiteDir = "$ProjectRoot\web_Lynx"
 if (Test-Path "$WebsiteDir\package.json") {
   Push-Location $WebsiteDir
@@ -132,9 +156,9 @@ Copy-Item "$ProjectRoot\deploy\pm2\ecosystem.config.cjs" "$DistDir\$PkgName\pm2\
 New-Item -ItemType Directory -Path "$DistDir\$PkgName\mysql" -Force | Out-Null
 Copy-Item "$ProjectRoot\deploy\mysql\lynxdo.cnf" "$DistDir\$PkgName\mysql\"
 
-# 7. 桌面端构建（可选）
+# 8. 桌面端构建（可选）
 if (-not $SkipDesktop) {
-  Write-Host "[6/6] 桌面端构建 (Tauri)..." -ForegroundColor Yellow
+  Write-Host "[7/7] 桌面端构建 (Tauri)..." -ForegroundColor Yellow
   $TauriDir = "$ProjectRoot\desktop-native"
   if (Test-Path "$TauriDir\native-ui\package.json") {
     Push-Location "$TauriDir\native-ui"
@@ -158,10 +182,10 @@ if (-not $SkipDesktop) {
     Write-Host "  desktop-native 未找到，跳过桌面端构建" -ForegroundColor Yellow
   }
 } else {
-  Write-Host "[6/6] 跳过桌面端构建 (-SkipDesktop)" -ForegroundColor Yellow
+  Write-Host "[7/7] 跳过桌面端构建 (-SkipDesktop)" -ForegroundColor Yellow
 }
 
-# 8. 打包
+# 9. 打包
 Write-Host ""
 Write-Host "打包中..." -ForegroundColor Yellow
 $ArchivePath = "$DistDir\$PkgName.tar.gz"

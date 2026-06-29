@@ -4,9 +4,70 @@
 
 ---
 
+## 零、服务器零构建硬约束（最高优先级，不可违反）
+
+> **此章节为绝对红线，违反即视为严重事故。** 2026-06-29 曾因在服务器执行 `npm install tsx` 导致 2C2G 服务器 OOM 宕机，强制重启才恢复。
+
+### 0.1 禁止在服务器执行的操作
+
+服务器（47.119.185.135，2C2G）**严禁**执行以下任何命令，无一例外：
+
+| 禁止命令 | 原因 | 正确做法 |
+|---|---|---|
+| `npm install` / `npm ci` | 内存占用 >1G，直接 OOM | 本地装好，node_modules 随 standalone 上传 |
+| `npx <anything>` | npx 会触发下载安装 | 本地执行，产物上传 |
+| `tsc` / `esbuild` / `webpack` | 编译耗尽 CPU/内存 | 本地预编译，上传 JS 产物 |
+| `prisma generate` | 需要下载 engine | 本地 generate，client 随 standalone 上传 |
+| `cargo build` / `rustc` | 内存爆炸 | 本地构建，上传二进制 |
+| `pnpm install` / `yarn install` | 同 npm | 本地装好 |
+| `git clone` + 构建 | 在服务器构建 | 本地构建后上传产物 |
+| `apt install`（大包） | 占磁盘/内存 | 仅允许小工具如 `htop` |
+
+### 0.2 允许在服务器执行的操作
+
+仅允许以下轻量操作：
+
+- `pm2 start/restart/reload/save/list/logs` — 进程管理
+- `nginx -t && systemctl reload nginx` — 配置重载
+- `npx prisma db push` — **仅** 数据库结构同步（不下载包，用已上传的 prisma client）⚠️ 注意：此命令也会消耗内存，执行前确认服务器空闲，且仅在有 schema 变更时执行
+- `mysql` / `mysqldump` — 数据库操作
+- `cp/mv/rm/mkdir/tar` — 文件操作
+- `curl` — 健康检查
+- `node scripts/ws-gateway.compiled.js` — 运行预编译 JS（零依赖）
+- `node server.js` — 运行 standalone 产物
+
+### 0.3 TypeScript 源码的本地预编译规范
+
+任何需要在服务器以独立进程运行的 TypeScript 文件（如 WS 网关、定时任务脚本），**必须**在本地用 esbuild 预编译成纯 CJS JavaScript：
+
+```bash
+# 本地预编译（见 scripts/compile-ws-gateway.mjs）
+node scripts/compile-ws-gateway.mjs
+# 产物 scripts/ws-gateway.compiled.js 上传到服务器
+# 服务器直接 node 运行，零依赖（不需要 tsx/typescript）
+```
+
+**编译规范**：
+- `bundle: true` — 把 npm 依赖打进单文件
+- `external: ["@prisma/client"]` — Prisma Client 含二进制，运行时从 node_modules 解析（standalone 已包含）
+- `format: "cjs"` — 与 standalone server.js 一致
+- `target: "node18"` — 服务器 Node 20 兼容
+- 编译步骤集成到 `build.ps1`，每次构建自动执行
+
+### 0.4 部署前自检清单
+
+部署到服务器前，**必须**确认：
+- [ ] 构建产物中包含 `node_modules`（standalone 自带）
+- [ ] TS 源码已预编译为 JS（如有独立进程）
+- [ ] 不依赖服务器执行任何 `npm/npx/install` 命令
+- [ ] `.env` 文件已包含在 standalone 中
+- [ ] prisma client 已生成在 standalone/node_modules
+
+---
+
 ## 一、总则
 
-1. **本地构建原则**：阿里云 ECS 2C2G 服务器禁止任何形式的编译/构建操作。所有构建产物在本地完成，仅同步产物到服务器。
+1. **本地构建原则**：阿里云 ECS 2C2G 服务器禁止任何形式的编译/构建操作。所有构建产物在本地完成，仅同步产物到服务器。（详见第零章）
 2. **D 盘存储原则**：所有项目数据、依赖、构建产物必须存放在 D 盘，C 盘禁止写入。
 3. **端口固定原则**：本地开发服务固定端口 3002，禁止修改（详见 service-runtime.md）。
 4. **Gitee 提交原则**：每次迭代完成后必须自动提交并推送到 Gitee 仓库 `Admin/LynnHub`。
