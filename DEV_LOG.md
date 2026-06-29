@@ -87,7 +87,7 @@
 - ws-gateway.ts 消息协议匹配（status 字段一致）
 
 ### Commit hash
-（待提交）
+9ddd8e35
 
 ---
 
