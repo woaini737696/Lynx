@@ -211,8 +211,10 @@ function SkillMarketContent() {
       const contentType = res.headers.get("content-type") || "";
       if (!contentType.includes("application/json")) return;
       const data = await res.json();
+      // 后端 /api/skills 使用 paginatedResponse 返回 { success, data: [...], total, hasMore, cursor }
+      const skillsList = data.data || data.skills || [];
       const names = new Set<string>(
-        (data.skills || []).map((s: { name: string }) => s.name)
+        (skillsList).map((s: { name: string }) => s.name)
       );
       setLocalSkillNames(names);
     } catch {

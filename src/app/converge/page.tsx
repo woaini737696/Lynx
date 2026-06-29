@@ -44,7 +44,8 @@ export default function ConvergePage() {
         if (!mounted) return;
         if (res.ok) {
           const data = await res.json();
-          const list = data.ideas || [];
+          // 后端 /api/ideas 使用 paginatedResponse 返回 { success, data: [...], total, hasMore, cursor }
+          const list = data.data || data.ideas || [];
           setIdeas(list);
           setInitialCount((prev) => (prev === 0 ? list.length : prev));
         }

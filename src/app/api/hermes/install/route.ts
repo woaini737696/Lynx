@@ -101,7 +101,7 @@ export async function POST(req: NextRequest) {
       const detect = await detectHermesInstall();
       if (!detect.installed) {
         return NextResponse.json(
-          { error: "请先安装 Hermes Agent（运行 pip install hermes-agent）" },
+          { error: "HermesAgent 引擎已内置在桌面端安装包中，Web 端无法直接启动。请下载并安装 Lynx 桌面端客户端，引擎会随安装包自动就绪。" },
           { status: 400 }
         );
       }

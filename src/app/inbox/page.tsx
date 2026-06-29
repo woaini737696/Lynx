@@ -100,7 +100,8 @@ export default function InboxPage() {
         if (!mounted) return;
         if (res.ok) {
           const data = await res.json();
-          setIdeas(data.ideas || []);
+          // 后端 /api/ideas 使用 paginatedResponse 返回 { success, data: [...], total, hasMore, cursor }
+          setIdeas(data.data || data.ideas || []);
         } else if (res.status >= 500) {
           setLoadError("服务器异常，加载灵感失败");
         }

@@ -9,6 +9,9 @@
 
 | 迭代 | 日期 | 任务概要 |
 |------|------|----------|
+| [迭代 65](#迭代-65---2026-06-30) | 2026-06-30 | 部署失败紧急修复：cp -r改cp -a正确复制隐藏文件+PM2彻底重启+端到端验证全部功能恢复 |
+| [迭代 64](#迭代-64---2026-06-30) | 2026-06-30 | 服务器部署根因修复：AUTH_URL缺失导致中间件崩溃+添加到.env.production+PM2彻底重启+端到端验证 |
+| [迭代 63](#迭代-63---2026-06-30) | 2026-06-30 | 前后端API字段不匹配修复：6处前端读取data.data兼容+installHermesAgent移除pip install+AUTH_URL格式修复 |
 | [迭代 62](#迭代-62---2026-06-29) | 2026-06-29 | 功能闭环修复：AI工作流nodes.filter崩溃+HermesAgent pip安装失败+灵感API验证+全面API自测 |
 | [迭代 61](#迭代-61---2026-06-29) | 2026-06-29 | 功能闭环修复：Prisma engine路径修复+ws-gateway scripts缺失修复+lynn测试数据生成+12个API验证通过 |
 | [迭代 60](#迭代-60---2026-06-29) | 2026-06-29 | 服务器零构建架构修复：ws-gateway本地esbuild预编译+规范强化+2G swap防OOM+Prisma跨平台engine |
@@ -103,6 +106,147 @@
 
 ### Commit hash
 `4181fb4d`
+
+---
+
+## 迭代 65 - 2026-06-30
+
+### 任务概要
+紧急修复迭代64部署后服务器 502 Bad Gateway 问题。根因是 `restart_server.py` 使用 `cp -r standalone/*` 不复制隐藏文件（`.env`、`.next`、`.prisma`），导致 PM2 lynx-app 崩溃（"Could not find a production build"）。改用 `cp -a` 正确复制整个 standalone 目录后所有功能恢复。
+
+### 根因分析
+- **现象**：迭代64部署后服务器 502 Bad Gateway，PM2 lynx-app 状态 "waiting"（崩溃）
+- **PM2 错误日志**：`Error: Could not find a production build in the './.next' directory`
+- **根因**：`cp -r /tmp/lynx-deploy-fast/standalone/* /opt/lynx/app/` 不复制隐藏文件
+  - `.env`（环境变量）丢失
+  - `.next`（Next.js 构建产物）丢失
+  - `.prisma`（Prisma 引擎）丢失
+  - `server.js` 等非隐藏文件正常复制，但缺少 `.next` 导致 Next.js 无法启动
+
+### 修复内容
+
+#### 1. 创建 fix_deploy.py 修复脚本
+- **核心变更**：`cp -r standalone/*` → `cp -a standalone /opt/lynx/app`
+- **原因**：`cp -a` 复制整个目录（包含所有隐藏文件），`cp -r` 配合 `/*` glob 会跳过隐藏文件
+- **完整流程**：备份旧目录 → cp -a 复制 → PM2 delete all + flush + start → 健康检查 → 验证
+
+#### 2. PM2 彻底重启
+- **操作**：`pm2 delete all && pm2 flush && pm2 start /opt/lynx/ecosystem.config.cjs`
+- **原因**：清除 PM2 进程缓存，确保新进程读取正确的 .env 和 .next
+
+### 端到端验证结果（全部通过）
+
+| 验证项 | 结果 | 说明 |
+|--------|------|------|
+| 健康检查（内部） | HTTP 200 | `{"ok":true,"uptime":9}` |
+| 健康检查（外部 HTTPS） | HTTP 200 | https://ai.lynxdo.com/api/health |
+| 登录认证 | 成功 | Session: `{user:{name:"Lynn",role:"admin"}}` |
+| `/api/ideas`（InBox） | `{"success":true,"data":[...]}` | 返回多条灵感数据 |
+| `/api/tasks`（看板） | `{"success":true,"data":[...]}` | 返回多条任务数据 |
+| `/api/dev-log`（开发日志） | `{"content":"# LynnHub..."}` | 正常返回日志内容 |
+| `/api/hermes/status` | `{"installed":false,"lastError":null}` | 状态正常，无错误 |
+| .env AUTH_URL | `AUTH_URL=https://ai.lynxdo.com` | 格式正确 |
+| .next 构建产物 | 存在 | inbox/page.js + chunks 含 HermesAgent |
+| .prisma Linux 引擎 | 存在 | libquery_engine-debian-openssl-3.0.x.so.node |
+
+### 涉及文件
+- `scripts/deploy/fix_deploy.py`（新建，修复 cp -a 复制 + 验证脚本）
+- `scripts/deploy/e2e_verify.py`（新建，端到端验证：DB+登录+API）
+- `DEV_LOG.md`（追加迭代65记录）
+
+### 部署状态
+- lynx-app: online, ~107MB
+- lynx-ws-gateway: online, ~63MB
+- 外部访问: https://ai.lynxdo.com 正常（HTTP 200）
+
+---
+
+## 迭代 64 - 2026-06-30
+
+### 任务概要
+修复服务器部署后所有功能不可用的**真正根因**：`.env.production` 缺少 `AUTH_URL` 环境变量，导致 Next.js standalone 构建产物中间件读取 AUTH_URL 时得到格式错误的值（`" https://ai.lynxdo.com\`），中间件 `TypeError: Invalid URL` 崩溃，所有 API 请求返回 500/401。
+
+### 根因分析
+- **现象**：用户反馈 InBox 列表空、开发日志打不开、所有功能不可用
+- **排查**：PM2 错误日志显示 `TypeError: Invalid URL, input: '" https://ai.lynxdo.com\\'`
+- **根因**：
+  1. `.env.production` 文件没有 `AUTH_URL` 配置
+  2. Next.js standalone 构建时从 `.env.production` 注入环境变量
+  3. 服务器运行时 `.env` 虽有 AUTH_URL，但中间件在构建时已注入错误值
+  4. 中间件 `new URL(process.env.AUTH_URL)` 崩溃 → 所有请求 500
+
+### 修复内容
+
+#### 1. 添加 AUTH_URL 到 .env.production
+- **文件**：`.env.production`
+- **变更**：添加 `AUTH_URL=https://ai.lynxdo.com`
+- **原因**：确保 Next.js 构建时能正确注入 AUTH_URL，避免中间件崩溃
+
+#### 2. 服务器 .env AUTH_URL 格式修复
+- **操作**：用 Python 脚本安全重写 .env，删除所有 AUTH_URL 行，追加正确格式
+- **验证**：修复后 .env 中 `AUTH_URL=https://ai.lynxdo.com`（无引号、无空格、无反斜杠）
+
+#### 3. PM2 彻底重启
+- **操作**：`pm2 delete all && pm2 flush && pm2 start`
+- **原因**：清除 PM2 进程缓存的环境变量，确保读取新的 .env
+
+#### 4. 清理 HermesConfig 错误状态
+- **操作**：`UPDATE HermesConfig SET status='not_installed', lastError=NULL`
+- **原因**：清除残留的 "请使用桌面端" 错误信息
+
+### 验证结果
+- ✅ 健康检查：内部 HTTP 200 + 外部 HTTPS 200
+- ✅ PM2 重启后无 `TypeError: Invalid URL` 错误
+- ✅ API 返回 401（未登录）而非 500（服务器错误）- 中间件正常工作
+- ✅ 数据库验证：19 条 Idea（16 条 inbox），HermesConfig 状态正确
+- ✅ lynn 用户数据完整：admin 角色，手机号 18942271267
+
+### 涉及文件
+- `.env.production`（添加 AUTH_URL=https://ai.lynxdo.com）
+- 服务器 `/opt/lynx/app/.env`（修复 AUTH_URL 格式）
+
+### 部署状态
+- lynx-app: online, ~110MB
+- lynx-ws-gateway: online, ~63MB
+- 健康检查 200 OK（内部 + 外部）
+- PM2 错误日志无新 Invalid URL 错误
+
+---
+
+## 迭代 63 - 2026-06-30
+
+### 任务概要
+修复前后端 API 字段不匹配导致所有列表页空数据的问题。后端使用 `paginatedResponse()` 返回 `{ success, data: [...], total }`，但前端按资源名复数（`data.ideas` / `data.tasks` / `data.skills`）读取，导致前端拿到 `undefined`，列表始终为空。
+
+### 修复内容
+
+#### 1. 6处前端 API 字段不匹配修复
+所有前端页面改为 `data.data || data.xxx || []` 兼容模式：
+- `src/app/inbox/page.tsx`：`setIdeas(data.data || data.ideas || [])`
+- `src/app/board/page.tsx`：`const tasks = data.data || data.tasks || []`
+- `src/app/converge/page.tsx`：`const list = data.data || data.ideas || []`
+- `src/app/ai/assistant/page.tsx`：技能列表 `data.data || data.skills`
+- `src/app/skills/page.tsx`：`setSkills(data.data || data.skills || [])`
+- `src/app/skills/market/page.tsx`：本地技能名 `data.data || data.skills || []`
+
+#### 2. installHermesAgent() 移除 pip install 逻辑
+- **文件**：`src/lib/hermes-client.ts`
+- **变更**：`installHermesAgent()` 不再执行 pip install，直接返回桌面端引导提示
+- **原因**：PyPI 上不存在 `hermes-agent` 包，pip install 永远失败；引擎是自研 Rust 实现，已内置在桌面端安装包
+
+#### 3. Hermes 安装 API 错误提示更新
+- **文件**：`src/app/api/hermes/install/route.ts`
+- **变更**：错误提示从 "请先安装 Hermes Agent（运行 pip install hermes-agent）" 改为 "HermesAgent 引擎已内置在桌面端安装包中"
+
+### 涉及文件
+- `src/app/inbox/page.tsx`（API 字段兼容）
+- `src/app/board/page.tsx`（API 字段兼容）
+- `src/app/converge/page.tsx`（API 字段兼容）
+- `src/app/ai/assistant/page.tsx`（API 字段兼容）
+- `src/app/skills/page.tsx`（API 字段兼容）
+- `src/app/skills/market/page.tsx`（API 字段兼容）
+- `src/lib/hermes-client.ts`（installHermesAgent 移除 pip install）
+- `src/app/api/hermes/install/route.ts`（错误提示更新）
 
 ---
 
