@@ -37,6 +37,8 @@ import {
   Shield,
   Briefcase,
   Coins,
+  Wallet,
+  Crown,
   LogOut,
   Loader2,
   Settings2,
@@ -125,6 +127,16 @@ const NAV_GROUPS: NavGroup[] = [
       { href: "/settings/remote-control", label: "远程操控", icon: Monitor, color: "text-northstar" },
       { href: "/settings/backup", label: "数据备份", icon: Database, color: "text-muted-foreground" },
       { href: "/dev-log", label: "开发日志", icon: ScrollText, color: "text-muted-foreground" },
+    ],
+  },
+  {
+    id: "account",
+    label: "账户",
+    icon: Wallet,
+    color: "text-northstar",
+    items: [
+      { href: "/wallet", label: "钱包", icon: Wallet, color: "text-northstar" },
+      { href: "/membership", label: "会员", icon: Crown, color: "text-campaign" },
     ],
   },
   {
