@@ -351,7 +351,8 @@ export default function SkillsPage() {
       );
       const data = await res.json();
       if (res.ok) {
-        setSkills(data.skills || []);
+        // 后端 /api/skills 使用 paginatedResponse 返回 { success, data: [...], total, hasMore, cursor }
+        setSkills(data.data || data.skills || []);
       } else {
         toast(data.error || "加载失败", "error");
       }

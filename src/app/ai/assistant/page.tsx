@@ -2134,11 +2134,9 @@ export default function AIAssistantPage() {
     try {
       const res = await fetch("/api/skills");
       const data = await res.json();
-      if (Array.isArray(data.skills)) {
-        setSkills(data.skills);
-      } else if (Array.isArray(data)) {
-        setSkills(data);
-      }
+      // 后端 /api/skills 使用 paginatedResponse 返回 { success, data: [...], total, hasMore, cursor }
+      const skillsList = Array.isArray(data.data) ? data.data : (Array.isArray(data.skills) ? data.skills : (Array.isArray(data) ? data : []));
+      setSkills(skillsList);
     } catch {
       toast("加载技能失败", "error");
     } finally {

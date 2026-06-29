@@ -83,7 +83,8 @@ export default function BoardPage() {
       const res = await fetch("/api/tasks");
       if (res.ok) {
         const data = await res.json();
-        const tasks: Task[] = data.tasks || [];
+        // 后端 /api/tasks 使用 paginatedResponse 返回 { success, data: [...], total, hasMore, cursor }
+        const tasks: Task[] = data.data || data.tasks || [];
         setColumns(
           (Object.keys(BOARD_COLUMNS) as BoardColumn[]).map((key) => ({
             key,

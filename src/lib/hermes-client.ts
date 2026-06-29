@@ -896,22 +896,28 @@ export function clearHermesDetectCache(): void {
 }
 
 /**
- * 安装 hermes-agent（pip install hermes-agent）
- * 返回安装结果
+ * 安装 HermesAgent
+ *
+ * 重要说明（迭代62确认，迭代64修复）：
+ * - HermesAgent 引擎是自研 Rust 实现，已内置在桌面端 Tauri 安装包中
+ * - PyPI 上不存在 `hermes-agent` 包，pip install 永远失败
+ * - Web 端不应再尝试 pip install，直接返回提示让用户使用桌面端
+ * - 桌面端通过 installer.rs 的 Rust 引擎提供 Hermes 能力
+ *
+ * @returns 始终返回 success:false，附带引导提示
  */
 export async function installHermesAgent(): Promise<{
   success: boolean;
   output?: string;
   error?: string;
 }> {
-  // HermesAgent 引擎是自研 Rust 实现，已内置在桌面端安装包中（desktop-native/src-tauri/src/hermes/）
-  // PyPI 上不存在 hermes-agent 包，pip install 永远会失败
-  // Web 端无法安装本地引擎，需使用桌面端
-  logger.warn("Web 端不支持安装 HermesAgent 引擎，请使用桌面端");
+  logger.info("HermesAgent 安装请求：引擎已内置在桌面端，Web 端无需 pip install");
   return {
     success: false,
-    error: "HermesAgent 引擎已内置在桌面端安装包中，Web 端无需安装。\n" +
-           "请下载并安装 Lynx 桌面端客户端，引擎会随安装包自动就绪。",
+    error:
+      "HermesAgent 引擎已内置在桌面端安装包中，无需 pip 安装。\n" +
+      "请下载并安装 Lynx 桌面端客户端，引擎会随安装包自动就绪。\n" +
+      "Web 端通过云端 API + LLM Function Calling 提供完整 AI 助理能力（Hermes 模式自动 8 秒超时回退到 LLM）。",
   };
 }
 
