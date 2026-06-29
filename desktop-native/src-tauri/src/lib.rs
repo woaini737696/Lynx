@@ -549,7 +549,7 @@ pub fn run() {
             let _tray = TrayIconBuilder::with_id("main-tray")
                 .menu(&tray_menu)
                 .tooltip("Lynx")
-                .icon(app.default_window_icon().cloned().unwrap())
+                .icon(tauri::include_image!("icons/tray-icon.png"))
                 .on_menu_event(|app, event| {
                     if event.id().as_ref() == "quit" {
                         log::info!("用户通过托盘退出");

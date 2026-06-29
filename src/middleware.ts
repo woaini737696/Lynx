@@ -24,10 +24,14 @@ const publicPatterns = [
 const PUBLIC_LANDING = /^\/$/;
 
 // ============ CORS：允许 Tauri 桌面端跨域访问 ============
-// Tauri 2.x WebView origin 为 https://tauri.localhost（Windows）或 tauri://localhost（macOS/Linux）
-// 仅对这些 origin 放行 CORS，避免开放给任意来源
+// Tauri 2.x WebView origin：
+//   - Windows 默认: http://tauri.localhost（未设 useHttpsScheme）
+//   - Windows 启用 useHttpsScheme: https://tauri.localhost
+//   - macOS/Linux: tauri://localhost
+// 三个 origin 全部放行，避免 CORS preflight 被拒导致 "Failed to fetch"
 const ALLOWED_TAURI_ORIGINS = new Set([
   "tauri://localhost",
+  "http://tauri.localhost",
   "https://tauri.localhost",
 ]);
 

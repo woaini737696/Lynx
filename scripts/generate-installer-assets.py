@@ -137,7 +137,7 @@ def make_nsis_sidebar():
     # 底部装饰线 + 版本信息
     draw.line([(30, 270), (W - 30, 270)], fill=(43, 127, 255, 100), width=1)
     font_ver = find_font(9)
-    ver_text = "v1.0.11"
+    ver_text = "v1.0.12"
     bbox = draw.textbbox((0, 0), ver_text, font=font_ver)
     tw = bbox[2] - bbox[0]
     draw.text(((W - tw) // 2, 280), ver_text, fill=LIGHT_GRAY, font=font_ver)
@@ -169,6 +169,19 @@ def make_square_logos():
     print("✓ Square logos + StoreLogo")
 
 
+def make_tray_icon():
+    """
+    生成系统托盘专用高清图标（64x64 PNG）
+    - 从 512 源 LANCZOS 一次性重采样，避免多步缩放模糊
+    - 64x64 覆盖 Windows 200% DPI（32x32 物理像素），系统自动缩放到其他 DPI
+    - Rust 端用 tauri::include_image!("icons/tray-icon.png") 加载
+    """
+    src = Image.open(SOURCE_ICON).convert("RGBA")
+    tray = src.resize((64, 64), Image.LANCZOS)
+    tray.save(os.path.join(ICONS_DIR, "tray-icon.png"), "PNG")
+    print("✓ tray-icon.png (64x64, dedicated for system tray)")
+
+
 def make_std_sizes():
     """生成标准尺寸 PNG"""
     src = Image.open(SOURCE_ICON).convert("RGBA")
@@ -192,5 +205,6 @@ if __name__ == "__main__":
     make_nsis_header()
     make_nsis_sidebar()
     make_square_logos()
+    make_tray_icon()
     make_std_sizes()
     print(f"\n==> 所有资源已生成到: {ICONS_DIR}")
