@@ -3,6 +3,7 @@ package com.lynnhub.app.ui.screen.settings
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -13,8 +14,10 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -37,7 +40,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -122,11 +127,15 @@ fun TokenAnalysisPage(
     val state by viewModel.uiState.collectAsState()
     var showHelp by remember { mutableStateOf(false) }
     val keyboardController = LocalSoftwareKeyboardController.current
+    var isInputFocused by remember { mutableStateOf(false) }
 
     Box(
         modifier = Modifier
             .fillMaxSize()
             .background(Void)
+            .pointerInput(Unit) {
+                detectTapGestures(onTap = { keyboardController?.hide() })
+            }
     ) {
         ReturnSwipeDetector(
             returnDirection = "right",
@@ -137,16 +146,18 @@ fun TokenAnalysisPage(
         Column(
             modifier = Modifier
                 .fillMaxSize()
+                .systemBarsPadding()
+                .imePadding()
                 .verticalScroll(rememberScrollState())
-                .padding(start = 16.dp, end = 16.dp, top = 36.dp, bottom = 16.dp)
+                .padding(start = 22.dp, end = 22.dp, top = 66.dp, bottom = 110.dp)
         ) {
-            // 标题栏 + 使用说明按钮
+            // 标题栏 + 使用说明按钮（按视觉稿：panel-title 19px/700）
             Row(verticalAlignment = Alignment.CenterVertically) {
                 BackButton(onClick = onBack)
                 Spacer(modifier = Modifier.width(10.dp))
                 Text(
                     text = "词元分析",
-                    fontSize = 16.sp,
+                    fontSize = 19.sp,
                     fontWeight = FontWeight.Bold,
                     color = TextPrimary,
                     modifier = Modifier.weight(1f)
@@ -167,8 +178,7 @@ fun TokenAnalysisPage(
                     )
                 }
             }
-            SwipeHint(text = "← 右滑返回", modifier = Modifier.padding(start = 42.dp, top = 2.dp))
-            Spacer(modifier = Modifier.height(20.dp))
+            SwipeHint(text = "← 右滑返回", modifier = Modifier.padding(start = 50.dp, top = 4.dp, bottom = 22.dp))
 
             // 输入框
             OutlinedTextField(
@@ -185,7 +195,8 @@ fun TokenAnalysisPage(
                     .fillMaxWidth()
                     .height(120.dp)
                     .clip(RoundedCornerShape(12.dp))
-                    .background(Surface),
+                    .background(Surface)
+                    .onFocusChanged { isInputFocused = it.isFocused },
                 shape = RoundedCornerShape(12.dp),
                 colors = OutlinedTextFieldDefaults.colors(
                     focusedBorderColor = Primary.copy(alpha = 0.3f),

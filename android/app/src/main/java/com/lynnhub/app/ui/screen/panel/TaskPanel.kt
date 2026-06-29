@@ -3,6 +3,7 @@ package com.lynnhub.app.ui.screen.panel
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -20,10 +21,17 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextDecoration
@@ -143,11 +151,16 @@ fun TaskPanel(
     viewModel: TaskPanelViewModel = hiltViewModel()
 ) {
     val state by viewModel.uiState.collectAsState()
+    val keyboardController = LocalSoftwareKeyboardController.current
+    var isInputFocused by remember { mutableStateOf(false) }
 
     Box(
         modifier = Modifier
             .fillMaxSize()
             .background(Void)
+            .pointerInput(Unit) {
+                detectTapGestures(onTap = { keyboardController?.hide() })
+            }
     ) {
         // 反向滑动检测层（上滑返回）
         ReturnSwipeDetector(
@@ -160,12 +173,13 @@ fun TaskPanel(
             modifier = Modifier
                 .fillMaxSize()
                 .systemBarsPadding()
-                .padding(start = 16.dp, end = 16.dp, top = 36.dp, bottom = 16.dp)
+                .imePadding()
+                .padding(start = 22.dp, end = 22.dp, top = 66.dp, bottom = 110.dp)
         ) {
             PanelHeader(title = "任务", onBack = onBack, swipeHint = "↑ 上滑返回")
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(0.dp))
 
-            // 任务列表
+            // 任务列表（输入聚焦时加半透明蒙层）
             if (state.isLoading) {
                 Box(
                     modifier = Modifier
@@ -179,7 +193,12 @@ fun TaskPanel(
                 val active = state.tasks.filter { !it.completed }
                 val done = state.tasks.filter { it.completed }
                 LazyColumn(
-                    modifier = Modifier.weight(1f),
+                    modifier = Modifier
+                        .weight(1f)
+                        .drawWithContent {
+                            drawContent()
+                            if (isInputFocused) drawRect(Color.Black, alpha = 0.35f)
+                        },
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     if (active.isNotEmpty()) {
@@ -234,7 +253,8 @@ fun TaskPanel(
                 modifier = Modifier
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(14.dp))
-                    .background(Surface),
+                    .background(Surface)
+                    .onFocusChanged { isInputFocused = it.isFocused },
                 shape = RoundedCornerShape(14.dp),
                 colors = OutlinedTextFieldDefaults.colors(
                     focusedBorderColor = Color.Transparent,
@@ -290,6 +310,8 @@ private fun TaskRow(
             .fillMaxWidth()
             .clip(RoundedCornerShape(10.dp))
             .background(Surface)
+            .border(1.dp, BorderSubtle, RoundedCornerShape(10.dp))
+            .clickable { onToggle() }
             .padding(12.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {

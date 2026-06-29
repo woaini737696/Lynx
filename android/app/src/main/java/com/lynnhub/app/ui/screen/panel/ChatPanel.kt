@@ -3,6 +3,7 @@ package com.lynnhub.app.ui.screen.panel
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -11,6 +12,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.systemBarsPadding
@@ -34,10 +36,17 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -200,11 +209,16 @@ fun ChatPanel(
     viewModel: ChatPanelViewModel = hiltViewModel()
 ) {
     val state by viewModel.uiState.collectAsState()
+    val keyboardController = LocalSoftwareKeyboardController.current
+    var isInputFocused by remember { mutableStateOf(false) }
 
     Box(
         modifier = Modifier
             .fillMaxSize()
             .background(Void)
+            .pointerInput(Unit) {
+                detectTapGestures(onTap = { keyboardController?.hide() })
+            }
     ) {
         // 反向滑动检测层（右滑返回）
         ReturnSwipeDetector(
@@ -217,10 +231,11 @@ fun ChatPanel(
             modifier = Modifier
                 .fillMaxSize()
                 .systemBarsPadding()
-                .padding(start = 16.dp, end = 16.dp, top = 36.dp, bottom = 16.dp)
+                .imePadding()
+                .padding(start = 22.dp, end = 22.dp, top = 66.dp, bottom = 110.dp)
         ) {
             PanelHeader(title = "Lynx", onBack = onBack, swipeHint = "← 右滑返回")
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(0.dp))
 
             // 快捷指令：3 个胶囊横向滑动
             Row(
@@ -236,12 +251,16 @@ fun ChatPanel(
 
             Spacer(modifier = Modifier.height(12.dp))
 
-            // 对话流：reverseLayout 让最新消息贴底显示
+            // 对话流：reverseLayout 让最新消息贴底显示（输入聚焦时加半透明蒙层）
             if (state.messages.isEmpty()) {
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .weight(1f),
+                        .weight(1f)
+                        .drawWithContent {
+                            drawContent()
+                            if (isInputFocused) drawRect(Color.Black, alpha = 0.35f)
+                        },
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
@@ -252,7 +271,12 @@ fun ChatPanel(
                 }
             } else {
                 LazyColumn(
-                    modifier = Modifier.weight(1f),
+                    modifier = Modifier
+                        .weight(1f)
+                        .drawWithContent {
+                            drawContent()
+                            if (isInputFocused) drawRect(Color.Black, alpha = 0.35f)
+                        },
                     reverseLayout = true,
                     verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
@@ -297,7 +321,8 @@ fun ChatPanel(
                     modifier = Modifier
                         .weight(1f)
                         .clip(RoundedCornerShape(14.dp))
-                        .background(Surface),
+                        .background(Surface)
+                        .onFocusChanged { isInputFocused = it.isFocused },
                     shape = RoundedCornerShape(14.dp),
                     colors = OutlinedTextFieldDefaults.colors(
                         focusedBorderColor = Color.Transparent,

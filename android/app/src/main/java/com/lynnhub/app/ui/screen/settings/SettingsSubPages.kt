@@ -3,6 +3,7 @@ package com.lynnhub.app.ui.screen.settings
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -21,6 +22,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
@@ -59,10 +62,15 @@ private fun SubPageScaffold(
     onBack: () -> Unit,
     content: @Composable ColumnScope.() -> Unit
 ) {
+    val keyboardController = LocalSoftwareKeyboardController.current
+
     Box(
         modifier = Modifier
             .fillMaxSize()
             .background(Void)
+            .pointerInput(Unit) {
+                detectTapGestures(onTap = { keyboardController?.hide() })
+            }
     ) {
         // 右滑返回手势检测层（Initial 阶段，不消费事件）
         ReturnSwipeDetector(
@@ -75,23 +83,24 @@ private fun SubPageScaffold(
             modifier = Modifier
                 .fillMaxSize()
                 .systemBarsPadding()
+                .imePadding()
                 .verticalScroll(rememberScrollState())
-                .padding(start = 16.dp, end = 16.dp, top = 36.dp, bottom = 16.dp)
+                .padding(start = 22.dp, end = 22.dp, top = 66.dp, bottom = 110.dp)
         ) {
-            // 标题栏
+            // 标题栏（按视觉稿：panel-title 19px/700）
             Row(verticalAlignment = Alignment.CenterVertically) {
                 BackButton(onClick = onBack)
                 Spacer(modifier = Modifier.width(10.dp))
                 Text(
                     text = title,
-                    fontSize = 16.sp,
+                    fontSize = 19.sp,
                     fontWeight = FontWeight.Bold,
                     color = TextPrimary,
                     modifier = Modifier.weight(1f)
                 )
             }
-            SwipeHint(text = "← 右滑返回", modifier = Modifier.padding(start = 42.dp, top = 2.dp))
-            Spacer(modifier = Modifier.height(20.dp))
+            // 滑动提示独立一行（按视觉稿 panel-hint）
+            SwipeHint(text = "← 右滑返回", modifier = Modifier.padding(start = 50.dp, top = 4.dp, bottom = 22.dp))
             content()
         }
     }
