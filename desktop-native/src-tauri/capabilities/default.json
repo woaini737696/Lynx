@@ -7,7 +7,7 @@
     "urls": [
       "http://localhost:5176/**",
       "http://127.0.0.1:5176/**",
-      "https://app.lynxdo.com/**"
+      "https://ai.lynxdo.com/**"
     ]
   },
   "permissions": [

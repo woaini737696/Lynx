@@ -3,8 +3,11 @@
 // 功能：
 // 1. 启动后向云端注册 PC 在线状态 + 能力清单
 // 2. 接收云端下发的远程指令（来自安卓端/Web端）
-// 3. 执行指令并通过 WS 流式回传进度
-// 4. 定时心跳保持在线
+// 3. 执行指令并通过 WS 流式回传进度和最终结果
+// 4. 定时心跳保持在线（30 秒间隔，避免被网关 90 秒超时下线）
+//
+// 关键设计：使用 mpsc channel 统一所有出站消息（心跳 + 指令回传），
+// 避免多任务竞争 write 句柄。
 
 use crate::AppState;
 use crate::hermes::router;
@@ -13,13 +16,14 @@ use std::sync::Arc;
 use std::sync::atomic::Ordering;
 use std::time::Duration;
 use tauri::{AppHandle, Manager, Emitter};
+use tokio::sync::mpsc;
 use tokio_tungstenite::tungstenite::Message;
 
 /// 启动 WS 客户端，连接云端状态中心
 pub async fn start_ws_client(cloud_endpoint: &str, user_token: &str, app: AppHandle) {
     let ws_url = build_ws_url(cloud_endpoint);
     // 日志中不输出 token，避免凭证泄露
-    log::info!("HermesAgent WS 客户端连接: {}://{}/api/ws/agent", 
+    log::info!("HermesAgent WS 客户端连接: {}://{}/api/ws/agent",
         if cloud_endpoint.starts_with("https") { "wss" } else { "ws" },
         cloud_endpoint.replace("https://", "").replace("http://", ""));
 
@@ -81,22 +85,41 @@ async fn connect_and_serve(ws_url: &str, token: &str, app: &AppHandle) -> Result
         .await
         .map_err(|e| format!("发送注册消息失败: {}", e))?;
 
-    // 2. 启动心跳任务
-    let app_clone = app.clone();
+    // 2. 创建出站消息通道：心跳、指令回传等所有发给云端的消息都走这个通道
+    //    容量 32 足够缓冲心跳 + 并发指令回传
+    let (tx, mut rx) = mpsc::channel::<String>(32);
+
+    // 3. 启动心跳任务：每 30 秒通过 channel 发送心跳消息
+    //    网关 heartbeat() 收到后会更新 PcSession.lastHeartbeat，避免 90 秒超时下线
+    let tx_heartbeat = tx.clone();
     let heartbeat_task = tokio::spawn(async move {
         let mut interval = tokio::time::interval(Duration::from_secs(30));
+        interval.tick().await; // 跳过首次立即触发
         loop {
             interval.tick().await;
-            // 心跳通过 app 事件触发，实际发送由主循环处理
-            let _ = app_clone.emit("ws-heartbeat", ());
+            let heartbeat_msg = json!({ "type": "heartbeat" }).to_string();
+            // channel 关闭（连接断开）时 send 返回 Err，任务自动退出
+            if tx_heartbeat.send(heartbeat_msg).await.is_err() {
+                break;
+            }
         }
     });
 
-    // 3. 主循环：接收云端指令
+    // 4. 启动 writer task：从 channel 读取消息并通过 WS 发送
+    //    这样心跳任务和指令回传都可以并发发送，不会竞争 write 句柄
+    let writer_task = tokio::spawn(async move {
+        while let Some(msg) = rx.recv().await {
+            if write.send(Message::Text(msg)).await.is_err() {
+                break; // WS 写入失败，连接已断开
+            }
+        }
+    });
+
+    // 5. 主循环：接收云端指令
     while let Some(msg_result) = read.next().await {
         match msg_result {
             Ok(Message::Text(text)) => {
-                if let Err(e) = handle_cloud_message(&text, token, app).await {
+                if let Err(e) = handle_cloud_message(&text, token, app, &tx).await {
                     log::warn!("处理云端消息失败: {}", e);
                 }
             }
@@ -115,7 +138,11 @@ async fn connect_and_serve(ws_url: &str, token: &str, app: &AppHandle) -> Result
         }
     }
 
+    // 清理：终止心跳和 writer 任务，更新连接状态
     heartbeat_task.abort();
+    writer_task.abort();
+    // 关闭 channel，让 writer_task 的 rx.recv() 返回 None 自然退出
+    drop(tx);
     state.ws_connected.store(false, Ordering::SeqCst);
     let _ = app.emit("ws-disconnected", ());
 
@@ -123,7 +150,14 @@ async fn connect_and_serve(ws_url: &str, token: &str, app: &AppHandle) -> Result
 }
 
 /// 处理云端下发的消息
-async fn handle_cloud_message(text: &str, _token: &str, app: &AppHandle) -> Result<(), String> {
+///
+/// tx 用于通过 WS 回传指令状态更新给云端（网关会更新 RemoteCommand 表并转发给订阅者）
+async fn handle_cloud_message(
+    text: &str,
+    token: &str,
+    app: &AppHandle,
+    tx: &mpsc::Sender<String>,
+) -> Result<(), String> {
     let msg: serde_json::Value = serde_json::from_str(text)
         .map_err(|e| format!("解析消息失败: {}", e))?;
 
@@ -141,35 +175,62 @@ async fn handle_cloud_message(text: &str, _token: &str, app: &AppHandle) -> Resu
                 "command": command,
             }));
 
-            // 执行指令
+            // 通过 WS 回传：指令已接收，开始执行（网关会更新 RemoteCommand.status = executing）
+            let _ = tx.send(json!({
+                "type": "command-update",
+                "commandId": command_id,
+                "status": "executing",
+                "step": "开始执行",
+                "percent": 0
+            }).to_string()).await;
+
             let state = app.state::<Arc<AppState>>();
             let cloud = state.cloud_endpoint.lock().map_err(|e| e.to_string())?.clone();
             let auth_mode = state.auth_mode.lock().map_err(|e| e.to_string())?.clone();
 
-            // 流式回传进度（通过事件给前端展示）
+            // 前端事件展示进度
             let _ = app.emit("command-progress", json!({
                 "commandId": command_id,
-                "step": "开始执行",
-                "percent": 0,
+                "step": "执行中",
+                "percent": 50,
             }));
 
+            // 执行指令（路由到云端/本地/混合）
             let result = router::route_and_execute(
                 &command,
                 &cloud,
-                Some(_token),
+                Some(token),
                 &auth_mode,
                 state.inner().clone(),
                 app.clone(),
             ).await;
 
-            // 最终结果回传给云端（由前端通过 REST API 转发）
+            // 通过 WS 回传最终结果给云端
+            // 网关 handleCommandUpdate 会更新 RemoteCommand 表 status = completed/failed
+            // 并转发给所有订阅该指令的 WS（安卓端/Web端）
+            let update_msg = json!({
+                "type": "command-update",
+                "commandId": command_id,
+                "status": if result.success { "completed" } else { "failed" },
+                "result": {
+                    "success": result.success,
+                    "output": result.output,
+                    "route": result.route,
+                    "steps": result.steps,
+                    "durationMs": result.duration_ms,
+                },
+                "error": result.error,
+            });
+            let _ = tx.send(update_msg.to_string()).await;
+
+            // 同时通过前端事件展示最终结果
             let _ = app.emit("command-complete", json!({
                 "commandId": command_id,
                 "result": result,
             }));
         }
         "ping" => {
-            // 心跳响应
+            // 心跳响应（网关可选实现）
             let _ = app.emit("ws-ping", ());
         }
         _ => {

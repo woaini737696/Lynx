@@ -69,9 +69,31 @@ if (Test-Path "$ProjectRoot\prisma\seed.ts") {
   Copy-Item "$ProjectRoot\prisma\seed.ts" "$StandaloneDir\prisma\"
 }
 
-# 6. 复制官网
-Write-Host "[5/6] 打包官网..." -ForegroundColor Yellow
-Copy-Item -Recurse "$ProjectRoot\deploy\website" "$DistDir\$PkgName\website"
+# 6. 构建并打包官网 (web_Lynx - Vite + React 项目)
+Write-Host "[5/6] 构建官网 (web_Lynx)..." -ForegroundColor Yellow
+$WebsiteDir = "$ProjectRoot\web_Lynx"
+if (Test-Path "$WebsiteDir\package.json") {
+  Push-Location $WebsiteDir
+  # 优先使用 pnpm（项目用 pnpm-workspace.yaml），fallback 到 npm
+  if (Get-Command pnpm -ErrorAction SilentlyContinue) {
+    pnpm install --frozen-lockfile 2>$null
+    if ($LASTEXITCODE -ne 0) { pnpm install }
+    pnpm run build
+  } else {
+    npm ci 2>$null
+    if ($LASTEXITCODE -ne 0) { npm install }
+    npm run build
+  }
+  if ($LASTEXITCODE -ne 0) { throw "web_Lynx 构建失败" }
+  Pop-Location
+
+  # 复制官网构建产物 (web_Lynx/dist → deploy/dist/{pkg}/website)
+  New-Item -ItemType Directory -Path "$DistDir\$PkgName\website" -Force | Out-Null
+  Copy-Item -Recurse "$WebsiteDir\dist\*" "$DistDir\$PkgName\website\"
+  Write-Host "  官网产物已复制 (web_Lynx/dist)" -ForegroundColor Green
+} else {
+  Write-Host "  web_Lynx 目录未找到，跳过官网构建" -ForegroundColor Yellow
+}
 
 # 复制服务器配置
 New-Item -ItemType Directory -Path "$DistDir\$PkgName\nginx" -Force | Out-Null

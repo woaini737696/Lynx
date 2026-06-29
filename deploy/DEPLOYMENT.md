@@ -1,6 +1,6 @@
 # Lynx 阿里云部署方案
 
-> 目标服务器：阿里云 ECS 2核2G | 域名：www.lynxdo.com（官网）/ app.lynxdo.com（应用+API）
+> 目标服务器：阿里云 ECS 2核2G | 域名：www.lynxdo.com（官网）/ ai.lynxdo.com（应用+API）
 > 核心原则：**本地构建 → 同步部署**，服务器零编译，资源严格受控
 
 ---
@@ -13,7 +13,7 @@
                     │                                   │
   www.lynxdo.com ──┤  Nginx (443/80)                   │
                     │    ├── / → 官网静态HTML            │
-  app.lynxdo.com  ──┤    ├── / → proxy_pass :5176       │
+  ai.lynxdo.com  ──┤    ├── / → proxy_pass :5176       │
                     │    └── /download → 静态安装包      │
                     │                                   │
                     │  PM2 → Node.js :5176              │
@@ -39,10 +39,13 @@
 
 | 组件 | 运行位置 | 说明 |
 |------|----------|------|
-| 官网 (www.lynxdo.com) | 服务器 Nginx 静态托管 | 产品介绍、下载入口，纯 HTML/CSS |
-| Web 应用 (app.lynxdo.com) | 服务器 PM2 + Node.js | Next.js standalone，含全部 API routes |
+| 官网 (www.lynxdo.com) | 服务器 Nginx 静态托管 | web_Lynx 项目（Vite + React 19）构建产物，纯静态文件 |
+| Web 应用 (ai.lynxdo.com) | 服务器 PM2 + Node.js | Next.js standalone，含全部 API routes |
 | 数据库 | 服务器 MySQL 8.x | 本地 3306，不对外暴露 |
-| 桌面端安装包 | 服务器 Nginx 静态托管 | 本地构建 MSI/NSIS，上传服务器供下载 |
+| 桌面端安装包 | 服务器 Nginx 静态托管 | **本地** Tauri 构建 NSIS exe，上传服务器供下载 |
+| 安卓端安装包 | 服务器 Nginx 静态托管 | **本地** Gradle 构建 APK，上传服务器供下载（可选） |
+| 桌面端源码 (desktop-native/) | **本地保留** | 不上服务器，仅本地构建打包 |
+| 安卓端源码 (android/) | **本地保留** | 不上服务器，仅本地构建打包 |
 | HermesAgent | **客户端本地运行** | Rust 进程内嵌于 Tauri，通过 API 读写云端数据 |
 | AI 模型调用 | 客户端→模型API | 桌面端直接调用 DeepSeek/MiMo API，不经服务器中转 |
 
@@ -66,14 +69,14 @@
 | 域名 | 记录类型 | 值 | 说明 |
 |------|----------|-----|------|
 | www.lynxdo.com | A | 服务器公网IP | 官网 |
-| app.lynxdo.com | A | 服务器公网IP | Web应用+API |
+| ai.lynxdo.com | A | 服务器公网IP | Web应用+API |
 | lynxdo.com | A | 服务器公网IP | 根域名（301→www） |
 
 ### 2.2 SSL 证书
 
 使用 Let's Encrypt 免费证书，certbot 自动续期：
 - www.lynxdo.com
-- app.lynxdo.com
+- ai.lynxdo.com
 
 ---
 
@@ -89,21 +92,23 @@
 
 ```powershell
 # 在项目根目录执行
-.\scripts\deploy\build.ps1
+.\scripts\deploy\build.ps1            # 含桌面端（耗时较长）
+.\scripts\deploy\build.ps1 -SkipDesktop  # 跳过桌面端（首次部署推荐）
 ```
 
 构建脚本会依次执行：
-1. **Web 端构建**：`npm run build` → `.next/standalone/` + `.next/static/`
+1. **依赖安装**：`npm ci`（主项目）
 2. **Prisma 生成**：`npx prisma generate`
-3. **官网打包**：`deploy/website/` → `deploy/dist/website/`
-4. **桌面端构建**：`cd desktop-native && npm run tauri build`（可选，耗时较长）
-5. **产物打包**：`deploy/dist/lynx-deploy-{timestamp}.tar.gz`
+3. **Web 端构建**：`npm run build` → `.next/standalone/` + `.next/static/`
+4. **官网构建**：`cd web_Lynx && pnpm install && pnpm run build` → `web_Lynx/dist/`
+5. **桌面端构建**（可选）：`cd desktop-native && cargo tauri build` → NSIS exe
+6. **产物打包**：`deploy/dist/lynx-deploy-{timestamp}.tar.gz`
 
 ### 3.3 构建产物结构
 
 ```
-deploy/dist/
-├── standalone/          # Next.js standalone 服务器
+deploy/dist/lynx-deploy-{timestamp}/
+├── standalone/          # Next.js standalone 服务器（部署到 /opt/lynx/app）
 │   ├── server.js        # 入口
 │   ├── .next/           # 编译产物
 │   │   └── static/      # 静态资源
@@ -111,12 +116,15 @@ deploy/dist/
 │   └── node_modules/    # 最小依赖（standalone 自动裁剪）
 ├── prisma/
 │   ├── schema.prisma
-│   └── migrations/      # 数据库迁移（如有）
-├── website/             # 官网静态文件
-│   └── index.html
-├── downloads/           # 桌面端安装包
+│   └── seed.ts          # 数据库 seed（仅首次部署执行）
+├── website/             # 官网静态文件（部署到 /opt/lynx/website，来自 web_Lynx/dist）
+│   ├── index.html
+│   └── assets/
+├── downloads/           # 桌面端/安卓端安装包（部署到 /opt/lynx/downloads）
 │   └── Lynx_1.0.0_x64-setup.exe
-└── deploy.env           # 环境变量模板
+├── nginx/               # Nginx 配置
+├── pm2/                 # PM2 配置
+└── mysql/               # MySQL 优化配置
 ```
 
 ---
@@ -158,7 +166,7 @@ ln -s /etc/nginx/sites-available/lynxdo /etc/nginx/sites-enabled/
 nginx -t && systemctl reload nginx
 
 # 8. 申请 SSL 证书
-certbot --nginx -d www.lynxdo.com -d app.lynxdo.com --non-interactive --agree-tos -m admin@lynxdo.com
+certbot --nginx -d www.lynxdo.com -d ai.lynxdo.com --non-interactive --agree-tos -m admin@lynxdo.com
 
 # 9. 部署 PM2 配置
 cp /tmp/lynx-deploy/pm2/ecosystem.config.cjs /opt/lynx/ecosystem.config.cjs
@@ -180,7 +188,7 @@ cp /tmp/lynx-deploy/pm2/ecosystem.config.cjs /opt/lynx/ecosystem.config.cjs
    - 执行 `npx prisma db seed`（仅首次）
    - `pm2 reload ecosystem.config.cjs`
 3. 上传桌面端安装包到 `/opt/lynx/downloads/`
-4. 健康检查 `curl https://app.lynxdo.com/api/health`
+4. 健康检查 `curl https://ai.lynxdo.com/api/health`
 
 ### 4.3 环境变量
 
@@ -190,7 +198,7 @@ cp /tmp/lynx-deploy/pm2/ecosystem.config.cjs /opt/lynx/ecosystem.config.cjs
 DATABASE_URL="mysql://lynx:STRONG_PASSWORD@localhost:3306/lynx"
 AUTH_SECRET="GENERATED_SECRET"
 NODE_ENV="production"
-NEXTAUTH_URL="https://app.lynxdo.com"
+NEXTAUTH_URL="https://ai.lynxdo.com"
 # AI API Keys（从本地 .env 复制，服务端 AI 调用用）
 DEEPSEEK_API_KEY="..."
 MIMO_API_KEY="..."
@@ -233,19 +241,19 @@ server {
     }
 }
 
-# 应用 app.lynxdo.com
+# 应用 ai.lynxdo.com
 server {
     listen 80;
-    server_name app.lynxdo.com;
+    server_name ai.lynxdo.com;
     return 301 https://$host$request_uri;
 }
 
 server {
     listen 443 ssl http2;
-    server_name app.lynxdo.com;
+    server_name ai.lynxdo.com;
 
-    ssl_certificate /etc/letsencrypt/live/app.lynxdo.com/fullchain.pem;
-    ssl_certificate_key /etc/letsencrypt/live/app.lynxdo.com/privkey.pem;
+    ssl_certificate /etc/letsencrypt/live/ai.lynxdo.com/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/ai.lynxdo.com/privkey.pem;
 
     # 安全头
     add_header X-Frame-Options "SAMEORIGIN" always;
@@ -364,8 +372,8 @@ HermesAgent **不在服务器运行**，保留在桌面端本地：
 
 - **桌面端 Tauri 内嵌 Rust 进程**：执行 RPA、浏览器自动化、文件操作等本地能力
 - **数据云端化**：所有配置、报告、任务通过 API 存取到服务器 MySQL
-- **API 通信**：桌面端通过 `https://app.lynxdo.com/api/...` 读写数据
-- **WebSocket**：桌面端连接 `wss://app.lynxdo.com/api/ws` 接收实时推送
+- **API 通信**：桌面端通过 `https://ai.lynxdo.com/api/...` 读写数据
+- **WebSocket**：桌面端连接 `wss://ai.lynxdo.com/api/ws` 接收实时推送
 
 这样的设计：
 1. 服务器不需要运行 Rust 进程，节省内存
@@ -410,12 +418,12 @@ mysql -u lynx -p lynx < /opt/lynx/backup/db-{last-timestamp}.sql
 部署完成后逐项验证：
 
 1. `curl -I https://www.lynxdo.com` → 200，返回官网首页
-2. `curl -I https://app.lynxdo.com` → 200 或 302（重定向到登录）
-3. `curl https://app.lynxdo.com/api/health` → `{"ok":true}`
-4. 浏览器访问 `https://app.lynxdo.com` → 登录页面正常
+2. `curl -I https://ai.lynxdo.com` → 200 或 302（重定向到登录）
+3. `curl https://ai.lynxdo.com/api/health` → `{"ok":true}`
+4. 浏览器访问 `https://ai.lynxdo.com` → 登录页面正常
 5. 手机号+密码登录 → 成功进入工作台
 6. 设置 > 认证 Tab → 可配置万能验证码和邀请码
-7. 桌面端连接 `https://app.lynxdo.com` → 登录成功
+7. 桌面端连接 `https://ai.lynxdo.com` → 登录成功
 8. `pm2 status` → lynx-app 状态 online，内存 < 350M
 9. `free -m` → 剩余内存 > 800M
-10. `https://app.lynxdo.com/download` → 可下载安装包
+10. `https://ai.lynxdo.com/download` → 可下载安装包

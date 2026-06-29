@@ -90,7 +90,7 @@ if ($InitServer) {
   Invoke-SSH "cp /tmp/lynx-deploy/ecosystem.config.cjs $DeployDir/"
 
   Write-Host "  请手动申请 SSL 证书:" -ForegroundColor Yellow
-  Write-Host "  certbot --nginx -d www.lynxdo.com -d app.lynxdo.com -m admin@lynxdo.com --agree-tos" -ForegroundColor Yellow
+  Write-Host "  certbot --nginx -d www.lynxdo.com -d ai.lynxdo.com -m admin@lynxdo.com --agree-tos" -ForegroundColor Yellow
   Write-Host ""
 }
 
@@ -140,13 +140,13 @@ Write-Host "健康检查..." -ForegroundColor Yellow
 Start-Sleep -Seconds 3
 
 try {
-  $response = Invoke-WebRequest "https://app.lynxdo.com/api/health" -TimeoutSec 10 -UseBasicParsing
+  $response = Invoke-WebRequest "https://ai.lynxdo.com/api/health" -TimeoutSec 10 -UseBasicParsing
   if ($response.StatusCode -eq 200) {
     Write-Host "  ✓ API 健康检查通过" -ForegroundColor Green
   }
 } catch {
   Write-Host "  ✗ API 健康检查失败（服务可能还在启动中）" -ForegroundColor Yellow
-  Write-Host "  请稍后手动检查: curl https://app.lynxdo.com/api/health" -ForegroundColor Yellow
+  Write-Host "  请稍后手动检查: curl https://ai.lynxdo.com/api/health" -ForegroundColor Yellow
 }
 
 Write-Host ""
@@ -156,8 +156,8 @@ Write-Host "========================================" -ForegroundColor Green
 Write-Host ""
 Write-Host "访问地址:" -ForegroundColor Cyan
 Write-Host "  官网: https://www.lynxdo.com"
-Write-Host "  应用: https://app.lynxdo.com"
-Write-Host "  下载: https://app.lynxdo.com/download/"
+Write-Host "  应用: https://ai.lynxdo.com"
+Write-Host "  下载: https://ai.lynxdo.com/download/"
 Write-Host ""
 Write-Host "服务器状态检查:" -ForegroundColor Cyan
 Write-Host "  ssh $SshTarget 'pm2 status'"

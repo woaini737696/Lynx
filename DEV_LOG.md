@@ -9,6 +9,7 @@
 
 | 迭代 | 日期 | 任务概要 |
 |------|------|----------|
+| [迭代 58](#迭代-58---2026-06-29) | 2026-06-29 | WS心跳+回传bug修复+域名改ai.lynxdo.com+官网改用web_Lynx+部署流程澄清 |
 | [迭代 57](#迭代-57---2026-06-29) | 2026-06-29 | 域名切换app.lynxdo.com+代码清理+阿里云部署方案+构建部署脚本+官网着陆页 |
 | [迭代 56](#迭代-56---2026-06-29) | 2026-06-29 | 官网域名Lynxdo.com+万能验证码配置化+登录注册改造（手机号+邀请码）+服务部署 |
 | [迭代 55](#迭代-55---2026-06-29) | 2026-06-29 | 安装包开发者信息+核心功能Web端差异梳理+P0打通修复+安全Bug修复+规范强化 |
@@ -33,6 +34,60 @@
 | [迭代 36](#迭代-36---2026-06-26) | 2026-06-26 | 角色管理 CRUD + 用户管理打通 + 职业空间 |
 | [迭代 35](#迭代-35---2026-06-26) | 2026-06-26 | 角色管理按职位分配 + 职业定制 AI 工作空间 |
 | [迭代 34](#迭代-34---2026-06-26) | 2026-06-26 | C 盘数据迁移 + 磁盘使用规范 |
+
+---
+
+## 迭代 58 - 2026-06-29
+
+### 任务概要
+修复 HermesAgent 远程控制 2 个关键 WS bug（心跳未发送 + 回传链路缺失）；域名从 app.lynxdo.com 改为 ai.lynxdo.com（更语义化）；官网改用 web_Lynx 项目（Vite+React19）替代简化版；澄清完整部署流程（桌面端/安卓端源码不上服务器，只上服务端+数据库+官网+安装包）。
+
+### 完成内容
+
+#### 1. WS 心跳 bug 修复（ws_client.rs）
+- **问题**：心跳任务只 emit 事件给前端，未通过 WS 发送心跳消息给网关，导致 90 秒后被强制下线
+- **修复**：重构 ws_client.rs 为 mpsc channel 模式，心跳任务每 30 秒通过 channel 发送 `{type:"heartbeat"}` 消息，writer task 统一从 channel 读取并通过 WS 发送
+- **文件**：`desktop-native/src-tauri/src/ws_client.rs`（完整重写）
+
+#### 2. WS 回传链路 bug 修复（ws_client.rs + ws-gateway.ts）
+- **问题**：桌面端执行完远程指令后，未通过 WS 回传 command-update 消息，导致服务端 RemoteCommand 表状态永远停在 dispatched
+- **修复**：
+  - ws_client.rs：handle_cloud_message 接收 tx 参数，执行前发送 status=executing，执行后发送 status=completed/failed + result
+  - ws-gateway.ts：handleCommandUpdate 改为检查 data.status 字段（之前错误检查 data.type），支持 executing/completed/failed 三态
+- **文件**：`desktop-native/src-tauri/src/ws_client.rs` + `src/lib/ws-gateway.ts`
+
+#### 3. 域名切换 app.lynxdo.com → ai.lynxdo.com
+- **原因**：ai.lynxdo.com 更语义化（AI 入口），与 www.lynxdo.com（官网）区分更清晰
+- **替换文件**（12 个）：
+  - `next.config.mjs`（images.remotePatterns）
+  - `desktop-native/src-tauri/tauri.conf.json`（updater endpoint）
+  - `desktop-native/src-tauri/src/lib.rs`（cloud_endpoint 默认值）
+  - `desktop-native/src-tauri/src/hermes/executor.rs`（fallback endpoint，2处）
+  - `desktop-native/src-tauri/LICENSE.txt`
+  - `desktop-native/src-tauri/capabilities/default.json`（remote.urls）
+  - `desktop-native/src-tauri/gen/schemas/capabilities.json`
+  - `desktop-native/native-ui/src/pages/SettingsPage.tsx`（downloadUrl + placeholder）
+  - `deploy/nginx/lynxdo.conf`（多处）
+  - `deploy/DEPLOYMENT.md`（多处）
+  - `scripts/deploy/deploy.ps1`（多处）
+  - `DEVELOPMENT_SPEC.md`（7处）
+
+#### 4. 官网改用 web_Lynx 项目
+- **问题**：之前自建了简化版 deploy/website/index.html，但用户指出 web_Lynx 目录才是真正的官网代码
+- **修复**：
+  - 删除 deploy/website/index.html（简化版废弃）
+  - 修改 scripts/deploy/build.ps1，添加 web_Lynx 构建步骤（pnpm install + pnpm run build）
+  - 构建产物从 web_Lynx/dist 复制到 deploy/dist/{pkg}/website/
+  - 更新 DEPLOYMENT.md 说明官网来源
+- **文件**：`scripts/deploy/build.ps1` + `deploy/DEPLOYMENT.md`
+
+### 自测结果
+- `npx tsc --noEmit` 通过（exit code 0）
+- ws_client.rs 逻辑审查通过（mpsc channel 模式正确，心跳 + 回传链路完整）
+- ws-gateway.ts 消息协议匹配（status 字段一致）
+
+### Commit hash
+（待提交）
 
 ---
 
