@@ -46,6 +46,7 @@ fun SettingsScreen(
     onNavigateToNotification: () -> Unit = {},
     onNavigateToUpdate: () -> Unit = {},
     onNavigateToAbout: () -> Unit = {},
+    onNavigateToTokenAnalysis: () -> Unit = {},
     viewModel: SettingsViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
@@ -150,6 +151,11 @@ fun SettingsScreen(
                         label = "已配对设备",
                         value = "1 台",
                         onClick = onNavigateToDevices
+                    )
+                    SettingsRow(
+                        icon = LynxIcons.Assistant,
+                        label = "词元分析",
+                        onClick = onNavigateToTokenAnalysis
                     )
 
                     // 数据分组

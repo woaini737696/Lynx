@@ -163,6 +163,32 @@ export const helpContent: Record<string, HelpContent> = {
       "技能参数支持类型校验，执行时填入即可",
     ],
   },
+  wallet: {
+    title: "钱包使用说明",
+    paragraphs: [
+      "「钱包」展示你的 Credits 和 S币 余额，以及历史交易流水。",
+      "Credits 用于 AI 对话与词元消耗，15 Credits = 1 Token；S币 可在购买会员时按 1 元 = 50 S币 抵扣现金。",
+      "顶部双卡片分别展示 Credits（含可用余额与冻结中）和 S币 余额；下方流水支持 Credits / S币 两个 Tab 切换，并支持分页加载更多。",
+    ],
+    tips: [
+      "Credits 超过 1 亿会自动以「亿」为单位显示",
+      "点击会员徽章或「充值会员」可跳转会员页",
+      "点击右上角「刷新」可重新加载余额与流水",
+    ],
+  },
+  membership: {
+    title: "会员使用说明",
+    paragraphs: [
+      "「会员」提供 FREE / LITE / PRO / MAX / ULTRA 共 5 档套餐，每档对应不同的 Credits、S币、API 调用、记忆、工作流、技能等配额。",
+      "付费套餐支持 3 种计费周期：月付、季付、年付，周期越长折扣越大；下单时可用 S币 按汇率（1 元 = 50 S币）抵扣现金。",
+      "开通会员后，Credits 和 S币 会按月发放，立即到账；当前会员档位在套餐对比卡片中以高亮环标注。",
+    ],
+    tips: [
+      "升级到更高档位会按差价计算，降级可续费当前档位",
+      "S币 全额抵扣时无需支付现金，订单将立即激活",
+      "套餐对比网格可横向滑动查看全部 5 档",
+    ],
+  },
 };
 
 export type HelpKey = keyof typeof helpContent;

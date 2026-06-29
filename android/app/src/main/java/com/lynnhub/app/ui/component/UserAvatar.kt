@@ -70,10 +70,14 @@ fun UserAvatar(
                 ),
                 shape = CircleShape
             )
-            .clickable(
-                interactionSource = interactionSource,
-                indication = null,
-                onClick = onClick ?: {}
+            .then(
+                if (onClick != null) {
+                    Modifier.clickable(
+                        interactionSource = interactionSource,
+                        indication = null,
+                        onClick = onClick
+                    )
+                } else Modifier
             ),
         contentAlignment = Alignment.Center
     ) {

@@ -61,7 +61,7 @@ class LoginViewModel @Inject constructor(
     fun login() {
         val state = _uiState.value
         if (state.username.isBlank() || state.password.isBlank()) {
-            _uiState.value = state.copy(error = "请输入用户名和密码")
+            _uiState.value = state.copy(error = "请输入手机号和密码")
             return
         }
 
@@ -74,7 +74,7 @@ class LoginViewModel @Inject constructor(
                 dynamicBaseUrlInterceptor.setBaseUrl(baseUrl)
 
                 val response = apiService.login(
-                    LoginRequest(state.username.trim(), state.password)
+                    LoginRequest(phone = state.username.trim(), password = state.password)
                 )
                 userPreferences.saveAuth(
                     token = response.token,

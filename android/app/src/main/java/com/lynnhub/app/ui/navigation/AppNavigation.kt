@@ -106,7 +106,8 @@ fun AppNavigation(
                 onNavigateToCognition = { navController.navigate(Routes.COGNITION) },
                 onNavigateToNotification = { navController.navigate(Routes.NOTIFICATION) },
                 onNavigateToUpdate = { navController.navigate(Routes.UPDATE) },
-                onNavigateToAbout = { navController.navigate(Routes.ABOUT) }
+                onNavigateToAbout = { navController.navigate(Routes.ABOUT) },
+                onNavigateToTokenAnalysis = { navController.navigate(Routes.TOKEN_ANALYSIS) }
             )
         }
 
@@ -134,6 +135,9 @@ fun AppNavigation(
         }
         subPageComposable(Routes.ABOUT) {
             com.lynnhub.app.ui.screen.settings.AboutPage(onBack = { navController.popBackStack() })
+        }
+        subPageComposable(Routes.TOKEN_ANALYSIS) {
+            com.lynnhub.app.ui.screen.settings.TokenAnalysisPage(onBack = { navController.popBackStack() })
         }
     }
 }

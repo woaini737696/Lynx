@@ -22,7 +22,7 @@ data class ApiPaginatedResponse<T>(
 // ============ Auth ============
 @Serializable
 data class LoginRequest(
-    val username: String,
+    val phone: String,
     val password: String
 )
 
@@ -447,4 +447,50 @@ data class MobileConfigResponse(
     val latestVersion: String = "0.1.0",
     val maintenance: Boolean = false,
     val message: String? = null
+)
+
+// ============ Token Analysis (词元分析) ============
+@Serializable
+data class TokenAnalysisRequest(
+    val text: String,
+    val model: String = "deepseek-chat"
+)
+
+@Serializable
+data class TokenPieceDto(
+    val text: String,
+    val type: String, // cjk | latin | digit | punctuation | space | other
+    val start: Int = 0,
+    val end: Int = 0,
+    val tokens: Int = 0
+)
+
+@Serializable
+data class TokenStatsDto(
+    val cjk: Int = 0,
+    val latin: Int = 0,
+    val digit: Int = 0,
+    val punctuation: Int = 0,
+    val space: Int = 0,
+    val other: Int = 0
+)
+
+@Serializable
+data class TokenEstimatedCostDto(
+    val input: Double = 0.0,
+    val currency: String = "CNY"
+)
+
+@Serializable
+data class TokenAnalysisResponse(
+    val tokenCount: Int = 0,
+    val charCount: Int = 0,
+    val charCountNoSpaces: Int = 0,
+    val wordCount: Int = 0,
+    val sentenceCount: Int = 0,
+    val lineCount: Int = 0,
+    val tokens: List<TokenPieceDto> = emptyList(),
+    val stats: TokenStatsDto = TokenStatsDto(),
+    val model: String = "deepseek-chat",
+    val estimatedCost: TokenEstimatedCostDto = TokenEstimatedCostDto()
 )

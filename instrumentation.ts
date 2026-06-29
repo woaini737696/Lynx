@@ -1,6 +1,8 @@
 // Next.js Instrumentation 钩子
 // 在应用启动时执行一次（仅 server side）
 // 用于启动 Flows 定时/事件触发器调度器 + 飞书任务定时同步
+import { logger } from "@/lib/logger";
+
 export async function register(): Promise<void> {
   // 仅在 Node.js 运行时启动（排除 Edge）
   if (process.env.NEXT_RUNTIME !== "nodejs") return;
@@ -17,12 +19,12 @@ export async function register(): Promise<void> {
   await initializeDefaultFlows();
 
   await startAllTriggers();
-  console.log("[instrumentation] Flows 触发器调度器已启动");
+  logger.info("[instrumentation] Flows 触发器调度器已启动");
 
   // ===== 巡检调度器：按 PatrolRule.triggerTime 注册 cron job =====
   const { startPatrolScheduler } = await import("./src/lib/patrol-scheduler");
   await startPatrolScheduler();
-  console.log("[instrumentation] 巡检调度器已启动");
+  logger.info("[instrumentation] 巡检调度器已启动");
 
   // ===== Hermes 反馈学习管道（每天定时处理 bad 标注） =====
   // 读取 HermesReport 中近 24h 的消息标注纠正，写入 feedback-learning.jsonl
@@ -36,7 +38,7 @@ export async function register(): Promise<void> {
     try {
       const count = await processFeedbackReports();
       if (count > 0) {
-        console.log(`[instrumentation] Hermes 反馈学习处理 ${count} 条 bad 标注`);
+        logger.info(`[instrumentation] Hermes 反馈学习处理 ${count} 条 bad 标注`);
       }
     } catch (e) {
       console.error("[instrumentation] Hermes 反馈学习处理异常:", e);
@@ -49,7 +51,7 @@ export async function register(): Promise<void> {
     hermesLearnerTick();
     setInterval(hermesLearnerTick, HERMES_LEARNER_INTERVAL);
   }, 60 * 1000);
-  console.log("[instrumentation] Hermes 反馈学习管道已注册（每小时检查一次）");
+  logger.info("[instrumentation] Hermes 反馈学习管道已注册（每小时检查一次）");
 
   // ===== 飞书任务定时同步（每 5 分钟一次） =====
   // 解决"依赖用户访问 Web 端触发同步"的问题，服务端自动保持数据新鲜
@@ -74,7 +76,7 @@ export async function register(): Promise<void> {
     syncLarkTasksTick();
     setInterval(syncLarkTasksTick, LARK_SYNC_INTERVAL);
   }, 30 * 1000);
-  console.log("[instrumentation] 飞书任务定时同步已注册（每 5 分钟）");
+  logger.info("[instrumentation] 飞书任务定时同步已注册（每 5 分钟）");
 
   // ===== Hermes Dashboard 自动启动（端口 9119）=====
   // 用户期望：项目服务启动时连带启动 Hermes Dashboard，保证 /settings 中"打开 Dashboard"可访问
@@ -89,14 +91,14 @@ export async function register(): Promise<void> {
       // 1. 检测 hermes-agent 是否已安装
       const detect = await detectHermesInstall();
       if (!detect.installed) {
-        console.log("[instrumentation] Hermes Agent 未安装，跳过 Dashboard 自动启动");
+        logger.info("[instrumentation] Hermes Agent 未安装，跳过 Dashboard 自动启动");
         return;
       }
 
       // 2. 检测端口 9119 是否已被占用（已占用说明 Dashboard 已在运行）
       const isPortInUse = await checkPortInUse(HERMES_DASHBOARD_PORT);
       if (isPortInUse) {
-        console.log(`[instrumentation] Hermes Dashboard 端口 ${HERMES_DASHBOARD_PORT} 已被占用，跳过自动启动`);
+        logger.info(`[instrumentation] Hermes Dashboard 端口 ${HERMES_DASHBOARD_PORT} 已被占用，跳过自动启动`);
         return;
       }
 
@@ -106,15 +108,15 @@ export async function register(): Promise<void> {
         select: { userId: true },
       });
       if (!autoStartUser) {
-        console.log("[instrumentation] 无用户开启 Hermes autoStart，跳过 Dashboard 自动启动");
+        logger.info("[instrumentation] 无用户开启 Hermes autoStart，跳过 Dashboard 自动启动");
         return;
       }
 
       // 4. 启动 Hermes Dashboard
-      console.log(`[instrumentation] 自动启动 Hermes Dashboard（端口 ${HERMES_DASHBOARD_PORT}）...`);
+      logger.info(`[instrumentation] 自动启动 Hermes Dashboard（端口 ${HERMES_DASHBOARD_PORT}）...`);
       const result = await startHermesAgent(HERMES_DASHBOARD_PORT);
       if (result.success) {
-        console.log(`[instrumentation] Hermes Dashboard 已启动（PID ${result.pid}，端口 ${HERMES_DASHBOARD_PORT}）`);
+        logger.info(`[instrumentation] Hermes Dashboard 已启动（PID ${result.pid}，端口 ${HERMES_DASHBOARD_PORT}）`);
         // 同步更新所有开启 autoStart 的用户配置状态
         await prisma.hermesConfig.updateMany({
           where: { autoStart: true },
@@ -163,5 +165,5 @@ export async function register(): Promise<void> {
   setTimeout(() => {
     autoStartHermesDashboard();
   }, 15 * 1000);
-  console.log("[instrumentation] Hermes Dashboard 自动启动已注册（延迟 15 秒执行）");
+  logger.info("[instrumentation] Hermes Dashboard 自动启动已注册（延迟 15 秒执行）");
 }

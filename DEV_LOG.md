@@ -9,6 +9,7 @@
 
 | 迭代 | 日期 | 任务概要 |
 |------|------|----------|
+| [迭代 57](#迭代-57---2026-06-29) | 2026-06-29 | 域名切换app.lynxdo.com+代码清理+阿里云部署方案+构建部署脚本+官网着陆页 |
 | [迭代 56](#迭代-56---2026-06-29) | 2026-06-29 | 官网域名Lynxdo.com+万能验证码配置化+登录注册改造（手机号+邀请码）+服务部署 |
 | [迭代 55](#迭代-55---2026-06-29) | 2026-06-29 | 安装包开发者信息+核心功能Web端差异梳理+P0打通修复+安全Bug修复+规范强化 |
 | [迭代 54](#迭代-54---2026-06-29) | 2026-06-29 | TTS/ASR模型+新增模型功能+LynxAgent启动修复+角色权限分类+职业空间改名+用户列表优化+开发日志分页 |
@@ -35,6 +36,95 @@
 
 ---
 
+## 迭代 57 - 2026-06-29
+
+### 任务概要
+将后端 API 域名从 app.lynnhub.com 统一切换为 app.lynxdo.com；清理冗余/无效/重复代码；设计完整的阿里云 ECS 2C2G 部署方案（官网+Web应用+数据库+桌面端安装包下载）；编写本地构建脚本和服务器同步部署脚本；创建官网着陆页；确保 HermesAgent 保留在客户端本地运行。
+
+### 完成内容
+
+#### 1. 域名切换 app.lynnhub.com → app.lynxdo.com（任务1）
+全局替换所有代码和配置中的 API 域名：
+- `next.config.mjs`：images.remotePatterns
+- `desktop-native/src-tauri/tauri.conf.json`：updater endpoint
+- `desktop-native/src-tauri/src/lib.rs`：cloud_endpoint 默认值
+- `desktop-native/src-tauri/capabilities/default.json`：remote.urls
+- `desktop-native/src-tauri/src/hermes/executor.rs`：fallback endpoint
+- `desktop-native/native-ui/src/pages/SettingsPage.tsx`：downloadUrl + placeholder
+- `desktop-native/src-tauri/LICENSE.txt`、`gen/schemas/capabilities.json`
+- `src/app/help/page.tsx`：mailto 链接
+- `DEVELOPMENT_SPEC.md`：3 处域名引用
+- `DEV_LOG.md`：迭代56说明
+- 旧 `desktop/` 目录已删除（含残留引用一并清除）
+
+#### 2. 代码清理（任务2前置）
+- 删除 `scripts/check-admin.ts`（含明文密码猜测列表，P0 安全风险）
+- 删除 `src/lib/utils.ts` 中的 `Z_INDEX` 常量（dead code，从未被引用）
+- 删除 `src/hooks/use-workspace.ts` 中的 `clearWorkspaceCache` 函数（dead code，从未被调用）
+- 迁移 39 处 `console.log` 到正式 pino logger：
+  - `src/lib/lark-sync.ts`（7 处 → `logger.warn`）
+  - `src/lib/ws-gateway.ts`（8 处 → `logger.info`）
+  - `src/lib/flow-scheduler.ts`（9 处 → `logger.info`）
+  - `src/lib/flow-store.ts`（4 处 → `logger.info`）
+  - `instrumentation.ts`（11 处 → `logger.info`）
+- 删除旧 `desktop/` 目录（已被 `desktop-native/` 取代，含构建产物和调试脚本）
+- 确认 `.env` 未被 git 追踪（`.gitignore` 已包含）
+- `npx tsc --noEmit` 验证通过（exit code 0，无任何错误）
+
+#### 3. 阿里云部署方案（任务3）
+创建 `deploy/DEPLOYMENT.md` 完整部署方案文档，包含：
+- **架构总览**：Nginx + PM2/Node.js + MySQL，HermesAgent 不在服务器运行
+- **资源预算**：2C2G 内存分配（MySQL 400MB + Node.js 300MB + Nginx 30MB + 系统 200MB = 930MB，剩余 1118MB 缓冲）
+- **域名规划**：www.lynxdo.com（官网静态）+ app.lynxdo.com（应用+API）
+- **SSL**：Let's Encrypt 免费证书，certbot 自动续期
+- **本地构建流程**：`scripts/deploy/build.ps1` 一键构建（Next.js standalone + 官网 + 桌面端安装包）
+- **服务器部署流程**：`scripts/deploy/deploy.ps1` 一键同步（scp + ssh + pm2 reload）
+- **Nginx 配置**：反向代理 + 安全头 + gzip + WebSocket + 静态文件
+- **PM2 配置**：max_memory_restart=350M 防止 OOM
+- **MySQL 优化**：innodb_buffer_pool=256M + max_connections=50 + bind-address=127.0.0.1
+- **HermesAgent 架构**：保留在桌面端本地运行，通过 API 读写云端数据
+- **安全清单**：9 项安全检查
+- **回滚方案**：备份 + 回滚 + 数据库恢复
+- **部署验证清单**：10 项验证步骤
+
+#### 4. 部署配置文件
+- `deploy/nginx/lynxdo.conf`：Nginx 站点配置（HTTP→HTTPS 重定向 + 官网静态 + 应用反代 + 安装包下载）
+- `deploy/pm2/ecosystem.config.cjs`：PM2 进程配置（fork 模式 + 内存限制 + 日志轮转）
+- `deploy/mysql/lynxdo.cnf`：MySQL 8.x 优化配置（内存限制 + 安全 + InnoDB 优化）
+- `deploy/website/index.html`：官网着陆页（深邃星空蓝 + 液态玻璃风格，产品介绍 + 下载入口）
+
+#### 5. 构建和部署脚本
+- `scripts/deploy/build.ps1`：本地构建脚本
+  - npm ci → prisma generate → next build → 复制 standalone 产物 → 复制官网 → Tauri 构建 → 打包
+  - 支持 `-SkipDesktop` 跳过桌面端构建
+- `scripts/deploy/deploy.ps1`：服务器同步部署脚本
+  - 支持 `-InitServer` 首次初始化（安装 Nginx/MySQL/Node.js/PM2）
+  - 上传 → 备份 → 部署 → 数据库迁移 → PM2 reload → 健康检查
+- `src/app/api/health/route.ts`：健康检查 API（部署验证用）
+
+#### 6. HermesAgent 架构（任务5）
+- HermesAgent **不在服务器运行**，保留在桌面端 Tauri 内嵌 Rust 进程
+- 数据云端化：配置、报告、任务通过 API 存取到服务器 MySQL
+- API 通信：`https://app.lynxdo.com/api/...`
+- WebSocket：`wss://app.lynxdo.com/api/ws`
+- 服务器不需要运行 Rust 进程，节省内存
+
+#### 7. .gitignore 更新
+- 添加 `/deploy/dist/` 和 `/deploy/backup/`（构建产物不入版本控制）
+
+### 验证
+- `npx tsc --noEmit`：exit code 0，无任何错误
+- 域名替换：`grep -r "app.lynnhub.com"` 仅剩 DEV_LOG 历史记录
+- 代码清理：dead code 已删除，console.log 已迁移到 logger
+
+### 文件清单
+- 新增：`deploy/DEPLOYMENT.md`、`deploy/nginx/lynxdo.conf`、`deploy/pm2/ecosystem.config.cjs`、`deploy/mysql/lynxdo.cnf`、`deploy/website/index.html`、`scripts/deploy/build.ps1`、`scripts/deploy/deploy.ps1`、`src/app/api/health/route.ts`
+- 修改：`next.config.mjs`、`desktop-native/src-tauri/tauri.conf.json`、`desktop-native/src-tauri/src/lib.rs`、`desktop-native/src-tauri/capabilities/default.json`、`desktop-native/src-tauri/src/hermes/executor.rs`、`desktop-native/src-tauri/gen/schemas/capabilities.json`、`desktop-native/src-tauri/LICENSE.txt`、`desktop-native/native-ui/src/pages/SettingsPage.tsx`、`src/app/help/page.tsx`、`DEVELOPMENT_SPEC.md`、`DEV_LOG.md`、`.gitignore`
+- 迁移：`src/lib/{lark-sync,ws-gateway,flow-scheduler,flow-store}.ts`、`instrumentation.ts`（console.log → logger）
+- 删除：`scripts/check-admin.ts`、`desktop/` 目录、`src/lib/utils.ts` Z_INDEX、`src/hooks/use-workspace.ts` clearWorkspaceCache
+
+---
+
 ## 迭代 56 - 2026-06-29
 
 ### 任务概要
@@ -45,7 +135,7 @@
 #### 1. 官网域名统一为 www.Lynxdo.com（任务1）
 - `desktop-native/native-ui/src/pages/LoginPage.tsx`：`handleOpenWebSite` URL 改为 `https://www.Lynxdo.com`
 - `desktop-native/installer.nsi`：注册表 `HelpLink` 和 `URLInfoAbout` 改为 `https://www.Lynxdo.com`，安装包元数据对齐官网域名
-- 说明：`app.lynnhub.com` 作为后端 API endpoint 保持不变（与官网域名是不同概念）
+- 说明：后端 API endpoint 已从 `app.lynnhub.com` 统一切换为 `app.lynxdo.com`
 
 #### 2. 万能验证码配置化（任务3）
 - `prisma/schema.prisma`：新增 `SystemConfig` 表（key-value 结构，存储 `master_code` 和 `master_code_enabled`）和 `InviteCode` 表（邀请码管理）

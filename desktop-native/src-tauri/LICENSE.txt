@@ -8,4 +8,4 @@ Lynx 用户使用协议
 2. 本软件内置全局快捷键 Ctrl+Shift+L 用于快速唤起/隐藏主窗口。
 3. 安装即表示您同意 LynnHub 相关服务条款与隐私政策。
 
-更多信息请访问：https://app.lynnhub.com
+更多信息请访问：https://app.lynxdo.com

@@ -128,3 +128,7 @@ test_ui.xml
 /desktop-native/nsis-*.log
 /desktop-native/*-build*.log
 /desktop-native/build-native*.log
+
+# 部署构建产物（本地构建后同步到服务器，不入版本控制）
+/deploy/dist/
+/deploy/backup/
