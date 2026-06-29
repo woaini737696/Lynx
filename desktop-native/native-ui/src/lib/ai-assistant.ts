@@ -312,18 +312,28 @@ function renderBlock(block: string | { type: "code"; content: string; lang: stri
 
 function renderInline(text: string): string {
   let result = text;
-  // 行内代码
+  // 行内代码（先处理，避免代码内容被后续规则破坏）
   result = result.replace(/`([^`]+)`/g, '<code class="md-inline-code">$1</code>');
   // 粗体
   result = result.replace(/\*\*([^*]+)\*\*/g, '<strong class="md-bold">$1</strong>');
   // 斜体
   result = result.replace(/(?<!\*)\*([^*]+)\*(?!\*)/g, '<em class="md-italic">$1</em>');
-  // 链接
+  // 链接：仅允许 http/https/mailto 协议，阻断 javascript:/data: 等
   result = result.replace(
     /\[([^\]]+)\]\(([^)]+)\)/g,
-    '<a class="md-link" href="$2" target="_blank" rel="noopener">$1</a>'
+    (_fullMatch, label: string, url: string) => {
+      const trimmedUrl = url.trim();
+      const isSafe = /^(https?:\/\/|mailto:)/i.test(trimmedUrl);
+      if (!isSafe) return escapeHtml(label);
+      return `<a class="md-link" href="${escapeAttr(trimmedUrl)}" target="_blank" rel="noopener noreferrer">${escapeHtml(label)}</a>`;
+    }
   );
   return result;
+}
+
+/** 转义 HTML 属性值（用于 href 等） */
+function escapeAttr(text: string): string {
+  return escapeHtml(text);
 }
 
 function escapeHtml(text: string): string {

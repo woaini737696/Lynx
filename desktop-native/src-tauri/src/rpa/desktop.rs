@@ -4,21 +4,22 @@
 use tauri::Manager;
 
 /// 启动本地应用
+/// 安全：仅允许白名单应用名，未知应用名拒绝执行（防命令注入）
 pub async fn open_app(app_name: &str) -> Result<(), String> {
-    let (cmd, args) = match app_name.to_lowercase().as_str() {
-        "excel" => ("cmd", vec!["/C", "start", "excel"]),
-        "wechat" | "微信" => ("cmd", vec!["/C", "start", "WeChat"]),
-        "notepad" | "记事本" => ("cmd", vec!["/C", "start", "notepad"]),
-        "browser" | "浏览器" => ("cmd", vec!["/C", "start", "chrome"]),
-        "explorer" | "文件管理器" => ("cmd", vec!["/C", "start", "explorer"]),
-        "calculator" | "计算器" => ("cmd", vec!["/C", "start", "calc"]),
+    let args: Vec<&str> = match app_name.to_lowercase().as_str() {
+        "excel" => vec!["/C", "start", "excel"],
+        "wechat" | "微信" => vec!["/C", "start", "WeChat"],
+        "notepad" | "记事本" => vec!["/C", "start", "notepad"],
+        "browser" | "浏览器" => vec!["/C", "start", "chrome"],
+        "explorer" | "文件管理器" => vec!["/C", "start", "explorer"],
+        "calculator" | "计算器" => vec!["/C", "start", "calc"],
         _ => {
-            // 通用：尝试直接 start app_name
-            ("cmd", vec!["/C", "start", app_name])
+            // 未知应用名拒绝执行，避免命令注入
+            return Err(format!("不支持的应用: {}（仅支持白名单应用）", app_name));
         }
     };
 
-    let status = tokio::process::Command::new(cmd)
+    let status = tokio::process::Command::new("cmd")
         .args(&args)
         .kill_on_drop(true)
         .status()

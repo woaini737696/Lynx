@@ -9,7 +9,7 @@
 // 6. 全程通过事件向前端报告进度
 
 use serde_json::json;
-use tauri::{AppHandle, Manager, Emitter};
+use tauri::{AppHandle, Emitter};
 
 /// 安装进度事件
 fn emit_progress(app: &AppHandle, step: u8, total: u8, message: &str, percent: u32) {
@@ -33,7 +33,7 @@ pub async fn detect_installation() -> Result<serde_json::Value, String> {
     });
 
     // 检测 Node.js
-    let node_check = tokio::process::Command::new(if cfg!(target_os = "windows") { "node" } else { "node" })
+    let node_check = tokio::process::Command::new("node")
         .arg("--version")
         .output()
         .await;
@@ -55,7 +55,7 @@ pub async fn detect_installation() -> Result<serde_json::Value, String> {
     }
 
     // 检测 hermes-agent
-    let hermes_check = tokio::process::Command::new(if cfg!(target_os = "windows") { "hermes" } else { "hermes" })
+    let hermes_check = tokio::process::Command::new("hermes")
         .arg("status")
         .output()
         .await;

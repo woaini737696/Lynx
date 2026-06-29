@@ -17,11 +17,14 @@ use tokio_tungstenite::tungstenite::Message;
 
 /// 启动 WS 客户端，连接云端状态中心
 pub async fn start_ws_client(cloud_endpoint: &str, user_token: &str, app: AppHandle) {
-    let ws_url = build_ws_url(cloud_endpoint, user_token);
-    log::info!("HermesAgent WS 客户端连接: {}", ws_url);
+    let ws_url = build_ws_url(cloud_endpoint);
+    // 日志中不输出 token，避免凭证泄露
+    log::info!("HermesAgent WS 客户端连接: {}://{}/api/ws/agent", 
+        if cloud_endpoint.starts_with("https") { "wss" } else { "ws" },
+        cloud_endpoint.replace("https://", "").replace("http://", ""));
 
     loop {
-        match connect_and_serve(&ws_url, &user_token, &app).await {
+        match connect_and_serve(&ws_url, user_token, &app).await {
             Ok(_) => {
                 log::info!("WS 连接正常关闭");
                 break;
@@ -34,8 +37,8 @@ pub async fn start_ws_client(cloud_endpoint: &str, user_token: &str, app: AppHan
     }
 }
 
-/// 构造 WS URL：将 http(s):// 转为 ws(s)://，附加 token
-fn build_ws_url(cloud_endpoint: &str, token: &str) -> String {
+/// 构造 WS URL：将 http(s):// 转为 ws(s)://，不含 token（token 通过首条消息发送）
+fn build_ws_url(cloud_endpoint: &str) -> String {
     let ws_scheme = if cloud_endpoint.starts_with("https") {
         "wss"
     } else {
@@ -44,7 +47,7 @@ fn build_ws_url(cloud_endpoint: &str, token: &str) -> String {
     let host = cloud_endpoint
         .replace("https://", "")
         .replace("http://", "");
-    format!("{}://{}/api/ws/agent?token={}", ws_scheme, host, token)
+    format!("{}://{}/api/ws/agent", ws_scheme, host)
 }
 
 /// 连接云端 WS 并处理消息
@@ -65,9 +68,10 @@ async fn connect_and_serve(ws_url: &str, token: &str, app: &AppHandle) -> Result
     use futures_util::SinkExt;
     use futures_util::StreamExt;
 
-    // 1. 发送注册消息
+    // 1. 发送认证+注册消息（token 通过消息体传递，不暴露在 URL 中）
     let register_msg = json!({
         "type": "register",
+        "token": token,
         "agentVersion": env!("CARGO_PKG_VERSION"),
         "deviceName": get_device_name(),
         "capabilities": ["browser", "desktop", "file", "shell"],
