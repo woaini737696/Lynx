@@ -674,7 +674,7 @@ model Flow {
   id          String    @id @default(cuid())
   name        String    @db.VarChar(200)
   description String    @db.Text
-  nodes       Json // FlowNode[]
+  nodes       Json      @default("[]") // FlowNode[]
   edges       Json      @default("[]") // FlowEdge[]
   enabled     Boolean   @default(true)
   lastRun     DateTime?

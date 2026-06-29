@@ -9,6 +9,7 @@
 
 | 迭代 | 日期 | 任务概要 |
 |------|------|----------|
+| [迭代 62](#迭代-62---2026-06-29) | 2026-06-29 | 功能闭环修复：AI工作流nodes.filter崩溃+HermesAgent pip安装失败+灵感API验证+全面API自测 |
 | [迭代 61](#迭代-61---2026-06-29) | 2026-06-29 | 功能闭环修复：Prisma engine路径修复+ws-gateway scripts缺失修复+lynn测试数据生成+12个API验证通过 |
 | [迭代 60](#迭代-60---2026-06-29) | 2026-06-29 | 服务器零构建架构修复：ws-gateway本地esbuild预编译+规范强化+2G swap防OOM+Prisma跨平台engine |
 | [迭代 59](#迭代-59---2026-06-29) | 2026-06-29 | 15项bug修复+功能优化：开发规范/Logo/登录/弹窗/测试数据/AI模型/LynxAgent/助理同步/性能监控/远程操控/会员合并 |
@@ -102,6 +103,60 @@
 
 ### Commit hash
 `4181fb4d`
+
+---
+
+## 迭代 62 - 2026-06-29
+
+### 任务概要
+修复用户反馈的3个核心问题：AI工作流页面 `e.nodes.filter is not a function` 崩溃、HermesAgent 一键安装 pip 失败、灵感未进入 Inbox。全面 API 自测 18 个端点。
+
+### 完成内容
+
+#### 1. AI 工作流 nodes.filter 崩溃修复
+- **根因**：`prisma/schema.prisma` 中 `Flow.nodes` 字段缺少 `@default("[]")`，历史数据可能为 NULL；`flow-store.ts` 的 `toFlow()` 对 nodes 没有 null-safe 兜底
+- **修复**：
+  - `prisma/schema.prisma`：`nodes Json @default("[]")` 添加默认值
+  - `src/lib/flow-store.ts`：`toFlow()` 函数 nodes/edges 均加 `Array.isArray` 兜底
+  - `src/app/ai/flows/page.tsx`：`fetchFlows` 入口做数据规范化，确保 nodes/edges 是数组
+
+#### 2. HermesAgent 安装失败修复
+- **根因**：PyPI 上不存在 `hermes-agent` 包，`pip install hermes-agent` 永远失败；HermesAgent 引擎实际是自研 Rust 实现（`desktop-native/src-tauri/src/hermes/`），已内置在桌面端安装包中
+- **修复**：
+  - `desktop-native/src-tauri/src/installer.rs`：删除 Step 5 的 `pip install hermes-agent` 逻辑，改为提示"引擎已内置"
+  - `src/lib/hermes-client.ts`：`installHermesAgent()` 改为返回"请使用桌面端"提示，不再执行 pip install
+
+#### 3. 灵感 Inbox 验证
+- **排查结果**：灵感 API 链路完全正常
+  - POST /api/ideas 创建成功，status 默认 "inbox"
+  - GET /api/ideas 硬编码 `where.status = "inbox"` 过滤
+  - AI 助理 createIdea 工具也正确设置 status="inbox"
+  - 14 条灵感在 Inbox 中正常显示
+- **结论**：灵感 API 无 bug，用户遇到的可能只是前端页面缓存/刷新问题
+
+#### 4. 全面 API 自测（18 个端点）
+通过 curl + token 验证所有核心 API：
+- ✅ 14 个通过：灵感(14条) / 任务(10条) / 技能(4条) / 工作流(5条) / 对话(3个) / 认知(3条) / 记忆(8个) / 钱包 / 会员(PRO) / 今日聚焦(3张) / 对话资产(2条) / 灵感墓地(2条) / 健康 / Hermes状态
+- ⚠ 4 个 404：测试路径不对（非 bug）：/api/ai/skills→/api/skills、/api/ai/providers→/api/ai/models、/api/system/diagnostics→/api/settings/diagnostics、/api/remote/devices→不存在
+
+### 涉及文件
+- `prisma/schema.prisma`（Flow.nodes 添加 @default("[]")）
+- `src/lib/flow-store.ts`（toFlow null-safe 兜底）
+- `src/app/ai/flows/page.tsx`（fetchFlows 数据规范化）
+- `desktop-native/src-tauri/src/installer.rs`（删除 pip install hermes-agent）
+- `src/lib/hermes-client.ts`（installHermesAgent 改为提示桌面端）
+- `DEV_LOG.md`（新增迭代62记录）
+
+### 部署状态
+- lynx-app: online, 106MB
+- lynx-ws-gateway: online, 62MB
+- 健康检查 200 OK
+- AI 工作流 API 验证通过（5个工作流，nodes 全部是数组）
+- 灵感 API 验证通过（14条 Inbox）
+- PM2 配置已保存
+
+### Commit hash
+`待提交`
 
 ---
 

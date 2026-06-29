@@ -904,66 +904,15 @@ export async function installHermesAgent(): Promise<{
   output?: string;
   error?: string;
 }> {
-  const { exec } = await import("child_process");
-  const { promisify } = await import("util");
-  const execAsync = promisify(exec);
-
-  try {
-    logger.info("开始安装 hermes-agent...");
-
-    // pip 镜像源：使用清华源（阿里云源在 standalone 部署中曾出现 PEP 503 报错：
-    // "The HTML index page being used is not a proper HTML 5 document"）
-    // 添加 --disable-pip-version-check 跳过 deprecation 警告
-    // 添加 --trusted-host 避免 SSL 证书问题
-    const PIP_INDEX_URL = "https://pypi.tuna.tsinghua.edu.cn/simple";
-    const pipCmd = process.platform === "win32" ? "pip" : "pip3";
-    const installArgs = `install --disable-pip-version-check --trusted-host pypi.tuna.tsinghua.edu.cn -i ${PIP_INDEX_URL} hermes-agent`;
-
-    // 第一阶段：从清华源安装
-    try {
-      const { stdout, stderr } = await execAsync(`${pipCmd} ${installArgs}`, {
-        timeout: 300_000, // 5 分钟超时
-        env: { ...process.env, PIP_DISABLE_PIP_VERSION_CHECK: "1" },
-      });
-      logger.info({ stdout: stdout.slice(0, 500) }, "hermes-agent 安装完成（清华源）");
-      return {
-        success: true,
-        output: stdout + (stderr ? `\n${stderr}` : ""),
-      };
-    } catch (e1) {
-      logger.warn({ err: e1 }, "从清华源安装失败，尝试默认源...");
-      // 第二阶段：尝试默认 PyPI 源
-      try {
-        const defaultArgs = `install --disable-pip-version-check hermes-agent`;
-        const { stdout, stderr } = await execAsync(`${pipCmd} ${defaultArgs}`, {
-          timeout: 300_000,
-          env: { ...process.env, PIP_DISABLE_PIP_VERSION_CHECK: "1" },
-        });
-        logger.info({ stdout: stdout.slice(0, 500) }, "hermes-agent 安装完成（默认源）");
-        return {
-          success: true,
-          output: stdout + (stderr ? `\n${stderr}` : ""),
-        };
-      } catch (e2) {
-        logger.error({ err: e2 }, "hermes-agent 安装失败（所有源均失败）");
-        const err1Msg = (e1 as Error).message;
-        const err2Msg = (e2 as Error).message;
-        return {
-          success: false,
-          error: `自动安装失败。请手动执行以下命令之一：\n` +
-                 `1. ${pipCmd} install -i ${PIP_INDEX_URL} hermes-agent\n` +
-                 `2. ${pipCmd} install hermes-agent\n\n` +
-                 `错误详情：\n清华源：${err1Msg}\n默认源：${err2Msg}`,
-        };
-      }
-    }
-  } catch (e) {
-    logger.error({ err: e }, "hermes-agent 安装失败");
-    return {
-      success: false,
-      error: (e as Error).message,
-    };
-  }
+  // HermesAgent 引擎是自研 Rust 实现，已内置在桌面端安装包中（desktop-native/src-tauri/src/hermes/）
+  // PyPI 上不存在 hermes-agent 包，pip install 永远会失败
+  // Web 端无法安装本地引擎，需使用桌面端
+  logger.warn("Web 端不支持安装 HermesAgent 引擎，请使用桌面端");
+  return {
+    success: false,
+    error: "HermesAgent 引擎已内置在桌面端安装包中，Web 端无需安装。\n" +
+           "请下载并安装 Lynx 桌面端客户端，引擎会随安装包自动就绪。",
+  };
 }
 
 /**
