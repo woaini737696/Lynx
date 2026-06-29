@@ -69,8 +69,8 @@ export function BoardPage() {
   const { data: tasks = [], isLoading } = useQuery<BoardTask[]>({
     queryKey: ["board"],
     queryFn: async () => {
-      const res = await cloudApi.get<{ tasks?: BoardTask[] }>("/api/tasks");
-      return res.tasks || [];
+      const res = await cloudApi.get<{ data?: BoardTask[]; total?: number }>("/api/tasks");
+      return res.data || [];
     },
   });
 
@@ -145,7 +145,7 @@ export function BoardPage() {
   }
 
   return (
-    <div className="mx-auto max-w-7xl">
+    <div className="mx-auto max-w-7xl px-4 py-4">
       {/* 页头 */}
       <div className="mb-5 flex items-end justify-between">
         <div>

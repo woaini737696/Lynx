@@ -141,10 +141,37 @@ pub async fn install_ai_environment(app: AppHandle) -> Result<serde_json::Value,
     }
     emit_progress(&app, 4, total_steps, "agent-browser 已就绪", 75);
 
-    // Step 5: Hermes Agent 引擎（自研 Rust 引擎，已内置在桌面端，无需 pip 安装）
-    // 历史上这里曾尝试 pip install hermes-agent，但 PyPI 上不存在该包；
-    // 实际引擎实现位于 desktop-native/src-tauri/src/hermes/ 目录，随安装包一起分发
-    emit_progress(&app, 5, total_steps, "Hermes Agent 引擎已内置", 90);
+    // Step 5: 安装 Hermes Agent（如未装）
+    if !detection["hermesAgent"].as_bool().unwrap_or(false) {
+        emit_progress(&app, 5, total_steps, "正在安装 Hermes Agent...", 85);
+        let pip_cmd = if cfg!(target_os = "windows") { "pip" } else { "pip3" };
+
+        // 使用清华源避免阿里云源 PEP 503 报错，添加 --disable-pip-version-check 跳过警告
+        let result = tokio::time::timeout(
+            std::time::Duration::from_secs(300),
+            tokio::process::Command::new(pip_cmd)
+                .args(&[
+                    "install",
+                    "--disable-pip-version-check",
+                    "--trusted-host",
+                    "pypi.tuna.tsinghua.edu.cn",
+                    "-i",
+                    "https://pypi.tuna.tsinghua.edu.cn/simple",
+                    "hermes-agent",
+                ])
+                .kill_on_drop(true)
+                .output(),
+        )
+        .await
+        .map_err(|_| "Hermes Agent 安装超时".to_string())?
+        .map_err(|e| format!("pip 执行失败: {}", e))?;
+
+        if !result.status.success() {
+            let stderr = String::from_utf8_lossy(&result.stderr);
+            log::warn!("Hermes Agent 安装失败（非阻塞）: {}", stderr);
+        }
+    }
+    emit_progress(&app, 5, total_steps, "Hermes Agent 已就绪", 90);
 
     // Step 6: 完成并验证
     emit_progress(&app, 6, total_steps, "验证安装结果...", 95);

@@ -19,11 +19,28 @@ export function setCloudEndpoint(endpoint: string): void {
 
 // 全局事件：401 时通知上层清除登录态并跳转登录页
 export const AUTH_EXPIRED_EVENT = "lynx-auth-expired";
+// 全局事件：未登录需要弹出登录弹窗
+export const LOGIN_REQUIRED_EVENT = "lynx-login-required";
+
+// 应用启动时间戳，用于防抖：启动后 3 秒内的 401 视为初始加载，不弹窗
+const APP_START_TIME = Date.now();
+const LOGIN_DEBOUNCE_MS = 3000;
+let lastLoginPromptTime = 0;
 
 function notifyAuthExpired() {
   if (typeof window !== "undefined") {
     window.dispatchEvent(new CustomEvent(AUTH_EXPIRED_EVENT));
   }
+}
+
+function notifyLoginRequired() {
+  if (typeof window === "undefined") return;
+  // 启动后 3 秒内的 401 视为初始加载，不弹窗
+  if (Date.now() - APP_START_TIME < LOGIN_DEBOUNCE_MS) return;
+  // 防抖：5 秒内只弹一次
+  if (Date.now() - lastLoginPromptTime < 5000) return;
+  lastLoginPromptTime = Date.now();
+  window.dispatchEvent(new CustomEvent(LOGIN_REQUIRED_EVENT));
 }
 
 // ============ fetch 实现的 cloudApi ============
@@ -75,15 +92,20 @@ export async function cloudRequest<T>(
   }
 
   // 401 处理：
-  // - 登录接口 (/api/auth/token) 的 401 是账号密码错误，直接抛后端 message，不触发 auth-expired
-  // - 其他接口的 401 是 token 过期，通知上层清除登录态并跳转登录页
+  // - 登录接口 (/api/auth/token) 的 401 是账号密码错误，直接抛后端 message，不触发弹窗
+  // - 已登录但 token 过期：触发 auth-expired（清除登录态 + 弹窗）
+  // - 未登录（无 token）：触发 login-required（弹窗引导登录，有防抖避免初始加载弹窗）
   if (res.status === 401) {
     const backendMsg = (data as Record<string, unknown>)?.error || (data as Record<string, unknown>)?.message;
-    if (path === "/api/auth/token") {
+    if (path === "/api/auth/token" || path === "/api/auth/register" || path === "/api/auth/sms-code") {
       throw new Error((backendMsg as string) || "用户名或密码错误");
     }
-    notifyAuthExpired();
-    throw new Error((backendMsg as string) || "登录已过期，请重新登录");
+    if (token) {
+      notifyAuthExpired();
+      throw new Error((backendMsg as string) || "登录已过期，请重新登录");
+    }
+    notifyLoginRequired();
+    throw new Error((backendMsg as string) || "请先登录");
   }
 
   if (res.status >= 400) {

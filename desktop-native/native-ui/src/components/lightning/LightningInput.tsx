@@ -5,6 +5,8 @@ import { Zap, Loader2, Check, X } from "lucide-react";
 import { cloudApi } from "@/lib/cloud-api";
 import { toast } from "@/lib/toast";
 import { useQueryClient } from "@tanstack/react-query";
+import { useAuthStore } from "@/stores/authStore";
+import { openLoginModal } from "@/lib/login-modal";
 
 /** 自定义事件名：外部按钮通过此事件唤起闪电输入 */
 export const OPEN_LIGHTNING_INPUT_EVENT = "lynx-open-lightning-input";
@@ -56,6 +58,13 @@ export function LightningInput() {
   const handleSave = async () => {
     if (!content.trim()) {
       close();
+      return;
+    }
+    // 未登录时弹出登录弹窗
+    if (!useAuthStore.getState().token) {
+      close();
+      openLoginModal();
+      toast.info("请先登录后再使用");
       return;
     }
     setStatus("saving");

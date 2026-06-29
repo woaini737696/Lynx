@@ -214,7 +214,7 @@ export function SkillsPage() {
   };
 
   return (
-    <div className="mx-auto max-w-5xl">
+    <div className="mx-auto max-w-5xl px-4 py-4">
       {/* 页头 */}
       <div className="mb-6 flex items-start justify-between gap-3">
         <div>
