@@ -28,15 +28,16 @@ export async function POST(req: NextRequest) {
     if (!isValidPhone(phone)) {
       return NextResponse.json({ error: "手机号格式不正确" }, { status: 400 });
     }
-    if (!code || !inviteCode || !password) {
+    if (!code || !inviteCode) {
       return NextResponse.json(
-        { error: "手机号、验证码、邀请码、密码均为必填" },
+        { error: "手机号、验证码、邀请码均为必填" },
         { status: 400 }
       );
     }
-    if (password.length < 6) {
-      return NextResponse.json({ error: "密码至少 6 位" }, { status: 400 });
-    }
+    // password 可选：未提供时自动生成随机密码（用户可用验证码登录）
+    const finalPassword = password && password.length >= 6
+      ? password
+      : Math.random().toString(36).slice(2, 10) + "A1!";
 
     // 校验验证码（依赖管理员启用的万能验证码）
     const masterCode = await getEffectiveMasterCode();
@@ -75,7 +76,7 @@ export async function POST(req: NextRequest) {
 
     // 创建用户 + 标记邀请码已使用（事务）
     const username = `phone_${phone}`;
-    const passwordHash = await bcrypt.hash(password, 10);
+    const passwordHash = await bcrypt.hash(finalPassword, 10);
     const user = await prisma.$transaction(async (tx) => {
       const u = await tx.user.create({
         data: {

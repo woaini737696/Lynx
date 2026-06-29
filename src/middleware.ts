@@ -23,12 +23,37 @@ const publicPatterns = [
 // 首页作为公开落地页：未登录用户可访问首页，由前端弹窗处理登录
 const PUBLIC_LANDING = /^\/$/;
 
+// ============ CORS：允许 Tauri 桌面端跨域访问 ============
+// Tauri 2.x WebView origin 为 https://tauri.localhost（Windows）或 tauri://localhost（macOS/Linux）
+// 仅对这些 origin 放行 CORS，避免开放给任意来源
+const ALLOWED_TAURI_ORIGINS = new Set([
+  "tauri://localhost",
+  "https://tauri.localhost",
+]);
+
+function addCorsHeaders(res: NextResponse, req: Request): NextResponse {
+  const origin = req.headers.get("origin");
+  if (origin && ALLOWED_TAURI_ORIGINS.has(origin)) {
+    res.headers.set("Access-Control-Allow-Origin", origin);
+    res.headers.set("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS");
+    res.headers.set("Access-Control-Allow-Headers", "Content-Type, Authorization");
+    res.headers.set("Access-Control-Allow-Credentials", "true");
+    res.headers.set("Access-Control-Max-Age", "86400");
+  }
+  return res;
+}
+
 export default auth((req) => {
   const { pathname, searchParams } = req.nextUrl;
 
+  // CORS 预检请求：直接返回 204 + CORS 头，不进入鉴权逻辑
+  if (req.method === "OPTIONS") {
+    return addCorsHeaders(new NextResponse(null, { status: 204 }), req);
+  }
+
   // 公开路由放行
   if (publicPatterns.some((p) => p.test(pathname))) {
-    return NextResponse.next();
+    return addCorsHeaders(NextResponse.next(), req);
   }
 
   // API 路由携带 Bearer Token 时放行（App 端），由 route handler 校验 token 有效性
@@ -36,7 +61,7 @@ export default auth((req) => {
     pathname.startsWith("/api/") &&
     req.headers.get("authorization")?.startsWith("Bearer ")
   ) {
-    return NextResponse.next();
+    return addCorsHeaders(NextResponse.next(), req);
   }
 
   // 未登录处理
@@ -44,7 +69,7 @@ export default auth((req) => {
     // API 路由（/api/*）：返回统一信封 JSON 401，不重定向到登录页
     // API 客户端（fetch/axios）期望 JSON 错误响应，而非 HTML 重定向
     if (pathname.startsWith("/api/")) {
-      return unauthorized("未登录");
+      return addCorsHeaders(unauthorized("未登录"), req);
     }
 
     // RSC 预取请求（带 _rsc 查询参数或 RSC 头）：返回 401 而非重定向
@@ -53,15 +78,18 @@ export default auth((req) => {
     const isRscPrefetch =
       searchParams.has("_rsc") || req.headers.get("RSC") === "1";
     if (isRscPrefetch) {
-      return new NextResponse(JSON.stringify({ error: "Unauthorized" }), {
-        status: 401,
-        headers: { "Content-Type": "application/json" },
-      });
+      return addCorsHeaders(
+        new NextResponse(JSON.stringify({ error: "Unauthorized" }), {
+          status: 401,
+          headers: { "Content-Type": "application/json" },
+        }),
+        req
+      );
     }
 
     // 首页作为公开落地页：未登录直接放行，由前端 AuthProvider 弹出登录窗
     if (PUBLIC_LANDING.test(pathname)) {
-      return NextResponse.next();
+      return addCorsHeaders(NextResponse.next(), req);
     }
 
     // 区分首次访问 vs 会话过期：
@@ -79,7 +107,7 @@ export default auth((req) => {
     } else {
       homeUrl.searchParams.set("login", "1");
     }
-    return NextResponse.redirect(homeUrl);
+    return addCorsHeaders(NextResponse.redirect(homeUrl), req);
   }
 
   // 路由守卫：/admin/* 仅 admin 可访问（服务端校验，避免普通用户看到 admin 页面骨架）
@@ -88,11 +116,11 @@ export default auth((req) => {
     if (role !== "admin") {
       const homeUrl = new URL("/", req.nextUrl.origin);
       homeUrl.searchParams.set("forbidden", "1");
-      return NextResponse.redirect(homeUrl);
+      return addCorsHeaders(NextResponse.redirect(homeUrl), req);
     }
   }
 
-  return NextResponse.next();
+  return addCorsHeaders(NextResponse.next(), req);
 });
 
 export const config = {

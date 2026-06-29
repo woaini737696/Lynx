@@ -81,7 +81,6 @@ export function LoginPage() {
   const [password, setPassword] = useState("");
   const [code, setCode] = useState("");
   const [inviteCode, setInviteCode] = useState("");
-  const [displayName, setDisplayName] = useState("");
   const [showPassword, setShowPassword] = useState(false);
 
   // UI 状态
@@ -206,7 +205,6 @@ export function LoginPage() {
         },
       };
       await saveAuth(credentials);
-      await invoke("set_user_token", { token: result.token });
       setCredentials(credentials);
       navigate("/focus", { replace: true });
     } catch (err) {
@@ -233,10 +231,6 @@ export function LoginPage() {
       setError("请输入邀请码");
       return;
     }
-    if (password.length < 6) {
-      setError("密码至少 6 位");
-      return;
-    }
 
     setLoading(true);
     try {
@@ -244,8 +238,6 @@ export function LoginPage() {
         phone,
         code,
         inviteCode: inviteCode.trim().toUpperCase(),
-        password,
-        displayName: displayName.trim() || undefined,
       });
 
       // 注册即登录：直接使用返回的 token
@@ -260,7 +252,6 @@ export function LoginPage() {
         },
       };
       await saveAuth(credentials);
-      await invoke("set_user_token", { token: result.token });
       setCredentials(credentials);
       navigate("/focus", { replace: true });
     } catch (err) {
@@ -565,30 +556,6 @@ export function LoginPage() {
                 placeholder="请输入邀请码（管理员发放）"
                 disabled={loading}
                 maxLength={32}
-              />
-
-              <PasswordField
-                id="password-register"
-                label="设置密码（至少 6 位）"
-                value={password}
-                onChange={setPassword}
-                placeholder="请设置登录密码"
-                autoComplete="new-password"
-                disabled={loading}
-                showPassword={showPassword}
-                onToggleShow={() => setShowPassword((v) => !v)}
-              />
-
-              <Field
-                id="display-name"
-                label="昵称（可选）"
-                icon={User}
-                type="text"
-                value={displayName}
-                onChange={setDisplayName}
-                placeholder="不填则使用手机号"
-                disabled={loading}
-                maxLength={50}
               />
 
               {/* 错误提示 */}

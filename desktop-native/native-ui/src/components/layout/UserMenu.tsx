@@ -5,7 +5,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
 import { useAuthStore } from "@/stores/authStore";
 import { clearAuth } from "@/lib/auth-persistence";
-import { invoke } from "@/lib/tauri";
+
 
 const menuItems = [
   { to: "/settings", label: "设置", icon: Settings },
@@ -27,7 +27,6 @@ export function UserMenu({ collapsed = false }: UserMenuProps) {
   const handleSignOut = async () => {
     try {
       await clearAuth();
-      await invoke("set_user_token", { token: "" }).catch(() => {});
     } catch (err) {
       console.error("退出登录失败", err);
     } finally {
