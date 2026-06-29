@@ -59,17 +59,9 @@ export function AssistantGlobalEntry() {
 
   const close = useCallback(() => setOpen(false), []);
 
-  // 检测到未登录时立即弹窗引导（排除登录/注册页，避免在登录页本身弹窗）
-  useEffect(() => {
-    if (
-      authChecked &&
-      !isLoggedIn &&
-      pathname !== "/login" &&
-      pathname !== "/register"
-    ) {
-      setShowLoginModal(true);
-    }
-  }, [authChecked, isLoggedIn, pathname]);
+  // 注意：不主动弹窗引导登录。
+  // 仅在用户主动点击悬浮按钮 / Alt+J 时才弹窗。
+  // 未登录状态下允许浏览页面，只有使用功能触发 API 时才由 SWRProvider 拦截 401 弹窗。
 
   // Alt+J 唤出/收起（也要检查登录状态）
   useEffect(() => {
@@ -106,21 +98,21 @@ export function AssistantGlobalEntry() {
         >
           <div className="w-full max-w-sm rounded-xl bg-background p-6 shadow-2xl">
             <h3 className="text-base font-semibold text-foreground">
-              登录已过期
+              请先登录
             </h3>
             <p className="mt-2 text-sm text-muted-foreground">
-              登录已过期，请重新登录
+              使用 Lynx 超级助理需要先登录账号
             </p>
             <div className="mt-5 flex justify-end gap-2">
               <button
                 type="button"
                 onClick={() => {
                   setShowLoginModal(false);
-                  window.location.href = "/?expired=1";
+                  window.location.href = "/?login=1";
                 }}
                 className="w-full rounded-lg bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground transition-colors hover:opacity-90 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               >
-                重新登录
+                去登录
               </button>
             </div>
           </div>

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { createPortal } from "react-dom";
 import { HelpCircle, X } from "lucide-react";
 import { HELP_CONTENT, type VersionedHelpContent } from "@/lib/help-content";
 
@@ -58,15 +59,16 @@ export function HelpButton({ content, contentKey, title = "使用说明" }: Help
         <span className="hidden sm:inline">{title}</span>
       </button>
 
-      {open && (
-        <div
-          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/30 p-4 backdrop-blur-xl"
-          onClick={() => setOpen(false)}
-        >
+      {open && typeof document !== "undefined" &&
+        createPortal(
           <div
-            className="glass-modal max-h-[85vh] w-full max-w-2xl overflow-y-auto rounded-3xl"
-            onClick={(e) => e.stopPropagation()}
+            className="fixed inset-0 z-[200] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4"
+            onClick={() => setOpen(false)}
           >
+            <div
+              className="glass-modal max-h-[85vh] w-full max-w-2xl overflow-y-auto rounded-3xl"
+              onClick={(e) => e.stopPropagation()}
+            >
             {/* 头部 - 加背景色避免滚动时内容透出重叠 */}
             <div className="sticky top-0 z-10 flex items-center justify-between bg-background/95 px-6 py-4 backdrop-blur-xl">
               <h2 className="flex items-center gap-2 text-lg font-bold text-foreground">
@@ -144,8 +146,9 @@ export function HelpButton({ content, contentKey, title = "使用说明" }: Help
               </button>
             </div>
           </div>
-        </div>
-      )}
+        </div>,
+          document.body
+        )}
     </>
   );
 }

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
+import { createPortal } from "react-dom";
 import { X } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -80,7 +81,11 @@ export function Modal({ open, onClose, title, children, size = "md", className }
 
   if (!open) return null;
 
-  return (
+  // 使用 createPortal 渲染到 document.body
+  // 原因：父容器（如 glass-card / glass-modal）使用 backdrop-filter 会创建新的层叠上下文，
+  // 导致 position: fixed 的子元素被困在父容器内，弹窗被遮挡。
+  // Portal 直接挂载到 body，彻底脱离父级层叠上下文。
+  const content = (
     <div
       className="fixed inset-0 z-[200] flex items-center justify-center bg-black/50 backdrop-blur-sm px-4 py-6"
       role="dialog"
@@ -113,4 +118,7 @@ export function Modal({ open, onClose, title, children, size = "md", className }
       </div>
     </div>
   );
+
+  if (typeof document === "undefined") return content;
+  return createPortal(content, document.body);
 }

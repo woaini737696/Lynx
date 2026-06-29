@@ -17,7 +17,11 @@ import {
   AlertCircle,
   CreditCard,
   Gift,
+  Receipt,
+  Download,
+  TrendingUp,
 } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { PageHeader, Card, Button, LoadingState, Badge } from "@/components/layout/PageHeader";
 import { HelpButton } from "@/components/layout/HelpButton";
 import { Modal } from "@/components/ui/Modal";
@@ -153,8 +157,88 @@ function formatCredits(creditStr: string): string {
     }
     return Number(n).toLocaleString();
   } catch {
-    return creditStr;
+    return creditStr || "0";
   }
+}
+
+/** 安全 toLocaleString：避免 undefined/null 调用报错 */
+function safeFormatNum(n: number | undefined | null): string {
+  if (n === undefined || n === null || Number.isNaN(n)) return "0";
+  try {
+    return Number(n).toLocaleString();
+  } catch {
+    return String(n);
+  }
+}
+
+/** 账单记录类型（合并自订阅页） */
+interface BillRecord {
+  id: string;
+  period: string; // 账单周期，如 "2026-06"
+  tier: string;   // 会员档位
+  amount: number;
+  status: "paid" | "pending" | "refunded";
+  paidAt: string | null;
+}
+
+const BILL_STATUS_LABEL: Record<BillRecord["status"], string> = {
+  paid: "已支付",
+  pending: "待支付",
+  refunded: "已退款",
+};
+
+const TIER_LABEL: Record<string, string> = {
+  FREE: "免费版",
+  LITE: "Lite 会员",
+  PRO: "Pro 会员",
+  MAX: "Max 会员",
+  ULTRA: "Ultra 会员",
+};
+
+/** 模拟账单数据（后续对接 /api/membership/bills 后替换） */
+function getMockBills(): BillRecord[] {
+  const now = new Date();
+  return [
+    {
+      id: "bill-current",
+      period: `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`,
+      tier: "LITE",
+      amount: 29,
+      status: "paid",
+      paidAt: new Date(now.getFullYear(), now.getMonth(), 1).toISOString(),
+    },
+    {
+      id: "bill-prev-1",
+      period: `${now.getFullYear()}-${String(now.getMonth()).padStart(2, "0") || "12"}`,
+      tier: "LITE",
+      amount: 29,
+      status: "paid",
+      paidAt: new Date(now.getFullYear(), now.getMonth() - 1, 1).toISOString(),
+    },
+  ];
+}
+
+/** 导出账单 CSV */
+function exportBills(bills: BillRecord[]) {
+  const rows = [
+    ["账单周期", "会员档位", "金额(元)", "状态", "支付时间"],
+    ...bills.map((b) => [
+      b.period,
+      TIER_LABEL[b.tier] || b.tier,
+      String(b.amount),
+      BILL_STATUS_LABEL[b.status],
+      b.paidAt ? new Date(b.paidAt).toISOString().slice(0, 10) : "—",
+    ]),
+  ];
+  const csv = rows.map((r) => r.map((c) => `"${c}"`).join(",")).join("\n");
+  const blob = new Blob([`\uFEFF${csv}`], { type: "text/csv;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `lynx-bills-${new Date().toISOString().slice(0, 10)}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+  toast("账单已导出", "success");
 }
 
 /** 格式化日期：YYYY-MM-DD */
@@ -488,8 +572,8 @@ function CurrentMembershipCard({
           {/* S币 余额提示 */}
           <div className="ios-glass-sm rounded-xl px-3 py-2 text-right">
             <div className="text-[11px] text-muted-foreground">S币 余额</div>
-            <div className="text-base font-semibold text-campaign">{sCoinBalance.toLocaleString()}</div>
-            <div className="text-[10px] text-muted-foreground">可抵扣 ¥{(sCoinBalance / 50).toFixed(2)}</div>
+            <div className="text-base font-semibold text-campaign">{safeFormatNum(sCoinBalance)}</div>
+            <div className="text-[10px] text-muted-foreground">可抵扣 ¥{((sCoinBalance || 0) / 50).toFixed(2)}</div>
           </div>
         </div>
 
@@ -498,32 +582,32 @@ function CurrentMembershipCard({
           <BenefitItem
             icon={Sparkles}
             label="Credits/月"
-            value={formatCredits(membership.plan.credits)}
+            value={formatCredits(membership.plan?.credits)}
           />
           <BenefitItem
             icon={Gift}
             label="S币/月"
-            value={membership.plan.sCoins.toLocaleString()}
+            value={safeFormatNum(membership.plan?.sCoins)}
           />
           <BenefitItem
             icon={Zap}
             label="API/日"
-            value={membership.plan.apiCallsPerDay === -1 ? "无限" : membership.plan.apiCallsPerDay.toLocaleString()}
+            value={membership.plan?.apiCallsPerDay === -1 ? "无限" : safeFormatNum(membership.plan?.apiCallsPerDay)}
           />
           <BenefitItem
             icon={Brain}
             label="记忆上限"
-            value={membership.plan.memoryLimit === -1 ? "无限" : membership.plan.memoryLimit.toLocaleString()}
+            value={membership.plan?.memoryLimit === -1 ? "无限" : safeFormatNum(membership.plan?.memoryLimit)}
           />
           <BenefitItem
             icon={Workflow}
             label="工作流数"
-            value={membership.plan.flowLimit === -1 ? "无限" : membership.plan.flowLimit.toLocaleString()}
+            value={membership.plan?.flowLimit === -1 ? "无限" : safeFormatNum(membership.plan?.flowLimit)}
           />
           <BenefitItem
             icon={Wrench}
             label="技能数"
-            value={membership.plan.skillLimit === -1 ? "无限" : membership.plan.skillLimit.toLocaleString()}
+            value={membership.plan?.skillLimit === -1 ? "无限" : safeFormatNum(membership.plan?.skillLimit)}
           />
         </div>
 
@@ -830,7 +914,7 @@ function PurchaseModal({
               使用 {Math.min(sCoinOffset, maxSliderValue).toLocaleString()} S币
               <span className="ml-1 text-muted-foreground/70">（抵扣 ¥{calc.sCoinOffsetYuan.toFixed(2)}）</span>
             </span>
-            <span>{maxSliderValue.toLocaleString()} S币</span>
+            <span>{safeFormatNum(maxSliderValue)} S币</span>
           </div>
           {sCoinNotEnough && (
             <div className="mt-2 flex items-center gap-1.5 rounded-lg border border-graveyard/30 bg-graveyard/5 px-2.5 py-1.5 text-[11px] text-graveyard">
@@ -890,7 +974,7 @@ function PurchaseModal({
           </div>
           <ul className="space-y-1 pl-5">
             <li>• {formatCredits(plan.credits)} Credits（立即到账）</li>
-            <li>• {plan.sCoins.toLocaleString()} S币（立即到账）</li>
+            <li>• {safeFormatNum(plan?.sCoins)} S币（立即到账）</li>
             <li>• {CYCLE_LABEL[cycle]} 周期，到期后可续费</li>
           </ul>
         </div>

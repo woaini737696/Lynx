@@ -149,7 +149,7 @@ git push origin master
 3. **禁止改动 Cargo target 路径**：固定 `D:\cargo-target-native`
 4. **禁止改动 `next.config.mjs`**：那是 Web 端配置，桌面端配置在 `next.desktop-native.config.mjs` / `vite.config.ts`
 5. **禁止提交构建产物**：`dist/` `bin/` `out/` `src-tauri/out/` `src-tauri/target/` 均在 .gitignore
-6. **端口固定 3002**：Web 端 dev server 必须在 3002 端口运行（桌面端通过 `127.0.0.1:3002` 连接本地服务）
+6. **端口固定 3002**：Web 端 dev server 必须在 3002 端口运行；桌面端**默认连接云端** `https://ai.lynxdo.com`（生产环境），所有 API 通过 Tauri `cloud_request` 命令代理到云端，无需启动本地服务即可使用
 7. **每次开发后必须打安装包**：用户要求每次完成开发后都要打包最新安装包供验收
 
 ---
