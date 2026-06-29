@@ -44,6 +44,7 @@ next-env.d.ts
 
 # 编译产物（本地预编译，不入 git）
 /scripts/ws-gateway.compiled.js
+/scripts/seed-lynn-test-data.compiled.js
 
 # superpowers brainstorm
 .superpowers/
@@ -137,3 +138,4 @@ test_ui.xml
 /deploy/dist/
 /deploy/backup/
 __pycache__/
+/npm-global/
