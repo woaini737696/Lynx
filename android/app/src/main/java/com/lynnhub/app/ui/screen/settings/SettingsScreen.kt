@@ -56,7 +56,7 @@ fun SettingsScreen(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(Void.copy(alpha = 0.35f))
+            .background(Void.copy(alpha = 0.55f))
     ) {
         Row(modifier = Modifier.fillMaxSize()) {
             // 左侧 12% 遮罩：点击关闭面板
@@ -67,13 +67,14 @@ fun SettingsScreen(
                     .clickable { onBack() }
             )
 
-            // 右侧 88% 面板
+            // 右侧 88% 面板（28dp 左圆角，紧贴顶部不留空）
             Box(
                 modifier = Modifier
                     .fillMaxHeight()
                     .weight(0.88f)
+                    .clip(RoundedCornerShape(topStart = 28.dp, bottomStart = 28.dp))
                     .background(Void)
-                    .border(1.dp, LiquidBorder)
+                    .border(1.dp, LiquidBorder, RoundedCornerShape(topStart = 28.dp, bottomStart = 28.dp))
             ) {
                 // 右滑关闭手势
                 ReturnSwipeDetector(
@@ -87,9 +88,9 @@ fun SettingsScreen(
                         .fillMaxSize()
                         .systemBarsPadding()
                         .verticalScroll(rememberScrollState())
-                        .padding(horizontal = 18.dp)
+                        .padding(horizontal = 22.dp)
                 ) {
-                    Spacer(modifier = Modifier.height(36.dp))
+                    Spacer(modifier = Modifier.height(20.dp))
 
                     // 顶部标题
                     Text(
@@ -102,13 +103,21 @@ fun SettingsScreen(
 
                     Spacer(modifier = Modifier.height(24.dp))
 
-                    // 个人信息区
-                    Row(verticalAlignment = Alignment.CenterVertically) {
+                    // 个人信息区（glass 卡片包裹）
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(24.dp))
+                            .background(Liquid2)
+                            .border(1.dp, LiquidBorder, RoundedCornerShape(24.dp))
+                            .padding(22.dp)
+                    ) {
                         Box(
                             modifier = Modifier
-                                .size(56.dp)
+                                .size(62.dp)
                                 .clip(CircleShape)
-                                .background(Brush.linearGradient(GradientPrimary)),
+                                .background(Brush.linearGradient(listOf(Primary, Agent))),
                             contentAlignment = Alignment.Center
                         ) {
                             Text(
@@ -119,20 +128,20 @@ fun SettingsScreen(
                                 fontWeight = FontWeight.Bold
                             )
                         }
-                        Spacer(modifier = Modifier.width(12.dp))
+                        Spacer(modifier = Modifier.width(16.dp))
                         Column {
                             Text(
                                 text = uiState.user?.displayName?.ifBlank { null }
                                     ?: uiState.user?.username ?: "用户",
-                                fontSize = 16.sp,
+                                fontSize = 18.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = TextPrimary
                             )
                             Text(
                                 text = uiState.user?.role ?: "",
-                                fontSize = 11.sp,
+                                fontSize = 12.sp,
                                 color = TextMuted,
-                                modifier = Modifier.padding(top = 2.dp)
+                                modifier = Modifier.padding(top = 4.dp)
                             )
                         }
                     }
@@ -266,11 +275,11 @@ fun SettingsScreen(
 private fun SettingsGroupTitle(text: String) {
     Text(
         text = text,
-        fontSize = 10.sp,
+        fontSize = 11.sp,
         color = TextMuted,
         fontWeight = FontWeight.SemiBold,
-        letterSpacing = 1.5.sp,
-        modifier = Modifier.padding(start = 4.dp, bottom = 6.dp, top = 12.dp)
+        letterSpacing = 1.2.sp,
+        modifier = Modifier.padding(start = 4.dp, bottom = 10.dp, top = 22.dp)
     )
 }
 
@@ -285,32 +294,49 @@ private fun SettingsRow(
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(10.dp))
+            .padding(bottom = 10.dp)
+            .clip(RoundedCornerShape(18.dp))
+            .background(Liquid3)
+            .border(1.dp, LiquidBorder, RoundedCornerShape(18.dp))
             .clickable(enabled = onClick != null) { onClick?.invoke() }
-            .padding(horizontal = 4.dp, vertical = 12.dp)
+            .padding(horizontal = 14.dp, vertical = 12.dp)
     ) {
-        Icon(
-            imageVector = icon,
-            contentDescription = null,
-            tint = TextMuted,
-            modifier = Modifier.size(20.dp)
-        )
-        Spacer(modifier = Modifier.width(12.dp))
-        Text(
-            text = label,
-            fontSize = 13.sp,
-            color = TextPrimary,
-            modifier = Modifier.weight(1f)
-        )
-        if (value != null) {
-            Text(
-                text = value,
-                fontSize = 12.sp,
-                color = TextMuted
+        // 34dp 玻璃图标容器
+        Box(
+            modifier = Modifier
+                .size(34.dp)
+                .clip(RoundedCornerShape(12.dp))
+                .background(Liquid3)
+                .border(1.dp, BorderSubtle, RoundedCornerShape(12.dp)),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                tint = TextPrimary,
+                modifier = Modifier.size(18.dp)
             )
-            Spacer(modifier = Modifier.width(4.dp))
+        }
+        Spacer(modifier = Modifier.width(12.dp))
+        // 标签 + 值垂直堆叠（按视觉稿 settings-row-text）
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = label,
+                fontSize = 14.sp,
+                color = TextPrimary,
+                fontWeight = FontWeight.Medium
+            )
+            if (value != null) {
+                Text(
+                    text = value,
+                    fontSize = 12.sp,
+                    color = TextMuted,
+                    modifier = Modifier.padding(top = 2.dp)
+                )
+            }
         }
         if (onClick != null) {
+            Spacer(modifier = Modifier.width(4.dp))
             Icon(
                 imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
                 contentDescription = null,
@@ -331,16 +357,29 @@ private fun DangerRow(
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(10.dp))
+            .padding(bottom = 10.dp)
+            .clip(RoundedCornerShape(18.dp))
+            .background(Liquid3)
+            .border(1.dp, Danger.copy(alpha = 0.12f), RoundedCornerShape(18.dp))
             .clickable(onClick = onClick)
-            .padding(horizontal = 4.dp, vertical = 12.dp)
+            .padding(horizontal = 14.dp, vertical = 12.dp)
     ) {
-        Icon(
-            imageVector = icon,
-            contentDescription = null,
-            tint = Danger,
-            modifier = Modifier.size(20.dp)
-        )
+        // 34dp 玻璃图标容器
+        Box(
+            modifier = Modifier
+                .size(34.dp)
+                .clip(RoundedCornerShape(12.dp))
+                .background(Danger.copy(alpha = 0.08f))
+                .border(1.dp, Danger.copy(alpha = 0.15f), RoundedCornerShape(12.dp)),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                tint = Danger,
+                modifier = Modifier.size(18.dp)
+            )
+        }
         Spacer(modifier = Modifier.width(12.dp))
         Text(
             text = label,

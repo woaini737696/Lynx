@@ -82,7 +82,7 @@ fun SwipeHint(text: String, modifier: Modifier = Modifier) {
     )
 }
 
-// ============ 浮层标题栏 ============
+// ============ 浮层标题栏（按视觉稿：panel-title 19px/700） ============
 @Composable
 fun PanelHeader(
     title: String,
@@ -97,13 +97,14 @@ fun PanelHeader(
         Spacer(modifier = Modifier.width(10.dp))
         Text(
             text = title,
-            fontSize = 16.sp,
+            fontSize = 19.sp,
             fontWeight = FontWeight.Bold,
             color = TextPrimary,
             modifier = Modifier.weight(1f)
         )
     }
-    SwipeHint(text = swipeHint, modifier = Modifier.padding(start = 42.dp, top = 2.dp))
+    // 滑动提示独立一行（按视觉稿 panel-hint：左缩进 50dp，底边距 22dp）
+    SwipeHint(text = swipeHint, modifier = Modifier.padding(start = 50.dp, top = 4.dp, bottom = 22.dp))
 }
 
 /**
@@ -471,7 +472,7 @@ private fun PlaceholderPanel(
             modifier = Modifier
                 .fillMaxSize()
                 .systemBarsPadding()
-                .padding(start = 16.dp, end = 16.dp, top = 36.dp, bottom = 16.dp)
+                .padding(start = 22.dp, end = 22.dp, top = 66.dp, bottom = 110.dp)
         ) {
             PanelHeader(title = title, onBack = onBack, swipeHint = hint)
             Spacer(modifier = Modifier.height(24.dp))

@@ -162,10 +162,10 @@ fun AgentPanel(
             modifier = Modifier
                 .fillMaxSize()
                 .systemBarsPadding()
-                .padding(start = 16.dp, end = 16.dp, top = 36.dp, bottom = 16.dp)
+                .padding(start = 22.dp, end = 22.dp, top = 66.dp, bottom = 110.dp)
         ) {
             PanelHeader(title = "Agent", onBack = onBack, swipeHint = "→ 左滑返回")
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(0.dp))
 
             // Agent 未连接提示
             if (!statusInfo.connected) {

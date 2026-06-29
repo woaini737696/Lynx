@@ -4,9 +4,7 @@ import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
-import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutHorizontally
-import androidx.compose.animation.slideOutVertically
 import androidx.compose.runtime.Composable
 import androidx.navigation.NavBackStackEntry
 import androidx.navigation.NavHostController
@@ -66,35 +64,35 @@ fun AppNavigation(
             )
         }
 
-        // ====== 灵感速记浮层（上滑进入 → 从底部滑入，下滑返回） ======
+        // ====== 灵感速记浮层（统一水平滑入） ======
         composable(
             route = Routes.IDEA_PANEL,
-            enterTransition = { slideInVertically(tween(duration, easing = easing)) { it } },
-            exitTransition = { slideOutVertically(tween(duration, easing = easing)) { it } },
-            popEnterTransition = { slideInVertically(tween(duration, easing = easing)) { it } },
-            popExitTransition = { slideOutVertically(tween(duration, easing = easing)) { it } }
-        ) {
-            IdeaPanel(onBack = { navController.popBackStack() })
-        }
-
-        // ====== 全双工通话（淡入淡出特例，0.4s ease） ======
-        composable(
-            route = Routes.CALL,
-            enterTransition = { fadeIn(tween(400)) },
-            exitTransition = { fadeOut(tween(400)) },
-            popEnterTransition = { fadeIn(tween(400)) },
-            popExitTransition = { fadeOut(tween(400)) }
-        ) {
-            com.lynnhub.app.ui.screen.panel.CallScreen(onBack = { navController.popBackStack() })
-        }
-
-        // ====== 设置面板（从右侧滑入，88% 宽度侧滑面板） ======
-        composable(
-            route = Routes.SETTINGS,
             enterTransition = { slideInHorizontally(tween(duration, easing = easing)) { it } },
             exitTransition = { slideOutHorizontally(tween(duration, easing = easing)) { it } },
             popEnterTransition = { slideInHorizontally(tween(duration, easing = easing)) { it } },
             popExitTransition = { slideOutHorizontally(tween(duration, easing = easing)) { it } }
+        ) {
+            IdeaPanel(onBack = { navController.popBackStack() })
+        }
+
+        // ====== 全双工通话（统一水平滑入） ======
+        composable(
+            route = Routes.CALL,
+            enterTransition = { slideInHorizontally(tween(duration, easing = easing)) { it } },
+            exitTransition = { slideOutHorizontally(tween(duration, easing = easing)) { it } },
+            popEnterTransition = { slideInHorizontally(tween(duration, easing = easing)) { it } },
+            popExitTransition = { slideOutHorizontally(tween(duration, easing = easing)) { it } }
+        ) {
+            com.lynnhub.app.ui.screen.panel.CallScreen(onBack = { navController.popBackStack() })
+        }
+
+        // ====== 设置面板（从右侧滑入，88% 宽度侧滑面板，400ms 专用时长） ======
+        composable(
+            route = Routes.SETTINGS,
+            enterTransition = { slideInHorizontally(tween(Motion.DURATION_SETTINGS_PANEL, easing = easing)) { it } },
+            exitTransition = { slideOutHorizontally(tween(Motion.DURATION_SETTINGS_PANEL, easing = easing)) { it } },
+            popEnterTransition = { slideInHorizontally(tween(Motion.DURATION_SETTINGS_PANEL, easing = easing)) { it } },
+            popExitTransition = { slideOutHorizontally(tween(Motion.DURATION_SETTINGS_PANEL, easing = easing)) { it } }
         ) {
             SettingsScreen(
                 onBack = { navController.popBackStack() },
@@ -190,12 +188,12 @@ private fun androidx.navigation.NavGraphBuilder.coreComposable(
     ) { content(it) }
 }
 
-/** 设置子页面通用 composable：统一从右侧滑入 */
+/** 设置子页面通用 composable：统一从右侧滑入，400ms 专用时长 */
 private fun androidx.navigation.NavGraphBuilder.subPageComposable(
     route: String,
     content: @Composable (NavBackStackEntry) -> Unit
 ) {
-    val duration = Motion.DURATION_PAGE_TRANSITION
+    val duration = Motion.DURATION_SETTINGS_PANEL
     val easing = Motion.EaseGlass
 
     composable(

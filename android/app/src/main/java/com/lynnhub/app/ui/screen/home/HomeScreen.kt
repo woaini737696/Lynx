@@ -76,19 +76,32 @@ fun HomeScreen(
     Box(
         modifier = Modifier
             .fillMaxSize()
+            .background(Void)
             .background(
-                Brush.verticalGradient(
+                Brush.radialGradient(
                     colors = listOf(
-                        Deep,
-                        Void,
-                        Deep
-                    )
+                        Primary.copy(alpha = 0.16f),
+                        Color.Transparent
+                    ),
+                    center = Offset(0.5f, 0.28f),
+                    radius = 0.7f
+                )
+            )
+            .background(
+                Brush.radialGradient(
+                    colors = listOf(
+                        Agent.copy(alpha = 0.08f),
+                        Color.Transparent
+                    ),
+                    center = Offset(0.8f, 0.85f),
+                    radius = 0.5f
                 )
             )
     ) {
         Column(
             modifier = Modifier
                 .fillMaxSize()
+                .systemBarsPadding()
                 .padding(horizontal = 22.dp)
         ) {
             Spacer(modifier = Modifier.height(16.dp))
@@ -124,7 +137,7 @@ fun HomeScreen(
             )
         }
 
-        // 右下角灵感 FAB
+        // 右下角灵感 FAB（按视觉稿：right 22dp, bottom 132dp）
         IdeaFab(
             onClick = onOpenIdea,
             modifier = Modifier
@@ -238,25 +251,49 @@ private fun BreathBall(
         label = "orbScale"
     )
 
+    val orb2Scale by infiniteTransition.animateFloat(
+        initialValue = 1f,
+        targetValue = 1.06f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(8000, easing = EaseInOutSine),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "orb2Scale"
+    )
+
     Box(
-        modifier = modifier.size(180.dp),
+        modifier = modifier.size(140.dp),
         contentAlignment = Alignment.Center
     ) {
-        // 外圈 orb
+        // 第 2 层 orb（212dp，delay -2s，opacity 0.6）
         Box(
             modifier = Modifier
-                .size(220.dp)
+                .size(212.dp)
+                .scale(orb2Scale)
+                .clip(CircleShape)
+                .background(
+                    Brush.radialGradient(
+                        colors = listOf(Primary.copy(alpha = 0.05f), Color.Transparent)
+                    )
+                )
+                .border(1.dp, Primary.copy(alpha = 0.08f), CircleShape)
+        )
+
+        // 第 1 层 orb（184dp）
+        Box(
+            modifier = Modifier
+                .size(184.dp)
                 .scale(orbScale)
                 .clip(CircleShape)
                 .background(
                     Brush.radialGradient(
-                        colors = listOf(Primary.copy(alpha = 0.08f), Color.Transparent) // 透明渐变末端
+                        colors = listOf(Primary.copy(alpha = 0.08f), Color.Transparent)
                     )
                 )
                 .border(1.dp, Primary.copy(alpha = 0.12f), CircleShape)
         )
 
-        // 呼吸球
+        // 呼吸球（140dp）
         Box(
             modifier = Modifier
                 .size(140.dp)
@@ -299,7 +336,7 @@ private fun BreathBall(
                         radius = size.width / 2 + 2.dp.toPx()
                     )
                 }
-                .border(1.dp, LiquidBorder, CircleShape)
+                .border(1.dp, LiquidBorder.copy(alpha = 0.25f), CircleShape)
                 .pointerInput(Unit) {
                     detectTapGestures(onTap = { onClick() })
                 },
@@ -403,13 +440,31 @@ private fun Timeline(
             return
         }
 
-        LazyColumn(
-            modifier = Modifier.fillMaxSize(),
-            verticalArrangement = Arrangement.spacedBy(10.dp)
-        ) {
-            items(items, key = { it.id }) { item ->
-                TimelineCard(item)
+        // 时间流列表 + 顶部渐变消融（与呼吸球柔和过渡）
+        Box(modifier = Modifier.fillMaxSize().weight(1f)) {
+            LazyColumn(
+                modifier = Modifier.fillMaxSize(),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                items(items, key = { it.id }) { item ->
+                    TimelineCard(item)
+                }
             }
+            // 顶部 18dp 渐变消融遮罩
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(18.dp)
+                    .align(Alignment.TopCenter)
+                    .background(
+                        Brush.verticalGradient(
+                            colors = listOf(
+                                Void.copy(alpha = 0.9f),
+                                Color.Transparent
+                            )
+                        )
+                    )
+            )
         }
     }
 }
