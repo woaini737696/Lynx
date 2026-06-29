@@ -208,8 +208,51 @@ let v = state.field.lock().map(|g| g.clone()).unwrap_or_else(|_| "default".to_st
 
 ---
 
+## 七、图标规范（每次打包必须遵守）
+
+### 7.1 图标资源生成
+
+所有桌面端图标资源由 `scripts/generate-installer-assets.py` 统一生成，**每次打包前必须重新执行**：
+
+```powershell
+cd d:\Lynn工作空间\LynnHub
+python scripts/generate-installer-assets.py
+```
+
+### 7.2 图标文件清单
+
+| 文件 | 尺寸 | 用途 | 缩放方式 |
+|------|------|------|----------|
+| `icon.png` | 512x512 | Linux/macOS 应用图标 | 直接复制源图 |
+| `icon.ico` | 256/128/64/48/32/16 多尺寸 | Windows 应用图标 | **每个尺寸直接从 512 源 LANCZOS 一次重采样** |
+| `tray-icon.png` | 64x64 | **系统托盘专用高清图标** | 从 512 源 LANCZOS 一次重采样 |
+| `nsis-header.bmp` | 150x57 | NSIS 安装向导顶部图 | LANCZOS 缩放 |
+| `nsis-sidebar.bmp` | 162x314 | NSIS 安装向导侧边图 | LANCZOS 缩放 |
+| `Square*Logo.png` | 多尺寸 | Windows Store logo | LANCZOS 缩放 |
+
+### 7.3 图标清晰度强制规则
+
+1. **禁止双步缩放**：ICO 的每个尺寸必须直接从 512 源 LANCZOS 一次重采样，禁止 512→256→16 双步缩放
+2. **系统托盘用专用 PNG**：Rust 代码中 `TrayIconBuilder` 必须用 `tauri::include_image!("icons/tray-icon.png")` 加载专用 64x64 PNG，禁止用 `app.default_window_icon()`（ICO 加载的小尺寸会模糊）
+3. **源图固定**：`public/lynx-icon-512.png`（512x512 RGBA）为唯一源图，禁止用其他尺寸源图
+4. **重新生成时机**：每次版本号递增时，必须重新执行 `generate-installer-assets.py`，确保 NSIS 侧边图版本号与安装包一致
+
+### 7.4 Rust 端托盘图标加载方式（强制）
+
+```rust
+// ✅ 正确：用 include_image! 加载专用高清 PNG
+.icon(tauri::include_image!("icons/tray-icon.png"))
+
+// ❌ 错误：用 default_window_icon() 加载 ICO（小尺寸模糊）
+// .icon(app.default_window_icon().cloned().unwrap())
+```
+
+---
+
 ## 变更记录
 
 | 日期 | 版本 | 变更 |
 |------|------|------|
 | 2026-06-29 | v1.0 | 首次创建，基于 iter57 构建经验 |
+| 2026-06-29 | v1.1 | 重构：废弃 `installer.nsi` 手动 NSIS，改用 `cargo tauri build` 标准流程；新增版本号管理规范（4 处同步、+0.01 递增）；固定输出目录 `desktop-native\dist\` |
+| 2026-06-29 | v1.2 | 新增第七章「图标规范」：ICO 每尺寸直接从 512 源 LANCZOS 重采样；系统托盘专用 64x64 PNG + `include_image!` 加载；禁止双步缩放和 `default_window_icon()` |
