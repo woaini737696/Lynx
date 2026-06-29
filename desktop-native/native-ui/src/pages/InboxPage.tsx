@@ -57,6 +57,8 @@ export function InboxPage() {
   const [finalizing, setFinalizing] = useState(false);
   const [finalizeResult, setFinalizeResult] = useState<FinalizeResult | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  // AI 对话取消控制器：组件卸载或关闭抽屉时 abort，避免 setState on unmounted
+  const chatAbortRef = useRef<AbortController | null>(null);
 
   // 复活建议
   const [showRevivePanel, setShowRevivePanel] = useState(true);
@@ -141,6 +143,13 @@ export function InboxPage() {
     }
   }, [chatMessages]);
 
+  // 组件卸载时取消正在进行的 AI 对话，避免 setState on unmounted
+  useEffect(() => {
+    return () => {
+      chatAbortRef.current?.abort();
+    };
+  }, []);
+
   // 过滤
   const filtered = useMemo(() => {
     return ideas.filter((idea) => {
@@ -223,6 +232,9 @@ export function InboxPage() {
   }, []);
 
   const closeChat = () => {
+    // 取消正在进行的 AI 对话，避免关闭后继续 setState
+    chatAbortRef.current?.abort();
+    chatAbortRef.current = null;
     setChatIdea(null);
     setChatMessages([]);
     setChatInput("");
@@ -232,6 +244,11 @@ export function InboxPage() {
 
   // 非流式调用（桌面端通过 Tauri cloud_request 代理，不支持流式）
   const streamChat = async (ideaDraft: string, history: ChatMessage[]) => {
+    // 取消上一次未完成的对话，防止回复错位
+    chatAbortRef.current?.abort();
+    const ctrl = new AbortController();
+    chatAbortRef.current = ctrl;
+
     setChatStreaming(true);
     try {
       const res = await cloudApi.post<{ reply?: string }>("/api/ai/idea-chat", {
@@ -239,18 +256,28 @@ export function InboxPage() {
         ideaDraft,
         stream: false,
       });
+      if (ctrl.signal.aborted) return;
       const reply = res.reply || "";
       setChatMessages((prev) => [...prev, { role: "assistant", content: "" }]);
-      await streamSimulate(reply, (partial) => {
-        setChatMessages((prev) => {
-          const updated = [...prev];
-          updated[updated.length - 1] = { role: "assistant", content: partial };
-          return updated;
-        });
-      });
+      await streamSimulate(
+        reply,
+        (partial) => {
+          if (ctrl.signal.aborted) return;
+          setChatMessages((prev) => {
+            const updated = [...prev];
+            updated[updated.length - 1] = { role: "assistant", content: partial };
+            return updated;
+          });
+        },
+        ctrl.signal
+      );
     } catch (e) {
+      if (ctrl.signal.aborted) return; // 主动取消，不报错
       toast.error("AI 回复失败，请重试");
     } finally {
+      if (chatAbortRef.current === ctrl) {
+        chatAbortRef.current = null;
+      }
       setChatStreaming(false);
     }
   };

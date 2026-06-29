@@ -8,7 +8,7 @@
 use crate::hermes::router::LocalAction;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
-use tauri::{AppHandle, Manager, Emitter, Listener};
+use tauri::{AppHandle, Emitter, Listener};
 
 /// 静态变量：本次会话内 L2 是否已授权
 static L2_APPROVED_THIS_SESSION: AtomicBool = AtomicBool::new(false);
@@ -135,13 +135,23 @@ pub async fn request_approval(
     }));
 
     // 等待响应（超时 60 秒视为拒绝）
-    match rx.recv_timeout(Duration::from_secs(60)) {
-        Ok(approved) => {
+    // 用 tokio::task::spawn_blocking 包裹同步 recv_timeout，避免阻塞 tokio 调度器
+    let result = tokio::task::spawn_blocking(move || {
+        rx.recv_timeout(Duration::from_secs(60))
+    })
+    .await;
+
+    match result {
+        Ok(Ok(approved)) => {
             log::info!("审批结果: {} ({} - {})", approved, level, action_desc);
             approved
         }
-        Err(_) => {
+        Ok(Err(_)) => {
             log::warn!("审批超时（60秒），视为拒绝");
+            false
+        }
+        Err(e) => {
+            log::error!("审批任务 join 失败: {}", e);
             false
         }
     }

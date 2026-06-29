@@ -183,8 +183,8 @@ export function SettingsPage() {
       await invoke("add_authorized_dir", { dir: newDir.trim() });
       setNewDir("");
       await loadStatus();
-    } catch (err: any) {
-      alert(err?.message || "添加目录失败");
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : "添加目录失败");
     } finally {
       setAddingDir(false);
     }

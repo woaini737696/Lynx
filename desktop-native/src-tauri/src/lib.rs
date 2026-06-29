@@ -9,8 +9,8 @@ pub mod ws_client;
 
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
-use tauri::{Manager, Emitter, Listener};
-use tauri::menu::{Menu, MenuItem, PredefinedMenuItem};
+use tauri::{Manager, Emitter};
+use tauri::menu::{Menu, MenuItem};
 use tauri::tray::TrayIconBuilder;
 use tauri_plugin_shell::ShellExt;
 use tauri_plugin_updater::UpdaterExt;
@@ -302,7 +302,9 @@ async fn navigate_to_url(app: tauri::AppHandle, url: String) -> Result<(), Strin
     log::info!("导航到: {}", url);
     if let Some(window) = app.get_webview_window("main") {
         // Tauri 2.x WebviewWindow 没有 set_url，使用 eval 执行 JS 导航
-        let js = format!("window.location.href = '{}';", url.replace('\'', "\\'"));
+        // 用 serde_json::to_string 生成合法 JS 字符串字面量，避免 JS 注入
+        let js_val = serde_json::to_string(&url).map_err(|e| e.to_string())?;
+        let js = format!("window.location.href = {};", js_val);
         window.eval(&js).map_err(|e| e.to_string())?;
         Ok(())
     } else {

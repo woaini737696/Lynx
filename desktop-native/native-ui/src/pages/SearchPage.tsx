@@ -19,6 +19,30 @@ import { HelpButton } from "@/components/ui/HelpButton";
 
 type SearchMode = "keyword" | "semantic";
 
+/**
+ * 清理搜索结果 snippet 的 HTML，防止 XSS。
+ * 后端返回的 snippet 可能包含 <em>...</em> 高亮标签，保留该标签；
+ * 其他所有标签全部移除（<script>、<img onerror> 等）。
+ */
+function sanitizeSnippet(html: string): string {
+  // 允许 <em> 和 </em>，其余所有 <...> 标签转义
+  // 先用占位符保护 <em> 标签
+  const placeholders: string[] = [];
+  let safe = html.replace(/<\/?em>/gi, (m) => {
+    const i = placeholders.length;
+    placeholders.push(m);
+    return `\u0000EM${i}\u0000`;
+  });
+  // 转义剩余的 < > & 防止任意标签注入
+  safe = safe
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
+  // 还原 <em> 占位符
+  safe = safe.replace(/\u0000EM(\d+)\u0000/g, (_, i) => placeholders[Number(i)] || "");
+  return safe;
+}
+
 interface KeywordResult {
   id: string;
   type: "idea" | "task" | "cognition" | "memory" | "skill";
@@ -276,7 +300,7 @@ export function SearchPage() {
                       {item.snippet && (
                         <p
                           className="text-xs leading-relaxed text-muted-foreground"
-                          dangerouslySetInnerHTML={{ __html: item.snippet }}
+                          dangerouslySetInnerHTML={{ __html: sanitizeSnippet(item.snippet) }}
                         />
                       )}
                       <div className="mt-1 text-[10px] text-muted-foreground/70">

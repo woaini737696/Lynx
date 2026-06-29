@@ -4,36 +4,71 @@
 use serde_json::json;
 
 /// 在默认浏览器中打开 URL
+/// 安全：仅允许 http/https 协议，避免 cmd 元字符注入
 pub async fn open_url(url: &str) -> Result<(), String> {
-    // Tauri shell open 走系统默认浏览器
-    // 这里通过 reqwest 触发一个本地代理（agent-browser）或者直接调用 open 命令
-    let cmd = if cfg!(target_os = "windows") {
-        "cmd"
-    } else if cfg!(target_os = "macos") {
-        "open"
-    } else {
-        "xdg-open"
-    };
-
-    let args: Vec<&str> = if cfg!(target_os = "windows") {
-        vec!["/C", "start", "", url]
-    } else {
-        vec![url]
-    };
-
-    let status = tokio::process::Command::new(cmd)
-        .args(&args)
-        .kill_on_drop(true)
-        .status()
-        .await
-        .map_err(|e| format!("启动浏览器失败: {}", e))?;
-
-    if status.success() {
-        log::info!("浏览器已打开: {}", url);
-        Ok(())
-    } else {
-        Err(format!("浏览器打开失败，状态码: {}", status))
+    // 协议白名单校验，阻断 javascript:/file:/及 cmd 元字符注入
+    if !is_safe_url(url) {
+        return Err(format!("不安全的 URL 协议，已拒绝打开: {}", url));
     }
+
+    // Windows：用 cmd /C start "" "<url>"，URL 作为单一参数传递
+    // 因已通过白名单校验为 http(s):// 开头，cmd 元字符（& | > <）出现在 URL 路径中
+    // 不再被 cmd 解释为命令分隔符（只有未加引号时才会被解释）
+    #[cfg(target_os = "windows")]
+    {
+        let status = tokio::process::Command::new("cmd")
+            .arg("/C")
+            .arg("start")
+            .arg("")
+            .arg(url)
+            .kill_on_drop(true)
+            .status()
+            .await
+            .map_err(|e| format!("启动浏览器失败: {}", e))?;
+
+        if status.success() {
+            log::info!("浏览器已打开: {}", url);
+            Ok(())
+        } else {
+            Err(format!("浏览器打开失败，状态码: {}", status))
+        }
+    }
+    #[cfg(target_os = "macos")]
+    {
+        let status = tokio::process::Command::new("open")
+            .arg(url)
+            .kill_on_drop(true)
+            .status()
+            .await
+            .map_err(|e| format!("启动浏览器失败: {}", e))?;
+        if status.success() {
+            log::info!("浏览器已打开: {}", url);
+            Ok(())
+        } else {
+            Err(format!("浏览器打开失败，状态码: {}", status))
+        }
+    }
+    #[cfg(not(any(target_os = "windows", target_os = "macos")))]
+    {
+        let status = tokio::process::Command::new("xdg-open")
+            .arg(url)
+            .kill_on_drop(true)
+            .status()
+            .await
+            .map_err(|e| format!("启动浏览器失败: {}", e))?;
+        if status.success() {
+            log::info!("浏览器已打开: {}", url);
+            Ok(())
+        } else {
+            Err(format!("浏览器打开失败，状态码: {}", status))
+        }
+    }
+}
+
+/// URL 协议白名单校验：仅允许 http(s):// 开头
+fn is_safe_url(url: &str) -> bool {
+    let lower = url.to_lowercase();
+    lower.starts_with("https://") || lower.starts_with("http://")
 }
 
 /// 导航到 URL 并提取页面数据

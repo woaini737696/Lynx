@@ -24,6 +24,7 @@ import { toast } from "@/lib/toast";
 import { HelpButton } from "@/components/ui/HelpButton";
 import { Modal } from "@/components/ui/Modal";
 import { cloudApi } from "@/lib/cloud-api";
+import { formatCredits } from "@/lib/credits";
 
 // hsl 主色变量值（与 globals.css 中 --primary 一致：217 86% 33%）
 const PRIMARY_HSL = "hsl(217 86% 33%)";
@@ -73,7 +74,7 @@ interface CurrentMembership {
 
 // ============ 常量 ============
 
-const YI = 100_000_000;
+// YI / formatCredits 已抽取到 @/lib/credits
 
 /** 5 档套餐的视觉配置 */
 const TIER_THEME: Record<
@@ -138,20 +139,7 @@ const CYCLE_LABEL: Record<string, string> = {
 
 // ============ 工具函数 ============
 
-/** 格式化 Credits（亿级单位） */
-function formatCredits(creditStr: string): string {
-  try {
-    const n = BigInt(creditStr);
-    if (n >= BigInt(YI)) {
-      const yi = Number(n) / YI;
-      const rounded = Math.round(yi * 100) / 100;
-      return Number.isInteger(rounded) ? `${rounded}亿` : `${rounded.toFixed(2)}亿`;
-    }
-    return Number(n).toLocaleString();
-  } catch {
-    return creditStr;
-  }
-}
+// formatCredits 已抽取到 @/lib/credits
 
 /** 格式化日期：YYYY-MM-DD */
 function formatDate(iso: string | null): string {

@@ -21,6 +21,7 @@ import { cn } from "@/lib/utils";
 import { toast } from "@/lib/toast";
 import { HelpButton } from "@/components/ui/HelpButton";
 import { cloudApi } from "@/lib/cloud-api";
+import { formatCredits, formatCreditsDisplay } from "@/lib/credits";
 
 // ============ 类型定义 ============
 
@@ -68,40 +69,7 @@ type CurrencyTab = "credits" | "scoins";
 
 // ============ 工具函数 ============
 
-const YI = 100_000_000; // 1亿
-
-/** 格式化 Credits（BigInt 字符串）：超过 1 亿用「亿」为单位 */
-function formatCredits(creditStr: string): string {
-  try {
-    const n = BigInt(creditStr);
-    if (n >= BigInt(YI)) {
-      const yi = Number(n) / YI;
-      const rounded = Math.round(yi * 100) / 100;
-      return Number.isInteger(rounded) ? `${rounded}亿` : `${rounded.toFixed(2)}亿`;
-    }
-    return Number(n).toLocaleString();
-  } catch {
-    return creditStr;
-  }
-}
-
-/** 格式化 Credits 带单位（用于卡片大字） */
-function formatCreditsDisplay(creditStr: string): { value: string; unit: string } {
-  try {
-    const n = BigInt(creditStr);
-    if (n >= BigInt(YI)) {
-      const yi = Number(n) / YI;
-      const rounded = Math.round(yi * 100) / 100;
-      return {
-        value: Number.isInteger(rounded) ? rounded.toString() : rounded.toFixed(2),
-        unit: "亿",
-      };
-    }
-    return { value: Number(n).toLocaleString(), unit: "" };
-  } catch {
-    return { value: creditStr, unit: "" };
-  }
-}
+// YI / formatCredits / formatCreditsDisplay 已抽取到 @/lib/credits
 
 /** 格式化时间：YYYY-MM-DD HH:mm */
 function formatTime(iso: string): string {

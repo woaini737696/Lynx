@@ -77,6 +77,7 @@ export function SkillsPage() {
   const [showEditor, setShowEditor] = useState(false);
   const [executing, setExecuting] = useState<string | null>(null);
   const [showMarketplace, setShowMarketplace] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<Skill | null>(null);
 
   // 加载技能列表
   const { data: skills = [], isLoading } = useQuery<Skill[]>({
@@ -157,13 +158,19 @@ export function SkillsPage() {
   };
 
   const handleDelete = async (skill: Skill) => {
-    if (!confirm(`确定删除技能「${skill.name}」？`)) return;
+    setDeleteTarget(skill);
+  };
+
+  const confirmDelete = async () => {
+    if (!deleteTarget) return;
     try {
-      await cloudApi.delete(`/api/skills/${skill.id}`);
+      await cloudApi.delete(`/api/skills/${deleteTarget.id}`);
       toast.success("已删除");
       queryClient.invalidateQueries({ queryKey: ["skills"] });
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "删除失败");
+    } finally {
+      setDeleteTarget(null);
     }
   };
 
@@ -380,6 +387,34 @@ export function SkillsPage() {
 
       {/* 技能市场弹窗 */}
       <MarketplaceModal open={showMarketplace} onClose={() => setShowMarketplace(false)} />
+
+      {/* 删除确认弹窗 */}
+      <Modal
+        open={deleteTarget !== null}
+        onClose={() => setDeleteTarget(null)}
+        title="确认删除"
+        size="sm"
+      >
+        <div className="space-y-4">
+          <p className="text-sm text-muted-foreground">
+            确定删除技能「<span className="font-medium text-foreground">{deleteTarget?.name}</span>」？此操作不可撤销。
+          </p>
+          <div className="flex justify-end gap-2">
+            <button
+              onClick={() => setDeleteTarget(null)}
+              className="px-3 py-1.5 text-xs rounded-lg border border-border hover:bg-muted/50"
+            >
+              取消
+            </button>
+            <button
+              onClick={confirmDelete}
+              className="px-3 py-1.5 text-xs rounded-lg bg-red-500 text-white hover:bg-red-600"
+            >
+              删除
+            </button>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 }
