@@ -105,7 +105,6 @@ function validateFileContent(buffer: Buffer, ext: string): boolean {
 async function validateImageDimensions(buffer: Buffer, ext: string): Promise<boolean> {
   try {
     // 动态导入 sharp，未安装时跳过尺寸校验（魔数校验已在前面完成）
-    // @ts-expect-error - sharp 是可选依赖，可能未安装
     const sharp = (await import("sharp")).default;
     const metadata = await sharp(buffer).metadata();
     // 校验图片有合理的宽高（非 0、非负）

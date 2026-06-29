@@ -8,7 +8,7 @@ module.exports = {
     cwd: '/opt/lynx/app',
     instances: 1,
     exec_mode: 'fork',
-    max_memory_restart: '350M',
+    max_memory_restart: '300M',
     env: {
       NODE_ENV: 'production',
       PORT: 5176,
