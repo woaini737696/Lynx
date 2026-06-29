@@ -301,9 +301,15 @@ export default function AIFlowsPage() {
       .then((res) => res.json())
       .then((data) => {
         if (Array.isArray(data.flows)) {
-          setFlows(data.flows);
-          if (data.flows.length > 0 && !selectedFlow) {
-            setSelectedFlow(data.flows[0].id);
+          // 规范化：确保 nodes/edges 是数组（防止 NULL 历史数据导致 .filter 崩溃）
+          const normalized = data.flows.map((f: Flow) => ({
+            ...f,
+            nodes: Array.isArray(f.nodes) ? f.nodes : [],
+            edges: Array.isArray(f.edges) ? f.edges : [],
+          }));
+          setFlows(normalized);
+          if (normalized.length > 0 && !selectedFlow) {
+            setSelectedFlow(normalized[0].id);
           }
         }
       })
