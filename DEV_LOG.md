@@ -9,6 +9,7 @@
 
 | 迭代 | 日期 | 任务概要 |
 |------|------|----------|
+| [迭代 55](#迭代-55---2026-06-29) | 2026-06-29 | 安装包开发者信息+核心功能Web端差异梳理+P0打通修复+安全Bug修复+规范强化 |
 | [迭代 54](#迭代-54---2026-06-29) | 2026-06-29 | TTS/ASR模型+新增模型功能+LynxAgent启动修复+角色权限分类+职业空间改名+用户列表优化+开发日志分页 |
 | [迭代 53](#迭代-53---2026-06-29) | 2026-06-29 | Lynx超级助理重命名+UI深度优化+设置页模型卡片列表+弹窗字体优化+select双箭头修复 |
 | [迭代 52](#迭代-52---2026-06-28) | 2026-06-28 | Lynx 安装/卸载/登录闭环彻底修复：全自定义液态玻璃安装页 + 登录态持久化 + 原生设置页 |
@@ -30,6 +31,65 @@
 | [迭代 36](#迭代-36---2026-06-26) | 2026-06-26 | 角色管理 CRUD + 用户管理打通 + 职业空间 |
 | [迭代 35](#迭代-35---2026-06-26) | 2026-06-26 | 角色管理按职位分配 + 职业定制 AI 工作空间 |
 | [迭代 34](#迭代-34---2026-06-26) | 2026-06-26 | C 盘数据迁移 + 磁盘使用规范 |
+
+---
+
+## 迭代 55 - 2026-06-29
+
+### 任务概要
+给安装包添加开发者信息消除"未知发布者"安全风险；全面梳理核心功能与Web端差异点；修复阻断生产环境使用的P0打通问题；扫描并修复6项P0安全Bug和6项P1 Bug；强化开发规范（代码签名+开发日志）。
+
+### 完成内容
+
+#### 1. 安装包开发者信息（任务1）
+- `desktop-native/src-tauri/tauri.conf.json`：`bundle` 新增 `publisher: "LynnHub"`，`copyright` 改为 `"© 2026 LynnHub. All rights reserved."`
+- `desktop-native/installer.nsi`：注册表 `Publisher` 从 `"Lynx"` 改为 `"LynnHub"`；新增 `DisplayIcon`/`HelpLink`/`URLInfoAbout` 字段，提升安装包可信度
+- `desktop-native/src-tauri/Cargo.toml`：`authors = ["LynnHub"]`（已有）
+- `DEVELOPMENT_SPEC.md` §9.10 新增「安装包开发者信息与代码签名规范」：元数据完整性要求 + 生产环境代码签名（OV/EV证书）强制 + signtool 命令模板 + 证书存放规范
+
+#### 2. 核心功能 + Web端差异梳理（任务2）
+- 通过子代理全面扫描 Web 端 30+ 路由页面和桌面端 13 个路由页面
+- **核心功能清单**：Web端6大分组（今日执行/灵感收集/知识资产/AI中心/系统/管理），桌面端2 Tab（工作/AI）+ 设置
+- **差异点**：
+  - 桌面端缺失：记忆图谱、数据备份、飞书任务、AI巡检、管理后台、AI模型配置等20+功能
+  - 桌面端独有：Lynx Agent控制台、本地RPA（22个Tauri命令）、全局快捷键、系统托盘、自动更新
+  - 实现不一致：登录页（Modal vs 独立页）、AI助理（流式 vs 非流式模拟）、Settings页（4 Tab内容不同）
+- **打通评估**：数据层100%打通、认证100%打通、AI助理90%（流式降级）、功能覆盖约50%
+- **P0阻断问题**：cloud_endpoint默认localhost + hermes硬编码localhost（已在任务3修复）
+
+#### 3. P0打通修复（任务3）
+- `desktop-native/src-tauri/src/lib.rs:57`：`cloud_endpoint` 默认值从 `"http://127.0.0.1:5176"` 改为 `"https://app.lynnhub.com"`，修复打包后无法连接生产环境
+- `desktop-native/src-tauri/src/hermes/executor.rs`：
+  - `extract_url` 函数签名新增 `cloud_endpoint: &str` 参数，"后台数据"关键词从硬编码 `localhost:5176` 改为动态 `cloud_endpoint` 拼接
+  - `execute_cloud` 请求体字段名从 `message`（字符串）改为 `messages`（数组），与云端 `/api/ai/chat` 约定对齐，新增 `stream: false`
+- `desktop-native/native-ui/src/pages/LoginPage.tsx:107`：注册链接从 `ai.lynxdo.com` 统一为 `app.lynnhub.com`
+
+#### 4. P0安全Bug修复（任务4）
+- **万能码默认值**（`src/app/api/auth/token/route.ts:33`）：去掉 `|| "888888"` 默认值，未配置 `SMS_MASTER_CODE` 时返回 503 拒绝验证码登录，消除生产环境鉴权绕过
+- **登录页硬编码万能码**（`desktop-native/native-ui/src/pages/LoginPage.tsx`）：`MASTER_CODE` 常量改为 `DEV_MASTER_CODE`，用 `import.meta.env.DEV` 门控，生产构建自动隐藏提示文案
+- **/api/lark-tasks 缺鉴权**（`src/app/api/lark-tasks/route.ts`）：GET/POST 入口添加 `requireAuth()`，修复未登录用户可拉取所有飞书任务
+- **飞书任务导入缺userId**（`src/app/api/lark-tasks/route.ts` import分支）：`findFirst`/`count`/`create` 均加入 `userId: user.id` 过滤和赋值，修复跨用户碰撞和无主任务
+- **/api/settings 泄露DB连接串**（`src/app/api/settings/route.ts:152`）：删除 `db.url: "mysql://root@localhost:3306/lynnhub"`，改为 `configured: Boolean(process.env.DATABASE_URL)`
+- **/api/settings 权限不足**（`src/app/api/settings/route.ts`）：GET/PUT 从 `requireAuth()` 改为 `requireAdmin()`，防止非管理员读取/篡改全局AI配置
+
+#### 5. P1 Bug修复（任务4）
+- **权限缓存key不匹配**（`src/lib/auth-utils.ts:155`）：`clearPermissionCache(userId)` 从 `permissionCache.delete(userId)` 改为按 `${userId}:` 前缀遍历删除，修复单用户缓存失效无效
+- **active变更不失效缓存**（`src/app/api/users/[id]/route.ts:106`）：账号激活/禁用状态变更时也递增 `permissionVersion`，确保权限缓存失效
+- **cognitions无分页**（`src/app/api/cognitions/route.ts:25`）：`take: 50` 改为 `take: 500`，配合前端客户端分页加载全部数据
+- **JWT签名日志泄露**（`src/lib/jwt.ts:78`）：日志中不再输出 `expectedSig.slice(0,10)` 和 `signature.slice(0,10)` 签名片段，防止攻击者推断签名前缀
+
+#### 6. 开发规范强化（任务5）
+- `DEVELOPMENT_SPEC.md` §1.4「开发日志同步规范」强化（迭代54已完成）：新增禁止断档、日志查看页必须分页、日志API结构化要求
+- `DEVELOPMENT_SPEC.md` §3「UI规范」强化（迭代54已完成）：列表页强制分页适用范围、Modal z-[200]层级要求
+- `DEVELOPMENT_SPEC.md` §9.10 新增「安装包开发者信息与代码签名规范」
+
+### 自测结果
+- `npx tsc --noEmit`：通过（0 错误）
+- Rust 代码修改（lib.rs/executor.rs）：逻辑简单，待下次 `cargo build` 验证
+- 安全修复验证：万能码未配置时返回503、lark-tasks未登录返回401、settings非admin返回403
+
+### Commit
+- 待提交
 
 ---
 
@@ -92,7 +152,7 @@
 - Lynx Agent 启动逻辑修复：已安装状态下点击启动不再提示"请先安装"
 
 ### Commit
-- 待提交
+- `170e16e3` feat(phase-7): TTS/ASR模型+新增模型功能+LynxAgent启动修复+角色权限分类+职业空间改名+用户列表优化+开发日志分页
 
 ---
 

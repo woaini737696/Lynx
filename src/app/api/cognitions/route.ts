@@ -22,7 +22,7 @@ export async function GET() {
     const cognitions = await prisma.cognition.findMany({
       where: buildUserFilter(user),
       orderBy: { createdAt: "desc" },
-      take: 50,
+      take: 500, // 提升上限到 500，配合前端客户端分页加载全部数据
     });
     return NextResponse.json({ cognitions });
   } catch (e) {

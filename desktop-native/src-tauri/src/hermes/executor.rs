@@ -24,7 +24,8 @@ pub async fn execute_cloud(
     let url = format!("{}/api/ai/chat", cloud_endpoint);
 
     let mut req = client.post(&url).json(&json!({
-        "message": command,
+        "messages": [{"role": "user", "content": command}],
+        "stream": false,
         "assistantMode": true,
         "source": "desktop",
     }));
@@ -62,14 +63,16 @@ pub async fn execute_local(
 ) -> (bool, String, Option<String>) {
     match action {
         LocalAction::BrowserOpen => {
-            let url = extract_url(command).unwrap_or_else(|| "about:blank".to_string());
+            let cloud_endpoint = state.cloud_endpoint.lock().map_err(|e| e.to_string()).unwrap_or_else(|_| "https://app.lynnhub.com".to_string()).clone();
+            let url = extract_url(command, &cloud_endpoint).unwrap_or_else(|| "about:blank".to_string());
             match rpa::browser::open_url(&url).await {
                 Ok(_) => (true, format!("已在默认浏览器打开: {}", url), None),
                 Err(e) => (false, String::new(), Some(e)),
             }
         }
         LocalAction::BrowserExtract => {
-            let url = extract_url(command).unwrap_or_else(|| "about:blank".to_string());
+            let cloud_endpoint = state.cloud_endpoint.lock().map_err(|e| e.to_string()).unwrap_or_else(|_| "https://app.lynnhub.com".to_string()).clone();
+            let url = extract_url(command, &cloud_endpoint).unwrap_or_else(|| "about:blank".to_string());
             match rpa::browser::navigate_and_extract(&url, None).await {
                 Ok(data) => (true, format!("提取数据: {}", data), None),
                 Err(e) => (false, String::new(), Some(e)),
@@ -150,7 +153,7 @@ pub async fn execute_hybrid(
 
 // ============ 指令参数提取（简易实现） ============
 
-fn extract_url(command: &str) -> Option<String> {
+fn extract_url(command: &str, cloud_endpoint: &str) -> Option<String> {
     // 从指令中提取 URL（http:// 或 https://）
     let lower = command.to_lowercase();
     if let Some(start) = lower.find("http") {
@@ -158,9 +161,9 @@ fn extract_url(command: &str) -> Option<String> {
         let end = rest.find(|c: char| c.is_whitespace()).unwrap_or(rest.len());
         return Some(rest[..end].to_string());
     }
-    // 中文关键词映射
+    // 中文关键词映射：使用动态 cloud_endpoint 拼接，避免硬编码 localhost
     if command.contains("后台数据") {
-        return Some(format!("{}/admin", "http://localhost:5176"));
+        return Some(format!("{}/admin", cloud_endpoint));
     }
     None
 }

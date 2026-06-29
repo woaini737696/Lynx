@@ -312,6 +312,23 @@
   - 禁止将 `output: 'export'` 写入根目录 `next.config.mjs`
   - 禁止提交 `dist/`、`dist-web/`、`out/app/`、`src-tauri/target/` 到版本控制（已加入 `.gitignore`）
 
+### 9.10 安装包开发者信息与代码签名规范（强制）
+- **安装包元数据完整性**：安装包必须包含完整的发布者信息，避免被 Windows SmartScreen 识别为"未知发布者"
+  - `tauri.conf.json` 的 `bundle.publisher` 必须填写（如 `"LynnHub"`）
+  - `tauri.conf.json` 的 `bundle.copyright` 必须填写（如 `"© 2026 LynnHub. All rights reserved."`）
+  - `installer.nsi` 的注册表 `Publisher` 必须填写（如 `"LynnHub"`）
+  - `Cargo.toml` 的 `authors` 必须填写（如 `["LynnHub"]`）
+  - 注册表还应包含 `DisplayIcon`、`HelpLink`、`URLInfoAbout`，提升安装包可信度
+- **生产环境代码签名（强制）**：
+  - 生产发布版安装包必须使用代码签名证书（OV/EV）签名，禁止发布未签名安装包给终端用户
+  - 签名工具：`signtool sign /a /tr http://timestamp.digicert.com /td sha256 /fd sha256 /sha1 <证书指纹> Lynx-Setup-1.2.0.exe`
+  - 未签名安装包在 Windows 10/11 会触发 SmartScreen "Windows 已保护你的电脑" 警告，用户无法正常安装
+  - EV 证书可立即消除 SmartScreen 警告；OV 证书需要积累声誉（需签名次数 + 时间）
+  - 签名密钥/证书文件禁止提交到版本控制，必须存放在 `D:\LynnHub\certs\`（已加入 `.gitignore`）
+  - 签名密码通过环境变量 `SIGN_CERT_PASSWORD` 传入，禁止硬编码
+- **本地开发**：开发期可使用自签名证书测试签名流程，但自签名证书无法消除 SmartScreen 警告
+- **验证**：发布前用 `signtool verify /pa /v Lynx-Setup-1.2.0.exe` 验证签名有效性
+
 ## 10. 环境变量规范（强制）
 
 - **配置文件**：`.env`（本地开发）、`.env.example`（示例模板，必须提交到仓库）

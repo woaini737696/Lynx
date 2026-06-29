@@ -30,7 +30,10 @@ export async function POST(req: NextRequest) {
       if (!isValidPhone(phone)) {
         return NextResponse.json({ error: "手机号格式不正确" }, { status: 400 });
       }
-      const masterCode = process.env.SMS_MASTER_CODE || "888888";
+      const masterCode = process.env.SMS_MASTER_CODE;
+      if (!masterCode) {
+        return NextResponse.json({ error: "验证码登录未配置，请联系管理员" }, { status: 503 });
+      }
       if (code !== masterCode) {
         return NextResponse.json({ error: "验证码错误" }, { status: 401 });
       }

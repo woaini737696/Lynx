@@ -105,6 +105,8 @@ export async function PATCH(
 
     if (active !== undefined) {
       data.active = !!active;
+      // 账号激活/禁用状态变更时也要递增 permissionVersion，确保权限缓存失效
+      data.permissionVersion = { increment: 1 };
     }
 
     if (password !== undefined && password) {

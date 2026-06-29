@@ -20,7 +20,7 @@ import {
   type LarkMember,
   type LarkTasklistRef,
 } from "@/lib/lark-sync";
-import { getCurrentUser } from "@/lib/auth-utils";
+import { getCurrentUser, requireAuth } from "@/lib/auth-utils";
 
 /** 构建子任务映射：parentGuid → 子任务数组（从全量任务中提取） */
 function buildSubtaskMap(allTasks: NormalizedTask[]): Record<string, NormalizedTask[]> {
@@ -51,6 +51,9 @@ async function refreshTasksInBackground() {
 
 // GET /api/lark-tasks?view=my|related|all&complete=true|false&q=关键词&assignee=xxx&tasklist=xxx&refresh=true
 export async function GET(req: NextRequest) {
+  const { error: authError } = await requireAuth();
+  if (authError) return authError;
+
   const { searchParams } = new URL(req.url);
   const view = (searchParams.get("view") || "my") as "my" | "related" | "all";
   const completeRaw = searchParams.get("complete"); // "false" | "true" | null(全部)
@@ -237,6 +240,9 @@ export async function GET(req: NextRequest) {
 // { action: "push", localTaskId }  // 本地看板任务推送到飞书
 export async function POST(req: NextRequest) {
   try {
+    const { error: authError } = await requireAuth();
+    if (authError) return authError;
+
     const body = await req.json();
     const { action } = body;
 
@@ -297,9 +303,15 @@ export async function POST(req: NextRequest) {
         );
       }
 
-      // 去重：避免重复导入同一飞书任务（用 sourceId 存 guid）
+      // 获取当前用户，确保数据隔离
+      const user = await getCurrentUser();
+      if (!user) {
+        return NextResponse.json({ error: "未登录" }, { status: 401 });
+      }
+
+      // 去重：避免重复导入同一飞书任务（用 sourceId 存 guid，按 userId 隔离）
       const existing = await prisma.task.findFirst({
-        where: { sourceId: taskId, status: "active" },
+        where: { sourceId: taskId, status: "active", userId: user.id },
       });
       if (existing) {
         return NextResponse.json(
@@ -308,9 +320,9 @@ export async function POST(req: NextRequest) {
         );
       }
 
-      // 检查 task 列满额（上限 10）
+      // 检查 task 列满额（上限 10，按 userId 隔离）
       const count = await prisma.task.count({
-        where: { column: "task", status: "active" },
+        where: { column: "task", status: "active", userId: user.id },
       });
       if (count >= 10) {
         return NextResponse.json(
@@ -329,6 +341,7 @@ export async function POST(req: NextRequest) {
           position: count,
           status: "active",
           sourceId: taskId,
+          userId: user.id,
         },
       });
       return NextResponse.json({ task, success: true });
