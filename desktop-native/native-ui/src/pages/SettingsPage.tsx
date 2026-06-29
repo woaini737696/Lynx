@@ -108,8 +108,10 @@ export function SettingsPage() {
   const handleDownloadInstall = async () => {
     setInstalling(true);
     try {
-      // 打开浏览器下载最新安装包
-      const downloadUrl = "https://ai.lynxdo.com/download";
+      // 优先使用云端返回的 downloadUrl，无则回退到官网下载页
+      const downloadUrl = updateInfo?.notes
+        ? `https://ai.lynxdo.com/download?v=${updateInfo.version}`
+        : "https://www.lynxdo.com/download";
       await invoke("open_external", { url: downloadUrl });
       toast.success("已在浏览器中打开下载页面");
     } catch (err) {
@@ -130,7 +132,7 @@ export function SettingsPage() {
       setStatus(s);
       setEndpoint(s.cloudEndpoint);
     } catch (err) {
-      console.error("加载 Agent 状态失败", err);
+      toast.error(err instanceof Error ? err.message : "加载 Agent 状态失败");
     } finally {
       setLoadingStatus(false);
     }
@@ -141,7 +143,7 @@ export function SettingsPage() {
       await clearAuth();
       await invoke("set_user_token", { token: "" }).catch(() => {});
     } catch (err) {
-      console.error("退出登录失败", err);
+      toast.error(err instanceof Error ? err.message : "退出登录失败");
     } finally {
       signOut();
       navigate("/login", { replace: true });
@@ -158,8 +160,9 @@ export function SettingsPage() {
     try {
       await invoke("set_auth_mode", { mode });
       await loadStatus();
+      toast.success("授权模式已切换");
     } catch (err) {
-      console.error("设置授权模式失败", err);
+      toast.error(err instanceof Error ? err.message : "设置授权模式失败");
     }
   };
 
@@ -169,8 +172,9 @@ export function SettingsPage() {
     try {
       await invoke("set_cloud_endpoint", { endpoint: endpoint.trim() });
       await loadStatus();
+      toast.success("云端地址已保存");
     } catch (err) {
-      console.error("设置云端地址失败", err);
+      toast.error(err instanceof Error ? err.message : "设置云端地址失败");
     } finally {
       setSavingEndpoint(false);
     }
@@ -183,6 +187,7 @@ export function SettingsPage() {
       await invoke("add_authorized_dir", { dir: newDir.trim() });
       setNewDir("");
       await loadStatus();
+      toast.success("已添加授权目录");
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : "添加目录失败");
     } finally {
@@ -194,8 +199,9 @@ export function SettingsPage() {
     try {
       await invoke("remove_authorized_dir", { dir });
       await loadStatus();
+      toast.success("已移除授权目录");
     } catch (err) {
-      console.error("移除目录失败", err);
+      toast.error(err instanceof Error ? err.message : "移除目录失败");
     }
   };
 
@@ -265,7 +271,9 @@ export function SettingsPage() {
                   </div>
                   <div className="rounded-xl border border-border/40 bg-muted/20 p-4">
                     <p className="text-xs text-muted-foreground">会员状态</p>
-                    <p className="mt-1 text-sm font-medium text-foreground">Pro 会员</p>
+                    <p className="mt-1 text-sm font-medium text-foreground">
+                      {user?.tier || "免费版"}
+                    </p>
                   </div>
                 </div>
 
@@ -315,7 +323,7 @@ export function SettingsPage() {
                     <input
                       value={endpoint}
                       onChange={(e) => setEndpoint(e.target.value)}
-                      placeholder="https://ai.lynxdo.com"
+                      placeholder="https://ai.lynxdo.com:8443"
                       className="h-11 w-full rounded-xl border border-border/60 bg-background/60 pl-9 pr-4 text-sm text-foreground outline-none focus:border-primary focus:ring-1 focus:ring-primary"
                     />
                   </div>

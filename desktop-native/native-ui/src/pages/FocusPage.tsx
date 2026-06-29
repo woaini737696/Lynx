@@ -4,6 +4,7 @@ import { Check, Clock, Target, Sparkles, Loader2 } from "lucide-react";
 import { motion } from "framer-motion";
 import { cn } from "@/lib/utils";
 import { cloudApi } from "@/lib/cloud-api";
+import { toast } from "@/lib/toast";
 import { HelpButton } from "@/components/ui/HelpButton";
 import type { FocusItem, DailyFocus } from "@/types/api";
 
@@ -57,6 +58,9 @@ export function FocusPage() {
       setUpdatingId(null);
       queryClient.invalidateQueries({ queryKey: ["focus"] });
       queryClient.invalidateQueries({ queryKey: ["board"] });
+    },
+    onError: (err: unknown) => {
+      toast.error(err instanceof Error ? err.message : "操作失败");
     },
   });
 

@@ -224,8 +224,8 @@ export function MembershipPage() {
         "/api/membership"
       );
       setMembership(json.data);
-    } catch {
-      toast.error("加载会员状态失败");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "加载会员状态失败");
     }
   }, []);
 
@@ -236,8 +236,8 @@ export function MembershipPage() {
         "/api/membership/plans"
       );
       setPlansData(json.data);
-    } catch {
-      toast.error("加载套餐失败");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "加载套餐失败");
     }
   }, []);
 
@@ -249,8 +249,8 @@ export function MembershipPage() {
         data: { sCoins: number };
       }>("/api/wallet");
       setSCoinBalance(json.data?.sCoins ?? 0);
-    } catch {
-      // 静默失败
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "加载 S币 余额失败");
     }
   }, []);
 
@@ -261,11 +261,13 @@ export function MembershipPage() {
   }, [loadMembership, loadPlans, loadSCoinBalance]);
 
   // 刷新
-  const handleRefresh = () => {
+  const handleRefresh = async () => {
     setLoading(true);
-    loadMembership();
-    loadPlans();
-    loadSCoinBalance();
+    try {
+      await Promise.all([loadMembership(), loadPlans(), loadSCoinBalance()]);
+    } finally {
+      setLoading(false);
+    }
   };
 
   // 打开购买 Modal

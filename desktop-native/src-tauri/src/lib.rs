@@ -54,7 +54,7 @@ impl Default for AppState {
             authorized_dirs: Mutex::new(vec![default_dir]),
             ws_connected: AtomicBool::new(false),
             user_token: Mutex::new(None),
-            cloud_endpoint: Mutex::new("https://ai.lynxdo.com".to_string()),
+            cloud_endpoint: Mutex::new("https://ai.lynxdo.com:8443".to_string()),
         }
     }
 }

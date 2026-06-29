@@ -162,8 +162,8 @@ export function WalletPage() {
     try {
       const json = await cloudApi.get<{ success: boolean; data: WalletData }>("/api/wallet");
       setWallet(json.data);
-    } catch {
-      toast.error("加载钱包失败");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "加载钱包失败");
     } finally {
       setLoading(false);
     }
@@ -183,8 +183,8 @@ export function WalletPage() {
       setCreditCursor(page.nextCursor);
       setCreditHasMore(page.hasMore);
       loadedRef.current.add("credits");
-    } catch {
-      toast.error("加载 Credits 流水失败");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "加载 Credits 流水失败");
     } finally {
       setCreditLoading(false);
     }
@@ -204,8 +204,8 @@ export function WalletPage() {
       setScoinCursor(page.nextCursor);
       setScoinHasMore(page.hasMore);
       loadedRef.current.add("scoins");
-    } catch {
-      toast.error("加载 S币 流水失败");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "加载 S币 流水失败");
     } finally {
       setScoinLoading(false);
     }

@@ -273,7 +273,7 @@ export function InboxPage() {
       );
     } catch (e) {
       if (ctrl.signal.aborted) return; // 主动取消，不报错
-      toast.error("AI 回复失败，请重试");
+      toast.error(e instanceof Error ? e.message : "AI 回复失败，请重试");
     } finally {
       if (chatAbortRef.current === ctrl) {
         chatAbortRef.current = null;

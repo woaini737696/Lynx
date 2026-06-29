@@ -20,6 +20,7 @@ export interface PersistedUser {
   name?: string | null;
   avatarUrl?: string;
   email?: string;
+  tier?: string;
 }
 
 export interface AuthCredentials {

@@ -111,7 +111,8 @@ export function AIAssistantPage() {
       try {
         const resp = await cloudApi.get<{ settings: AISettings }>("/api/ai/settings");
         return resp.settings || {};
-      } catch {
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : "加载 AI 设置失败");
         return {};
       }
     },
@@ -179,9 +180,9 @@ export function AIAssistantPage() {
       }
 
       // 持久化用户消息
-      appendMessage(sessionId, { role: "user", content }).catch((e) =>
-        console.warn("持久化用户消息失败", e)
-      );
+      appendMessage(sessionId, { role: "user", content }).catch((e) => {
+        toast.error(e instanceof Error ? e.message : "消息持久化失败");
+      });
 
       // 构建历史消息（含当前用户消息）
       const history = [...messages, userMsg]
