@@ -20,6 +20,10 @@ STANDALONE_DIR = os.path.join(PROJECT_ROOT, ".next", "standalone")
 STATIC_DIR = os.path.join(PROJECT_ROOT, ".next", "static")
 PUBLIC_DIR = os.path.join(PROJECT_ROOT, "public")
 ENV_PRODUCTION = os.path.join(PROJECT_ROOT, ".env.production")
+# Prisma 引擎（本地已配置 binaryTargets = ["native", "debian-openssl-3.0.x"]，
+# 同时含 Windows 和 Linux 引擎，需一并上传，否则服务器报 PrismaClientInitializationError）
+PRISMA_CLIENT_DIR = os.path.join(PROJECT_ROOT, "node_modules", ".prisma", "client")
+AT_PRISMA_CLIENT_DIR = os.path.join(PROJECT_ROOT, "node_modules", "@prisma", "client")
 
 TS = time.strftime("%Y%m%d-%H%M%S")
 REMOTE_TMP = f"/tmp/lynx-deploy-{TS}"
@@ -35,7 +39,7 @@ def log(msg, level="INFO"):
 def check_local():
     """校验本地构建产物是否就绪"""
     log("校验本地构建产物...")
-    for path in [STANDALONE_DIR, STATIC_DIR, ENV_PRODUCTION]:
+    for path in [STANDALONE_DIR, STATIC_DIR, ENV_PRODUCTION, PRISMA_CLIENT_DIR, AT_PRISMA_CLIENT_DIR]:
         if not os.path.exists(path):
             log(f"缺少: {path}", "ERR")
             sys.exit(1)
@@ -43,6 +47,13 @@ def check_local():
     if not os.path.exists(server_js):
         log(f"缺少 standalone/server.js", "ERR")
         sys.exit(1)
+    # 校验 Linux Prisma 引擎存在（关键：服务器是 Linux，缺这个会 500）
+    linux_engine = os.path.join(PRISMA_CLIENT_DIR, "libquery_engine-debian-openssl-3.0.x.so.node")
+    if not os.path.exists(linux_engine):
+        log(f"缺少 Linux Prisma 引擎: {linux_engine}", "ERR")
+        log("请先执行: npx prisma generate (schema.prisma 已配置 binaryTargets)", "ERR")
+        sys.exit(1)
+    log("✓ Linux Prisma 引擎就位", "OK")
     # 检查 middleware 是否包含 CORS 标识（粗略验证）
     mw_path = os.path.join(STANDALONE_DIR, ".next", "server", "middleware.js")
     if os.path.exists(mw_path):
@@ -58,7 +69,7 @@ def check_local():
 
 
 def pack_standalone():
-    """打包 standalone + static + public + .env.production 到 tar.gz"""
+    """打包 standalone + static + public + .env.production + Prisma 引擎到 tar.gz"""
     log("打包 standalone 产物...")
     buf = BytesIO()
     with tarfile.open(fileobj=buf, mode="w:gz") as tar:
@@ -74,9 +85,12 @@ def pack_standalone():
             tar.add(PUBLIC_DIR, arcname="standalone/public")
         # .env.production → standalone/.env
         tar.add(ENV_PRODUCTION, arcname="standalone/.env")
+        # Prisma 引擎（本地 binaryTargets 配置生成，含 Linux 引擎，standalone 不含需补齐）
+        tar.add(PRISMA_CLIENT_DIR, arcname="standalone/node_modules/.prisma/client")
+        tar.add(AT_PRISMA_CLIENT_DIR, arcname="standalone/node_modules/@prisma/client")
     size_mb = buf.tell() / 1024 / 1024
     buf.seek(0)
-    log(f"打包完成: {size_mb:.2f} MB", "OK")
+    log(f"打包完成: {size_mb:.2f} MB（含 Linux Prisma 引擎）", "OK")
     return buf
 
 
