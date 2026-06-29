@@ -2,7 +2,10 @@
 // 数据库：MySQL 8.4
 
 generator client {
-  provider = "prisma-client-js"
+  provider      = "prisma-client-js"
+  // 本地 Windows 开发 + Linux 服务器部署，需同时生成两个平台的 query engine
+  // 服务器零构建原则：不在服务器 prisma generate，本地生成后上传
+  binaryTargets = ["native", "debian-openssl-3.0.x"]
 }
 
 datasource db {

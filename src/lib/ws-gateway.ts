@@ -10,13 +10,25 @@
 // 4. PC 执行完成后流式回传进度到安卓端/Web端
 // 5. 定时清理超时离线的 PC
 
+// 加载 .env 环境变量（独立进程需要自己加载，不依赖 Next.js）
+import { config as loadEnv } from "dotenv";
+loadEnv({ path: ".env" });
+
 import { WebSocketServer, WebSocket } from "ws";
 import { createServer } from "http";
 import { randomUUID } from "crypto";
 import { PrismaClient } from "@prisma/client";
-import { getLogger } from "@/lib/logger";
 
-const logger = getLogger("ws-gateway");
+// 内联 logger（避免依赖 @/lib/logger 和 pino-pretty，便于 esbuild 预编译为纯 JS 在服务器零依赖运行）
+const logger = {
+  info: (...args: unknown[]) => console.log("[ws-gateway]", ...args),
+  error: (obj: unknown, msg?: string) => console.error("[ws-gateway]", msg ?? "", obj),
+  warn: (...args: unknown[]) => console.warn("[ws-gateway]", ...args),
+  debug: (...args: unknown[]) => {
+    if (process.env.LOG_LEVEL === "debug") console.log("[ws-gateway]", ...args);
+  },
+  child: () => logger,
+};
 const prisma = new PrismaClient();
 const PORT = Number(process.env.WS_PORT || 3001);
 

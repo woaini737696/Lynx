@@ -9,6 +9,7 @@
 
 | 迭代 | 日期 | 任务概要 |
 |------|------|----------|
+| [迭代 60](#迭代-60---2026-06-29) | 2026-06-29 | 服务器零构建架构修复：ws-gateway本地esbuild预编译+规范强化+2G swap防OOM+Prisma跨平台engine |
 | [迭代 59](#迭代-59---2026-06-29) | 2026-06-29 | 15项bug修复+功能优化：开发规范/Logo/登录/弹窗/测试数据/AI模型/LynxAgent/助理同步/性能监控/远程操控/会员合并 |
 | [迭代 58](#迭代-58---2026-06-29) | 2026-06-29 | WS心跳+回传bug修复+域名改ai.lynxdo.com+官网改用web_Lynx+部署流程澄清 |
 | [迭代 57](#迭代-57---2026-06-29) | 2026-06-29 | 域名切换app.lynxdo.com+代码清理+阿里云部署方案+构建部署脚本+官网着陆页 |
@@ -35,6 +36,71 @@
 | [迭代 36](#迭代-36---2026-06-26) | 2026-06-26 | 角色管理 CRUD + 用户管理打通 + 职业空间 |
 | [迭代 35](#迭代-35---2026-06-26) | 2026-06-26 | 角色管理按职位分配 + 职业定制 AI 工作空间 |
 | [迭代 34](#迭代-34---2026-06-26) | 2026-06-26 | C 盘数据迁移 + 磁盘使用规范 |
+
+---
+
+## 迭代 60 - 2026-06-29
+
+### 任务概要
+修复迭代59部署时违反"服务器零构建"规范导致的 OOM 宕机事故。从架构层面彻底解决：WS 网关改用本地 esbuild 预编译为纯 JS（服务器零依赖运行），强化开发规范，添加 swap 防 OOM，修复 Prisma 跨平台 engine。
+
+### 事故背景
+迭代59部署时在服务器执行 `npm install tsx dotenv`，导致 2C2G 服务器内存耗尽，SSH 和 HTTP 均无响应，用户强制重启才恢复。根因：服务器无 swap（2G 内存无兜底），且 ws-gateway.ts 依赖 tsx 运行 TypeScript，需要在服务器安装 tsx。
+
+### 完成内容
+
+#### 1. WS 网关架构重构：本地 esbuild 预编译
+- 新增 `scripts/compile-ws-gateway.mjs`：用 esbuild 把 `src/lib/ws-gateway.ts` 预编译成纯 CJS JavaScript 单文件（148KB）
+- 编译策略：`bundle: true`（ws/dotenv 打进单文件）+ `external: ["@prisma/client"]`（运行时从 node_modules 解析）
+- `scripts/start-ws-gateway.js` 改为直接 `require("./ws-gateway.compiled.js")`，不再依赖 tsx
+- `src/lib/ws-gateway.ts` 内联 logger（去掉 pino-pretty 依赖）+ 内联 dotenv 加载
+- 服务器只需 `node scripts/ws-gateway.compiled.js`，零额外依赖
+
+#### 2. 开发规范强化（DEVELOPMENT_SPEC.md 新增第零章）
+- 新增"服务器零构建硬约束"章节（最高优先级）
+- 列出 8 类禁止命令（npm install / npx / tsc / esbuild / prisma generate / cargo build 等）
+- 列出允许的轻量操作（pm2 / nginx / node 运行产物 / curl 等）
+- TypeScript 独立进程的本地预编译规范
+- 部署前自检清单
+
+#### 3. 服务器内存优化：2G swap
+- 创建 2G swap 文件（`/swapfile`），写入 `/etc/fstab` 持久化
+- `vm.swappiness=10`（优先用内存，swap 作为兜底）
+- 防止未来任何内存峰值导致 OOM 宕机
+
+#### 4. Prisma 跨平台 engine 修复
+- `prisma/schema.prisma` 添加 `binaryTargets = ["native", "debian-openssl-3.0.x"]`
+- 本地 `prisma generate` 同时生成 Windows + Linux 两个平台的 query engine
+- `build.ps1` 添加手动复制 `@prisma/client` 和 `.prisma/client` 到 standalone（Next.js trace 会漏掉）
+
+#### 5. 构建脚本优化（build.ps1）
+- 新增步骤 [3/7]：本地预编译 WS 网关
+- 新增步骤：手动复制 Prisma Client 到 standalone/node_modules
+- 修复 PowerShell stderr 误判（编译步骤也加 `$ErrorActionPreference = "Continue"`）
+- `ecosystem.config.cjs`：ws-gateway 进程改为 `script: 'scripts/ws-gateway.compiled.js'`，内存上限 120M
+
+### 涉及文件
+- `DEVELOPMENT_SPEC.md`（新增第零章，16→17 章节）
+- `src/lib/ws-gateway.ts`（内联 logger + dotenv 加载）
+- `scripts/compile-ws-gateway.mjs`（新增，esbuild 预编译脚本）
+- `scripts/start-ws-gateway.js`（改为 require 编译产物）
+- `scripts/ws-gateway.compiled.js`（编译产物，已加入 .gitignore）
+- `deploy/pm2/ecosystem.config.cjs`（ws-gateway 用编译产物，内存上限调整）
+- `scripts/deploy/build.ps1`（新增编译步骤 + Prisma Client 复制）
+- `prisma/schema.prisma`（binaryTargets 添加 Linux）
+- `.gitignore`（排除编译产物）
+
+### 部署状态
+- 本地构建成功（standalone 15.74 MB，含 ws-gateway.compiled.js + Prisma Client）
+- 服务器部署成功：
+  - lynx-app: online, 103MB
+  - lynx-ws-gateway: online, 60MB（零依赖运行，无 tsx）
+  - 健康检查 200 OK
+  - 内存：475M used / 1608M total + 2G swap
+  - PM2 配置已保存
+
+### Commit hash
+`待提交`
 
 ---
 

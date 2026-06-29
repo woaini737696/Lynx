@@ -42,6 +42,9 @@ next-env.d.ts
 # prisma
 /prisma/migrations/dev.db*
 
+# 编译产物（本地预编译，不入 git）
+/scripts/ws-gateway.compiled.js
+
 # superpowers brainstorm
 .superpowers/
 
@@ -133,3 +136,4 @@ test_ui.xml
 # 部署构建产物（本地构建后同步到服务器，不入版本控制）
 /deploy/dist/
 /deploy/backup/
+__pycache__/
