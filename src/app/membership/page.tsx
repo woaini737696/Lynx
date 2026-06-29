@@ -445,7 +445,7 @@ export default function MembershipPage() {
     <div className="p-4 sm:p-8">
       <PageHeader
         title="会员"
-        subtitle="会员档位 · 套餐对比 · 升级续费"
+        subtitle="会员档位 · 套餐对比 · 升级续费 · 账单记录"
         action={
           <div className="flex items-center gap-2">
             <Button variant="ghost" size="sm" onClick={handleRefresh} className="gap-1.5">
@@ -504,6 +504,94 @@ export default function MembershipPage() {
         onSCoinOffsetChange={handleSCoinOffsetChange}
         onConfirm={handleConfirmPurchase}
       />
+
+      {/* ============ 账单记录（合并自订阅与账单页） ============ */}
+      <BillsSection />
+    </div>
+  );
+}
+
+// ============ 账单记录区块 ============
+
+function BillsSection() {
+  const [bills] = useState<BillRecord[]>(() => getMockBills());
+
+  const totalPaid = bills
+    .filter((b) => b.status === "paid")
+    .reduce((sum, b) => sum + b.amount, 0);
+
+  return (
+    <div className="mt-8">
+      <div className="mb-4 flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <Receipt className="h-4 w-4 text-cognition" />
+          <h2 className="text-sm font-semibold text-foreground">账单记录</h2>
+          <span className="text-xs text-muted-foreground">
+            累计已支付 ¥{totalPaid.toFixed(2)}
+          </span>
+        </div>
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => exportBills(bills)}
+          className="gap-1.5"
+          disabled={bills.length === 0}
+        >
+          <Download className="h-3.5 w-3.5" />
+          <span className="hidden sm:inline">导出 CSV</span>
+        </Button>
+      </div>
+
+      {bills.length === 0 ? (
+        <Card className="py-10 text-center">
+          <Receipt className="mx-auto mb-3 h-10 w-10 text-muted-foreground/40" />
+          <p className="text-sm text-muted-foreground">暂无账单记录</p>
+          <p className="mt-1 text-xs text-muted-foreground/70">
+            开通会员后将在此处查看账单明细
+          </p>
+        </Card>
+      ) : (
+        <Card className="!p-0">
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-border/60 bg-muted/30">
+                  <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground">账单周期</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground">会员档位</th>
+                  <th className="px-4 py-3 text-right text-xs font-medium text-muted-foreground">金额</th>
+                  <th className="px-4 py-3 text-center text-xs font-medium text-muted-foreground">状态</th>
+                  <th className="px-4 py-3 text-right text-xs font-medium text-muted-foreground">支付时间</th>
+                </tr>
+              </thead>
+              <tbody>
+                {bills.map((b) => (
+                  <tr key={b.id} className="border-b border-border/40 last:border-0">
+                    <td className="px-4 py-3 text-foreground">{b.period}</td>
+                    <td className="px-4 py-3 text-foreground">{TIER_LABEL[b.tier] || b.tier}</td>
+                    <td className="px-4 py-3 text-right font-medium text-foreground">¥{b.amount.toFixed(2)}</td>
+                    <td className="px-4 py-3 text-center">
+                      <span
+                        className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] ${
+                          b.status === "paid"
+                            ? "bg-task/10 text-task"
+                            : b.status === "pending"
+                              ? "bg-campaign/10 text-campaign"
+                              : "bg-graveyard/10 text-graveyard"
+                        }`}
+                      >
+                        {BILL_STATUS_LABEL[b.status]}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 text-right text-xs text-muted-foreground">
+                      {b.paidAt ? new Date(b.paidAt).toISOString().slice(0, 10) : "—"}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </Card>
+      )}
     </div>
   );
 }
@@ -724,7 +812,7 @@ function PlanCard({
               <Gift className="h-3 w-3" />
               S币/月
             </span>
-            <span className="font-semibold text-foreground">{plan.sCoins.toLocaleString()}</span>
+            <span className="font-semibold text-foreground">{safeFormatNum(plan?.sCoins)}</span>
           </div>
         </div>
 
@@ -842,7 +930,7 @@ function PurchaseModal({
                 <span className="text-lg font-bold">{plan.name}</span>
               </div>
               <div className="mt-1 text-xs text-white/80">
-                {formatCredits(plan.credits)} Credits/月 · {plan.sCoins.toLocaleString()} S币/月
+                {formatCredits(plan?.credits)} Credits/月 · {safeFormatNum(plan?.sCoins)} S币/月
               </div>
             </div>
             <div className="text-right">

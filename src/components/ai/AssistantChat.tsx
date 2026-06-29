@@ -72,6 +72,8 @@ interface SessionListItem {
 export interface AssistantChatProps {
   /** 可选：关闭按钮回调（抽屉场景传入） */
   onClose?: () => void;
+  /** 抽屉打开状态（抽屉场景传入，打开时自动刷新会话与主页面同步） */
+  open?: boolean;
 }
 
 interface AssistantSettings {
@@ -140,7 +142,7 @@ function isLarkTaskCardTool(tc: ToolCalled | null | undefined): boolean {
  * - 全双工语音：VAD + 流式 ASR + 流式 TTS + 后缀音 + 用户开口打断
  * - 与主页面 /ai/assistant 共享同一会话（/api/ai/chat/sessions）
  */
-export function AssistantChat({ onClose }: AssistantChatProps = {}) {
+export function AssistantChat({ onClose, open }: AssistantChatProps = {}) {
   // ===== 职业空间（4 维度：快捷技能可见集 / system prompt / 默认模型 / 工具白名单）=====
   const { workspace, profession } = useWorkspace();
   // 过滤后的快捷技能：职业空间内 quickCommands 非空时只显示 label 命中项，否则显示全部
@@ -372,6 +374,32 @@ export function AssistantChat({ onClose }: AssistantChatProps = {}) {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // 抽屉打开时刷新会话列表 + 当前会话消息（与主页面 /ai/assistant 完全同步信息）
+  // 解决：在主页面发消息后关闭抽屉，再次打开抽屉时数据是旧的
+  const openRef = useRef(open);
+  useEffect(() => {
+    if (open === undefined) return; // 非抽屉场景（主页面）不触发
+    const wasOpen = openRef.current;
+    openRef.current = open;
+    if (open && !wasOpen) {
+      // 抽屉从关闭→打开：刷新会话列表和当前会话消息
+      (async () => {
+        const list = await fetchSessions();
+        if (list.length > 0) {
+          // 如果当前会话仍在列表中，刷新其消息；否则加载最近的会话
+          const currentStillExists = currentSessionIdRef.current
+            ? list.some((s) => s.id === currentSessionIdRef.current)
+            : false;
+          if (currentStillExists && currentSessionIdRef.current) {
+            await loadSession(currentSessionIdRef.current);
+          } else {
+            await loadSession(list[0].id);
+          }
+        }
+      })();
+    }
+  }, [open, fetchSessions, loadSession]);
 
   // 点击会话下拉外部时关闭
   useEffect(() => {

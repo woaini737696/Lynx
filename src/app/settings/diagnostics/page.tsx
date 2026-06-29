@@ -199,6 +199,11 @@ export default function DiagnosticsPage() {
     ? Math.round((data.system.memory.heapUsed / data.system.memory.heapTotal) * 100)
     : 0;
 
+  // RSS 占总内存的比例（更准确地反映真实内存占用）
+  // 注：Node.js V8 的 heapTotal 是已分配堆（接近 heapUsed），所以 heapUsed/heapTotal 比例天然偏高（80%+）
+  // 真正反映内存压力的指标是 RSS（进程总内存），而非堆使用率
+  const isHeapHigh = memUsagePercent > 95 && data.system.memory.heapTotal < 100;
+
   return (
     <div className="p-4 sm:p-8">
       <PageHeader
@@ -252,16 +257,21 @@ export default function DiagnosticsPage() {
           <div className="mt-2 text-2xl font-bold tabular-nums">
             {data.system.memory.heapUsed}<span className="text-sm text-muted-foreground">/{data.system.memory.heapTotal}MB</span>
           </div>
-          <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-muted">
+          <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full ios-glass-sm">
             <div
               className={cn(
                 "h-full rounded-full transition-all",
-                memUsagePercent > 80 ? "bg-graveyard" : memUsagePercent > 60 ? "bg-campaign" : "bg-task"
+                isHeapHigh ? "bg-graveyard" : memUsagePercent > 80 ? "bg-campaign" : "bg-task"
               )}
-              style={{ width: `${memUsagePercent}%` }}
+              style={{ width: `${Math.min(100, memUsagePercent)}%` }}
             />
           </div>
-          <div className="mt-1 text-[10px] text-muted-foreground">RSS: {data.system.memory.rss}MB · 使用率 {memUsagePercent}%</div>
+          <div className="mt-1 text-[10px] text-muted-foreground">
+            RSS: {data.system.memory.rss}MB · 堆使用率 {memUsagePercent}%
+          </div>
+          <div className="mt-1 text-[10px] text-muted-foreground/70" title="Node.js V8 的 heapTotal 是已分配堆（接近 heapUsed），所以堆使用率天然偏高。真正反映内存压力的是 RSS 值。">
+            ℹ️ V8 已分配堆接近实际使用，比例偏高属正常
+          </div>
         </Card>
 
         {/* Flows 调度器 */}
@@ -280,7 +290,31 @@ export default function DiagnosticsPage() {
             <span className="text-lg font-bold">{data.scheduler.running ? "运行中" : "未启动"}</span>
           </div>
           <div className="text-[10px] text-muted-foreground">{data.scheduler.scheduledCount} 个定时任务</div>
+          {!data.scheduler.running && (
+            <div className="mt-1 text-[10px] text-muted-foreground/70" title="Flows 调度器用于定时执行 AI 工作流。未创建带定时触发器的工作流时，调度器不会启动，属正常状态。">
+              ℹ️ 未配置定时工作流时调度器不启动
+            </div>
+          )}
         </Card>
+      </div>
+
+      {/* 说明区：解释 Flows 调度器和堆内存的概念 */}
+      <div className="mt-4 ios-glass-sm rounded-xl p-4 text-xs text-foreground/80">
+        <div className="mb-2 font-medium text-foreground">📋 名词解释</div>
+        <div className="space-y-1.5 pl-4">
+          <div>
+            <span className="font-medium text-campaign">堆内存使用率：</span>
+            Node.js V8 引擎采用惰性分配策略，<code className="mx-0.5 rounded bg-muted/40 px-1 text-[10px]">heapTotal</code>（已分配堆）会动态调整到接近
+            <code className="mx-0.5 rounded bg-muted/40 px-1 text-[10px]">heapUsed</code>（实际使用），
+            所以使用率通常在 80%~100% 之间属正常现象，不代表内存泄漏。真正反映内存压力的指标是
+            <code className="mx-0.5 rounded bg-muted/40 px-1 text-[10px]">RSS</code>（进程总内存）。
+          </div>
+          <div>
+            <span className="font-medium text-task">Flows 调度器：</span>
+            用于定时执行 AI 工作流（cron 触发器）。当没有任何工作流配置了定时触发器时，调度器保持未启动状态以节省资源，
+            属正常现象。在「AI 工作流」页面创建带定时触发器的工作流后，调度器会自动启动。
+          </div>
+        </div>
       </div>
 
       <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-2">
@@ -295,7 +329,7 @@ export default function DiagnosticsPage() {
           </div>
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
             {Object.entries(data.db.counts).map(([key, count]) => (
-              <div key={key} className="rounded-lg border border-border bg-muted/30 p-2">
+              <div key={key} className="ios-glass-sm rounded-lg p-2">
                 <div className="text-[10px] text-muted-foreground">{TABLE_LABELS[key] || key}</div>
                 <div className="text-lg font-bold tabular-nums">{count}</div>
               </div>
@@ -310,7 +344,7 @@ export default function DiagnosticsPage() {
             <h2 className="text-sm font-semibold">Embedding 缓存</h2>
           </div>
           <div className="space-y-2">
-            <div className="flex items-center justify-between rounded-lg border border-border bg-muted/30 p-2">
+            <div className="ios-glass-sm flex items-center justify-between rounded-lg p-2">
               <span className="text-xs text-muted-foreground">当前模式</span>
               <span className={cn(
                 "rounded-full px-2 py-0.5 text-[10px] font-medium",
@@ -319,12 +353,12 @@ export default function DiagnosticsPage() {
                 {data.embedding.mode}
               </span>
             </div>
-            <div className="flex items-center justify-between rounded-lg border border-border bg-muted/30 p-2">
+            <div className="ios-glass-sm flex items-center justify-between rounded-lg p-2">
               <span className="text-xs text-muted-foreground">缓存总数</span>
               <span className="text-lg font-bold tabular-nums">{data.embedding.cacheTotal}</span>
             </div>
             {Object.entries(data.embedding.cacheByProvider).map(([provider, count]) => (
-              <div key={provider} className="flex items-center justify-between rounded-lg border border-border bg-muted/30 p-2">
+              <div key={provider} className="ios-glass-sm flex items-center justify-between rounded-lg p-2">
                 <span className="text-xs text-muted-foreground">{provider === "ai" ? "AI 向量" : "TF-IDF"}</span>
                 <span className="text-sm font-medium tabular-nums">{count}</span>
               </div>
@@ -350,7 +384,7 @@ export default function DiagnosticsPage() {
                     <span className="text-muted-foreground">{labels[item.status] || item.status}</span>
                     <span className="tabular-nums">{item._count} ({percent}%)</span>
                   </div>
-                  <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
+                  <div className="h-1.5 w-full overflow-hidden rounded-full ios-glass-sm">
                     <div className={cn("h-full rounded-full", colors[item.status] || "bg-muted-foreground")} style={{ width: `${percent}%` }} />
                   </div>
                 </div>
@@ -377,7 +411,7 @@ export default function DiagnosticsPage() {
                     <span className="text-muted-foreground">{labels[item.column] || item.column}</span>
                     <span className="tabular-nums">{item._count} ({percent}%)</span>
                   </div>
-                  <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
+                  <div className="h-1.5 w-full overflow-hidden rounded-full ios-glass-sm">
                     <div className={cn("h-full rounded-full", colors[item.column] || "bg-muted-foreground")} style={{ width: `${percent}%` }} />
                   </div>
                 </div>
@@ -396,7 +430,7 @@ export default function DiagnosticsPage() {
           </div>
           <div className="space-y-1">
             {data.scheduler.jobs.map((job, i) => (
-              <div key={i} className="flex items-center justify-between rounded-lg border border-border bg-muted/30 px-3 py-2 text-xs">
+              <div key={i} className="ios-glass-sm flex items-center justify-between rounded-lg px-3 py-2 text-xs">
                 <span className="font-medium">{job.flowName}</span>
                 <span className="font-mono text-muted-foreground">{job.timeStr}</span>
               </div>

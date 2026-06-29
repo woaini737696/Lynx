@@ -5,6 +5,8 @@ import { usePathname } from "next/navigation";
 import { AssistantFloatingButton } from "./AssistantFloatingButton";
 import { AssistantDrawer } from "./AssistantDrawer";
 
+const LAST_READ_KEY = "lynnhub:assistant-last-read-count";
+
 /**
  * AI 助理全局悬浮入口（组合组件）
  *
@@ -13,17 +15,14 @@ import { AssistantDrawer } from "./AssistantDrawer";
  * - 在 /ai/assistant 页面不渲染（避免页面自身重复入口）
  * - 监听 Alt+J 全局快捷键，唤出/收起抽屉
  * - 未登录时点击悬浮按钮 / Alt+J 弹窗引导登录
- *
- * 挂载位置：src/app/layout.tsx 的 body 最外层（children 之后）。
- *
- * 登录检测：项目未使用 next-auth/react 的 SessionProvider，
- * 改用 fetch /api/auth/session（返回 JSON 含 user 字段则已登录）。
+ * - 未读消息红点：会话数 - lastReadCount > 0 时显示
  */
 export function AssistantGlobalEntry() {
   const [open, setOpen] = useState(false);
   const [authChecked, setAuthChecked] = useState(false);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [showLoginModal, setShowLoginModal] = useState(false);
+  const [unreadCount, setUnreadCount] = useState(0);
   const pathname = usePathname();
 
   // 页面加载时检查登录状态
@@ -47,6 +46,39 @@ export function AssistantGlobalEntry() {
     };
   }, []);
 
+  // 未读消息数 = 当前会话总数 - 上次已读会话数
+  // 每 30 秒轮询一次会话列表，对比 localStorage 中保存的 lastReadCount
+  useEffect(() => {
+    if (!isLoggedIn) return;
+
+    const fetchUnread = async () => {
+      try {
+        const res = await fetch("/api/ai/chat/sessions?limit=1");
+        if (!res.ok) return;
+        const data = await res.json();
+        // 兼容两种响应结构：{ sessions: [...] } 或 { items: [...] } 或 [...]
+        const sessions = data.sessions || data.items || data;
+        const total = Array.isArray(sessions) ? sessions.length : 0;
+        // 如果 API 返回了 total 字段，优先使用
+        const currentTotal = typeof data.total === "number" ? data.total : total;
+
+        let lastRead = 0;
+        try {
+          lastRead = parseInt(localStorage.getItem(LAST_READ_KEY) || "0", 10) || 0;
+        } catch {
+          // ignore
+        }
+        setUnreadCount(Math.max(0, currentTotal - lastRead));
+      } catch {
+        // 静默失败
+      }
+    };
+
+    fetchUnread();
+    const timer = setInterval(fetchUnread, 30_000);
+    return () => clearInterval(timer);
+  }, [isLoggedIn]);
+
   const toggle = useCallback(() => {
     // 登录态尚未确认时，忽略点击（避免误弹登录窗）
     if (!authChecked) return;
@@ -54,7 +86,28 @@ export function AssistantGlobalEntry() {
       setShowLoginModal(true);
       return;
     }
-    setOpen((v) => !v);
+    setOpen((v) => {
+      const next = !v;
+      // 打开抽屉时，将 lastReadCount 重置为当前会话数（标记为已读）
+      if (next) {
+        setUnreadCount(0);
+        // 异步获取当前会话数并保存
+        fetch("/api/ai/chat/sessions?limit=1")
+          .then((r) => (r.ok ? r.json() : null))
+          .then((data) => {
+            if (!data) return;
+            const sessions = data.sessions || data.items || data;
+            const total = typeof data.total === "number" ? data.total : (Array.isArray(sessions) ? sessions.length : 0);
+            try {
+              localStorage.setItem(LAST_READ_KEY, String(total));
+            } catch {
+              // ignore
+            }
+          })
+          .catch(() => {});
+      }
+      return next;
+    });
   }, [authChecked, isLoggedIn]);
 
   const close = useCallback(() => setOpen(false), []);
@@ -85,7 +138,7 @@ export function AssistantGlobalEntry() {
 
   return (
     <>
-      <AssistantFloatingButton open={open} onToggle={toggle} unreadCount={0} />
+      <AssistantFloatingButton open={open} onToggle={toggle} unreadCount={unreadCount} />
       <AssistantDrawer open={open} onClose={close} />
 
       {/* 未登录引导弹窗 */}

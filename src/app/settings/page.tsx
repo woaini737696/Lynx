@@ -46,7 +46,7 @@ type SettingsTab = "ai" | "agent" | "auth" | "system" | "files";
 
 const TABS: { key: SettingsTab; label: string; icon: React.ReactNode }[] = [
   { key: "ai", label: "AI 模型", icon: <KeyRound className="h-3.5 w-3.5" /> },
-  { key: "agent", label: "Lynx Agent", icon: <Cpu className="h-3.5 w-3.5" /> },
+  { key: "agent", label: "Lynx Agent", icon: <img src="/lynx-icon-64.png" alt="" className="h-3.5 w-3.5 rounded-sm" /> },
   { key: "auth", label: "认证", icon: <ShieldCheck className="h-3.5 w-3.5" /> },
   { key: "system", label: "系统状态", icon: <Database className="h-3.5 w-3.5" /> },
   { key: "files", label: "配置文件", icon: <FileText className="h-3.5 w-3.5" /> },
@@ -1410,7 +1410,7 @@ function HermesConfigSection() {
 
   if (loading) {
     return (
-      <Section icon={<Cpu className="h-4 w-4 text-northstar" />} title="Lynx Agent（本地 AI 代理）">
+      <Section icon={<img src="/lynx-icon-64.png" alt="Lynx" className="h-4 w-4 rounded-sm" />} title="Lynx Agent（本地 AI 代理）">
         <div className="flex items-center gap-2 text-xs text-muted-foreground">
           <Loader2 className="h-3 w-3 animate-spin" /> 加载中...
         </div>
@@ -1424,13 +1424,16 @@ function HermesConfigSection() {
 
   return (
     <Section
-      icon={<Cpu className="h-4 w-4 text-northstar" />}
+      icon={<img src="/lynx-icon-64.png" alt="Lynx" className="h-4 w-4 rounded-sm" />}
       title="Lynx Agent（本地 AI 代理）"
     >
       {/* 说明 */}
       <div className="mb-4 rounded-xl border border-northstar/20 bg-northstar/5 p-4 text-sm text-foreground/80">
         <div className="mb-1.5 flex items-center justify-between">
-          <div className="font-semibold text-foreground">🤖 Lynx Agent 是什么？</div>
+          <div className="flex items-center gap-2 font-semibold text-foreground">
+            <img src="/lynx-icon-64.png" alt="Lynx" className="h-5 w-5 rounded-sm" />
+            Lynx Agent 是什么？
+          </div>
           <button
             type="button"
             onClick={handleOpenDashboard}
