@@ -61,7 +61,7 @@ export function AssistantDrawer({ open, onClose }: AssistantDrawerProps) {
       >
         {/* 内容区：AssistantChat 占满高度，自带 header + 消息区 + 快捷技能 + 输入区 */}
         <div className="min-h-0 flex-1 overflow-hidden">
-          <AssistantChat onClose={onClose} />
+          <AssistantChat onClose={onClose} open={open} />
         </div>
       </aside>
     </>

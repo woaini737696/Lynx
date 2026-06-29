@@ -45,8 +45,12 @@ if ($LASTEXITCODE -ne 0) { throw "prisma generate 失败" }
 
 # 4. Next.js 构建 (standalone)
 Write-Host "[3/6] Next.js 构建 (standalone)..." -ForegroundColor Yellow
+$buildEAP = $ErrorActionPreference
+$ErrorActionPreference = "Continue"
 npm run build 2>&1 | Write-Host
-if ($LASTEXITCODE -ne 0) { throw "next build 失败" }
+$buildExit = $LASTEXITCODE
+$ErrorActionPreference = $buildEAP
+if ($buildExit -ne 0) { throw "next build 失败" }
 
 # 5. 复制 standalone 产物
 Write-Host "[4/6] 打包 standalone 产物..." -ForegroundColor Yellow
@@ -86,31 +90,36 @@ if (Test-Path "$ProjectRoot\.env.production") {
 }
 
 # 6. 构建并打包官网 (web_Lynx - Vite + React 项目)
+# 官网构建失败不阻塞主应用部署（官网可能已部署，无需每次重建）
 Write-Host "[5/6] 构建官网 (web_Lynx)..." -ForegroundColor Yellow
 $WebsiteDir = "$ProjectRoot\web_Lynx"
 if (Test-Path "$WebsiteDir\package.json") {
   Push-Location $WebsiteDir
-  # 优先使用 pnpm，fallback 到 npm
   $pnpmCmd = Get-Command pnpm -ErrorAction SilentlyContinue
   $webEAP = $ErrorActionPreference
   $ErrorActionPreference = "Continue"
+  $webBuildOk = $false
   if ($pnpmCmd) {
     pnpm install --frozen-lockfile 2>&1 | Write-Host
     if ($LASTEXITCODE -ne 0) { pnpm install 2>&1 | Write-Host }
     pnpm run build 2>&1 | Write-Host
+    if ($LASTEXITCODE -eq 0) { $webBuildOk = $true }
   } else {
     npm ci 2>&1 | Write-Host
     if ($LASTEXITCODE -ne 0) { npm install 2>&1 | Write-Host }
     npm run build 2>&1 | Write-Host
+    if ($LASTEXITCODE -eq 0) { $webBuildOk = $true }
   }
   $ErrorActionPreference = $webEAP
-  if ($LASTEXITCODE -ne 0) { throw "web_Lynx 构建失败" }
   Pop-Location
 
-  # 复制官网构建产物
-  New-Item -ItemType Directory -Path "$DistDir\$PkgName\website" -Force | Out-Null
-  Copy-Item -Recurse "$WebsiteDir\dist\*" "$DistDir\$PkgName\website\"
-  Write-Host "  官网产物已复制 (web_Lynx/dist)" -ForegroundColor Green
+  if ($webBuildOk -and (Test-Path "$WebsiteDir\dist")) {
+    New-Item -ItemType Directory -Path "$DistDir\$PkgName\website" -Force | Out-Null
+    Copy-Item -Recurse "$WebsiteDir\dist\*" "$DistDir\$PkgName\website\"
+    Write-Host "  官网产物已复制 (web_Lynx/dist)" -ForegroundColor Green
+  } else {
+    Write-Host "  官网构建失败，跳过（不阻塞主应用部署）" -ForegroundColor Yellow
+  }
 } else {
   Write-Host "  web_Lynx 目录未找到，跳过官网构建" -ForegroundColor Yellow
 }

@@ -248,21 +248,34 @@ async function handleCommandUpdate(
   // 更新数据库
   try {
     if (data.status === "completed" || data.status === "failed") {
+      // 提取桌面端回传的 route 和 durationMs（如有）
+      const updateData: Record<string, unknown> = {
+        status: data.status,
+        result: data.result as never,
+        error: data.error,
+        completedAt: new Date(),
+      };
+      if (data.result && typeof data.result === "object") {
+        const r = data.result as Record<string, unknown>;
+        if (typeof r.route === "string") updateData.route = r.route;
+        if (typeof r.durationMs === "number") updateData.durationMs = r.durationMs;
+      }
       await prisma.remoteCommand.updateMany({
         where: { commandId: data.commandId },
-        data: {
-          status: data.status,
-          result: data.result as never,
-          error: data.error,
-          completedAt: new Date(),
-        },
+        data: updateData as never,
       });
       commandWatchers.delete(data.commandId);
       logger.info(`[ws-gateway] 指令完成: cmd=${data.commandId} status=${data.status}`);
     } else if (data.status === "executing") {
+      // executing 阶段也更新 route（如已确定路由类型）
+      const updateData: Record<string, unknown> = { status: "executing" };
+      if (data.result && typeof data.result === "object") {
+        const r = data.result as Record<string, unknown>;
+        if (typeof r.route === "string") updateData.route = r.route;
+      }
       await prisma.remoteCommand.updateMany({
         where: { commandId: data.commandId },
-        data: { status: "executing" },
+        data: updateData as never,
       });
     }
   } catch (e) {

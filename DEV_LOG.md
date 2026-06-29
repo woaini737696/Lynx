@@ -9,6 +9,7 @@
 
 | 迭代 | 日期 | 任务概要 |
 |------|------|----------|
+| [迭代 59](#迭代-59---2026-06-29) | 2026-06-29 | 15项bug修复+功能优化：开发规范/Logo/登录/弹窗/测试数据/AI模型/LynxAgent/助理同步/性能监控/远程操控/会员合并 |
 | [迭代 58](#迭代-58---2026-06-29) | 2026-06-29 | WS心跳+回传bug修复+域名改ai.lynxdo.com+官网改用web_Lynx+部署流程澄清 |
 | [迭代 57](#迭代-57---2026-06-29) | 2026-06-29 | 域名切换app.lynxdo.com+代码清理+阿里云部署方案+构建部署脚本+官网着陆页 |
 | [迭代 56](#迭代-56---2026-06-29) | 2026-06-29 | 官网域名Lynxdo.com+万能验证码配置化+登录注册改造（手机号+邀请码）+服务部署 |
@@ -34,6 +35,119 @@
 | [迭代 36](#迭代-36---2026-06-26) | 2026-06-26 | 角色管理 CRUD + 用户管理打通 + 职业空间 |
 | [迭代 35](#迭代-35---2026-06-26) | 2026-06-26 | 角色管理按职位分配 + 职业定制 AI 工作空间 |
 | [迭代 34](#迭代-34---2026-06-26) | 2026-06-26 | C 盘数据迁移 + 磁盘使用规范 |
+
+---
+
+## 迭代 59 - 2026-06-29
+
+### 任务概要
+15 项 bug 修复与功能优化，涵盖开发规范、品牌 Logo、登录体验、弹窗层级、测试数据、AI 模型管理、Lynx Agent 安装、助理信息同步、性能监控、远程操控、悬浮按钮拖动、会员页合并等全模块。
+
+### 完成内容
+
+#### 1. 开发部署迭代规范（DEVELOPMENT_SPEC.md）
+- 新增根目录 `DEVELOPMENT_SPEC.md`（16 章节），规范各端开发流程：本地构建 → 部署云服务器 → 代码提交 Gitee → 更新开发日志
+- 修复 `scripts/deploy/build.ps1`：Next.js 构建的 stderr 不再被 PowerShell 误判为错误；官网构建失败不阻塞主应用部署
+
+#### 2. Web 端网站图标 + 标题（layout.tsx）
+- 网站标题改为 "Lynx AI工作站"
+- favicon 和 apple-touch-icon 使用产品 Logo（lynx-icon-256.png）
+- `next.config.mjs` 添加 `images.unoptimized: true`，确保 standalone 模式 logo 正常加载
+
+#### 3. 修复所有 Logo 加载问题
+- 根因：Next.js 14.2.15 standalone 模式不自动服务 public 目录静态文件
+- 修复：Nginx 直接服务 /public 静态文件（logo/icon/manifest/uploads）
+
+#### 4. 登录弹窗体验优化（AuthProvider.tsx）
+- 未登录状态不再弹"登录已过期"弹窗
+- 仅在用户主动使用功能触发 API 401 时才弹登录窗
+- 3 秒阈值避免页面加载瞬间的误触发
+
+#### 5. 注册弹窗高度优化（LoginModal.tsx）
+- 添加 `max-h-[90vh]` 和 `overflow-y-auto`，确保弹窗内容完整显示
+
+#### 6. Lynn 账号测试数据（scripts/seed-lynn-test-data.ts）
+- 新增测试数据生成脚本，覆盖全模块：灵感(10) + 任务(10) + 对话(2) + 认知(3) + 记忆(4) + 会话(2) + 技能(4) + 工作流(2) + 钱包 + 会员(PRO) + 订单 + 今日聚焦
+- 幂等设计：所有数据以 "[测试]" 前缀标记，重复运行自动清理旧数据
+
+#### 7. AI 模型编辑弹窗被遮挡修复（Modal.tsx）
+- 根因：`glass-card` 的 `backdrop-filter` 创建新层叠上下文，`position: fixed` 的 Modal 被困在父容器内
+- 修复：使用 `createPortal(content, document.body)` 将弹窗渲染到 body
+
+#### 8. Lynx Agent 一键安装 pip 报错修复（hermes-client.ts + installer.rs）
+- 根因：阿里云 pip 源 PEP 503 报错 "not a proper HTML 5 document"
+- 修复：改用清华源 `https://pypi.tuna.tsinghua.edu.cn/simple` + `--disable-pip-version-check` + `--trusted-host`
+- 两阶段回退：清华源 → 默认源
+
+#### 9. 助理侧边弹窗与超级助理页同步信息（AssistantChat.tsx + AssistantDrawer.tsx）
+- AssistantChat 新增 `open` prop，抽屉打开时自动刷新会话列表和当前会话消息
+- 确保在主页面发消息后，抽屉再次打开时数据是最新的
+
+#### 10. Lynx 超级助理页使用说明弹窗修复（HelpButton.tsx）
+- 同样使用 `createPortal` 渲染到 body，z-index 提升到 z-[200]
+- 背景遮罩改为 `bg-black/50 backdrop-blur-sm`，确保居中显示
+
+#### 11. 设置页 Lynx Agent icon 换产品 Logo（settings/page.tsx）
+- 4 处 `<Cpu>` 图标替换为 `<img src="/lynx-icon-64.png">`
+- "Lynx Agent 是什么？" 标题前添加 logo
+
+#### 12. 性能监控页优化（diagnostics/page.tsx）
+- 堆内存卡片添加说明文字："V8 已分配堆接近实际使用，比例偏高属正常"
+- Flows 调度器卡片添加说明："未配置定时工作流时调度器不启动"
+- 新增"名词解释"区块
+- 所有灰色块 `bg-muted/30` 替换为 `ios-glass-sm` 液态玻璃样式
+
+#### 13. 远程操控功能修复
+- **PM2 配置添加 WS 网关**：`deploy/pm2/ecosystem.config.cjs` 新增 `lynx-ws-gateway` 进程（端口 3001）
+- **route/durationMs 落库**：`src/lib/ws-gateway.ts` 的 `handleCommandUpdate` 提取并写入 route 和 durationMs 字段
+
+#### 14. 助理悬浮按钮拖动 + 未读红点（AssistantFloatingButton.tsx + AssistantGlobalEntry.tsx）
+- 使用 Pointer Events 实现自由拖动，位置保存到 localStorage
+- 默认位置右下角不变，4px 阈值区分拖动和点击
+- 未读消息红点：每 30 秒轮询会话总数，对比 localStorage 中 lastReadCount 计算未读数
+- 打开抽屉时重置未读为 0
+
+#### 15. 会员页修复 + 合并订阅与账单页（membership/page.tsx + subscription/page.tsx）
+- **会员页 toLocaleString 报错修复**：
+  - API `/api/membership/route.ts` 补充返回 `credits` 和 `sCoins` 字段（BigInt 序列化为字符串）
+  - 前端添加 `safeFormatNum` 函数，所有 13 处 `.toLocaleString()` 改为 null-safe 调用
+- **合并订阅与账单页**：
+  - `membership/page.tsx` 新增 `BillsSection` 组件（账单表格 + CSV 导出）
+  - `subscription/page.tsx` 改为重定向到 `/membership`
+
+### 涉及文件
+- `DEVELOPMENT_SPEC.md`（新增）
+- `scripts/seed-lynn-test-data.ts`（新增）
+- `scripts/deploy/build.ps1`（修复 stderr 处理 + 官网构建容错）
+- `deploy/pm2/ecosystem.config.cjs`（新增 WS 网关进程）
+- `src/lib/ws-gateway.ts`（route/durationMs 落库）
+- `src/components/ui/Modal.tsx`（createPortal）
+- `src/components/layout/HelpButton.tsx`（createPortal）
+- `src/components/ai/AssistantChat.tsx`（open prop 同步刷新）
+- `src/components/ai/AssistantDrawer.tsx`（传递 open prop）
+- `src/components/ai/AssistantFloatingButton.tsx`（拖动 + 红点）
+- `src/components/ai/AssistantGlobalEntry.tsx`（未读计数逻辑）
+- `src/app/membership/page.tsx`（safeFormatNum + BillsSection）
+- `src/app/subscription/page.tsx`（重定向）
+- `src/app/settings/page.tsx`（Lynx Agent icon 换 logo）
+- `src/app/settings/diagnostics/page.tsx`（说明文字 + 液态玻璃）
+- `src/lib/hermes-client.ts`（pip 清华源）
+- `desktop-native/src-tauri/src/installer.rs`（pip 清华源）
+- `next.config.mjs`（images.unoptimized）
+- `src/app/layout.tsx`（标题 + 图标）
+- `src/components/auth/AuthProvider.tsx`（未登录不弹窗）
+- `src/components/auth/LoginModal.tsx`（max-h + overflow）
+
+### 部署状态
+- 本地构建成功（standalone 15.71 MB）
+- 服务器部署未完成：新版本文件已上传到 `/opt/lynx/app`，但服务器在执行 `npm install tsx` 时 OOM 导致 SSH 和 HTTP 均无响应
+- 待办（服务器重启后执行）：
+  1. 通过阿里云控制台重启 ECS（2C2G 配置易 OOM）
+  2. `cd /opt/lynx/app && npm install tsx dotenv --no-save`
+  3. `npx prisma db push --accept-data-loss`
+  4. `npx tsx scripts/seed-lynn-test-data.ts`
+  5. `cd /opt/lynx && pm2 reload ecosystem.config.cjs || pm2 start ecosystem.config.cjs && pm2 save`
+  6. `curl https://ai.lynxdo.com/api/health`
 
 ---
 
