@@ -155,7 +155,7 @@
 - PM2 配置已保存
 
 ### Commit hash
-`待提交`
+`edff5d4d`
 
 ---
 
