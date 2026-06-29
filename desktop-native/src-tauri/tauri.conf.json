@@ -59,7 +59,7 @@
     "updater": {
       "active": true,
       "endpoints": [
-        "https://app.lynxdo.com/api/desktop/update"
+        "https://ai.lynxdo.com/api/desktop/update"
       ],
       "pubkey": "",
       "dialog": true

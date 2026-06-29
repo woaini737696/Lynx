@@ -11,7 +11,7 @@ const nextConfig = {
   // 限制为实际使用的可信域名，避免任意域名图片加载
   images: {
     remotePatterns: [
-      { protocol: "https", hostname: "app.lynxdo.com" },
+      { protocol: "https", hostname: "ai.lynxdo.com" },
       { protocol: "https", hostname: "localhost" },
       { protocol: "http", hostname: "localhost" },
       { protocol: "https", hostname: "127.0.0.1" },

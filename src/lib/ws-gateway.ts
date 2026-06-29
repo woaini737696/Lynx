@@ -221,9 +221,21 @@ async function dispatchRemoteCommand(
   return { dispatched: true };
 }
 
-/** 处理 PC 回传的进度/结果 */
+/** 处理 PC 回传的进度/结果
+ *
+ * 消息格式（来自桌面端 ws_client.rs）：
+ * {
+ *   type: "command-update",       // 外层 type，用于消息路由
+ *   commandId: string,
+ *   status: "executing" | "completed" | "failed",
+ *   step?: string,                // 进度描述
+ *   percent?: number,             // 0-100
+ *   result?: unknown,             // 执行结果（completed 时有值）
+ *   error?: string                // 错误信息（failed 时有值）
+ * }
+ */
 async function handleCommandUpdate(
-  data: { commandId: string; type: string; step?: string; percent?: number; result?: unknown; error?: string }
+  data: { commandId: string; status: string; step?: string; percent?: number; result?: unknown; error?: string }
 ) {
   // 转发给所有订阅该指令的 WS（安卓端/Web端）
   const watchers = commandWatchers.get(data.commandId);
@@ -235,25 +247,26 @@ async function handleCommandUpdate(
 
   // 更新数据库
   try {
-    if (data.type === "complete") {
+    if (data.status === "completed" || data.status === "failed") {
       await prisma.remoteCommand.updateMany({
         where: { commandId: data.commandId },
         data: {
-          status: data.error ? "failed" : "completed",
+          status: data.status,
           result: data.result as never,
           error: data.error,
           completedAt: new Date(),
         },
       });
       commandWatchers.delete(data.commandId);
-    } else if (data.type === "progress") {
+      logger.info(`[ws-gateway] 指令完成: cmd=${data.commandId} status=${data.status}`);
+    } else if (data.status === "executing") {
       await prisma.remoteCommand.updateMany({
         where: { commandId: data.commandId },
         data: { status: "executing" },
       });
     }
   } catch (e) {
-    console.error("[ws-gateway] 指令状态更新失败:", e);
+    logger.error({ err: e }, `[ws-gateway] 指令状态更新失败: cmd=${data.commandId}`);
   }
 }
 

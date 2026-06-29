@@ -109,7 +109,7 @@ export function SettingsPage() {
     setInstalling(true);
     try {
       // 打开浏览器下载最新安装包
-      const downloadUrl = "https://app.lynxdo.com/download";
+      const downloadUrl = "https://ai.lynxdo.com/download";
       await invoke("open_external", { url: downloadUrl });
       toast.success("已在浏览器中打开下载页面");
     } catch (err) {

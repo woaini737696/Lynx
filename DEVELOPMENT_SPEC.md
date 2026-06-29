@@ -165,7 +165,7 @@
 - **禁止在代码/日志/截图/文档中明文回显 lynn 的密码**；密码仅用于本地登录校验，不写入仓库文件
 - **唯一例外**：用户主动要求重置密码时（须在对话中明确说"重置 lynn 密码为 XXX"），方可执行一次性重置，并在重置后立即清理临时脚本
 - **本地后端凭证**：开发环境默认管理员 `admin/admin123`（由 `prisma/seed.ts` 创建），仅供开发联调使用；`lynn` 是用户真实账号，由用户自行维护
-- **本地 vs 云端**：本地后端 (localhost:5176) 与生产 (app.lynxdo.com) 共用同一套账号体系；lynn 账号在两端均有效，密码由用户统一维护
+- **本地 vs 云端**：本地后端 (localhost:5176) 与生产 (ai.lynxdo.com) 共用同一套账号体系；lynn 账号在两端均有效，密码由用户统一维护
 - **违反此规范的后果**：可能导致用户登录被锁死、生产环境账号失窃，属严重事故；任何自动化任务（seed/迁移/重置脚本）必须显式跳过 lynn 账号或仅 upsert admin
 
 ### 4.4 可复用组件
@@ -272,9 +272,9 @@
 - **架构定位**：桌面端为「Tauri 原生壳 + 云端 UI 深度原生集成」，对标豆包/Kimi/Trae Solo，禁止内置本地后端（Node+DB sidecar），禁止 Electron
 - **无边框窗口**：`tauri.conf.json` 必须 `decorations: false` + `shadow: true`，标题栏由前端 `TitleBar` 组件自定义渲染（`src/components/layout/TitleBar.tsx`），禁止使用系统原生标题栏（避免双标题栏）
 - **全局快捷键**：必须注册 `Ctrl+Shift+L` 唤起/隐藏主窗口（避开 `Ctrl+Space`，与中文输入法切换冲突），通过 `tauri-plugin-global-shortcut` 在 Rust 端 `lib.rs` 注册
-- **远程 IPC 访问**：Web UI 从 `localhost:5176`（开发）或 `app.lynxdo.com`（生产）加载时，必须通过 `capabilities/default.json` 的 `remote.urls` 授权才能调用 Tauri 命令；禁止使用已废弃的 `dangerousRemoteDomainIpcAccess`（Tauri 1.x 字段，v2 不再生效）
+- **远程 IPC 访问**：Web UI 从 `localhost:5176`（开发）或 `ai.lynxdo.com`（生产）加载时，必须通过 `capabilities/default.json` 的 `remote.urls` 授权才能调用 Tauri 命令；禁止使用已废弃的 `dangerousRemoteDomainIpcAccess`（Tauri 1.x 字段，v2 不再生效）
 - **窗口控制 API**：前端窗口操作（最小化/最大化/关闭/拖拽）必须通过 `src/lib/desktop-client.ts` 的 `windowMinimize/windowToggleMaximize/windowClose/getCurrentWindow` 封装调用，禁止直接 `window.__TAURI__` 强转
-- **后端 endpoint 切换**：开发期 `frontendDist` 指向 `localhost:5176`，生产部署后切换为 `https://app.lynxdo.com`，实现「先本地跑通再部署云端」的独立安装产品形态
+- **后端 endpoint 切换**：开发期 `frontendDist` 指向 `localhost:5176`，生产部署后切换为 `https://ai.lynxdo.com`，实现「先本地跑通再部署云端」的独立安装产品形态
 - **cargo 命令执行**：必须在 `desktop/src-tauri/` 目录下执行 cargo 命令（`.cargo/config.toml` 在该目录，配置了 ASCII `target-dir = D:/cargo-target`，从项目根执行会导致中文路径「工作空间」触发 MinGW dlltool 失败）
 - **工具链**：使用 MSVC 工具链构建发布版（GNU 工具链构建的 exe 导入表不匹配会崩溃）
 - **打包命令**：在 `desktop/` 目录执行 `npm run tauri build`，产物输出到 `D:\cargo-target\release\bundle\msi\Lynx_1.2.0_x64_en-US.msi`，需手动复制到 `desktop/dist/`（已加入 `.gitignore`，22MB+ 二进制不入版本控制）
@@ -473,8 +473,8 @@
 
 ### 14.2 域名与路由
 - `www.lynxdo.com` → 官网静态 HTML（Nginx 托管）
-- `app.lynxdo.com` → Web 应用 + API（Nginx 反代到 Next.js :5176）
-- `app.lynxdo.com/download/` → 桌面端安装包下载（Nginx 静态目录）
+- `ai.lynxdo.com` → Web 应用 + API（Nginx 反代到 Next.js :5176）
+- `ai.lynxdo.com/download/` → 桌面端安装包下载（Nginx 静态目录）
 - 所有 HTTP 自动 301 到 HTTPS
 
 ### 14.3 部署脚本规范
@@ -499,8 +499,8 @@
 
 ### 14.6 部署验证清单
 每次部署后必须逐项验证：
-1. `curl https://app.lynxdo.com/api/health` → `{"ok":true}`
+1. `curl https://ai.lynxdo.com/api/health` → `{"ok":true}`
 2. 浏览器访问 `https://www.lynxdo.com` → 官网首页
-3. 浏览器访问 `https://app.lynxdo.com` → 登录页
+3. 浏览器访问 `https://ai.lynxdo.com` → 登录页
 4. `pm2 status` → lynx-app online，内存 < 350M
 5. `free -m` → 剩余内存 > 800M

@@ -63,7 +63,7 @@ pub async fn execute_local(
 ) -> (bool, String, Option<String>) {
     match action {
         LocalAction::BrowserOpen => {
-            let cloud_endpoint = state.cloud_endpoint.lock().map(|g| g.clone()).unwrap_or_else(|_| "https://app.lynxdo.com".to_string());
+            let cloud_endpoint = state.cloud_endpoint.lock().map(|g| g.clone()).unwrap_or_else(|_| "https://ai.lynxdo.com".to_string());
             let url = extract_url(command, &cloud_endpoint).unwrap_or_else(|| "about:blank".to_string());
             match rpa::browser::open_url(&url).await {
                 Ok(_) => (true, format!("已在默认浏览器打开: {}", url), None),
@@ -71,7 +71,7 @@ pub async fn execute_local(
             }
         }
         LocalAction::BrowserExtract => {
-            let cloud_endpoint = state.cloud_endpoint.lock().map(|g| g.clone()).unwrap_or_else(|_| "https://app.lynxdo.com".to_string());
+            let cloud_endpoint = state.cloud_endpoint.lock().map(|g| g.clone()).unwrap_or_else(|_| "https://ai.lynxdo.com".to_string());
             let url = extract_url(command, &cloud_endpoint).unwrap_or_else(|| "about:blank".to_string());
             match rpa::browser::navigate_and_extract(&url, None).await {
                 Ok(data) => (true, format!("提取数据: {}", data), None),
