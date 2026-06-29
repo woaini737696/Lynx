@@ -45,6 +45,7 @@ interface LoginResponse {
     username: string;
     role: string;
     displayName?: string;
+    tier?: string;
   };
 }
 
@@ -62,6 +63,7 @@ interface RegisterResponse {
     username: string;
     role: string;
     displayName?: string;
+    tier?: string;
   };
   message?: string;
 }
@@ -200,6 +202,7 @@ export function LoginPage() {
           username: result.user.username,
           displayName: result.user.displayName || result.user.username,
           name: result.user.displayName || result.user.username,
+          tier: result.user.tier,
         },
       };
       await saveAuth(credentials);
@@ -253,6 +256,7 @@ export function LoginPage() {
           username: result.user.username,
           displayName: result.user.displayName || result.user.username,
           name: result.user.displayName || result.user.username,
+          tier: result.user.tier,
         },
       };
       await saveAuth(credentials);
@@ -306,37 +310,65 @@ export function LoginPage() {
         </button>
       </header>
 
-      {/* 顶部品牌区 */}
+      {/* 顶部品牌区（紧凑） */}
       <motion.div
         initial={{ opacity: 0, y: -8 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.3 }}
-        className="relative z-10 mb-8 flex flex-col items-center text-center"
+        className="relative z-10 mb-5 flex flex-col items-center text-center"
       >
-        <div className="mb-4 flex h-20 w-20 items-center justify-center rounded-3xl bg-[#030816] shadow-xl ring-1 ring-white/10">
+        <div className="mb-3 flex h-16 w-16 items-center justify-center rounded-2xl bg-[#030816] shadow-xl ring-1 ring-white/10">
           <img
             src="/lynx-icon-256.png"
             alt="Lynx"
-            className="h-16 w-16 object-contain"
+            className="h-12 w-12 object-contain"
             draggable={false}
           />
         </div>
-        <h1 className="text-3xl font-semibold tracking-wide text-foreground">Lynx</h1>
-        <p className="mt-2 text-lg text-muted-foreground">超级AI工作台，不用学，直接干</p>
+        <h1 className="text-2xl font-semibold tracking-wide text-foreground">Lynx</h1>
+        <p className="mt-1 text-sm text-muted-foreground">超级AI工作台，不用学，直接干</p>
       </motion.div>
 
-      {/* 登录/注册弹窗（glass-modal 样式，对齐 Web 端 LoginModal） */}
+      {/* 登录/注册弹窗：固定宽高，标题+按钮固定，内容区滚动，一屏显示完 */}
       <motion.div
         initial={{ opacity: 0, y: 8 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.3, delay: 0.05 }}
-        className="ios-glass relative z-10 w-full max-w-[420px] rounded-3xl p-8 shadow-2xl"
-        style={{ boxShadow: "0 8px 32px rgba(31, 38, 135, 0.15), inset 0 1px 0 rgba(255,255,255,0.6)" }}
+        className="ios-glass relative z-10 flex w-full max-w-[420px] flex-col overflow-hidden rounded-3xl shadow-2xl"
+        style={{
+          height: "min(560px, 70vh)",
+          boxShadow: "0 8px 32px rgba(31, 38, 135, 0.15), inset 0 1px 0 rgba(255,255,255,0.6)",
+        }}
       >
-        {panel === "login" ? (
-          <>
-            {/* 登录标签页切换 */}
-            <div className="mb-5 flex gap-1 rounded-2xl bg-foreground/[0.04] p-1">
+        {/* 固定顶部：标题区 */}
+        <div className="shrink-0 border-b border-border/40 px-6 pb-3 pt-5">
+          <div className="flex items-center justify-between">
+            <h2 className="text-lg font-semibold text-foreground">
+              {panel === "login" ? "登录" : "注册新账号"}
+            </h2>
+            {panel === "register" && (
+              <button
+                type="button"
+                onClick={() => switchPanel("login")}
+                className="text-xs text-muted-foreground transition-colors hover:text-foreground"
+              >
+                返回登录
+              </button>
+            )}
+            {panel === "login" && (
+              <button
+                type="button"
+                onClick={() => switchPanel("register")}
+                className="text-xs font-medium text-primary transition-colors hover:underline"
+              >
+                立即注册
+              </button>
+            )}
+          </div>
+
+          {/* 登录模式切换 Tab（仅登录面板显示） */}
+          {panel === "login" && (
+            <div className="mt-3 flex gap-1 rounded-2xl bg-foreground/[0.04] p-1">
               {TABS.map((tab) => {
                 const Icon = tab.icon;
                 const active = mode === tab.key;
@@ -346,7 +378,7 @@ export function LoginPage() {
                     type="button"
                     onClick={() => setMode(tab.key)}
                     className={cn(
-                      "flex flex-1 items-center justify-center gap-1.5 rounded-xl py-2 text-xs font-medium transition-all",
+                      "flex flex-1 items-center justify-center gap-1.5 rounded-xl py-1.5 text-xs font-medium transition-all",
                       active
                         ? "bg-background text-foreground shadow-sm"
                         : "text-muted-foreground hover:text-foreground"
@@ -358,9 +390,13 @@ export function LoginPage() {
                 );
               })}
             </div>
+          )}
+        </div>
 
-            {/* 登录表单 */}
-            <form onSubmit={handleLogin} className="space-y-4">
+        {/* 可滚动内容区 */}
+        <div className="flex-1 overflow-y-auto px-6 py-4">
+          {panel === "login" ? (
+            <form onSubmit={handleLogin} className="space-y-3" id="login-form">
               <Field
                 ref={firstInputRef}
                 id="phone-login"
@@ -452,45 +488,9 @@ export function LoginPage() {
                   <span>{error}</span>
                 </motion.div>
               )}
-
-              {/* 登录按钮 */}
-              <button
-                type="submit"
-                disabled={loading}
-                className={cn(
-                  "flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-primary text-sm font-semibold text-primary-foreground shadow-md transition-all hover:brightness-110 active:scale-[0.98]",
-                  loading && "cursor-not-allowed opacity-70"
-                )}
-              >
-                {loading ? (
-                  <>
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                    登录中...
-                  </>
-                ) : (
-                  "登录"
-                )}
-              </button>
             </form>
-
-            {/* 注册入口 */}
-            <div className="mt-4 border-t border-border/40 pt-4 text-center">
-              <p className="text-xs text-muted-foreground">
-                还没有账号？{" "}
-                <button
-                  type="button"
-                  onClick={() => switchPanel("register")}
-                  className="font-medium text-primary underline-offset-2 transition-colors hover:underline"
-                >
-                  立即注册
-                </button>
-              </p>
-            </div>
-          </>
-        ) : (
-          <>
-            {/* 注册表单 */}
-            <form onSubmit={handleRegister} className="space-y-4">
+          ) : (
+            <form onSubmit={handleRegister} className="space-y-3" id="register-form">
               <Field
                 ref={firstInputRef}
                 id="phone-register"
@@ -602,55 +602,67 @@ export function LoginPage() {
                   <span>{error}</span>
                 </motion.div>
               )}
-
-              {/* 注册按钮 */}
-              <button
-                type="submit"
-                disabled={loading}
-                className={cn(
-                  "flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-primary text-sm font-semibold text-primary-foreground shadow-md transition-all hover:brightness-110 active:scale-[0.98]",
-                  loading && "cursor-not-allowed opacity-70"
-                )}
-              >
-                {loading ? (
-                  <>
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                    注册中...
-                  </>
-                ) : (
-                  <>
-                    <UserPlus className="h-4 w-4" />
-                    注册并登录
-                  </>
-                )}
-              </button>
             </form>
+          )}
+        </div>
 
-            {/* 返回登录 */}
-            <div className="mt-4 border-t border-border/40 pt-4 text-center">
-              <p className="text-xs text-muted-foreground">
-                已有账号？{" "}
-                <button
-                  type="button"
-                  onClick={() => switchPanel("login")}
-                  className="font-medium text-primary underline-offset-2 transition-colors hover:underline"
-                >
-                  返回登录
-                </button>
-              </p>
-            </div>
-          </>
-        )}
+        {/* 固定底部：主操作按钮 + 官网链接 */}
+        <div className="shrink-0 border-t border-border/40 px-6 pb-5 pt-3">
+          {panel === "login" ? (
+            <button
+              type="submit"
+              form="login-form"
+              onClick={handleLogin}
+              disabled={loading}
+              className={cn(
+                "flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-primary text-sm font-semibold text-primary-foreground shadow-md transition-all hover:brightness-110 active:scale-[0.98]",
+                loading && "cursor-not-allowed opacity-70"
+              )}
+            >
+              {loading ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  登录中...
+                </>
+              ) : (
+                "登录"
+              )}
+            </button>
+          ) : (
+            <button
+              type="submit"
+              form="register-form"
+              onClick={handleRegister}
+              disabled={loading}
+              className={cn(
+                "flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-primary text-sm font-semibold text-primary-foreground shadow-md transition-all hover:brightness-110 active:scale-[0.98]",
+                loading && "cursor-not-allowed opacity-70"
+              )}
+            >
+              {loading ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  注册中...
+                </>
+              ) : (
+                <>
+                  <UserPlus className="h-4 w-4" />
+                  注册并登录
+                </>
+              )}
+            </button>
+          )}
 
-        {/* 官网链接 */}
-        <div className="mt-4 text-center">
-          <button
-            type="button"
-            onClick={handleOpenWebSite}
-            className="text-[11px] text-muted-foreground/70 transition-colors hover:text-primary"
-          >
-            访问官网 www.Lynxdo.com
-          </button>
+          {/* 官网链接 */}
+          <div className="mt-3 text-center">
+            <button
+              type="button"
+              onClick={handleOpenWebSite}
+              className="text-[11px] text-muted-foreground/70 transition-colors hover:text-primary"
+            >
+              访问官网 www.Lynxdo.com
+            </button>
+          </div>
         </div>
       </motion.div>
     </div>

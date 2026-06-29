@@ -184,8 +184,13 @@ export function SkillsPage() {
       );
       toast.success(resp.message || "技能执行完成");
     } catch (err) {
-      // 执行接口不存在时，引导用户去 AI 助理
-      toast.error("请在 AI 助理中通过自然语言调用此技能");
+      // 404 时接口不存在，引导用户去 AI 助理；其他错误显示真实 message
+      const msg = err instanceof Error ? err.message : "";
+      if (msg.includes("不存在") || msg.includes("404") || msg.includes("Cannot")) {
+        toast.info("请在 AI 助理中通过自然语言调用此技能");
+      } else {
+        toast.error(msg || "技能执行失败");
+      }
     } finally {
       setExecuting(null);
     }
