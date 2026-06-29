@@ -20,6 +20,37 @@ import {
 import { executeTool } from "../assistant/tool-executor";
 import { executeAssistantViaHermes, learnTaskPattern } from "@/lib/hermes-client";
 import { getFeedbackContext } from "@/lib/hermes-learner";
+import { deductCredits, calculateCreditsCost, hasEnoughCredits, InsufficientCreditsError } from "@/lib/wallet";
+
+/** 扣除 AI 对话的 Credits（按实际 token 消耗） */
+async function chargeAICredits(
+  userId: string,
+  usage: { prompt_tokens?: number; completion_tokens?: number; total_tokens?: number } | undefined,
+  model: string | undefined,
+  sessionId?: string
+): Promise<void> {
+  if (!usage) return;
+  const totalTokens = usage.total_tokens ?? (usage.prompt_tokens ?? 0) + (usage.completion_tokens ?? 0);
+  if (totalTokens <= 0) return;
+  const cost = calculateCreditsCost(totalTokens, model);
+  if (cost <= 0n) return;
+  try {
+    await deductCredits(userId, cost, "ai_chat", `AI对话消耗 ${totalTokens} tokens`, {
+      model: model ?? "unknown",
+      promptTokens: usage.prompt_tokens ?? 0,
+      completionTokens: usage.completion_tokens ?? 0,
+      totalTokens,
+      sessionId,
+    });
+  } catch (e) {
+    if (e instanceof InsufficientCreditsError) {
+      // Credits 不足时只记录日志，不阻断响应（避免用户已收到回复却报错）
+      console.warn(`[Credits] 用户 ${userId} Credits 不足，本次消耗 ${cost} 未扣除`);
+    } else {
+      console.error("[Credits] 扣费失败:", e);
+    }
+  }
+}
 
 // ============ 关键词意图检测（Fallback）============
 // 当 AI 没有输出 action 块时，用关键词匹配检测用户意图
@@ -854,6 +885,7 @@ ${toolResultStr}
         }
 
         // 非流式分支：直接返回 JSON（流式分支已在上方提前 return）
+        await chargeAICredits(user.id, firstResultSync.usage, firstResultSync.model, sessionId);
         return NextResponse.json({
           content: stripAction(firstResultSync.content),
           provider: firstResultSync.provider,
@@ -924,21 +956,25 @@ ${toolResultStr}
         });
       }
 
+      // 扣除 Credits（两轮调用合并计费）
+      const combinedUsage = {
+        prompt_tokens:
+          (firstResultSync.usage?.prompt_tokens || 0) +
+          (secondResult.usage?.prompt_tokens || 0),
+        completion_tokens:
+          (firstResultSync.usage?.completion_tokens || 0) +
+          (secondResult.usage?.completion_tokens || 0),
+        total_tokens:
+          (firstResultSync.usage?.total_tokens || 0) +
+          (secondResult.usage?.total_tokens || 0),
+      };
+      await chargeAICredits(user.id, combinedUsage, secondResult.model, sessionId);
+
       return NextResponse.json({
         content: stripAction(secondResult.content),
         provider: secondResult.provider,
         model: secondResult.model,
-        usage: {
-          prompt_tokens:
-            (firstResultSync.usage?.prompt_tokens || 0) +
-            (secondResult.usage?.prompt_tokens || 0),
-          completion_tokens:
-            (firstResultSync.usage?.completion_tokens || 0) +
-            (secondResult.usage?.completion_tokens || 0),
-          total_tokens:
-            (firstResultSync.usage?.total_tokens || 0) +
-            (secondResult.usage?.total_tokens || 0),
-        },
+        usage: combinedUsage,
         toolCalled: {
           tool: action.tool,
           args: action.args,
@@ -996,6 +1032,9 @@ ${toolResultStr}
       temperature,
       maxTokens,
     });
+
+    // 扣除 Credits（非阻断式）
+    await chargeAICredits(authResult.user!.id, result.usage, result.model, sessionId);
 
     return NextResponse.json({
       content: result.content,
