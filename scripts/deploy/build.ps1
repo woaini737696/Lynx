@@ -60,9 +60,13 @@ Copy-Item -Recurse "$ProjectRoot\.next\standalone\*" $StandaloneDir
 New-Item -ItemType Directory -Path "$StandaloneDir\.next\static" -Force | Out-Null
 Copy-Item -Recurse "$ProjectRoot\.next\static\*" "$StandaloneDir\.next\static"
 
-# 复制 public
+# 复制 public（合并到 standalone\public，避免嵌套）
 if (Test-Path "$ProjectRoot\public") {
-  Copy-Item -Recurse "$ProjectRoot\public" "$StandaloneDir\public"
+  if (Test-Path "$StandaloneDir\public") {
+    Copy-Item -Recurse "$ProjectRoot\public\*" "$StandaloneDir\public\"
+  } else {
+    Copy-Item -Recurse "$ProjectRoot\public" "$StandaloneDir\public"
+  }
 }
 
 # 复制 prisma schema（服务器端执行 db push 需要）

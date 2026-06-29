@@ -19,7 +19,12 @@ Copy-Item -Recurse "$ProjectRoot\.next\standalone\*" $StandaloneDir
 New-Item -ItemType Directory -Path "$StandaloneDir\.next\static" -Force | Out-Null
 Copy-Item -Recurse "$ProjectRoot\.next\static\*" "$StandaloneDir\.next\static"
 if (Test-Path "$ProjectRoot\public") {
-  Copy-Item -Recurse "$ProjectRoot\public" "$StandaloneDir\public"
+  # 合并到 standalone\public（避免嵌套 public\public）
+  if (Test-Path "$StandaloneDir\public") {
+    Copy-Item -Recurse "$ProjectRoot\public\*" "$StandaloneDir\public\"
+  } else {
+    Copy-Item -Recurse "$ProjectRoot\public" "$StandaloneDir\public"
+  }
 }
 New-Item -ItemType Directory -Path "$StandaloneDir\prisma" -Force | Out-Null
 Copy-Item "$ProjectRoot\prisma\schema.prisma" "$StandaloneDir\prisma\"
