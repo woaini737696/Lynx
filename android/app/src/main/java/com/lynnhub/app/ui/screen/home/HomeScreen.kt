@@ -39,8 +39,12 @@ import com.lynnhub.app.ui.component.LynxIcons
 import com.lynnhub.app.ui.component.Pressable
 import com.lynnhub.app.ui.component.UserAvatar
 import com.lynnhub.app.ui.theme.Agent
+import com.lynnhub.app.ui.theme.BorderHover
 import com.lynnhub.app.ui.theme.BorderSubtle
+import com.lynnhub.app.ui.theme.Deep
 import com.lynnhub.app.ui.theme.GradientPrimary
+import com.lynnhub.app.ui.theme.LiquidBorder
+import com.lynnhub.app.ui.theme.Liquid3
 import com.lynnhub.app.ui.theme.Motion
 import com.lynnhub.app.ui.theme.Primary
 import com.lynnhub.app.ui.theme.PrimaryDeep
@@ -75,9 +79,9 @@ fun HomeScreen(
             .background(
                 Brush.verticalGradient(
                     colors = listOf(
-                        Color(0xFF050A1A),
+                        Deep,
                         Void,
-                        Color(0xFF030612)
+                        Deep
                     )
                 )
             )
@@ -246,7 +250,7 @@ private fun BreathBall(
                 .clip(CircleShape)
                 .background(
                     Brush.radialGradient(
-                        colors = listOf(Primary.copy(alpha = 0.08f), Color.Transparent)
+                        colors = listOf(Primary.copy(alpha = 0.08f), Color.Transparent) // 透明渐变末端
                     )
                 )
                 .border(1.dp, Primary.copy(alpha = 0.12f), CircleShape)
@@ -261,7 +265,7 @@ private fun BreathBall(
                 .background(
                     Brush.radialGradient(
                         colors = listOf(
-                            Color.White.copy(alpha = 0.25f),
+                            LiquidBorder,
                             Color.Transparent
                         ),
                         center = Offset(0.3f, 0.25f),
@@ -287,7 +291,7 @@ private fun BreathBall(
                     drawCircle(
                         brush = Brush.linearGradient(
                             colors = listOf(
-                                Color.White.copy(alpha = 0.2f),
+                                BorderHover,
                                 Color.Transparent,
                                 Primary.copy(alpha = 0.15f)
                             )
@@ -295,7 +299,7 @@ private fun BreathBall(
                         radius = size.width / 2 + 2.dp.toPx()
                     )
                 }
-                .border(1.dp, Color.White.copy(alpha = 0.25f), CircleShape)
+                .border(1.dp, LiquidBorder, CircleShape)
                 .pointerInput(Unit) {
                     detectTapGestures(onTap = { onClick() })
                 },
@@ -322,7 +326,7 @@ private fun IdeaFab(
             .size(52.dp)
             .clip(CircleShape)
             .background(Brush.linearGradient(GradientPrimary))
-            .border(1.dp, Color.White.copy(alpha = 0.2f), CircleShape)
+            .border(1.dp, BorderHover, CircleShape)
     ) { _ ->
         androidx.compose.material3.Icon(
             imageVector = LynxIcons.Add,
@@ -361,7 +365,7 @@ private fun Timeline(
                     .background(
                         Brush.horizontalGradient(
                             colors = listOf(
-                                Color.White.copy(alpha = 0.08f),
+                                Liquid3,
                                 Color.Transparent
                             )
                         )
