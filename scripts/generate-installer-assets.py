@@ -44,15 +44,22 @@ def make_icon_png():
 
 
 def make_icon_ico():
-    """生成 icon.ico（多尺寸 Windows 图标）"""
+    """
+    生成 icon.ico（多尺寸 Windows 图标，每个尺寸直接从 512 源 LANCZOS 一次重采样）
+    避免双步重采样（512→256→16）导致的小尺寸图标模糊
+    """
     src = Image.open(SOURCE_ICON).convert("RGBA")
     sizes = [256, 128, 64, 48, 32, 16]
-    src.save(
+    # 每个尺寸直接从 512 源重采样，保留最多高频细节
+    frames = [src.resize((s, s), Image.LANCZOS) for s in sizes]
+    # 主帧为最大尺寸（256），其余通过 append_images 一并写入 ICO
+    frames[0].save(
         os.path.join(ICONS_DIR, "icon.ico"),
         format="ICO",
+        append_images=frames[1:],
         sizes=[(s, s) for s in sizes],
     )
-    print(f"✓ icon.ico (sizes: {sizes})")
+    print(f"✓ icon.ico (sizes: {sizes}, direct LANCZOS from 512 source)")
 
 
 def make_nsis_header():
@@ -130,7 +137,7 @@ def make_nsis_sidebar():
     # 底部装饰线 + 版本信息
     draw.line([(30, 270), (W - 30, 270)], fill=(43, 127, 255, 100), width=1)
     font_ver = find_font(9)
-    ver_text = "v1.0.8"
+    ver_text = "v1.0.11"
     bbox = draw.textbbox((0, 0), ver_text, font=font_ver)
     tw = bbox[2] - bbox[0]
     draw.text(((W - tw) // 2, 280), ver_text, fill=LIGHT_GRAY, font=font_ver)

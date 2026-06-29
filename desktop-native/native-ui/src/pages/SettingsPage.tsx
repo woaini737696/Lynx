@@ -20,7 +20,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { invoke } from "@/lib/tauri";
-import { cloudApi } from "@/lib/cloud-api";
+import { cloudApi, getCloudEndpoint, setCloudEndpoint } from "@/lib/cloud-api";
 import { useAuthStore } from "@/stores/authStore";
 import { useUIStore } from "@/stores/uiStore";
 import { clearAuth } from "@/lib/auth-persistence";
@@ -130,7 +130,8 @@ export function SettingsPage() {
     try {
       const s = await invoke<AgentStatus>("get_agent_status");
       setStatus(s);
-      setEndpoint(s.cloudEndpoint);
+      // cloud_endpoint 改为从 localStorage 读取（前端 fetch 方案，不再依赖 Rust 端）
+      setEndpoint(getCloudEndpoint());
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "加载 Agent 状态失败");
     } finally {
@@ -141,7 +142,6 @@ export function SettingsPage() {
   const handleSignOut = async () => {
     try {
       await clearAuth();
-      await invoke("set_user_token", { token: "" }).catch(() => {});
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "退出登录失败");
     } finally {
@@ -170,8 +170,8 @@ export function SettingsPage() {
     if (!endpoint.trim()) return;
     setSavingEndpoint(true);
     try {
-      await invoke("set_cloud_endpoint", { endpoint: endpoint.trim() });
-      await loadStatus();
+      // cloud_endpoint 改为保存到 localStorage（前端 fetch 方案直接读取）
+      setCloudEndpoint(endpoint.trim());
       toast.success("云端地址已保存");
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "设置云端地址失败");
