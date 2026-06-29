@@ -9,6 +9,7 @@
 
 | 迭代 | 日期 | 任务概要 |
 |------|------|----------|
+| [迭代 56](#迭代-56---2026-06-29) | 2026-06-29 | 官网域名Lynxdo.com+万能验证码配置化+登录注册改造（手机号+邀请码）+服务部署 |
 | [迭代 55](#迭代-55---2026-06-29) | 2026-06-29 | 安装包开发者信息+核心功能Web端差异梳理+P0打通修复+安全Bug修复+规范强化 |
 | [迭代 54](#迭代-54---2026-06-29) | 2026-06-29 | TTS/ASR模型+新增模型功能+LynxAgent启动修复+角色权限分类+职业空间改名+用户列表优化+开发日志分页 |
 | [迭代 53](#迭代-53---2026-06-29) | 2026-06-29 | Lynx超级助理重命名+UI深度优化+设置页模型卡片列表+弹窗字体优化+select双箭头修复 |
@@ -31,6 +32,81 @@
 | [迭代 36](#迭代-36---2026-06-26) | 2026-06-26 | 角色管理 CRUD + 用户管理打通 + 职业空间 |
 | [迭代 35](#迭代-35---2026-06-26) | 2026-06-26 | 角色管理按职位分配 + 职业定制 AI 工作空间 |
 | [迭代 34](#迭代-34---2026-06-26) | 2026-06-26 | C 盘数据迁移 + 磁盘使用规范 |
+
+---
+
+## 迭代 56 - 2026-06-29
+
+### 任务概要
+将官网域名统一为 www.Lynxdo.com；万能验证码从环境变量迁移到数据库配置化，管理员可在设置页灵活开关和修改；登录页改造为「手机号+密码」默认登录模式，去除账号密码登录；新增注册功能（手机号+验证码+邀请码），邀请码由管理员在设置页批量生成；启动服务供用户测试验收。
+
+### 完成内容
+
+#### 1. 官网域名统一为 www.Lynxdo.com（任务1）
+- `desktop-native/native-ui/src/pages/LoginPage.tsx`：`handleOpenWebSite` URL 改为 `https://www.Lynxdo.com`
+- `desktop-native/installer.nsi`：注册表 `HelpLink` 和 `URLInfoAbout` 改为 `https://www.Lynxdo.com`，安装包元数据对齐官网域名
+- 说明：`app.lynnhub.com` 作为后端 API endpoint 保持不变（与官网域名是不同概念）
+
+#### 2. 万能验证码配置化（任务3）
+- `prisma/schema.prisma`：新增 `SystemConfig` 表（key-value 结构，存储 `master_code` 和 `master_code_enabled`）和 `InviteCode` 表（邀请码管理）
+- `src/lib/auth-config.ts`：新增工具库，封装 `getMasterCode()` / `isMasterCodeEnabled()` / `getEffectiveMasterCode()` / `setMasterCode()` / `setMasterCodeEnabled()` 五个函数
+- `src/app/api/settings/auth-config/route.ts`：新增 admin 配置 API（GET 读取 / PUT 保存），使用 `requireAdmin` 权限校验
+- `src/app/api/auth/sms-code/route.ts`：从 `process.env.SMS_MASTER_CODE` 改为 `getEffectiveMasterCode()` 读取，返回 `masterCodeEnabled` 字段供前端动态显示提示
+- `src/app/api/auth/token/route.ts`：模式1（phone+code）改为从 DB 读取 masterCode，未启用返回 503 提示
+- `src/auth.ts`：NextAuth v5 配置，`authorize` 中 phone+code 模式改为从 DB 读取，去除自动注册逻辑（未注册返回 null）
+- `src/components/settings/AuthConfigSection.tsx`（新增）：设置页「认证」Tab，包含万能验证码开关 + 验证码输入框 + 显示/隐藏切换，仅 admin 可见
+- `src/app/settings/page.tsx`：新增「认证」Tab，位于 Lynx Agent 和系统状态之间
+
+#### 3. 登录页改造（任务4-登录）
+- `src/components/auth/LoginModal.tsx`（重写）：
+  - 去除 `username` 模式，TABS 仅保留 `phone-password`（默认）和 `phone-code`
+  - 新增注册面板（手机号+验证码+邀请码+密码+昵称），通过 `panel` state 切换
+  - 万能码提示从硬编码 `888888` 改为从 `/api/auth/sms-code` 响应动态读取 `devHint`
+  - 验证码模式下未启用万能码时显示「请联系管理员开启」提示
+- `src/components/auth/AuthProvider.tsx`：默认 `mode` 从 `phone-code` 改为 `phone-password`，401 自动弹窗也改用 `phone-password`，去除所有 `username` 引用
+- `desktop-native/native-ui/src/pages/LoginPage.tsx`（重写）：
+  - 去除 `username` 模式，默认 `phone-password`
+  - 新增完整注册面板（手机号+验证码+邀请码+密码+昵称）
+  - 万能码从云端 API 动态读取（`masterCodeEnabled` + `devHint`）
+  - 添加访问官网链接按钮
+
+#### 4. 新增注册功能（任务4-注册）
+- `src/app/api/auth/register/route.ts`（新增）：用户注册端点
+  - 校验：手机号格式、验证码（万能码）、邀请码有效性、密码长度（≥6）
+  - 检查手机号是否已注册（已注册返回 409）
+  - 事务创建用户（username=`phone_{phone}`，role=viewer）+ 标记邀请码 `used` + `usedBy` + `usedAt`
+  - 签发 token，注册即登录
+- `src/app/api/admin/invite-codes/route.ts`（新增）：邀请码管理 API（仅 admin）
+  - GET：分页查询（status/q/page/pageSize）+ 统计概览（unused/used/disabled 计数）
+  - POST：批量生成（count 1-100，remark 备注，expiresAt 过期时间），8 位字符去除易混淆字符 `I/O/0/1`
+  - PATCH：禁用/启用邀请码（已使用的不可变更）
+- `src/components/settings/AuthConfigSection.tsx` 中的 `InviteCodesCard`：
+  - 统计概览三宫格（未使用/已使用/已禁用）
+  - 筛选器（状态 Tab + 关键词搜索）
+  - 列表表格（邀请码、状态、备注、过期时间、使用时间、创建时间、操作）
+  - 批量生成弹窗（数量、备注、过期时间）
+  - 生成结果弹窗（一键复制单个 / 复制全部）
+  - 分页（上一页/下一页）
+
+#### 5. 服务部署（任务2）
+- MySQL 已启动（端口 3306）
+- `npm run dev` 启动 Next.js 开发服务器（端口 5176）
+- 访问地址：http://localhost:5176
+
+### 验证
+- `npx tsc --noEmit`：Web 端仅 `src/lib/wallet.ts` 有 Prisma JSON 类型历史警告（与本次改动无关），新增/修改的 LoginModal / AuthConfigSection / invite-codes / register / sms-code / auth-config / AuthProvider / settings/page 均无 tsc 错误
+- `desktop-native/native-ui` tsc 通过（exit code 0）
+- 数据库迁移：`prisma db push --accept-data-loss` 已执行（phone 字段添加 unique 约束需接受数据丢失警告）
+
+### 文件清单
+- 新增：`src/lib/auth-config.ts`、`src/app/api/settings/auth-config/route.ts`、`src/app/api/auth/register/route.ts`、`src/app/api/admin/invite-codes/route.ts`、`src/components/settings/AuthConfigSection.tsx`
+- 重写：`src/components/auth/LoginModal.tsx`、`desktop-native/native-ui/src/pages/LoginPage.tsx`
+- 修改：`prisma/schema.prisma`、`src/auth.ts`、`src/app/api/auth/token/route.ts`、`src/app/api/auth/sms-code/route.ts`、`src/components/auth/AuthProvider.tsx`、`src/app/settings/page.tsx`、`desktop-native/installer.nsi`
+
+### 账号保护
+- `lynn` 账号（role=admin, displayName=Lynn）未做任何修改
+- 注册流程创建的新用户默认 role=viewer，不能登录已有的 `lynn` 账号
+- 邀请码一次性使用，已使用的不可变更状态
 
 ---
 

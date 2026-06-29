@@ -21,7 +21,7 @@ const AuthContext = createContext<AuthContextValue | null>(null);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [isOpen, setIsOpen] = useState(false);
-  const [mode, setMode] = useState<LoginMode>("phone-code");
+  const [mode, setMode] = useState<LoginMode>("phone-password");
   const [expired, setExpired] = useState(false);
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -32,8 +32,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const expiredFlag = searchParams.get("expired");
     if (loginFlag === "1" || expiredFlag === "1") {
       setExpired(expiredFlag === "1");
-      // expired 场景默认用户名密码模式；首次登录用手机验证码
-      setMode(expiredFlag === "1" ? "username" : "phone-code");
+      // 默认手机号+密码模式
+      setMode("phone-password");
       setIsOpen(true);
       // 清理 URL 参数，避免刷新重复弹出
       const next = new URL(window.location.href);
@@ -44,7 +44,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [searchParams]);
 
-  const open = useCallback((m: LoginMode = "phone-code") => {
+  const open = useCallback((m: LoginMode = "phone-password") => {
     setExpired(false);
     setMode(m);
     setIsOpen(true);
@@ -58,7 +58,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const handler = () => {
       setExpired(true);
-      setMode("username");
+      setMode("phone-password");
       setIsOpen(true);
     };
     window.addEventListener("auth:unauthorized", handler);

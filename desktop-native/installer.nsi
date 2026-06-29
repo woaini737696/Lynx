@@ -250,8 +250,8 @@ Function onInstall
   WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\Lynx" "DisplayVersion" "1.0.5"
   WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\Lynx" "Publisher" "LynnHub"
   WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\Lynx" "DisplayIcon" '"$INSTALL_DIR\${PRODUCT_EXE}"'
-  WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\Lynx" "HelpLink" "https://app.lynnhub.com/help"
-  WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\Lynx" "URLInfoAbout" "https://app.lynnhub.com"
+  WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\Lynx" "HelpLink" "https://www.Lynxdo.com/help"
+  WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\Lynx" "URLInfoAbout" "https://www.Lynxdo.com"
   WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\Lynx" "InstallLocation" "$INSTALL_DIR"
   WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\Lynx" "UninstallString" '"$INSTALL_DIR\uninst.exe"'
   WriteRegDWORD HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\Lynx" "NoModify" 1

@@ -1,9 +1,9 @@
 "use client";
 
 // 登录弹窗：液态玻璃样式，符合 iOS 26 Liquid Glass 规范
-// 三种登录模式：用户名密码 / 手机号验证码 / 手机号密码
-// 附加：微信登录占位（WECHAT_LOGIN_ENABLED 控制显隐）
-// 万能验证码：开发环境直接使用 888888，无需真实短信
+// 两种登录模式：手机号+密码（默认） / 手机号+验证码
+// 注册面板：手机号 + 验证码 + 邀请码 + 密码
+// 万能验证码：从数据库读取，管理员可在设置页配置和开关
 
 import { useEffect, useRef, useState, forwardRef } from "react";
 import { signIn } from "next-auth/react";
@@ -16,11 +16,12 @@ import {
   ShieldCheck,
   AlertCircle,
   X,
-  MessageCircle,
   Sparkles,
+  UserPlus,
+  KeyRound,
 } from "lucide-react";
 
-export type LoginMode = "username" | "phone-code" | "phone-password";
+export type LoginMode = "phone-password" | "phone-code";
 
 interface LoginModalProps {
   mode: LoginMode;
@@ -31,10 +32,11 @@ interface LoginModalProps {
 }
 
 const TABS: { key: LoginMode; label: string; icon: typeof User }[] = [
-  { key: "phone-code", label: "验证码", icon: ShieldCheck },
   { key: "phone-password", label: "手机密码", icon: Phone },
-  { key: "username", label: "账号", icon: User },
+  { key: "phone-code", label: "验证码", icon: ShieldCheck },
 ];
+
+type Panel = "login" | "register";
 
 export function LoginModal({
   mode,
@@ -43,11 +45,15 @@ export function LoginModal({
   onClose,
   onSuccess,
 }: LoginModalProps) {
+  // 当前面板：登录 / 注册
+  const [panel, setPanel] = useState<Panel>("login");
+
   // 表单字段
-  const [username, setUsername] = useState("");
   const [phone, setPhone] = useState("");
   const [password, setPassword] = useState("");
   const [code, setCode] = useState("");
+  const [inviteCode, setInviteCode] = useState("");
+  const [displayName, setDisplayName] = useState("");
 
   // UI 状态
   const [loading, setLoading] = useState(false);
@@ -55,16 +61,18 @@ export function LoginModal({
   const [error, setError] = useState("");
   const [countdown, setCountdown] = useState(0);
   const [codeSent, setCodeSent] = useState(false);
+  // 万能码状态（从 API 动态读取）
+  const [masterCodeEnabled, setMasterCodeEnabled] = useState<boolean | null>(null);
+  const [masterCodeHint, setMasterCodeHint] = useState<string | null>(null);
 
   const firstInputRef = useRef<HTMLInputElement | null>(null);
 
-  // 切换标签页时清空错误，并自动聚焦
+  // 切换标签页时清空错误并聚焦
   useEffect(() => {
     setError("");
-    // 延迟聚焦，等待对应输入框渲染
     const t = setTimeout(() => firstInputRef.current?.focus(), 50);
     return () => clearTimeout(t);
-  }, [mode]);
+  }, [mode, panel]);
 
   // 倒计时
   useEffect(() => {
@@ -82,7 +90,7 @@ export function LoginModal({
     return () => window.removeEventListener("keydown", handler);
   }, [onClose]);
 
-  // 验证手机号格式（中国大陆 11 位）
+  // 验证手机号格式
   const isValidPhone = (p: string) => /^1[3-9]\d{9}$/.test(p);
 
   // 发送验证码
@@ -106,6 +114,9 @@ export function LoginModal({
       }
       setCodeSent(true);
       setCountdown(60);
+      // 同步万能码启用状态与提示
+      setMasterCodeEnabled(Boolean(data.masterCodeEnabled));
+      setMasterCodeHint(data.devHint || null);
     } catch {
       setError("网络错误，请重试");
     } finally {
@@ -118,26 +129,16 @@ export function LoginModal({
     e.preventDefault();
     setError("");
 
-    // 前端基础校验
-    if (mode === "username") {
-      if (!username.trim() || !password) {
-        setError("请输入用户名和密码");
-        return;
-      }
-    } else if (mode === "phone-code") {
-      if (!isValidPhone(phone)) {
-        setError("请输入正确的手机号");
-        return;
-      }
+    if (!isValidPhone(phone)) {
+      setError("请输入正确的手机号");
+      return;
+    }
+    if (mode === "phone-code") {
       if (!code) {
         setError("请输入验证码");
         return;
       }
-    } else if (mode === "phone-password") {
-      if (!isValidPhone(phone)) {
-        setError("请输入正确的手机号");
-        return;
-      }
+    } else {
       if (!password) {
         setError("请输入密码");
         return;
@@ -146,17 +147,10 @@ export function LoginModal({
 
     setLoading(true);
     try {
-      // 使用 next-auth/react 的 signIn，自动处理 CSRF
-      // redirect: false 避免页面跳转，返回 error 时手动处理
-      const credentials: Record<string, string> = {};
-      if (mode === "username") {
-        credentials.username = username.trim();
-        credentials.password = password;
-      } else if (mode === "phone-code") {
-        credentials.phone = phone;
+      const credentials: Record<string, string> = { phone };
+      if (mode === "phone-code") {
         credentials.code = code;
-      } else if (mode === "phone-password") {
-        credentials.phone = phone;
+      } else {
         credentials.password = password;
       }
 
@@ -165,7 +159,7 @@ export function LoginModal({
         redirect: false,
       });
       if (res?.error) {
-        setError("登录失败，请检查账号或验证码");
+        setError(mode === "phone-code" ? "登录失败，请检查验证码或手机号是否已注册" : "登录失败，请检查手机号或密码");
         return;
       }
       if (res?.ok) {
@@ -180,13 +174,83 @@ export function LoginModal({
     }
   };
 
+  // 注册
+  const handleRegister = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError("");
+
+    if (!isValidPhone(phone)) {
+      setError("请输入正确的手机号");
+      return;
+    }
+    if (!code) {
+      setError("请输入验证码");
+      return;
+    }
+    if (!inviteCode.trim()) {
+      setError("请输入邀请码");
+      return;
+    }
+    if (password.length < 6) {
+      setError("密码至少 6 位");
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const res = await fetch("/api/auth/register", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          phone,
+          code,
+          inviteCode: inviteCode.trim().toUpperCase(),
+          password,
+          displayName: displayName.trim() || undefined,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setError(data.error || "注册失败");
+        return;
+      }
+      // 注册成功，使用注册返回的 token 直接登录（next-auth 走一次 signIn）
+      const signInRes = await signIn("credentials", {
+        phone,
+        password,
+        redirect: false,
+      });
+      if (signInRes?.ok) {
+        onSuccess();
+        return;
+      }
+      // 若 signIn 失败，提示用户手动登录
+      setPanel("login");
+      setMode("phone-password");
+      setError("注册成功，请使用手机号+密码登录");
+    } catch {
+      setError("网络错误，请重试");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // 切换登录/注册面板
+  const switchPanel = (p: Panel) => {
+    setError("");
+    setPanel(p);
+  };
+
+  // 切换登录模式的辅助（兼容 props 形式）
+  const setMode = (m: LoginMode) => onModeChange(m);
+
   return (
     <div
       className="fixed inset-0 z-[100] flex items-center justify-center bg-black/30 p-4 backdrop-blur-xl"
       onClick={onClose}
     >
       <div
-        className="glass-modal w-[90vw] max-w-[420px] rounded-3xl p-6 sm:p-8"
+        className="glass-modal relative w-[90vw] max-w-[420px] rounded-3xl p-6 sm:p-8"
         onClick={(e) => e.stopPropagation()}
       >
         {/* 关闭按钮 */}
@@ -209,82 +273,52 @@ export function LoginModal({
           />
           <div className="text-center">
             <h1 className="text-lg font-semibold tracking-tight text-foreground">
-              欢迎来到 LYNX
+              {panel === "login" ? "欢迎来到 LYNX" : "注册新账号"}
             </h1>
             <p className="mt-0.5 text-xs text-muted-foreground">
-              不用学，直接干
+              {panel === "login" ? "不用学，直接干" : "手机号 + 验证码 + 邀请码"}
             </p>
           </div>
         </div>
 
         {/* 过期提示 */}
-        {expired && (
+        {expired && panel === "login" && (
           <div className="mb-4 flex items-center gap-2 rounded-xl border border-primary/30 bg-primary/5 px-3 py-2 text-xs text-primary">
             <AlertCircle className="h-3.5 w-3.5 shrink-0" />
             <span>登录已过期，请重新登录</span>
           </div>
         )}
 
-        {/* 标签页切换 */}
-        <div className="mb-5 flex gap-1 rounded-2xl bg-foreground/[0.04] p-1">
-          {TABS.map((tab) => {
-            const Icon = tab.icon;
-            const active = mode === tab.key;
-            return (
-              <button
-                key={tab.key}
-                type="button"
-                onClick={() => onModeChange(tab.key)}
-                className={`flex flex-1 items-center justify-center gap-1.5 rounded-xl py-2 text-xs font-medium transition-all ${
-                  active
-                    ? "bg-background text-foreground shadow-sm"
-                    : "text-muted-foreground hover:text-foreground"
-                }`}
-              >
-                <Icon className="h-3.5 w-3.5" />
-                {tab.label}
-              </button>
-            );
-          })}
-        </div>
-
-        {/* 表单 */}
-        <form onSubmit={handleLogin} className="space-y-4">
-          {/* 用户名模式 */}
-          {mode === "username" && (
-            <div className="space-y-3">
-              <Field
-                ref={firstInputRef}
-                id="username"
-                label="用户名"
-                icon={User}
-                type="text"
-                value={username}
-                onChange={setUsername}
-                placeholder="请输入用户名"
-                autoComplete="username"
-                disabled={loading}
-              />
-              <Field
-                id="password-username"
-                label="密码"
-                icon={Lock}
-                type="password"
-                value={password}
-                onChange={setPassword}
-                placeholder="请输入密码"
-                autoComplete="current-password"
-                disabled={loading}
-              />
+        {panel === "login" ? (
+          <>
+            {/* 登录标签页切换 */}
+            <div className="mb-5 flex gap-1 rounded-2xl bg-foreground/[0.04] p-1">
+              {TABS.map((tab) => {
+                const Icon = tab.icon;
+                const active = mode === tab.key;
+                return (
+                  <button
+                    key={tab.key}
+                    type="button"
+                    onClick={() => setMode(tab.key)}
+                    className={`flex flex-1 items-center justify-center gap-1.5 rounded-xl py-2 text-xs font-medium transition-all ${
+                      active
+                        ? "bg-background text-foreground shadow-sm"
+                        : "text-muted-foreground hover:text-foreground"
+                    }`}
+                  >
+                    <Icon className="h-3.5 w-3.5" />
+                    {tab.label}
+                  </button>
+                );
+              })}
             </div>
-          )}
 
-          {/* 手机验证码模式 */}
-          {mode === "phone-code" && (
-            <div className="space-y-3">
+            {/* 登录表单 */}
+            <form onSubmit={handleLogin} className="space-y-4">
               <Field
                 ref={firstInputRef}
-                id="phone-code"
+                id="phone-login"
                 label="手机号"
                 icon={Phone}
                 type="tel"
@@ -295,13 +329,137 @@ export function LoginModal({
                 disabled={loading}
                 maxLength={11}
               />
+
+              {mode === "phone-code" && (
+                <div className="space-y-1.5">
+                  <label className="text-xs font-medium text-foreground">验证码</label>
+                  <div className="flex gap-2">
+                    <div className="relative flex-1">
+                      <ShieldCheck className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                      <input
+                        id="code-login"
+                        type="text"
+                        inputMode="numeric"
+                        value={code}
+                        onChange={(e) => setCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                        disabled={loading}
+                        placeholder="6 位验证码"
+                        autoComplete="one-time-code"
+                        className="ios-glass-sm w-full rounded-xl py-2.5 pl-10 pr-3 text-sm text-foreground placeholder:text-muted-foreground/60 transition-colors focus:border-primary/50 focus:outline-none focus:ring-2 focus:ring-primary/20 disabled:opacity-50"
+                      />
+                    </div>
+                    <button
+                      type="button"
+                      onClick={handleSendCode}
+                      disabled={sendingCode || countdown > 0 || loading || !isValidPhone(phone)}
+                      className="ios-glass-sm shrink-0 rounded-xl px-3.5 text-xs font-medium text-primary transition-colors hover:bg-primary/10 disabled:opacity-50"
+                    >
+                      {sendingCode ? (
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      ) : countdown > 0 ? (
+                        `${countdown}s`
+                      ) : codeSent ? (
+                        "重新获取"
+                      ) : (
+                        "获取验证码"
+                      )}
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {mode === "phone-password" && (
+                <Field
+                  id="password-login"
+                  label="密码"
+                  icon={Lock}
+                  type="password"
+                  value={password}
+                  onChange={setPassword}
+                  placeholder="请输入密码"
+                  autoComplete="current-password"
+                  disabled={loading}
+                />
+              )}
+
+              {/* 万能码提示（从 API 动态读取，仅在启用且已发送验证码后显示） */}
+              {mode === "phone-code" && codeSent && masterCodeEnabled && masterCodeHint && (
+                <div className="flex items-center gap-1.5 rounded-lg bg-primary/5 px-2.5 py-1.5 text-[11px] text-primary/80">
+                  <Sparkles className="h-3 w-3 shrink-0" />
+                  <span>{masterCodeHint}</span>
+                </div>
+              )}
+              {mode === "phone-code" && codeSent && masterCodeEnabled === false && (
+                <div className="flex items-center gap-1.5 rounded-lg bg-muted-foreground/5 px-2.5 py-1.5 text-[11px] text-muted-foreground">
+                  <AlertCircle className="h-3 w-3 shrink-0" />
+                  <span>万能验证码未启用，请联系管理员开启</span>
+                </div>
+              )}
+
+              {/* 错误提示 */}
+              {error && (
+                <div className="flex items-center gap-2 rounded-xl border border-graveyard/30 bg-graveyard/5 px-3 py-2 text-xs text-graveyard">
+                  <AlertCircle className="h-3.5 w-3.5 shrink-0" />
+                  <span>{error}</span>
+                </div>
+              )}
+
+              {/* 登录按钮 */}
+              <button
+                type="submit"
+                disabled={loading}
+                className="btn-primary flex w-full items-center justify-center gap-2 rounded-xl py-2.5 text-sm font-semibold text-white shadow-sm transition-all hover:brightness-105 focus:outline-none focus:ring-2 focus:ring-primary/30 disabled:opacity-50"
+              >
+                {loading ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    登录中...
+                  </>
+                ) : (
+                  "登录"
+                )}
+              </button>
+            </form>
+
+            {/* 注册入口 */}
+            <div className="mt-5 border-t border-foreground/10 pt-4 text-center">
+              <p className="text-xs text-muted-foreground">
+                还没有账号？{" "}
+                <button
+                  type="button"
+                  onClick={() => switchPanel("register")}
+                  className="font-medium text-primary underline-offset-2 transition-colors hover:underline"
+                >
+                  立即注册
+                </button>
+              </p>
+            </div>
+          </>
+        ) : (
+          <>
+            {/* 注册表单 */}
+            <form onSubmit={handleRegister} className="space-y-4">
+              <Field
+                ref={firstInputRef}
+                id="phone-register"
+                label="手机号"
+                icon={Phone}
+                type="tel"
+                value={phone}
+                onChange={setPhone}
+                placeholder="请输入手机号"
+                autoComplete="tel"
+                disabled={loading}
+                maxLength={11}
+              />
+
               <div className="space-y-1.5">
                 <label className="text-xs font-medium text-foreground">验证码</label>
                 <div className="flex gap-2">
                   <div className="relative flex-1">
                     <ShieldCheck className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                     <input
-                      id="code"
+                      id="code-register"
                       type="text"
                       inputMode="numeric"
                       value={code}
@@ -330,89 +488,99 @@ export function LoginModal({
                   </button>
                 </div>
               </div>
-              {/* 开发环境万能码提示 */}
-              {codeSent && (
+
+              {/* 万能码提示 */}
+              {codeSent && masterCodeEnabled && masterCodeHint && (
                 <div className="flex items-center gap-1.5 rounded-lg bg-primary/5 px-2.5 py-1.5 text-[11px] text-primary/80">
                   <Sparkles className="h-3 w-3 shrink-0" />
-                  <span>开发环境万能码：888888</span>
+                  <span>{masterCodeHint}</span>
                 </div>
               )}
-            </div>
-          )}
+              {codeSent && masterCodeEnabled === false && (
+                <div className="flex items-center gap-1.5 rounded-lg bg-muted-foreground/5 px-2.5 py-1.5 text-[11px] text-muted-foreground">
+                  <AlertCircle className="h-3 w-3 shrink-0" />
+                  <span>万能验证码未启用，请联系管理员开启</span>
+                </div>
+              )}
 
-          {/* 手机密码模式 */}
-          {mode === "phone-password" && (
-            <div className="space-y-3">
               <Field
-                ref={firstInputRef}
-                id="phone-pwd"
-                label="手机号"
-                icon={Phone}
-                type="tel"
-                value={phone}
-                onChange={setPhone}
-                placeholder="请输入手机号"
-                autoComplete="tel"
+                id="invite-code"
+                label="邀请码"
+                icon={KeyRound}
+                type="text"
+                value={inviteCode}
+                onChange={(v) => setInviteCode(v.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 32))}
+                placeholder="请输入邀请码（管理员发放）"
                 disabled={loading}
-                maxLength={11}
+                maxLength={32}
               />
+
               <Field
-                id="password-phone"
-                label="密码"
+                id="password-register"
+                label="设置密码（至少 6 位）"
                 icon={Lock}
                 type="password"
                 value={password}
                 onChange={setPassword}
-                placeholder="请输入密码"
-                autoComplete="current-password"
+                placeholder="请设置登录密码"
+                autoComplete="new-password"
                 disabled={loading}
               />
+
+              <Field
+                id="display-name"
+                label="昵称（可选）"
+                icon={User}
+                type="text"
+                value={displayName}
+                onChange={setDisplayName}
+                placeholder="不填则使用手机号"
+                disabled={loading}
+                maxLength={50}
+              />
+
+              {/* 错误提示 */}
+              {error && (
+                <div className="flex items-center gap-2 rounded-xl border border-graveyard/30 bg-graveyard/5 px-3 py-2 text-xs text-graveyard">
+                  <AlertCircle className="h-3.5 w-3.5 shrink-0" />
+                  <span>{error}</span>
+                </div>
+              )}
+
+              {/* 注册按钮 */}
+              <button
+                type="submit"
+                disabled={loading}
+                className="btn-primary flex w-full items-center justify-center gap-2 rounded-xl py-2.5 text-sm font-semibold text-white shadow-sm transition-all hover:brightness-105 focus:outline-none focus:ring-2 focus:ring-primary/30 disabled:opacity-50"
+              >
+                {loading ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    注册中...
+                  </>
+                ) : (
+                  <>
+                    <UserPlus className="h-4 w-4" />
+                    注册并登录
+                  </>
+                )}
+              </button>
+            </form>
+
+            {/* 返回登录 */}
+            <div className="mt-5 border-t border-foreground/10 pt-4 text-center">
+              <p className="text-xs text-muted-foreground">
+                已有账号？{" "}
+                <button
+                  type="button"
+                  onClick={() => switchPanel("login")}
+                  className="font-medium text-primary underline-offset-2 transition-colors hover:underline"
+                >
+                  返回登录
+                </button>
+              </p>
             </div>
-          )}
-
-          {/* 错误提示 */}
-          {error && (
-            <div className="flex items-center gap-2 rounded-xl border border-graveyard/30 bg-graveyard/5 px-3 py-2 text-xs text-graveyard">
-              <AlertCircle className="h-3.5 w-3.5 shrink-0" />
-              <span>{error}</span>
-            </div>
-          )}
-
-          {/* 登录按钮 */}
-          <button
-            type="submit"
-            disabled={loading}
-            className="btn-primary flex w-full items-center justify-center gap-2 rounded-xl py-2.5 text-sm font-semibold text-white shadow-sm transition-all hover:brightness-105 focus:outline-none focus:ring-2 focus:ring-primary/30 disabled:opacity-50"
-          >
-            {loading ? (
-              <>
-                <Loader2 className="h-4 w-4 animate-spin" />
-                登录中...
-              </>
-            ) : (
-              "登录"
-            )}
-          </button>
-        </form>
-
-        {/* 分割线 + 第三方登录 */}
-        <div className="mt-5">
-          <div className="relative mb-4 text-center">
-            <span className="relative z-10 bg-transparent px-3 text-[11px] text-muted-foreground/70">
-              其他登录方式
-            </span>
-            <div className="absolute left-0 top-1/2 h-px w-full bg-foreground/10" />
-          </div>
-          <div className="flex justify-center">
-            <WeChatLoginButton disabled={loading} />
-          </div>
-        </div>
-
-        {/* 注册提示（验证码模式自动注册） */}
-        {mode === "phone-code" && (
-          <p className="mt-4 text-center text-[11px] text-muted-foreground/70">
-            未注册手机号将自动创建账号
-          </p>
+          </>
         )}
       </div>
     </div>
@@ -462,22 +630,3 @@ const Field = forwardRef<HTMLInputElement, FieldProps>(function Field(
     </div>
   );
 });
-
-// 微信登录按钮（占位，后续配置 API Key 后启用）
-function WeChatLoginButton({ disabled }: { disabled?: boolean }) {
-  const handleClick = () => {
-    alert("微信登录暂未启用，请使用其他方式登录");
-  };
-  return (
-    <button
-      type="button"
-      onClick={handleClick}
-      disabled={disabled}
-      className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[#07C160]/10 text-[#07C160] transition-all hover:bg-[#07C160]/20 disabled:opacity-50"
-      aria-label="微信登录"
-      title="微信登录（即将开放）"
-    >
-      <MessageCircle className="h-5 w-5" />
-    </button>
-  );
-}
