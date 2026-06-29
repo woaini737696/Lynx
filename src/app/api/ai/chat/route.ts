@@ -379,7 +379,7 @@ export async function POST(req: NextRequest) {
     if (assistantMode === true) {
       const user = authResult.user!;
 
-      // ============ 加载职业工作空间（system prompt + 工具白名单）============
+      // ============ 加载职业空间（system prompt + 工具白名单）============
       // 用户登录后按 Role.profession 自动加载 admin 在 /admin/profession-workspaces 配置的内容
       let professionSystemPrompt = "";
       let allowedTools: string[] | null = null; // null = 全部工具可用
@@ -392,7 +392,7 @@ export async function POST(req: NextRequest) {
       let styleStrength = 0.7;
       let hermesTakeover = false;
 
-      // 并行加载职业工作空间 + AI 助理设置（两者相互独立，避免串行 DB 往返）
+      // 并行加载职业空间 + AI 助理设置（两者相互独立，避免串行 DB 往返）
       const [professionResult, aiSettingsResult] = await Promise.allSettled([
         (async () => {
           const dbUser = await prisma.user.findUnique({
@@ -435,7 +435,7 @@ export async function POST(req: NextRequest) {
         hermesTakeover = aiSettings.hermesTakeover ?? false;
       }
 
-      // 应用职业工作空间默认 model（仅在用户未显式传 provider/model/reasoningMode 时生效）
+      // 应用职业空间默认 model（仅在用户未显式传 provider/model/reasoningMode 时生效）
       if (!resolvedProvider && professionDefaultProvider === "deepseek") {
         resolvedProvider = "deepseek";
       } else if (!resolvedProvider && professionDefaultProvider === "mimo") {
@@ -576,7 +576,7 @@ export async function POST(req: NextRequest) {
       if (professionSystemPrompt) {
         finalSystemPrompt = finalSystemPrompt.replace(
           "## 重要约束",
-          `## 职业工作空间设定\n${professionSystemPrompt}\n\n## 重要约束`
+          `## 职业空间设定\n${professionSystemPrompt}\n\n## 重要约束`
         );
       }
 
@@ -864,7 +864,7 @@ ${toolResultStr}
         });
       }
 
-      // 有 action：先校验工具白名单（职业工作空间限制）
+      // 有 action：先校验工具白名单（职业空间限制）
       if (Array.isArray(allowedTools) && allowedTools.length > 0 && !allowedTools.includes(action.tool)) {
         const blockedContent = `你的岗位工作空间未授权使用工具「${action.tool}」。当前岗位可用工具：${allowedTools.join("、")}`;
         const blockedToolCalled = {

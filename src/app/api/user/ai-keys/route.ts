@@ -29,7 +29,7 @@ export async function GET() {
       return NextResponse.json({ error: "用户不存在" }, { status: 404 });
     }
 
-    // 检查职业工作空间是否限制了 allowedProviders
+    // 检查职业空间是否限制了 allowedProviders
     let allowedProviders: string[] | null = null;
     if (dbUser.profession) {
       const ws = await prisma.professionWorkspace.findUnique({
@@ -88,7 +88,7 @@ export async function PUT(req: NextRequest) {
       }
     }
 
-    // 检查职业工作空间的 allowedProviders 限制
+    // 检查职业空间的 allowedProviders 限制
     const dbUser = await prisma.user.findUnique({
       where: { id: user.id },
       select: { profession: true },

@@ -1,8 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
-import { check } from "@tauri-apps/plugin-updater";
-import { relaunch } from "@tauri-apps/plugin-process";
 import {
   User,
   LogOut,
@@ -17,11 +15,12 @@ import {
   Plus,
   Trash2,
   Check,
-  Download,
   RefreshCw,
+  ExternalLink,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { invoke } from "@/lib/tauri";
+import { cloudApi } from "@/lib/cloud-api";
 import { useAuthStore } from "@/stores/authStore";
 import { useUIStore } from "@/stores/uiStore";
 import { clearAuth } from "@/lib/auth-persistence";
@@ -83,18 +82,24 @@ export function SettingsPage() {
     setChecking(true);
     setUpdateInfo(null);
     try {
-      const update = await check();
-      if (update) {
+      // 通过云端接口检查最新版本（HTTP 方式，不依赖 Tauri updater 签名）
+      const resp = await cloudApi.get<{ version: string; notes?: string; downloadUrl?: string }>(
+        "/api/desktop/update-info"
+      );
+      const currentVersion = status?.version || "1.0.0";
+      const latestVersion = resp.version;
+      if (latestVersion && latestVersion !== currentVersion) {
         setUpdateInfo({
-          version: update.version,
-          currentVersion: update.currentVersion,
-          notes: update.body || undefined,
+          version: latestVersion,
+          currentVersion,
+          notes: resp.notes,
         });
       } else {
         toast.success("已是最新版本");
       }
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "检查更新失败");
+      // 接口不存在时，提示用户手动检查
+      toast.error(err instanceof Error ? err.message : "检查更新失败，请稍后重试");
     } finally {
       setChecking(false);
     }
@@ -103,13 +108,12 @@ export function SettingsPage() {
   const handleDownloadInstall = async () => {
     setInstalling(true);
     try {
-      const update = await check();
-      if (update) {
-        await update.downloadAndInstall();
-        await relaunch();
-      }
+      // 打开浏览器下载最新安装包
+      const downloadUrl = "https://app.lynnhub.com/download";
+      await invoke("open_external", { url: downloadUrl });
+      toast.success("已在浏览器中打开下载页面");
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "安装更新失败");
+      toast.error(err instanceof Error ? err.message : "打开下载页面失败");
     } finally {
       setInstalling(false);
     }
@@ -410,7 +414,7 @@ export function SettingsPage() {
               <div className="flex flex-col gap-5">
                 <h2 className="text-lg font-semibold text-foreground">关于 Lynx</h2>
                 <div className="flex items-center gap-4">
-                  <Logo className="h-16 w-16 rounded-2xl" variant="dark" />
+                  <Logo className="h-16 w-16 rounded-2xl" />
                   <div>
                     <p className="text-base font-semibold text-foreground">Lynx 原生桌面端</p>
                     <p className="text-sm text-muted-foreground">基于 Lynx Agent 技术</p>
@@ -450,9 +454,9 @@ export function SettingsPage() {
                         {installing ? (
                           <Loader2 className="h-3.5 w-3.5 animate-spin" />
                         ) : (
-                          <Download className="h-3.5 w-3.5" />
+                          <ExternalLink className="h-3.5 w-3.5" />
                         )}
-                        {installing ? "安装中..." : "立即安装"}
+                        {installing ? "打开中..." : "前往下载"}
                       </button>
                     ) : (
                       <button

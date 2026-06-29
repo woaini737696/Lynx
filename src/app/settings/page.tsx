@@ -299,9 +299,9 @@ const MODEL_CATEGORIES: { key: ModelCategory; label: string; icon: React.ReactNo
   { key: "asr", label: "ASR", icon: <Mic className="h-3.5 w-3.5" />, desc: "语音转文本" },
 ];
 
-/** 模型定义（将现有 Provider 映射到分类） */
+/** 模型定义 */
 interface ModelDef {
-  id: "deepseek" | "mimo" | "embedding";
+  id: string;
   category: ModelCategory;
   name: string;
   desc: string;
@@ -310,9 +310,14 @@ interface ModelDef {
   defaultModel: string;
   /** 是否支持设为默认对话模型（仅对话类模型支持） */
   canBeDefault?: boolean;
+  /** 是否为自定义模型（存 localStorage） */
+  isCustom?: boolean;
+  /** 自定义模型的 API Key（仅 isCustom 时有效，存 localStorage） */
+  _customApiKey?: string;
 }
 
-const MODEL_DEFS: ModelDef[] = [
+/** 内置模型定义 */
+const BUILTIN_MODEL_DEFS: ModelDef[] = [
   {
     id: "deepseek",
     category: "text",
@@ -334,6 +339,24 @@ const MODEL_DEFS: ModelDef[] = [
     canBeDefault: true,
   },
   {
+    id: "mimo-tts",
+    category: "tts",
+    name: "MiMo TTS",
+    desc: "小米 MiMo 语音合成，复用 MiMo API Key",
+    provider: "MiMo",
+    defaultBaseUrl: "https://api.mimo.com/v1",
+    defaultModel: "mimo-tts-v1",
+  },
+  {
+    id: "mimo-asr",
+    category: "asr",
+    name: "MiMo ASR",
+    desc: "小米 MiMo 语音识别，复用 MiMo API Key",
+    provider: "MiMo",
+    defaultBaseUrl: "https://api.mimo.com/v1",
+    defaultModel: "mimo-asr-v1",
+  },
+  {
     id: "embedding",
     category: "embedding",
     name: "BAAI/bge-m3",
@@ -343,6 +366,32 @@ const MODEL_DEFS: ModelDef[] = [
     defaultModel: "BAAI/bge-m3",
   },
 ];
+
+/** localStorage 自定义模型存储 key */
+const CUSTOM_MODELS_KEY = "lynnhub:custom-models";
+
+/** 加载自定义模型 */
+function loadCustomModels(): ModelDef[] {
+  if (typeof window === "undefined") return [];
+  try {
+    const raw = localStorage.getItem(CUSTOM_MODELS_KEY);
+    if (!raw) return [];
+    const arr = JSON.parse(raw) as ModelDef[];
+    return Array.isArray(arr) ? arr.map((m) => ({ ...m, isCustom: true })) : [];
+  } catch {
+    return [];
+  }
+}
+
+/** 保存自定义模型 */
+function saveCustomModels(models: ModelDef[]) {
+  if (typeof window === "undefined") return;
+  try {
+    localStorage.setItem(CUSTOM_MODELS_KEY, JSON.stringify(models.map(({ isCustom, ...rest }) => rest)));
+  } catch {
+    // ignore
+  }
+}
 
 function AIConfigSection({
   dbSettings,
@@ -360,27 +409,68 @@ function AIConfigSection({
     model: "",
   });
   const [saving, setSaving] = useState(false);
+  // 自定义模型
+  const [customModels, setCustomModels] = useState<ModelDef[]>([]);
+  // 新增模型弹窗
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [newModel, setNewModel] = useState<{
+    name: string;
+    desc: string;
+    category: ModelCategory;
+    provider: string;
+    baseUrl: string;
+    model: string;
+    apiKey: string;
+  }>({
+    name: "",
+    desc: "",
+    category: "text",
+    provider: "",
+    baseUrl: "",
+    model: "",
+    apiKey: "",
+  });
+
+  // 初次挂载加载自定义模型
+  useEffect(() => {
+    setCustomModels(loadCustomModels());
+  }, []);
 
   // 当前默认 Provider
   const defaultProvider = dbSettings.defaultProvider?.value === "mimo" ? "mimo" : "deepseek";
 
+  // 合并内置+自定义模型
+  const allModels = useMemo(() => [...BUILTIN_MODEL_DEFS, ...customModels], [customModels]);
+
   // 当前分类下的模型
-  const categoryModels = MODEL_DEFS.filter((m) => m.category === activeCategory);
+  const categoryModels = allModels.filter((m) => m.category === activeCategory);
 
   // 判断模型是否已配置
-  const isConfigured = (id: string) => {
-    const dbKey = dbSettings[`${id}ApiKey`];
-    return dbKey?.configured || envSettings[`${id}ApiKey`] || false;
+  const isConfigured = (model: ModelDef) => {
+    if (model.isCustom) {
+      // 自定义模型：检查 localStorage 里的 apiKey 是否存在
+      return Boolean(model._customApiKey);
+    }
+    const dbKey = dbSettings[`${model.id}ApiKey`];
+    return dbKey?.configured || envSettings[`${model.id}ApiKey`] || false;
   };
 
   // 打开编辑弹窗
   const handleEdit = (model: ModelDef) => {
     setEditingModel(model);
-    setEditForm({
-      apiKey: "",
-      baseUrl: dbSettings[`${model.id}BaseUrl`]?.value || "",
-      model: dbSettings[`${model.id}Model`]?.value || "",
-    });
+    if (model.isCustom) {
+      setEditForm({
+        apiKey: "",
+        baseUrl: model.defaultBaseUrl,
+        model: model.defaultModel,
+      });
+    } else {
+      setEditForm({
+        apiKey: "",
+        baseUrl: dbSettings[`${model.id}BaseUrl`]?.value || "",
+        model: dbSettings[`${model.id}Model`]?.value || "",
+      });
+    }
   };
 
   // 保存编辑
@@ -388,22 +478,40 @@ function AIConfigSection({
     if (!editingModel) return;
     setSaving(true);
     try {
-      const body: Record<string, unknown> = {};
-      if (editForm.apiKey) body[`${editingModel.id}ApiKey`] = editForm.apiKey;
-      if (editForm.baseUrl) body[`${editingModel.id}BaseUrl`] = editForm.baseUrl;
-      if (editForm.model) body[`${editingModel.id}Model`] = editForm.model;
-
-      const res = await fetch("/api/settings", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      });
-      if (res.ok) {
+      if (editingModel.isCustom) {
+        // 自定义模型：更新 localStorage
+        const updated = customModels.map((m) => {
+          if (m.id !== editingModel.id) return m;
+          return {
+            ...m,
+            defaultBaseUrl: editForm.baseUrl || m.defaultBaseUrl,
+            defaultModel: editForm.model || m.defaultModel,
+            _customApiKey: editForm.apiKey || m._customApiKey,
+          } as ModelDef;
+        });
+        setCustomModels(updated);
+        saveCustomModels(updated);
         toast(`${editingModel.name} 配置已保存`, "success");
         setEditingModel(null);
-        setTimeout(() => window.location.reload(), 600);
       } else {
-        toast("保存失败", "error");
+        // 内置模型：保存到数据库
+        const body: Record<string, unknown> = {};
+        if (editForm.apiKey) body[`${editingModel.id}ApiKey`] = editForm.apiKey;
+        if (editForm.baseUrl) body[`${editingModel.id}BaseUrl`] = editForm.baseUrl;
+        if (editForm.model) body[`${editingModel.id}Model`] = editForm.model;
+
+        const res = await fetch("/api/settings", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        });
+        if (res.ok) {
+          toast(`${editingModel.name} 配置已保存`, "success");
+          setEditingModel(null);
+          setTimeout(() => window.location.reload(), 600);
+        } else {
+          toast("保存失败", "error");
+        }
       }
     } catch {
       toast("网络错误", "error");
@@ -432,6 +540,15 @@ function AIConfigSection({
 
   // 删除配置（清除 API Key）
   const handleRemove = async (model: ModelDef) => {
+    if (model.isCustom) {
+      // 自定义模型：从 localStorage 移除整个模型
+      if (!confirm(`确定要移除自定义模型「${model.name}」吗？`)) return;
+      const updated = customModels.filter((m) => m.id !== model.id);
+      setCustomModels(updated);
+      saveCustomModels(updated);
+      toast(`${model.name} 已移除`, "success");
+      return;
+    }
     if (!confirm(`确定要移除 ${model.name} 的配置吗？这将清除已保存的 API Key。`)) return;
     try {
       const res = await fetch("/api/settings", {
@@ -450,21 +567,55 @@ function AIConfigSection({
     }
   };
 
+  // 新增自定义模型
+  const handleAddModel = () => {
+    if (!newModel.name.trim() || !newModel.provider.trim()) {
+      toast("模型名称和提供商不能为空", "error");
+      return;
+    }
+    const id = `custom-${Date.now()}`;
+    const model: ModelDef = {
+      id,
+      category: newModel.category,
+      name: newModel.name.trim(),
+      desc: newModel.desc.trim() || "自定义模型",
+      provider: newModel.provider.trim(),
+      defaultBaseUrl: newModel.baseUrl.trim() || "https://api.example.com/v1",
+      defaultModel: newModel.model.trim() || "custom-model",
+      canBeDefault: newModel.category === "text" || newModel.category === "multimodal",
+      isCustom: true,
+      _customApiKey: newModel.apiKey.trim() || undefined,
+    } as ModelDef;
+    const updated = [...customModels, model];
+    setCustomModels(updated);
+    saveCustomModels(updated);
+    toast(`${model.name} 已添加`, "success");
+    setShowAddModal(false);
+    setActiveCategory(newModel.category);
+    setNewModel({ name: "", desc: "", category: "text", provider: "", baseUrl: "", model: "", apiKey: "" });
+  };
+
   return (
     <Card className="mb-5">
       <div className="mb-4 flex items-center gap-2">
         <KeyRound className="h-4 w-4 text-cognition" />
         <h2 className="text-sm font-semibold text-foreground">AI 模型管理</h2>
-        <span className="ml-auto text-xs text-muted-foreground">
-          点击「编辑」配置 API Key · 数据库存储 · 保存后立即生效
-        </span>
+        <Button
+          size="sm"
+          variant="outline"
+          onClick={() => setShowAddModal(true)}
+          className="ml-auto gap-1.5"
+        >
+          <Plus className="h-3 w-3" />
+          新增模型
+        </Button>
       </div>
 
       {/* 分类 Tab */}
       <div className="mb-4 flex gap-1.5 overflow-x-auto pb-1">
         {MODEL_CATEGORIES.map((cat) => {
           const active = activeCategory === cat.key;
-          const count = MODEL_DEFS.filter((m) => m.category === cat.key).length;
+          const count = allModels.filter((m) => m.category === cat.key).length;
           return (
             <button
               key={cat.key}
@@ -491,10 +642,10 @@ function AIConfigSection({
       {categoryModels.length > 0 ? (
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           {categoryModels.map((model) => {
-            const configured = isConfigured(model.id);
+            const configured = isConfigured(model);
             const isDefault = model.canBeDefault && defaultProvider === model.id;
-            const dbKey = dbSettings[`${model.id}ApiKey`];
-            const envConfigured = envSettings[`${model.id}ApiKey`] || false;
+            const dbKey = !model.isCustom ? dbSettings[`${model.id}ApiKey`] : undefined;
+            const envConfigured = !model.isCustom ? (envSettings[`${model.id}ApiKey`] || false) : false;
 
             return (
               <div
@@ -508,6 +659,11 @@ function AIConfigSection({
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2">
                       <span className="text-sm font-semibold text-foreground">{model.name}</span>
+                      {model.isCustom && (
+                        <span className="inline-flex items-center gap-0.5 rounded-full bg-cognition/15 px-1.5 py-0.5 text-[10px] font-medium text-cognition">
+                          自定义
+                        </span>
+                      )}
                       {isDefault && (
                         <span className="inline-flex items-center gap-0.5 rounded-full bg-northstar/15 px-1.5 py-0.5 text-[10px] font-medium text-northstar">
                           <Star className="h-2.5 w-2.5" /> 默认
@@ -518,7 +674,17 @@ function AIConfigSection({
                   </div>
                   {/* 状态徽章 */}
                   <div className="ml-2 shrink-0">
-                    {dbKey?.configured ? (
+                    {model.isCustom ? (
+                      configured ? (
+                        <span className="inline-flex items-center gap-0.5 rounded-full bg-task/10 px-2 py-0.5 text-[10px] font-medium text-task">
+                          <CheckCircle2 className="h-2.5 w-2.5" /> 已配置
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-0.5 rounded-full bg-graveyard/10 px-2 py-0.5 text-[10px] font-medium text-graveyard">
+                          <XCircle className="h-2.5 w-2.5" /> 未配置
+                        </span>
+                      )
+                    ) : dbKey?.configured ? (
                       <span className="inline-flex items-center gap-0.5 rounded-full bg-task/10 px-2 py-0.5 text-[10px] font-medium text-task">
                         <CheckCircle2 className="h-2.5 w-2.5" /> 已配置
                       </span>
@@ -535,25 +701,46 @@ function AIConfigSection({
                 </div>
 
                 {/* 配置摘要 */}
-                {configured && (
+                {(configured || model.isCustom) && (
                   <div className="mb-3 space-y-0.5 text-xs text-muted-foreground">
-                    {dbKey?.configured && (
-                      <div className="flex items-center gap-1.5">
-                        <KeyRound className="h-3 w-3" />
-                        <span>Key: {dbKey.value}</span>
-                      </div>
-                    )}
-                    {(dbSettings[`${model.id}BaseUrl`]?.configured || envSettings[`${model.id}BaseUrl`]) && (
-                      <div className="flex items-center gap-1.5">
-                        <span className="text-muted-foreground/60">URL:</span>
-                        <span className="truncate">{dbSettings[`${model.id}BaseUrl`]?.value || model.defaultBaseUrl}</span>
-                      </div>
-                    )}
-                    {(dbSettings[`${model.id}Model`]?.configured || envSettings[`${model.id}Model`]) && (
-                      <div className="flex items-center gap-1.5">
-                        <span className="text-muted-foreground/60">模型:</span>
-                        <span>{dbSettings[`${model.id}Model`]?.value || model.defaultModel}</span>
-                      </div>
+                    {model.isCustom ? (
+                      <>
+                        {model._customApiKey && (
+                          <div className="flex items-center gap-1.5">
+                            <KeyRound className="h-3 w-3" />
+                            <span>Key: {model._customApiKey.slice(0, 6)}***</span>
+                          </div>
+                        )}
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-muted-foreground/60">URL:</span>
+                          <span className="truncate">{model.defaultBaseUrl}</span>
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-muted-foreground/60">模型:</span>
+                          <span>{model.defaultModel}</span>
+                        </div>
+                      </>
+                    ) : (
+                      <>
+                        {dbKey?.configured && (
+                          <div className="flex items-center gap-1.5">
+                            <KeyRound className="h-3 w-3" />
+                            <span>Key: {dbKey.value}</span>
+                          </div>
+                        )}
+                        {(dbSettings[`${model.id}BaseUrl`]?.configured || envSettings[`${model.id}BaseUrl`]) && (
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-muted-foreground/60">URL:</span>
+                            <span className="truncate">{dbSettings[`${model.id}BaseUrl`]?.value || model.defaultBaseUrl}</span>
+                          </div>
+                        )}
+                        {(dbSettings[`${model.id}Model`]?.configured || envSettings[`${model.id}Model`]) && (
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-muted-foreground/60">模型:</span>
+                            <span>{dbSettings[`${model.id}Model`]?.value || model.defaultModel}</span>
+                          </div>
+                        )}
+                      </>
                     )}
                   </div>
                 )}
@@ -580,7 +767,7 @@ function AIConfigSection({
                       设为默认
                     </Button>
                   )}
-                  {configured && (
+                  {(configured || model.isCustom) && (
                     <Button
                       size="sm"
                       variant="ghost"
@@ -605,22 +792,23 @@ function AIConfigSection({
           <div>
             <div className="text-sm font-medium text-foreground">该分类暂无模型</div>
             <div className="mt-1 text-xs text-muted-foreground">
-              {MODEL_CATEGORIES.find((c) => c.key === activeCategory)?.desc} 模型即将支持
+              点击下方按钮添加 {MODEL_CATEGORIES.find((c) => c.key === activeCategory)?.desc} 模型
             </div>
           </div>
-          <Button size="sm" variant="outline" disabled className="gap-1.5 opacity-50">
+          <Button size="sm" variant="outline" onClick={() => setShowAddModal(true)} className="gap-1.5">
             <Plus className="h-3 w-3" />
             添加自定义模型
           </Button>
         </div>
       )}
 
-      {/* 编辑弹窗 */}
+      {/* 编辑弹窗 - z-[200] 确保最上层可见 */}
       {editingModel && (
         <Modal
           open={true}
           onClose={() => setEditingModel(null)}
           title={`配置 ${editingModel.name}`}
+          className="z-[200]"
         >
           <div className="space-y-4">
             <div>
@@ -630,9 +818,13 @@ function AIConfigSection({
                 value={editForm.apiKey}
                 onChange={(e) => setEditForm((f) => ({ ...f, apiKey: e.target.value }))}
                 placeholder={
-                  dbSettings[`${editingModel.id}ApiKey`]?.configured
-                    ? `已配置 ${dbSettings[`${editingModel.id}ApiKey`].value}，输入新值可覆盖`
-                    : `输入 ${editingModel.name} API Key`
+                  editingModel.isCustom
+                    ? editingModel._customApiKey
+                      ? `已配置 ${editingModel._customApiKey.slice(0, 6)}***，输入新值可覆盖`
+                      : `输入 ${editingModel.name} API Key`
+                    : dbSettings[`${editingModel.id}ApiKey`]?.configured
+                      ? `已配置 ${dbSettings[`${editingModel.id}ApiKey`].value}，输入新值可覆盖`
+                      : `输入 ${editingModel.name} API Key`
                 }
                 className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground outline-none focus:border-cognition"
               />
@@ -668,6 +860,105 @@ function AIConfigSection({
                 ) : (
                   <><Save className="h-3.5 w-3.5" /> 保存</>
                 )}
+              </Button>
+            </div>
+          </div>
+        </Modal>
+      )}
+
+      {/* 新增模型弹窗 */}
+      {showAddModal && (
+        <Modal
+          open={true}
+          onClose={() => setShowAddModal(false)}
+          title="新增自定义模型"
+          size="lg"
+          className="z-[200]"
+        >
+          <div className="space-y-4">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <div>
+                <label className="mb-1.5 block text-sm font-medium text-foreground">模型名称 *</label>
+                <input
+                  type="text"
+                  value={newModel.name}
+                  onChange={(e) => setNewModel((f) => ({ ...f, name: e.target.value }))}
+                  placeholder="如：通义千问"
+                  className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground outline-none focus:border-cognition"
+                />
+              </div>
+              <div>
+                <label className="mb-1.5 block text-sm font-medium text-foreground">提供商 *</label>
+                <input
+                  type="text"
+                  value={newModel.provider}
+                  onChange={(e) => setNewModel((f) => ({ ...f, provider: e.target.value }))}
+                  placeholder="如：阿里云"
+                  className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground outline-none focus:border-cognition"
+                />
+              </div>
+            </div>
+            <div>
+              <label className="mb-1.5 block text-sm font-medium text-foreground">模型分类</label>
+              <select
+                value={newModel.category}
+                onChange={(e) => setNewModel((f) => ({ ...f, category: e.target.value as ModelCategory }))}
+                className="w-full appearance-none rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground outline-none focus:border-cognition"
+              >
+                {MODEL_CATEGORIES.map((cat) => (
+                  <option key={cat.key} value={cat.key}>{cat.label} - {cat.desc}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="mb-1.5 block text-sm font-medium text-foreground">描述</label>
+              <input
+                type="text"
+                value={newModel.desc}
+                onChange={(e) => setNewModel((f) => ({ ...f, desc: e.target.value }))}
+                placeholder="简要描述模型用途"
+                className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground outline-none focus:border-cognition"
+              />
+            </div>
+            <div>
+              <label className="mb-1.5 block text-sm font-medium text-foreground">Base URL</label>
+              <input
+                type="text"
+                value={newModel.baseUrl}
+                onChange={(e) => setNewModel((f) => ({ ...f, baseUrl: e.target.value }))}
+                placeholder="https://api.example.com/v1"
+                className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground outline-none focus:border-cognition"
+              />
+            </div>
+            <div>
+              <label className="mb-1.5 block text-sm font-medium text-foreground">模型 ID</label>
+              <input
+                type="text"
+                value={newModel.model}
+                onChange={(e) => setNewModel((f) => ({ ...f, model: e.target.value }))}
+                placeholder="如：qwen-turbo"
+                className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground outline-none focus:border-cognition"
+              />
+            </div>
+            <div>
+              <label className="mb-1.5 block text-sm font-medium text-foreground">API Key</label>
+              <input
+                type="password"
+                value={newModel.apiKey}
+                onChange={(e) => setNewModel((f) => ({ ...f, apiKey: e.target.value }))}
+                placeholder="sk-xxxxxxxxxxxx（可选，稍后也可在编辑中填写）"
+                className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground outline-none focus:border-cognition"
+              />
+            </div>
+            <div className="ios-glass-sm rounded-lg p-3 text-xs text-foreground/80">
+              💡 自定义模型保存在浏览器本地（localStorage），仅供展示与配置管理。实际调用需后端适配对应 Provider。
+            </div>
+            <div className="flex items-center justify-end gap-2 pt-2">
+              <Button variant="outline" onClick={() => setShowAddModal(false)}>
+                取消
+              </Button>
+              <Button onClick={handleAddModel}>
+                <Plus className="h-3.5 w-3.5" /> 添加模型
               </Button>
             </div>
           </div>

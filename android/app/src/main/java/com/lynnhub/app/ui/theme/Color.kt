@@ -27,6 +27,12 @@ val ThinkGlow = Color(0x33FFC857)        // rgba(255,200,87,0.2)
 // ---------- 危险色 ----------
 val Danger = Color(0xFFFF5A5A)           // 危险红 #FF5A5A
 
+// ---------- 兼容性颜色（旧组件 CaptureBar / ErrorState 仍引用） ----------
+val Amber500 = Color(0xFFFFB020)         // 琥珀黄（对应 Think）
+val Orange500 = Color(0xFFFF8C42)        // 橙黄
+val Green500 = Color(0xFF30D6B5)         // 青绿（对应 Agent）
+val Red500 = Color(0xFFFF5A5A)           // 红（对应 Danger）
+
 // ---------- 文字色 ----------
 val TextPrimary = Color(0xFFF6F8FF)      // 主文本 #F6F8FF
 val TextMuted = Color(0xFF8A93A8)        // 辅助文本 #8A93A8

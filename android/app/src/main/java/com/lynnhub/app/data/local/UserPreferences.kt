@@ -111,8 +111,8 @@ class UserPreferences(private val context: Context) {
             role = it[KEY_ROLE] ?: "user"
         )
     }
-    val themeFlow: Flow<String> = context.dataStore.data.map {
-        it[KEY_THEME] ?: Constants.THEME_SYSTEM
+    val themeFlow: Flow<String> = context.dataStore.data.map { prefs ->
+        prefs[KEY_THEME] ?: Constants.THEME_DARK
     }
     val baseUrlFlow: Flow<String> = context.dataStore.data.map {
         it[KEY_BASE_URL] ?: Constants.DEFAULT_BASE_URL

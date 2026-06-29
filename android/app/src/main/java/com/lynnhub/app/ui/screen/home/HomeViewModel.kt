@@ -33,7 +33,7 @@ data class HomeUiState(
     val userName: String = "",
     val summary: String = "",
     val agentStatus: AgentStatus = AgentStatus.OFFLINE,
-    val agentLabel: String = "Agent 未连接",
+    val agentLabel: String = "Lynx Agent 未连接",
     val timeline: List<TimelineItem> = emptyList(),
     val isLoading: Boolean = false
 )
@@ -71,11 +71,10 @@ class HomeViewModel @Inject constructor(
             val user = userPreferences.userFlow.first()
             val hour = LocalTime.now().hour
             val greeting = when (hour) {
-                in 5..10 -> "清晨"
-                in 11..13 -> "午前"
-                in 14..17 -> "午后"
-                in 18..22 -> "傍晚"
-                else -> "深夜"
+                in 5..11 -> "早上好"
+                in 12..17 -> "下午好"
+                in 18..22 -> "晚上好"
+                else -> "夜深了"
             }
 
             _uiState.value = _uiState.value.copy(
@@ -133,13 +132,13 @@ class HomeViewModel @Inject constructor(
     private suspend fun safeHermesStatus(): Pair<AgentStatus, String> = try {
         val s = apiService.getHermesStatus()
         when {
-            s.connected -> AgentStatus.ONLINE to ("Hermes v${s.version ?: "?"} · 在线")
-            s.config?.status == "running" -> AgentStatus.BUSY to "Hermes 连接中"
-            s.installed -> AgentStatus.BUSY to "Hermes 已安装 · 待启动"
-            else -> AgentStatus.OFFLINE to "Hermes 未安装"
+            s.connected -> AgentStatus.ONLINE to ("Lynx Agent 在线")
+            s.config?.status == "running" -> AgentStatus.BUSY to "Lynx Agent 连接中"
+            s.installed -> AgentStatus.BUSY to "Lynx Agent 待启动"
+            else -> AgentStatus.OFFLINE to "Lynx Agent 未连接"
         }
     } catch (_: Exception) {
-        AgentStatus.OFFLINE to "Agent 未连接"
+        AgentStatus.OFFLINE to "Lynx Agent 未连接"
     }
 
     // ============ Hermes 报告（Agent 动态） ============

@@ -1,12 +1,11 @@
 import { useState, useRef, useEffect } from "react";
 import { NavLink, useNavigate } from "react-router-dom";
-import { User, LogOut, Settings } from "lucide-react";
+import { LogOut, Settings, ChevronDown } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
 import { useAuthStore } from "@/stores/authStore";
 import { clearAuth } from "@/lib/auth-persistence";
 import { invoke } from "@/lib/tauri";
-import { Logo } from "@/components/ui/Logo";
 
 const menuItems = [
   { to: "/settings", label: "设置", icon: Settings },
@@ -57,6 +56,8 @@ export function UserMenu({ collapsed = false }: UserMenuProps) {
 
   const displayName = user?.displayName || user?.name || user?.email || "未登录";
   const avatarUrl = user?.avatarUrl;
+  // 首字母 fallback（对齐 Web端）
+  const initial = displayName.charAt(0).toUpperCase();
 
   return (
     <div
@@ -67,22 +68,33 @@ export function UserMenu({ collapsed = false }: UserMenuProps) {
     >
       <button
         className={cn(
-          "glass-user flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left transition-all hover:bg-primary/8",
+          "user-card group flex w-full items-center gap-3 rounded-2xl px-3 py-2.5 text-left transition-all",
           collapsed && "justify-center px-2"
         )}
       >
+        {/* 头像 - 对齐 Web端：36x36 圆形，有图片用图片，否则渐变背景+首字母 */}
         {avatarUrl ? (
-          <img src={avatarUrl} alt={displayName} className="h-8 w-8 rounded-full object-cover" />
+          <img
+            src={avatarUrl}
+            alt={displayName}
+            className="h-9 w-9 rounded-full object-cover ring-2 ring-border/60 transition-all group-hover:ring-primary/40"
+          />
         ) : (
-          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
-            <User className="h-4 w-4" />
-          </div>
+          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-primary to-accent text-xs font-bold text-white shadow-lg shadow-primary/20">
+            {initial}
+          </span>
         )}
         {!collapsed && (
-          <div className="min-w-0 flex-1">
-            <p className="truncate text-sm font-medium text-foreground">{displayName}</p>
-            <p className="truncate text-xs text-muted-foreground">{user ? "Pro 会员" : "本地模式"}</p>
-          </div>
+          <>
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-sm font-semibold text-foreground">{displayName}</p>
+              <p className="truncate text-[11px] text-muted-foreground">Lynx 桌面端</p>
+            </div>
+            <ChevronDown
+              className="h-4 w-4 shrink-0 text-muted-foreground transition-transform duration-300"
+              style={{ transform: open ? "rotate(0deg)" : "rotate(-90deg)" }}
+            />
+          </>
         )}
       </button>
 
@@ -93,16 +105,22 @@ export function UserMenu({ collapsed = false }: UserMenuProps) {
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 8, scale: 0.96 }}
             transition={{ duration: 0.18, ease: [0.22, 1, 0.36, 1] }}
-            className="ios-glass absolute bottom-full left-0 z-50 mb-2 w-full min-w-[208px] overflow-hidden p-1.5"
-                    style={{ transformOrigin: "bottom left" }}
-                    onMouseEnter={handleMouseEnter}
-                    onMouseLeave={handleMouseLeave}
+            className="user-menu absolute bottom-full left-0 z-50 mb-2 w-full min-w-[208px] overflow-hidden rounded-2xl p-1.5"
+            style={{ transformOrigin: "bottom left" }}
+            onMouseEnter={handleMouseEnter}
+            onMouseLeave={handleMouseLeave}
           >
             <div className="flex items-center gap-3 px-3 py-2.5">
-              <Logo className="h-9 w-9 rounded-xl" variant="dark" />
+              {avatarUrl ? (
+                <img src={avatarUrl} alt={displayName} className="h-9 w-9 rounded-full object-cover" />
+              ) : (
+                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-primary to-accent text-xs font-bold text-white">
+                  {initial}
+                </span>
+              )}
               <div className="min-w-0 flex-1">
                 <p className="truncate text-sm font-semibold text-foreground">{displayName}</p>
-                <p className="truncate text-xs text-muted-foreground">Lynx 原生桌面端</p>
+                <p className="truncate text-xs text-muted-foreground">Lynx 桌面端</p>
               </div>
             </div>
 
@@ -113,9 +131,7 @@ export function UserMenu({ collapsed = false }: UserMenuProps) {
                 <NavLink
                   key={item.to}
                   to={item.to}
-                  className={cn(
-                    "flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm text-foreground/80 transition-colors hover:bg-primary/10 hover:text-foreground"
-                  )}
+                  className="flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm text-foreground/80 transition-colors hover:bg-primary/10 hover:text-foreground"
                   onClick={() => setOpen(false)}
                 >
                   <item.icon className="h-4 w-4 text-muted-foreground" />
@@ -124,7 +140,7 @@ export function UserMenu({ collapsed = false }: UserMenuProps) {
               ))}
               <button
                 onClick={handleSignOut}
-                className="flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm text-destructive transition-colors hover:bg-destructive/10"
+                className="flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm text-red-500 transition-colors hover:bg-red-500/10"
               >
                 <LogOut className="h-4 w-4" />
                 退出登录

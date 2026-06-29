@@ -141,9 +141,9 @@ function isLarkTaskCardTool(tc: ToolCalled | null | undefined): boolean {
  * - 与主页面 /ai/assistant 共享同一会话（/api/ai/chat/sessions）
  */
 export function AssistantChat({ onClose }: AssistantChatProps = {}) {
-  // ===== 职业工作空间（4 维度：快捷技能可见集 / system prompt / 默认模型 / 工具白名单）=====
+  // ===== 职业空间（4 维度：快捷技能可见集 / system prompt / 默认模型 / 工具白名单）=====
   const { workspace, profession } = useWorkspace();
-  // 过滤后的快捷技能：职业工作空间内 quickCommands 非空时只显示 label 命中项，否则显示全部
+  // 过滤后的快捷技能：职业空间内 quickCommands 非空时只显示 label 命中项，否则显示全部
   const visibleQuickCommands: QuickCommand[] =
     workspace?.quickCommands && workspace.quickCommands.length > 0
       ? QUICK_COMMANDS.filter((cmd) =>
@@ -159,7 +159,7 @@ export function AssistantChat({ onClose }: AssistantChatProps = {}) {
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [settings, setSettings] = useState<AssistantSettings>(DEFAULT_SETTINGS);
-  // 初始 model 配置：用户没选过（首次加载）时使用职业工作空间默认值
+  // 初始 model 配置：用户没选过（首次加载）时使用职业空间默认值
   const [modelInitialized, setModelInitialized] = useState(false);
   const [modelConfig, setModelConfig] = useState<ModelSwitcherValue>({
     provider: "deepseek",
@@ -167,7 +167,7 @@ export function AssistantChat({ onClose }: AssistantChatProps = {}) {
     reasoningMode: "standard",
   });
 
-  // 应用职业工作空间默认 model（仅初始化一次，用户手动切换后不再覆盖）
+  // 应用职业空间默认 model（仅初始化一次，用户手动切换后不再覆盖）
   useEffect(() => {
     if (modelInitialized || !workspace) return;
     const provider = workspace.defaultProvider as

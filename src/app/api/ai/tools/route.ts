@@ -2,7 +2,7 @@
  * AI 助理可用工具列表（已登录用户）
  *
  * 返回 ai-assistant-tools.ts 中所有工具的 name/description
- * 用于职业工作空间"可见工具白名单"配置
+ * 用于职业空间"可见工具白名单"配置
  *
  * GET /api/ai/tools
  */

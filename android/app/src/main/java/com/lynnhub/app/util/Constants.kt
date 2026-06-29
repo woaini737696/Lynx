@@ -12,4 +12,6 @@ object Constants {
 
     /** 主题模式 */
     const val THEME_DARK = "dark"
+    const val THEME_LIGHT = "light"
+    const val THEME_SYSTEM = "system"
 }

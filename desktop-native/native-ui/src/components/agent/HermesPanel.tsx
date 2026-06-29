@@ -17,13 +17,16 @@ import {
   Wifi,
   WifiOff,
   OctagonAlert,
+  Globe,
+  FileText,
+  Monitor,
+  Cpu,
 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { invoke } from "@/lib/tauri";
 import { toast } from "@/lib/toast";
 import type { AgentStatus } from "@/types/api";
-import type { AgentInstallState, AgentLogEntry } from "@/types/agent";
 
 const AUTH_MODES = [
   {
@@ -46,17 +49,26 @@ const AUTH_MODES = [
   },
 ] as const;
 
+// 核心能力清单
+const CAPABILITIES = [
+  { key: "browser", label: "浏览器自动化", desc: "打开网页、提取数据、表单操作", icon: Globe },
+  { key: "desktop", label: "桌面 RPA", desc: "启动应用、截图、窗口操作", icon: Monitor },
+  { key: "file", label: "文件操作", desc: "读写授权目录内文件", icon: FileText },
+  { key: "shell", label: "Shell 命令", desc: "执行系统命令和脚本", icon: Terminal },
+] as const;
+
+type AgentState = "unknown" | "not_installed" | "installed" | "running";
+
 export function HermesPanel() {
   const queryClient = useQueryClient();
-  const [logs] = useState<AgentLogEntry[]>([]);
   const [newDir, setNewDir] = useState("");
   const [addingDir, setAddingDir] = useState(false);
   const [stopping, setStopping] = useState(false);
 
-  const { data: status } = useQuery<AgentStatus>({
+  const { data: status, isLoading } = useQuery<AgentStatus>({
     queryKey: ["agent-status"],
     queryFn: async () => invoke<AgentStatus>("get_agent_status"),
-    refetchInterval: 5000,
+    refetchInterval: 3000,
   });
 
   const installMutation = useMutation({
@@ -129,28 +141,36 @@ export function HermesPanel() {
     }
   };
 
-  const getInstallState = (): AgentInstallState => {
-    if (installMutation.isPending) return "installing";
-    if (startMutation.isPending) return "starting";
-    if (!status) return "unknown";
+  // 判断当前状态：未安装 / 待启动 / 已运行
+  const getAgentState = (): AgentState => {
+    if (isLoading || !status) return "unknown";
     if (status.wsConnected) return "running";
-    return status.hasToken ? "installed" : "not_installed";
+    if (status.hasToken) return "installed";
+    return "not_installed";
   };
 
-  const state = getInstallState();
+  const state = getAgentState();
 
-  const stateConfig: Record<AgentInstallState, { label: string; color: string; icon: React.ElementType }> = {
-    unknown: { label: "检测中", color: "text-muted-foreground", icon: Loader2 },
-    not_installed: { label: "未安装", color: "text-muted-foreground", icon: PowerOff },
-    installing: { label: "安装中", color: "text-primary", icon: Loader2 },
-    installed: { label: "已安装", color: "text-task", icon: CheckCircle2 },
-    starting: { label: "启动中", color: "text-primary", icon: Loader2 },
-    running: { label: "运行中", color: "text-task", icon: Power },
-    error: { label: "异常", color: "text-destructive", icon: AlertCircle },
+  const stateConfig: Record<AgentState, { label: string; color: string; dotColor: string; icon: React.ElementType }> = {
+    unknown: { label: "检测中", color: "text-muted-foreground", dotColor: "bg-muted-foreground", icon: Loader2 },
+    not_installed: { label: "未安装", color: "text-muted-foreground", dotColor: "bg-muted-foreground", icon: PowerOff },
+    installed: { label: "待启动", color: "text-amber-500", dotColor: "bg-amber-500", icon: Power },
+    running: { label: "已运行", color: "text-task", dotColor: "bg-task", icon: Power },
   };
 
-  const StateIcon = stateConfig[state].icon;
   const isRunning = state === "running";
+  const isInstalled = state === "installed" || state === "running";
+
+  // 从 cloudEndpoint 提取端口号
+  const getPort = (endpoint: string): string => {
+    try {
+      const url = new URL(endpoint);
+      return url.port || (url.protocol === "https:" ? "443" : "80");
+    } catch {
+      return "5176";
+    }
+  };
+  const port = status?.cloudEndpoint ? getPort(status.cloudEndpoint) : "5176";
 
   return (
     <div className="flex flex-col gap-4">
@@ -166,17 +186,21 @@ export function HermesPanel() {
               <p className="text-xs text-muted-foreground">本地超级助理 · 一键部署</p>
             </div>
           </div>
-          <div className={cn("flex items-center gap-1.5 text-sm font-medium", stateConfig[state].color)}>
-            <StateIcon className={cn("h-4 w-4", state === "installing" || state === "starting" || state === "unknown" ? "animate-spin" : "")} />
+          {/* 实时状态显示 */}
+          <div className={cn("flex items-center gap-2 rounded-full px-3 py-1.5 text-sm font-medium", stateConfig[state].color, "bg-muted/30")}>
+            <span className={cn("h-2 w-2 rounded-full", stateConfig[state].dotColor, state === "running" && "animate-pulse")} />
             {stateConfig[state].label}
           </div>
         </div>
 
-        {/* 状态信息卡片 */}
+        {/* 状态信息卡片：端口 + WebSocket + 能力数 */}
         <div className="grid grid-cols-3 gap-3 text-sm">
           <div className="rounded-xl bg-muted/50 px-3 py-2">
-            <span className="text-xs text-muted-foreground">版本</span>
-            <p className="font-medium text-foreground">{status?.version || "—"}</p>
+            <span className="text-xs text-muted-foreground">服务端口</span>
+            <p className="flex items-center gap-1 font-medium text-foreground">
+              <Cpu className="h-3 w-3" />
+              {port}
+            </p>
           </div>
           <div className="rounded-xl bg-muted/50 px-3 py-2">
             <span className="text-xs text-muted-foreground">WebSocket</span>
@@ -186,14 +210,28 @@ export function HermesPanel() {
             </p>
           </div>
           <div className="rounded-xl bg-muted/50 px-3 py-2">
-            <span className="text-xs text-muted-foreground">能力</span>
-            <p className="font-medium text-foreground">{status?.capabilities?.length || 0} 项</p>
+            <span className="text-xs text-muted-foreground">核心能力</span>
+            <p className="font-medium text-foreground">{CAPABILITIES.length} 项</p>
           </div>
         </div>
 
-        {/* 启停按钮组 */}
+        {/* WebSocket 未连接说明 */}
+        {isRunning && !status?.wsConnected && (
+          <div className="rounded-xl border border-amber-500/30 bg-amber-500/5 p-3 text-xs">
+            <div className="flex items-center gap-1.5 font-medium text-amber-600">
+              <AlertCircle className="h-3.5 w-3.5" />
+              WebSocket 未连接
+            </div>
+            <p className="mt-1 text-muted-foreground">
+              Agent 进程已启动但 WebSocket 连接未建立。可能原因：网络不通、云端服务未启动、Token 过期。
+              请检查网络连接和登录状态后重新启动。
+            </p>
+          </div>
+        )}
+
+        {/* 按钮状态：未安装→一键安装，已安装→启动/停止切换 */}
         <div className="flex gap-2">
-          {state === "not_installed" || state === "error" ? (
+          {!isInstalled ? (
             <button
               onClick={() => installMutation.mutate()}
               disabled={installMutation.isPending}
@@ -204,12 +242,9 @@ export function HermesPanel() {
             </button>
           ) : isRunning ? (
             <>
-              <button
-                disabled
-                className="btn-glass flex flex-1 items-center justify-center gap-2 py-2.5 text-sm"
-              >
-                <CheckCircle2 className="h-4 w-4 text-task" /> 运行中
-              </button>
+              <div className="flex flex-1 items-center justify-center gap-2 rounded-xl border border-task/30 bg-task/10 py-2.5 text-sm font-medium text-task">
+                <CheckCircle2 className="h-4 w-4" /> Agent 运行中
+              </div>
               <button
                 onClick={handleEmergencyStop}
                 disabled={stopping}
@@ -227,7 +262,7 @@ export function HermesPanel() {
               className="btn-primary-glass flex flex-1 items-center justify-center gap-2 py-2.5 text-sm"
             >
               {startMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Power className="h-4 w-4" />}
-              启动 Lynx Agent
+              {startMutation.isPending ? "启动中..." : "启动 Lynx Agent"}
             </button>
           )}
         </div>
@@ -243,29 +278,43 @@ export function HermesPanel() {
             </p>
           </div>
         )}
+      </div>
 
-        {logs.length > 0 && (
-          <div className="rounded-xl border border-border/40 bg-black/40 p-3 font-mono text-xs">
-            <div className="mb-2 flex items-center gap-1.5 text-muted-foreground">
-              <Terminal className="h-3.5 w-3.5" /> 日志
-            </div>
-            <div className="flex max-h-32 flex-col gap-1 overflow-auto">
-              {logs.map((log, i) => (
-                <span
-                  key={i}
-                  className={cn(
-                    "break-all",
-                    log.level === "error" && "text-destructive",
-                    log.level === "warn" && "text-amber-400",
-                    log.level === "info" && "text-foreground/70"
-                  )}
-                >
-                  [{new Date(log.timestamp).toLocaleTimeString()}] {log.message}
-                </span>
-              ))}
-            </div>
-          </div>
-        )}
+      {/* 核心能力展示 */}
+      <div className="ios-glass flex flex-col gap-3 p-5">
+        <div className="flex items-center gap-2">
+          <Cpu className="h-4 w-4 text-primary" />
+          <h3 className="text-sm font-semibold text-foreground">核心能力</h3>
+        </div>
+        <p className="text-xs text-muted-foreground">
+          Lynx Agent 启动后可执行以下四类本地操作
+        </p>
+        <div className="grid grid-cols-2 gap-2">
+          {CAPABILITIES.map((cap) => {
+            const Icon = cap.icon;
+            const enabled = status?.capabilities?.includes(cap.key);
+            return (
+              <div
+                key={cap.key}
+                className={cn(
+                  "flex items-start gap-2.5 rounded-xl border px-3 py-2.5 transition-colors",
+                  enabled
+                    ? "border-primary/20 bg-primary/5"
+                    : "border-border/40 bg-muted/20"
+                )}
+              >
+                <Icon className={cn("mt-0.5 h-4 w-4 shrink-0", enabled ? "text-primary" : "text-muted-foreground")} />
+                <div className="flex-1">
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-sm font-medium text-foreground">{cap.label}</span>
+                    {enabled && <CheckCircle2 className="h-3 w-3 text-task" />}
+                  </div>
+                  <div className="text-xs text-muted-foreground">{cap.desc}</div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
       </div>
 
       {/* 授权模式 */}
@@ -317,7 +366,6 @@ export function HermesPanel() {
           Lynx Agent 仅允许读取/写入以下目录中的文件
         </p>
 
-        {/* 添加目录 */}
         <div className="flex gap-2">
           <input
             value={newDir}
@@ -338,7 +386,6 @@ export function HermesPanel() {
           </button>
         </div>
 
-        {/* 目录列表 */}
         <div className="flex flex-col gap-1.5">
           {status?.authorizedDirs?.length ? (
             status.authorizedDirs.map((dir) => (

@@ -9,7 +9,6 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBackIos
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
@@ -25,13 +24,15 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.lynnhub.app.ui.component.LynxIcons
 import com.lynnhub.app.ui.theme.*
-import com.lynnhub.app.ui.screen.panel.BackButton
-import com.lynnhub.app.ui.screen.panel.SwipeHint
+import com.lynnhub.app.ui.screen.panel.ReturnSwipeDetector
 
 /**
- * Lynx v6 设置主页
- * 点击头像从右侧滑入，占屏 100%
+ * Lynx v6 设置面板
+ *
+ * 从右侧 88% 宽度侧滑进入，左侧 12% 为透明遮罩（点击关闭）。
+ * 支持右滑关闭，无返回按钮，Dock 隐藏。
  */
 @Composable
 fun SettingsScreen(
@@ -51,155 +52,180 @@ fun SettingsScreen(
     var showClearCacheDialog by remember { mutableStateOf(false) }
     var showLogoutDialog by remember { mutableStateOf(false) }
 
-    Column(
+    Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(Void)
-            .systemBarsPadding()
-            .verticalScroll(rememberScrollState())
-            .padding(horizontal = 16.dp)
+            .background(Color.Black.copy(alpha = 0.35f))
     ) {
-        Spacer(modifier = Modifier.height(36.dp))
-
-        // 标题栏
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            BackButton(onClick = onBack)
-            Spacer(modifier = Modifier.width(10.dp))
-            Text(
-                text = "设置",
-                fontSize = 16.sp,
-                fontWeight = FontWeight.Bold,
-                color = TextPrimary,
-                modifier = Modifier.weight(1f)
-            )
-        }
-        SwipeHint(text = "← 右滑返回", modifier = Modifier.padding(start = 42.dp, top = 2.dp))
-
-        Spacer(modifier = Modifier.height(20.dp))
-
-        // 个人信息区
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            // 56px 头像
+        Row(modifier = Modifier.fillMaxSize()) {
+            // 左侧 12% 遮罩：点击关闭面板
             Box(
                 modifier = Modifier
-                    .size(56.dp)
-                    .clip(CircleShape)
-                    .background(Brush.linearGradient(GradientPrimary)),
-                contentAlignment = Alignment.Center
+                    .fillMaxHeight()
+                    .weight(0.12f)
+                    .clickable { onBack() }
+            )
+
+            // 右侧 88% 面板
+            Box(
+                modifier = Modifier
+                    .fillMaxHeight()
+                    .weight(0.88f)
+                    .background(Void)
+                    .border(1.dp, LiquidBorder)
             ) {
-                Text(
-                    text = (uiState.user?.displayName?.firstOrNull()?.toString())
-                        ?: (uiState.user?.username?.firstOrNull()?.toString()) ?: "U",
-                    color = Color.White,
-                    fontSize = 22.sp,
-                    fontWeight = FontWeight.Bold
+                // 右滑关闭手势
+                ReturnSwipeDetector(
+                    returnDirection = "right",
+                    onReturn = onBack,
+                    modifier = Modifier.fillMaxSize()
                 )
-            }
-            Spacer(modifier = Modifier.width(12.dp))
-            Column {
-                Text(
-                    text = uiState.user?.displayName?.ifBlank { null }
-                        ?: uiState.user?.username ?: "用户",
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = TextPrimary
-                )
-                Text(
-                    text = uiState.user?.role ?: "",
-                    fontSize = 11.sp,
-                    color = TextMuted,
-                    modifier = Modifier.padding(top = 2.dp)
-                )
+
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .systemBarsPadding()
+                        .verticalScroll(rememberScrollState())
+                        .padding(horizontal = 18.dp)
+                ) {
+                    Spacer(modifier = Modifier.height(36.dp))
+
+                    // 顶部标题
+                    Text(
+                        text = "设置",
+                        fontSize = 20.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = TextPrimary,
+                        letterSpacing = (-0.3).sp
+                    )
+
+                    Spacer(modifier = Modifier.height(24.dp))
+
+                    // 个人信息区
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Box(
+                            modifier = Modifier
+                                .size(56.dp)
+                                .clip(CircleShape)
+                                .background(Brush.linearGradient(GradientPrimary)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = (uiState.user?.displayName?.firstOrNull()?.toString())
+                                    ?: (uiState.user?.username?.firstOrNull()?.toString()) ?: "U",
+                                color = Color.White,
+                                fontSize = 22.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Column {
+                            Text(
+                                text = uiState.user?.displayName?.ifBlank { null }
+                                    ?: uiState.user?.username ?: "用户",
+                                fontSize = 16.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = TextPrimary
+                            )
+                            Text(
+                                text = uiState.user?.role ?: "",
+                                fontSize = 11.sp,
+                                color = TextMuted,
+                                modifier = Modifier.padding(top = 2.dp)
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(24.dp))
+
+                    // AI & Agent 分组
+                    SettingsGroupTitle("AI & Agent")
+                    SettingsRow(
+                        icon = LynxIcons.Key,
+                        label = "AI Key",
+                        onClick = onNavigateToAiKey
+                    )
+                    SettingsRow(
+                        icon = LynxIcons.Device,
+                        label = "已配对设备",
+                        value = "1 台",
+                        onClick = onNavigateToDevices
+                    )
+
+                    // 数据分组
+                    SettingsGroupTitle("数据")
+                    SettingsRow(
+                        icon = LynxIcons.Memory,
+                        label = "记忆图谱",
+                        onClick = onNavigateToMemory
+                    )
+                    SettingsRow(
+                        icon = LynxIcons.Assistant,
+                        label = "认知库",
+                        onClick = onNavigateToCognition
+                    )
+
+                    // 通知分组
+                    SettingsGroupTitle("通知")
+                    SettingsRow(
+                        icon = LynxIcons.Notification,
+                        label = "通知偏好",
+                        value = "全部",
+                        onClick = onNavigateToNotification
+                    )
+                    SettingsRow(
+                        icon = LynxIcons.Mic,
+                        label = "语音播报"
+                    ) {
+                        // Toggle 占位
+                    }
+
+                    // 关于分组
+                    SettingsGroupTitle("关于")
+                    SettingsRow(
+                        icon = LynxIcons.Clock,
+                        label = "检查更新",
+                        onClick = onNavigateToUpdate
+                    )
+                    SettingsRow(
+                        icon = LynxIcons.Info,
+                        label = "关于我们",
+                        onClick = onNavigateToAbout
+                    )
+
+                    // 个人资料入口
+                    Spacer(modifier = Modifier.height(16.dp))
+                    SettingsGroupTitle("账号")
+                    SettingsRow(
+                        icon = LynxIcons.Person,
+                        label = "个人资料",
+                        onClick = onNavigateToProfile
+                    )
+
+                    // 危险区域
+                    Spacer(modifier = Modifier.height(24.dp))
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(1.dp)
+                            .background(Danger.copy(alpha = 0.1f))
+                    )
+                    Spacer(modifier = Modifier.height(16.dp))
+                    DangerRow(
+                        icon = LynxIcons.Trash,
+                        label = "清除缓存",
+                        onClick = { showClearCacheDialog = true }
+                    )
+                    DangerRow(
+                        icon = LynxIcons.Logout,
+                        label = "退出登录",
+                        onClick = { showLogoutDialog = true }
+                    )
+
+                    Spacer(modifier = Modifier.height(40.dp))
+                }
             }
         }
-
-        Spacer(modifier = Modifier.height(24.dp))
-
-        // AI & Agent 分组
-        SettingsGroupTitle("AI & Agent")
-        SettingsRow(
-            icon = Icons.Filled.Key,
-            label = "AI Key",
-            onClick = onNavigateToAiKey
-        )
-        SettingsRow(
-            icon = Icons.Filled.Devices,
-            label = "已配对设备",
-            value = "1 台",
-            onClick = onNavigateToDevices
-        )
-
-        // 数据分组
-        SettingsGroupTitle("数据")
-        SettingsRow(
-            icon = Icons.Filled.Hub,
-            label = "记忆图谱",
-            onClick = onNavigateToMemory
-        )
-        SettingsRow(
-            icon = Icons.Filled.MenuBook,
-            label = "认知库",
-            onClick = onNavigateToCognition
-        )
-
-        // 通知分组
-        SettingsGroupTitle("通知")
-        SettingsRow(
-            icon = Icons.Filled.Notifications,
-            label = "通知偏好",
-            value = "全部",
-            onClick = onNavigateToNotification
-        )
-        SettingsRow(
-            icon = Icons.Filled.RecordVoiceOver,
-            label = "语音播报"
-        ) {
-            // Toggle 占位（阶段4完善）
-        }
-
-        // 关于分组
-        SettingsGroupTitle("关于")
-        SettingsRow(
-            icon = Icons.Filled.Refresh,
-            label = "检查更新",
-            onClick = onNavigateToUpdate
-        )
-        SettingsRow(
-            icon = Icons.Filled.Info,
-            label = "关于我们",
-            onClick = onNavigateToAbout
-        )
-
-        // 个人资料入口
-        Spacer(modifier = Modifier.height(16.dp))
-        SettingsGroupTitle("账号")
-        SettingsRow(
-            icon = Icons.Filled.Person,
-            label = "个人资料",
-            onClick = onNavigateToProfile
-        )
-
-        // 危险区域
-        Spacer(modifier = Modifier.height(24.dp))
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(1.dp)
-                .background(Danger.copy(alpha = 0.1f))
-        )
-        Spacer(modifier = Modifier.height(16.dp))
-        DangerRow(
-            icon = Icons.Filled.DeleteOutline,
-            label = "清除缓存",
-            onClick = { showClearCacheDialog = true }
-        )
-        DangerRow(
-            icon = Icons.Filled.Logout,
-            label = "退出登录",
-            onClick = { showLogoutDialog = true }
-        )
-
-        Spacer(modifier = Modifier.height(40.dp))
     }
 
     // 清除缓存确认弹窗
@@ -210,7 +236,6 @@ fun SettingsScreen(
             confirmText = "确认",
             onConfirm = {
                 showClearCacheDialog = false
-                // 阶段4实现清理逻辑
             },
             onDismiss = { showClearCacheDialog = false }
         )
@@ -254,14 +279,15 @@ private fun SettingsRow(
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier
             .fillMaxWidth()
+            .clip(RoundedCornerShape(10.dp))
             .clickable(enabled = onClick != null) { onClick?.invoke() }
-            .padding(vertical = 12.dp)
+            .padding(horizontal = 4.dp, vertical = 12.dp)
     ) {
         Icon(
             imageVector = icon,
             contentDescription = null,
             tint = TextMuted,
-            modifier = Modifier.size(18.dp)
+            modifier = Modifier.size(20.dp)
         )
         Spacer(modifier = Modifier.width(12.dp))
         Text(
@@ -299,14 +325,15 @@ private fun DangerRow(
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier
             .fillMaxWidth()
+            .clip(RoundedCornerShape(10.dp))
             .clickable(onClick = onClick)
-            .padding(vertical = 12.dp)
+            .padding(horizontal = 4.dp, vertical = 12.dp)
     ) {
         Icon(
             imageVector = icon,
             contentDescription = null,
             tint = Danger,
-            modifier = Modifier.size(18.dp)
+            modifier = Modifier.size(20.dp)
         )
         Spacer(modifier = Modifier.width(12.dp))
         Text(

@@ -82,7 +82,7 @@ export function Modal({ open, onClose, title, children, size = "md", className }
 
   return (
     <div
-      className="fixed inset-0 z-[100] flex items-center justify-center bg-black/30 px-4 py-6"
+      className="fixed inset-0 z-[200] flex items-center justify-center bg-black/50 backdrop-blur-sm px-4 py-6"
       role="dialog"
       aria-modal="true"
       onClick={onClose}
@@ -90,7 +90,7 @@ export function Modal({ open, onClose, title, children, size = "md", className }
       <div
         ref={modalRef}
         className={cn(
-          "glass-modal w-full max-h-[90vh] overflow-y-auto rounded-2xl p-5",
+          "glass-modal relative w-full max-h-[90vh] overflow-y-auto rounded-2xl p-5 shadow-2xl",
           sizeMap[size],
           className
         )}

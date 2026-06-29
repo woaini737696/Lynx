@@ -140,7 +140,7 @@ fun IdeaPanel(
                 .systemBarsPadding()
                 .padding(start = 16.dp, end = 16.dp, top = 36.dp, bottom = 16.dp)
         ) {
-            PanelHeader(title = "灵感速记", onBack = onBack, swipeHint = "↓ 下滑返回")
+            PanelHeader(title = "灵感速记", onBack = onBack)
             Spacer(modifier = Modifier.height(20.dp))
 
             // 输入框：回车即保存

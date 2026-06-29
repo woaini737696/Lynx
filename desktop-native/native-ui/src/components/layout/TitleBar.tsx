@@ -34,7 +34,7 @@ export function TitleBar() {
       className="glass-bar flex h-11 w-full shrink-0 items-center justify-between px-3 select-none"
     >
       <div className="flex items-center gap-2.5" data-tauri-drag-region>
-        <Logo className="h-6 w-6 rounded-lg" variant="dark" />
+        <Logo className="h-6 w-6 rounded-lg" />
         <span className="text-sm font-semibold tracking-tight text-foreground/90">Lynx</span>
       </div>
 

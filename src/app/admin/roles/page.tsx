@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useMemo } from "react";
 import {
   Shield,
   Users as UsersIcon,
@@ -14,6 +14,8 @@ import {
   Plus,
   Trash2,
   AlertCircle,
+  Search,
+  Folder,
 } from "lucide-react";
 import {
   PageHeader,
@@ -23,12 +25,14 @@ import {
 } from "@/components/layout/PageHeader";
 import { HelpButton } from "@/components/layout/HelpButton";
 import { toast } from "@/components/ui/toast";
+import { SearchInput, Pagination, useClientPagination } from "@/components/ui/ListControls";
 import { PROFESSIONS } from "@/lib/permissions";
 
 type PermissionDef = {
   key: string;
   label: string;
   description: string;
+  group: string;
 };
 
 type Role = {
@@ -64,12 +68,68 @@ export default function RolesPage() {
   const [formProfession, setFormProfession] = useState("");
   const [formPermissions, setFormPermissions] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
+  // 权限配置弹窗内的分类筛选 + 关键词搜索
+  const [permGroupFilter, setPermGroupFilter] = useState<string>("all");
+  const [permSearch, setPermSearch] = useState("");
+
+  // 角色列表搜索
+  const [search, setSearch] = useState("");
 
   // 删除确认弹窗
   const [deleteTarget, setDeleteTarget] = useState<Role | null>(null);
   const [deleting, setDeleting] = useState(false);
 
   const isAdmin = currentUser?.role === "admin";
+
+  // 权限按 group 聚合（用于顶部展示和弹窗分类）
+  const permissionGroups = useMemo(() => {
+    const map = new Map<string, PermissionDef[]>();
+    for (const p of permissions) {
+      const arr = map.get(p.group) || [];
+      arr.push(p);
+      map.set(p.group, arr);
+    }
+    return Array.from(map.entries()).map(([group, items]) => ({ group, items }));
+  }, [permissions]);
+
+  // 弹窗内按分类筛选+搜索后的权限列表
+  const filteredFormPermissions = useMemo(() => {
+    let list = permissions;
+    if (permGroupFilter !== "all") {
+      list = list.filter((p) => p.group === permGroupFilter);
+    }
+    if (permSearch.trim()) {
+      const q = permSearch.trim().toLowerCase();
+      list = list.filter(
+        (p) =>
+          p.label.toLowerCase().includes(q) ||
+          p.key.toLowerCase().includes(q) ||
+          p.description.toLowerCase().includes(q)
+      );
+    }
+    return list;
+  }, [permissions, permGroupFilter, permSearch]);
+
+  // 角色列表按关键词过滤 + 客户端分页
+  const filteredRoles = useMemo(() => {
+    if (!search.trim()) return roles;
+    const q = search.trim().toLowerCase();
+    return roles.filter(
+      (r) =>
+        r.name.toLowerCase().includes(q) ||
+        r.displayName.toLowerCase().includes(q) ||
+        r.description.toLowerCase().includes(q)
+    );
+  }, [roles, search]);
+
+  const {
+    page,
+    pageSize,
+    total,
+    paginated,
+    onPageChange,
+    onPageSizeChange,
+  } = useClientPagination(filteredRoles, 10);
 
   const load = useCallback(async () => {
     try {
@@ -113,6 +173,8 @@ export default function RolesPage() {
     setFormProfession("");
     setFormPermissions([]);
     setEditTarget(null);
+    setPermGroupFilter("all");
+    setPermSearch("");
     setModalMode("create");
   };
 
@@ -124,6 +186,8 @@ export default function RolesPage() {
     setFormDescription(role.description);
     setFormProfession(role.profession || "");
     setFormPermissions([...role.permissions]);
+    setPermGroupFilter("all");
+    setPermSearch("");
     setModalMode("edit");
   };
 
@@ -135,6 +199,8 @@ export default function RolesPage() {
     setFormDescription("");
     setFormProfession("");
     setFormPermissions([]);
+    setPermGroupFilter("all");
+    setPermSearch("");
   };
 
   const togglePermission = (key: string) => {
@@ -259,54 +325,67 @@ export default function RolesPage() {
         }
       />
 
-      {/* 权限目录说明 */}
-      {permissions.length > 0 && (
+      {/* 权限目录说明 - 只显示大分类+数量 */}
+      {permissionGroups.length > 0 && (
         <Card className="mb-6">
           <div className="mb-3 flex items-center gap-2">
             <Shield className="h-4 w-4 text-muted-foreground" />
             <h3 className="text-sm font-semibold text-foreground">
-              权限目录（共 {permissions.length} 项）
+              权限分类（共 {permissionGroups.length} 类 · {permissions.length} 项权限）
             </h3>
           </div>
-          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
-            {permissions.map((p) => (
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">
+            {permissionGroups.map(({ group, items }) => (
               <div
-                key={p.key}
-                className="rounded-lg glass-card px-3 py-2"
+                key={group}
+                className="ios-glass-sm flex items-center gap-2.5 rounded-xl px-3 py-2.5"
               >
-                <div className="flex items-center gap-2">
-                  <code className="rounded ios-glass-sm px-1.5 py-0.5 text-[10px] font-mono text-foreground">
-                    {p.key}
-                  </code>
-                  <span className="text-xs font-medium text-foreground">
-                    {p.label}
-                  </span>
+                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary/10">
+                  <Folder className="h-4 w-4 text-primary" />
                 </div>
-                <p className="mt-1 text-[11px] text-muted-foreground">
-                  {p.description}
-                </p>
+                <div className="min-w-0 flex-1">
+                  <div className="text-sm font-medium text-foreground">{group}</div>
+                  <div className="text-xs text-muted-foreground">{items.length} 项权限</div>
+                </div>
               </div>
             ))}
           </div>
         </Card>
       )}
 
+      {/* 角色搜索框 */}
+      <SearchInput
+        value={search}
+        onChange={setSearch}
+        placeholder="搜索角色名称..."
+        className="mb-4"
+      />
+
       {/* 角色卡片列表 */}
       <div className="space-y-4">
-        {roles.length === 0 ? (
+        {filteredRoles.length === 0 ? (
           <Card className="py-12 text-center text-muted-foreground">
-            暂无角色数据
+            {roles.length === 0 ? "暂无角色数据" : "没有匹配的角色"}
           </Card>
         ) : (
-          roles.map((role) => (
-            <RoleCard
-              key={role.id}
-              role={role}
-              permissions={permissions}
-              onEdit={() => openEdit(role)}
-              onDelete={() => setDeleteTarget(role)}
+          <>
+            {paginated.map((role) => (
+              <RoleCard
+                key={role.id}
+                role={role}
+                permissions={permissions}
+                onEdit={() => openEdit(role)}
+                onDelete={() => setDeleteTarget(role)}
+              />
+            ))}
+            <Pagination
+              page={page}
+              pageSize={pageSize}
+              total={total}
+              onPageChange={onPageChange}
+              onPageSizeChange={onPageSizeChange}
             />
-          ))
+          </>
         )}
       </div>
 
@@ -440,56 +519,168 @@ export default function RolesPage() {
                 )}
               </div>
 
-              {/* 权限选择 */}
-              <div className="space-y-2">
+              {/* 权限选择 - 按分类筛选 + 搜索 */}
+              <div className="space-y-3">
                 <div className="flex items-center justify-between">
-                  <label className="text-xs font-medium text-foreground">
+                  <label className="text-sm font-medium text-foreground">
                     权限配置
                   </label>
-                  <span className="text-[11px] text-muted-foreground">
+                  <span className="text-xs text-muted-foreground">
                     已选 {formPermissions.length} / {permissions.length}
                   </span>
                 </div>
-                <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                  {permissions.map((p) => {
-                    const checked = formPermissions.includes(p.key);
-                    return (
-                      <button
-                        key={p.key}
-                        type="button"
-                        onClick={() => togglePermission(p.key)}
-                        className={`flex items-start gap-2.5 rounded-xl border px-3 py-2.5 text-left transition-all ${
-                          checked
-                            ? "border-northstar/40 bg-northstar/5"
-                            : "border-border bg-background/30 hover:bg-primary/10 hover:text-primary"
-                        }`}
-                      >
-                        <span
-                          className={`mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded border transition-colors ${
-                            checked
-                              ? "border-northstar bg-northstar text-primary-foreground"
-                              : "glass-card"
-                          }`}
-                        >
-                          {checked && <Check className="h-3 w-3" />}
-                        </span>
-                        <div className="min-w-0 flex-1">
-                          <div className="flex items-center gap-1.5">
-                            <span className="text-xs font-medium text-foreground">
-                              {p.label}
-                            </span>
-                            <code className="rounded ios-glass-sm px-1 py-0 text-[9px] font-mono text-muted-foreground">
-                              {p.key}
-                            </code>
-                          </div>
-                          <p className="mt-0.5 text-[10px] text-muted-foreground">
-                            {p.description}
-                          </p>
-                        </div>
-                      </button>
-                    );
-                  })}
+
+                {/* 筛选栏：分类下拉 + 搜索框 + 全选/清空 */}
+                <div className="flex flex-wrap items-center gap-2">
+                  <select
+                    value={permGroupFilter}
+                    onChange={(e) => setPermGroupFilter(e.target.value)}
+                    className="appearance-none rounded-lg border border-border bg-background px-3 py-1.5 text-xs text-foreground outline-none focus:border-primary"
+                  >
+                    <option value="all">全部分类</option>
+                    {permissionGroups.map(({ group, items }) => (
+                      <option key={group} value={group}>
+                        {group}（{items.length}）
+                      </option>
+                    ))}
+                  </select>
+                  <div className="relative flex-1 min-w-[180px]">
+                    <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+                    <input
+                      type="text"
+                      value={permSearch}
+                      onChange={(e) => setPermSearch(e.target.value)}
+                      placeholder="搜索权限名称、key 或描述"
+                      className="w-full appearance-none rounded-lg border border-border bg-background py-1.5 pl-8 pr-3 text-xs text-foreground outline-none focus:border-primary"
+                    />
+                  </div>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    type="button"
+                    onClick={() => {
+                      const visibleKeys = filteredFormPermissions.map((p) => p.key);
+                      const allSelected = visibleKeys.every((k) => formPermissions.includes(k));
+                      if (allSelected) {
+                        setFormPermissions(formPermissions.filter((k) => !visibleKeys.includes(k)));
+                      } else {
+                        setFormPermissions(Array.from(new Set([...formPermissions, ...visibleKeys])));
+                      }
+                    }}
+                    className="text-xs"
+                  >
+                    {filteredFormPermissions.length > 0 &&
+                    filteredFormPermissions.every((p) => formPermissions.includes(p.key))
+                      ? "取消本页"
+                      : "全选本页"}
+                  </Button>
                 </div>
+
+                {/* 权限列表 - 按分类分组显示 */}
+                {permGroupFilter === "all" && !permSearch.trim() ? (
+                  // 无筛选时按分类分组展示
+                  <div className="space-y-4">
+                    {permissionGroups.map(({ group, items }) => (
+                      <div key={group}>
+                        <div className="mb-2 flex items-center gap-2">
+                          <Folder className="h-3.5 w-3.5 text-primary" />
+                          <span className="text-xs font-semibold text-foreground">{group}</span>
+                          <span className="text-[10px] text-muted-foreground">
+                            {items.filter((p) => formPermissions.includes(p.key)).length} / {items.length}
+                          </span>
+                        </div>
+                        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                          {items.map((p) => {
+                            const checked = formPermissions.includes(p.key);
+                            return (
+                              <button
+                                key={p.key}
+                                type="button"
+                                onClick={() => togglePermission(p.key)}
+                                className={`flex items-start gap-2.5 rounded-xl border px-3 py-2.5 text-left transition-all ${
+                                  checked
+                                    ? "border-northstar/40 bg-northstar/5"
+                                    : "border-border bg-background/30 hover:bg-primary/10 hover:text-primary"
+                                }`}
+                              >
+                                <span
+                                  className={`mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded border transition-colors ${
+                                    checked
+                                      ? "border-northstar bg-northstar text-primary-foreground"
+                                      : "glass-card"
+                                  }`}
+                                >
+                                  {checked && <Check className="h-3 w-3" />}
+                                </span>
+                                <div className="min-w-0 flex-1">
+                                  <div className="flex items-center gap-1.5">
+                                    <span className="text-xs font-medium text-foreground">
+                                      {p.label}
+                                    </span>
+                                    <code className="rounded ios-glass-sm px-1 py-0 text-[9px] font-mono text-muted-foreground">
+                                      {p.key}
+                                    </code>
+                                  </div>
+                                  <p className="mt-0.5 text-[10px] text-muted-foreground">
+                                    {p.description}
+                                  </p>
+                                </div>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  // 筛选时平铺展示
+                  <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                    {filteredFormPermissions.length === 0 ? (
+                      <div className="col-span-full py-6 text-center text-xs text-muted-foreground">
+                        没有匹配的权限
+                      </div>
+                    ) : (
+                      filteredFormPermissions.map((p) => {
+                        const checked = formPermissions.includes(p.key);
+                        return (
+                          <button
+                            key={p.key}
+                            type="button"
+                            onClick={() => togglePermission(p.key)}
+                            className={`flex items-start gap-2.5 rounded-xl border px-3 py-2.5 text-left transition-all ${
+                              checked
+                                ? "border-northstar/40 bg-northstar/5"
+                                : "border-border bg-background/30 hover:bg-primary/10 hover:text-primary"
+                            }`}
+                          >
+                            <span
+                              className={`mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded border transition-colors ${
+                                checked
+                                  ? "border-northstar bg-northstar text-primary-foreground"
+                                  : "glass-card"
+                              }`}
+                            >
+                              {checked && <Check className="h-3 w-3" />}
+                            </span>
+                            <div className="min-w-0 flex-1">
+                              <div className="flex items-center gap-1.5">
+                                <span className="text-xs font-medium text-foreground">
+                                  {p.label}
+                                </span>
+                                <span className="rounded bg-primary/10 px-1 text-[9px] text-primary">
+                                  {p.group}
+                                </span>
+                              </div>
+                              <p className="mt-0.5 text-[10px] text-muted-foreground">
+                                {p.description}
+                              </p>
+                            </div>
+                          </button>
+                        );
+                      })
+                    )}
+                  </div>
+                )}
               </div>
             </div>
 

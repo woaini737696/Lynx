@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { NavLink, useLocation } from "react-router-dom";
+import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import {
   Target,
   LayoutDashboard,
@@ -9,10 +9,11 @@ import {
   Cpu,
   Brain,
   Skull,
-  Search as SearchIcon,
   Inbox as InboxIcon,
   Briefcase,
   Bot as AiIcon,
+  Workflow,
+  BookMarked,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
@@ -35,7 +36,6 @@ const NAV_GROUPS: Record<TabKey, { label: string; icon: React.ElementType; items
       { to: "/inbox", label: "Inbox", icon: InboxIcon },
       { to: "/board", label: "决策看板", icon: LayoutDashboard },
       { to: "/graveyard", label: "灵感墓地", icon: Skull },
-      { to: "/search", label: "全局搜索", icon: SearchIcon },
       { to: "/cognition", label: "认知库", icon: Brain },
     ],
   },
@@ -44,7 +44,9 @@ const NAV_GROUPS: Record<TabKey, { label: string; icon: React.ElementType; items
     icon: AiIcon,
     items: [
       { to: "/ai/workspace", label: "AI 工作空间", icon: Sparkles },
+      { to: "/ai/flows", label: "AI 工作流", icon: Workflow },
       { to: "/ai/assistant", label: "Lynx超级助理", icon: Bot },
+      { to: "/skills", label: "技能管理", icon: BookMarked },
       { to: "/agent", label: "Lynx Agent", icon: Cpu },
     ],
   },
@@ -52,8 +54,8 @@ const NAV_GROUPS: Record<TabKey, { label: string; icon: React.ElementType; items
 
 export function Sidebar() {
   const location = useLocation();
+  const navigate = useNavigate();
   const [tab, setTab] = useState<TabKey>(() => {
-    // 根据当前路由自动选择 Tab
     for (const [key, group] of Object.entries(NAV_GROUPS)) {
       if (group.items.some((it) => location.pathname.startsWith(it.to))) {
         return key as TabKey;
@@ -65,9 +67,25 @@ export function Sidebar() {
   const currentItems = NAV_GROUPS[tab].items;
 
   return (
-    <aside className="glass-sidebar flex h-full w-56 shrink-0 flex-col justify-between">
-      <div className="flex flex-col gap-3 p-3">
-        {/* Tab 分段控制器：工作 / AI */}
+    <aside className="glass-sidebar flex h-full w-56 shrink-0 flex-col">
+      {/* 顶部 Logo 区 - 对齐 Web端：28x28 logo + LYNX 字标 */}
+      <div className="flex h-14 shrink-0 items-center px-3">
+        <button
+          onClick={() => navigate("/focus")}
+          className="flex items-center gap-2 transition-opacity hover:opacity-80"
+        >
+          <img
+            src="/lynx-icon-128.png"
+            alt="Lynx"
+            className="h-7 w-7 rounded-lg shadow-md"
+            draggable={false}
+          />
+          <span className="text-base font-bold tracking-tight text-foreground">LYNX</span>
+        </button>
+      </div>
+
+      {/* Tab 分段控制器：工作 / AI */}
+      <div className="px-3 pb-2">
         <div className="flex rounded-xl bg-muted/40 p-1">
           {(Object.keys(NAV_GROUPS) as TabKey[]).map((key) => {
             const isActive = tab === key;
@@ -96,8 +114,10 @@ export function Sidebar() {
             );
           })}
         </div>
+      </div>
 
-        {/* 导航项（Tab 切换动画） */}
+      {/* 导航项 - 对齐 Web端样式：glass-active + nav-item */}
+      <div className="flex-1 overflow-y-auto px-2.5">
         <AnimatePresence mode="wait">
           <motion.nav
             key={tab}
@@ -105,7 +125,7 @@ export function Sidebar() {
             animate={{ opacity: 1, x: 0 }}
             exit={{ opacity: 0, x: 8 }}
             transition={{ duration: 0.18 }}
-            className="flex flex-col gap-1.5"
+            className="flex flex-col gap-1"
           >
             {currentItems.map((item) => (
               <NavItem
@@ -118,22 +138,24 @@ export function Sidebar() {
         </AnimatePresence>
       </div>
 
-      <div className="flex flex-col gap-2 p-3">
+      {/* 底部：设置 + 用户卡片 */}
+      <div className="shrink-0 px-2.5 pb-3">
         <NavLink
           to="/settings"
           className={({ isActive }) =>
             cn(
-              "group flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all",
-              "text-muted-foreground hover:bg-primary/8 hover:text-foreground",
-              isActive && "glass-active text-foreground"
+              "group relative flex w-full items-center rounded-xl px-2.5 py-1.5 text-[13px] transition-all",
+              isActive
+                ? "glass-active font-medium text-primary"
+                : "nav-item text-muted-foreground hover:text-foreground"
             )
           }
         >
-          <Settings className="h-[18px] w-[18px] shrink-0" />
+          <Settings className="mr-2 h-4 w-4 shrink-0" />
           <span className="truncate">设置</span>
         </NavLink>
 
-        <div className="mt-1">
+        <div className="mt-2">
           <UserMenu collapsed={false} />
         </div>
       </div>
@@ -156,12 +178,13 @@ function NavItem({
     <NavLink
       to={to}
       className={cn(
-        "group relative flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all",
-        "text-muted-foreground hover:bg-primary/8 hover:text-foreground",
-        active && "glass-active text-foreground"
+        "group relative flex w-full items-center rounded-xl px-2.5 py-1.5 text-[13px] transition-all",
+        active
+          ? "glass-active font-medium text-primary"
+          : "nav-item text-muted-foreground hover:text-foreground"
       )}
     >
-      <Icon className="h-[18px] w-[18px] shrink-0" />
+      <Icon className="mr-2 h-4 w-4 shrink-0" />
       <span className="truncate">{label}</span>
     </NavLink>
   );
