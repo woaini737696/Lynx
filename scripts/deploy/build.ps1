@@ -1,4 +1,4 @@
-# Lynx 本地构建脚本 - 构建产物供服务器部署使用
+﻿# Lynx 本地构建脚本 - 构建产物供服务器部署使用
 # 服务器不做任何编译，只接收此脚本产出的打包文件
 # 用法：.\scripts\deploy\build.ps1 [-SkipDesktop]
 
@@ -29,20 +29,23 @@ New-Item -ItemType Directory -Path "$DistDir\$PkgName" -Force | Out-Null
 
 # 2. 安装依赖
 Write-Host "[1/6] 检查依赖..." -ForegroundColor Yellow
-npm ci --production=false 2>$null
+$prevEAP = $ErrorActionPreference
+$ErrorActionPreference = "Continue"
+npm ci --production=false 2>&1 | Write-Host
 if ($LASTEXITCODE -ne 0) {
   Write-Host "npm ci 失败，尝试 npm install" -ForegroundColor Yellow
-  npm install
+  npm install 2>&1 | Write-Host
 }
+$ErrorActionPreference = $prevEAP
 
 # 3. Prisma generate
 Write-Host "[2/6] Prisma generate..." -ForegroundColor Yellow
-npx prisma generate
+npx prisma generate 2>&1 | Write-Host
 if ($LASTEXITCODE -ne 0) { throw "prisma generate 失败" }
 
 # 4. Next.js 构建 (standalone)
 Write-Host "[3/6] Next.js 构建 (standalone)..." -ForegroundColor Yellow
-npm run build
+npm run build 2>&1 | Write-Host
 if ($LASTEXITCODE -ne 0) { throw "next build 失败" }
 
 # 5. 复制 standalone 产物
@@ -69,25 +72,38 @@ if (Test-Path "$ProjectRoot\prisma\seed.ts") {
   Copy-Item "$ProjectRoot\prisma\seed.ts" "$StandaloneDir\prisma\"
 }
 
+# 复制生产环境 .env.production 到 standalone/.env
+if (Test-Path "$ProjectRoot\.env.production") {
+  Copy-Item "$ProjectRoot\.env.production" "$StandaloneDir\.env"
+  Write-Host "  生产环境 .env 已复制到 standalone" -ForegroundColor Green
+} else {
+  Write-Host "  警告: .env.production 不存在" -ForegroundColor Red
+  throw "请先创建 .env.production 文件"
+}
+
 # 6. 构建并打包官网 (web_Lynx - Vite + React 项目)
 Write-Host "[5/6] 构建官网 (web_Lynx)..." -ForegroundColor Yellow
 $WebsiteDir = "$ProjectRoot\web_Lynx"
 if (Test-Path "$WebsiteDir\package.json") {
   Push-Location $WebsiteDir
-  # 优先使用 pnpm（项目用 pnpm-workspace.yaml），fallback 到 npm
-  if (Get-Command pnpm -ErrorAction SilentlyContinue) {
-    pnpm install --frozen-lockfile 2>$null
-    if ($LASTEXITCODE -ne 0) { pnpm install }
-    pnpm run build
+  # 优先使用 pnpm，fallback 到 npm
+  $pnpmCmd = Get-Command pnpm -ErrorAction SilentlyContinue
+  $webEAP = $ErrorActionPreference
+  $ErrorActionPreference = "Continue"
+  if ($pnpmCmd) {
+    pnpm install --frozen-lockfile 2>&1 | Write-Host
+    if ($LASTEXITCODE -ne 0) { pnpm install 2>&1 | Write-Host }
+    pnpm run build 2>&1 | Write-Host
   } else {
-    npm ci 2>$null
-    if ($LASTEXITCODE -ne 0) { npm install }
-    npm run build
+    npm ci 2>&1 | Write-Host
+    if ($LASTEXITCODE -ne 0) { npm install 2>&1 | Write-Host }
+    npm run build 2>&1 | Write-Host
   }
+  $ErrorActionPreference = $webEAP
   if ($LASTEXITCODE -ne 0) { throw "web_Lynx 构建失败" }
   Pop-Location
 
-  # 复制官网构建产物 (web_Lynx/dist → deploy/dist/{pkg}/website)
+  # 复制官网构建产物
   New-Item -ItemType Directory -Path "$DistDir\$PkgName\website" -Force | Out-Null
   Copy-Item -Recurse "$WebsiteDir\dist\*" "$DistDir\$PkgName\website\"
   Write-Host "  官网产物已复制 (web_Lynx/dist)" -ForegroundColor Green
@@ -112,12 +128,10 @@ if (-not $SkipDesktop) {
     npm ci 2>$null; npm run build
     Pop-Location
     Push-Location "$TauriDir\src-tauri"
-    # 使用 MSVC 工具链构建
     $env:CARGO_BUILD_TARGET = "x86_64-pc-windows-msvc"
     cargo tauri build 2>&1 | Write-Host
     Pop-Location
 
-    # 查找安装包
     $BundleDir = "D:\cargo-target-native\release\bundle"
     $SetupExe = Get-ChildItem "$BundleDir\nsis\*setup.exe" -ErrorAction SilentlyContinue | Select-Object -First 1
     if ($SetupExe) {
@@ -140,7 +154,6 @@ Write-Host "打包中..." -ForegroundColor Yellow
 $ArchivePath = "$DistDir\$PkgName.tar.gz"
 tar -czf $ArchivePath -C $DistDir $PkgName
 if ($LASTEXITCODE -ne 0) {
-  # Windows 可能没有 tar，使用 Compress-Archive
   Compress-Archive -Path "$DistDir\$PkgName\*" -DestinationPath "$DistDir\$PkgName.zip" -Force
   $ArchivePath = "$DistDir\$PkgName.zip"
 }
@@ -150,8 +163,9 @@ Write-Host "========================================" -ForegroundColor Green
 Write-Host "  构建完成!" -ForegroundColor Green
 Write-Host "========================================" -ForegroundColor Green
 Write-Host "产物路径: $ArchivePath"
-Write-Host "产物大小: $([math]::Round((Get-Item $ArchivePath).Length / 1MB, 2)) MB"
+$archiveItem = Get-Item $ArchivePath
+$archiveSizeMB = [math]::Round($archiveItem.Length / 1MB, 2)
+Write-Host "产物大小: $archiveSizeMB MB"
 Write-Host ""
-Write-Host "下一步: 运行部署脚本" -ForegroundColor Cyan
-Write-Host "  .\scripts\deploy\deploy.ps1 -ServerIp 'YOUR_IP' -SshUser 'root' -SshKey 'C:\path\to\key'"
+Write-Host "下一步: 部署到服务器" -ForegroundColor Cyan
 Write-Host ""
