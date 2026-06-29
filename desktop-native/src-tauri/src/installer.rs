@@ -146,10 +146,19 @@ pub async fn install_ai_environment(app: AppHandle) -> Result<serde_json::Value,
         emit_progress(&app, 5, total_steps, "正在安装 Hermes Agent...", 85);
         let pip_cmd = if cfg!(target_os = "windows") { "pip" } else { "pip3" };
 
+        // 使用清华源避免阿里云源 PEP 503 报错，添加 --disable-pip-version-check 跳过警告
         let result = tokio::time::timeout(
             std::time::Duration::from_secs(300),
             tokio::process::Command::new(pip_cmd)
-                .args(&["install", "hermes-agent"])
+                .args(&[
+                    "install",
+                    "--disable-pip-version-check",
+                    "--trusted-host",
+                    "pypi.tuna.tsinghua.edu.cn",
+                    "-i",
+                    "https://pypi.tuna.tsinghua.edu.cn/simple",
+                    "hermes-agent",
+                ])
                 .kill_on_drop(true)
                 .output(),
         )

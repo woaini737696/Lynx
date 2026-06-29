@@ -18,12 +18,22 @@ import { SWRProvider } from "@/components/providers/SWRProvider";
 import { AuthProvider } from "@/components/auth/AuthProvider";
 
 export const metadata: Metadata = {
-  title: "LYNX · AI工作站",
+  title: "Lynx AI工作站",
   description: "灵感收敛 · 工作聚焦 · 记忆复利",
   manifest: "/manifest.webmanifest",
+  icons: {
+    icon: [
+      { url: "/lynx-icon-64.png", sizes: "64x64", type: "image/png" },
+      { url: "/lynx-icon-128.png", sizes: "128x128", type: "image/png" },
+      { url: "/lynx-icon-256.png", sizes: "256x256", type: "image/png" },
+    ],
+    apple: [
+      { url: "/lynx-icon-256.png", sizes: "256x256", type: "image/png" },
+    ],
+  },
   appleWebApp: {
     capable: true,
-    title: "Lynx",
+    title: "Lynx AI工作站",
     statusBarStyle: "default",
   },
 };
@@ -45,10 +55,6 @@ export default function RootLayout({
 }) {
   return (
     <html lang="zh-CN" suppressHydrationWarning>
-      <head>
-        <link rel="icon" href="/lynx-icon-256.png" type="image/png" />
-        <link rel="apple-touch-icon" href="/lynx-icon-256.png" />
-      </head>
       <body className="starfield min-h-screen bg-background text-foreground antialiased">
         <ThemeProvider>
           <SWRProvider>

@@ -4,7 +4,7 @@
 // 任何组件可通过 useAuth() 调用 open() 弹出登录弹窗
 // 弹窗本身使用液态玻璃样式，符合 iOS 26 Liquid Glass 规范
 
-import { createContext, useCallback, useContext, useEffect, useMemo, useState, ReactNode } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, ReactNode } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { LoginModal, LoginMode } from "./LoginModal";
 
@@ -54,10 +54,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setIsOpen(false);
   }, []);
 
-  // 监听 401 响应事件：API 返回未登录时自动弹出登录窗
+  // 监听 401 响应事件：API 返回未登录时弹出登录窗
+  // 重要：区分"页面初始加载的 401"和"用户主动操作触发的 401"
+  // - 页面加载后 3 秒内的 401 视为初始加载（SWR 自动 fetch），不弹窗
+  // - 3 秒后的 401 视为用户主动操作触发，弹窗
+  // - 检查 session cookie 区分"首次访问"和"会话过期"
+  const loadedAtRef = useRef<number>(Date.now());
   useEffect(() => {
+    loadedAtRef.current = Date.now();
     const handler = () => {
-      setExpired(true);
+      // 页面加载后 3 秒内的 401 视为初始加载，不弹窗
+      if (Date.now() - loadedAtRef.current < 3000) return;
+
+      // 检查是否有 session cookie（曾经登录过）
+      const hasSessionCookie =
+        document.cookie.includes("authjs.session-token") ||
+        document.cookie.includes("__Secure-authjs.session-token");
+
+      setExpired(hasSessionCookie);
       setMode("phone-password");
       setIsOpen(true);
     };

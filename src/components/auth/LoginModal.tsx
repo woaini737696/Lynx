@@ -250,7 +250,7 @@ export function LoginModal({
       onClick={onClose}
     >
       <div
-        className="glass-modal relative w-[90vw] max-w-[420px] rounded-3xl p-6 sm:p-8"
+        className="glass-modal relative max-h-[90vh] w-[90vw] max-w-[420px] overflow-y-auto rounded-3xl p-6 sm:p-8"
         onClick={(e) => e.stopPropagation()}
       >
         {/* 关闭按钮 */}

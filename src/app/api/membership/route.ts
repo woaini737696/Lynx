@@ -25,6 +25,8 @@ export async function GET(_req: NextRequest) {
         tier: plan.tier,
         name: plan.name,
         price: plan.price,
+        credits: plan.credits.toString(), // BigInt 序列化为字符串
+        sCoins: plan.sCoins,
         features: plan.features,
         modelAccess: plan.modelAccess,
         apiCallsPerDay: plan.apiCallsPerDay,
