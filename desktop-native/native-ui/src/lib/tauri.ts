@@ -6,7 +6,9 @@ export async function invoke<T>(cmd: string, args?: InvokeArgs): Promise<T> {
     return await tauriInvoke<T>(cmd, args);
   } catch (err) {
     console.error(`[tauri] invoke '${cmd}' failed:`, err);
-    throw err;
+    // Tauri 2.x 把 Rust 端的 Err(String) reject 为字符串，这里包装成 Error
+    // 让上层 catch 能拿到具体错误信息而非显示兜底文案
+    throw err instanceof Error ? err : new Error(typeof err === "string" ? err : JSON.stringify(err));
   }
 }
 

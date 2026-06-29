@@ -323,7 +323,7 @@ export function SettingsPage() {
                     <input
                       value={endpoint}
                       onChange={(e) => setEndpoint(e.target.value)}
-                      placeholder="https://ai.lynxdo.com:8443"
+                      placeholder="https://ai.lynxdo.com"
                       className="h-11 w-full rounded-xl border border-border/60 bg-background/60 pl-9 pr-4 text-sm text-foreground outline-none focus:border-primary focus:ring-1 focus:ring-primary"
                     />
                   </div>
