@@ -1,6 +1,6 @@
 // 登录页（对齐 Web 端 LoginModal 弹窗样式）
 // 三种登录模式：手机号+验证码 / 手机号+密码 / 账号+密码
-// 万能验证码：开发环境 888888
+// 万能验证码：仅 DEV 构建可见（888888），生产构建自动隐藏
 import { useEffect, useRef, useState, forwardRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
@@ -44,7 +44,8 @@ interface LoginResponse {
   };
 }
 
-const MASTER_CODE = "888888";
+// 开发环境万能码（仅 DEV 构建可见，生产构建自动隐藏）
+const DEV_MASTER_CODE = import.meta.env.DEV ? "888888" : null;
 
 export function LoginPage() {
   const navigate = useNavigate();
@@ -103,7 +104,7 @@ export function LoginPage() {
 
   const handleOpenWebSite = async () => {
     try {
-      await invoke("open_external", { url: "https://ai.lynxdo.com" });
+      await invoke("open_external", { url: "https://app.lynnhub.com" });
     } catch (err) {
       console.error("打开官网失败", err);
     }
@@ -367,11 +368,11 @@ export function LoginPage() {
                   </button>
                 </div>
               </div>
-              {/* 开发环境万能码提示 */}
-              {codeSent && (
+              {/* 开发环境万能码提示（仅 DEV 构建显示） */}
+              {codeSent && DEV_MASTER_CODE && (
                 <div className="flex items-center gap-1.5 rounded-lg bg-primary/5 px-2.5 py-1.5 text-[11px] text-primary/80">
                   <Sparkles className="h-3 w-3 shrink-0" />
-                  <span>开发环境万能码：{MASTER_CODE}</span>
+                  <span>开发环境万能码：{DEV_MASTER_CODE}</span>
                 </div>
               )}
             </div>

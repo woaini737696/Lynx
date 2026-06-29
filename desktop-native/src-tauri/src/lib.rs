@@ -54,7 +54,7 @@ impl Default for AppState {
             authorized_dirs: Mutex::new(vec![default_dir]),
             ws_connected: AtomicBool::new(false),
             user_token: Mutex::new(None),
-            cloud_endpoint: Mutex::new("http://127.0.0.1:5176".to_string()),
+            cloud_endpoint: Mutex::new("https://app.lynnhub.com".to_string()),
         }
     }
 }

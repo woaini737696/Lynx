@@ -151,10 +151,17 @@ async function getUserPermissions(
 
 /**
  * 清除用户权限缓存（角色变更时调用）
+ * 缓存键格式为 `${userId}:${permissionVersion}`，需按 userId 前缀匹配清除
  */
 export function clearPermissionCache(userId?: string): void {
   if (userId) {
-    permissionCache.delete(userId);
+    // 按 userId 前缀匹配清除所有版本缓存（key 格式：userId:version）
+    const prefix = `${userId}:`;
+    for (const key of permissionCache.keys()) {
+      if (key.startsWith(prefix)) {
+        permissionCache.delete(key);
+      }
+    }
   } else {
     permissionCache.clear();
   }

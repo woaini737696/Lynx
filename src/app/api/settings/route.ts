@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { hasAIEmbedding } from "@/lib/ai";
-import { requireAuth } from "@/lib/auth-utils";
+import { requireAdmin } from "@/lib/auth-utils";
 import { refreshAISettings } from "@/lib/ai-provider";
 import { getLogger } from "@/lib/logger";
 
@@ -21,7 +21,7 @@ function maskApiKey(key: string): string {
  */
 export async function GET() {
   try {
-    const { error } = await requireAuth();
+    const { error } = await requireAdmin();
     if (error) return error;
 
     // 检测数据库连接
@@ -151,7 +151,7 @@ export async function GET() {
       {
         db: {
           status: dbStatus,
-          url: "mysql://root@localhost:3306/lynnhub",
+          configured: Boolean(process.env.DATABASE_URL),
           counts: dbCounts,
         },
         ai: aiConfig,
@@ -180,7 +180,7 @@ export async function GET() {
  */
 export async function PUT(req: NextRequest) {
   try {
-    const { error } = await requireAuth();
+    const { error } = await requireAdmin();
     if (error) return error;
 
     const body = await req.json().catch(() => ({}));

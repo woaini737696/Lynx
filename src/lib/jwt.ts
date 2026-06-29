@@ -75,7 +75,8 @@ export async function verifyToken(token: string): Promise<JwtPayload | null> {
   const a = Buffer.from(signature);
   const b = Buffer.from(expectedSig);
   if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) {
-    console.error("[jwt] verifyToken: 签名不匹配", { expected: expectedSig.slice(0, 10), actual: signature.slice(0, 10), secretLen: secret.length });
+    // 安全：日志中不输出任何签名片段，避免泄露签名前缀辅助攻击者爆破
+    console.error("[jwt] verifyToken: 签名不匹配");
     return null;
   }
 
