@@ -165,7 +165,7 @@ private fun ToggleSwitch(
                 .padding(horizontal = 2.dp)
                 .size(18.dp)
                 .clip(CircleShape)
-                .background(Color.White)
+                .background(TextPrimary)
         )
     }
 }
@@ -200,7 +200,7 @@ private fun PrimaryButton(text: String, enabled: Boolean = true, onClick: () -> 
             .padding(12.dp),
         contentAlignment = Alignment.Center
     ) {
-        Text(text, color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+        Text(text, color = TextPrimary, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
     }
 }
 
@@ -317,7 +317,7 @@ fun ProfilePage(onBack: () -> Unit, viewModel: ProfileViewModel = hiltViewModel(
                 Text(
                     text = (uiState.displayName.firstOrNull()?.toString())
                         ?: (uiState.user?.username?.firstOrNull()?.toString()) ?: "U",
-                    color = Color.White,
+                    color = TextPrimary,
                     fontSize = 28.sp,
                     fontWeight = FontWeight.Bold
                 )
@@ -918,7 +918,7 @@ fun CognitionPage(onBack: () -> Unit, viewModel: CognitionViewModel = hiltViewMo
                 ) {
                     Text(
                         label,
-                        color = if (selected) Color.White else TextMuted,
+                        color = if (selected) TextPrimary else TextMuted,
                         fontSize = 12.sp,
                         fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal
                     )
@@ -1080,7 +1080,7 @@ fun NotificationPage(onBack: () -> Unit) {
                 ) {
                     Text(
                         label,
-                        color = if (selected) Color.White else TextMuted,
+                        color = if (selected) TextPrimary else TextMuted,
                         fontSize = 12.sp
                     )
                 }

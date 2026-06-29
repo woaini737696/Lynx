@@ -56,7 +56,7 @@ fun SettingsScreen(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color.Black.copy(alpha = 0.35f))
+            .background(Void.copy(alpha = 0.35f))
     ) {
         Row(modifier = Modifier.fillMaxSize()) {
             // 左侧 12% 遮罩：点击关闭面板
@@ -114,7 +114,7 @@ fun SettingsScreen(
                             Text(
                                 text = (uiState.user?.displayName?.firstOrNull()?.toString())
                                     ?: (uiState.user?.username?.firstOrNull()?.toString()) ?: "U",
-                                color = Color.White,
+                                color = TextPrimary,
                                 fontSize = 22.sp,
                                 fontWeight = FontWeight.Bold
                             )

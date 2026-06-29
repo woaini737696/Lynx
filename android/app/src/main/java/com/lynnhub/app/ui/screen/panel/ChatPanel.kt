@@ -24,8 +24,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Mic
+import com.lynnhub.app.ui.component.LynxIcons
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.OutlinedTextField
@@ -141,6 +140,7 @@ class ChatPanelViewModel @Inject constructor(
 
     fun send(content: String? = null) {
         val text = (content ?: _uiState.value.text).trim()
+        android.util.Log.d("ChatPanel", "send() called: text='$text' isSending=${_uiState.value.isSending} sessionReady=${_uiState.value.sessionReady} sessionId=${_uiState.value.sessionId}")
         if (text.isBlank()) return
         if (_uiState.value.isSending) return
 
@@ -153,6 +153,7 @@ class ChatPanelViewModel @Inject constructor(
         _uiState.update {
             it.copy(messages = history, text = "", isSending = true)
         }
+        android.util.Log.d("ChatPanel", "send() messages count=${history.size}, launching API call")
 
         viewModelScope.launch {
             try {
@@ -161,10 +162,12 @@ class ChatPanelViewModel @Inject constructor(
                         ChatMessageRequest(role = msg.role, content = msg.content)
                     },
                     provider = "deepseek",
-                    assistantMode = true,
+                    assistantMode = false,
                     stream = false
                 )
+                android.util.Log.d("ChatPanel", "send() calling apiService.sendChat...")
                 val resp = apiService.sendChat(req)
+                android.util.Log.d("ChatPanel", "send() got response: content='${resp.content.take(50)}'")
                 val aiMsg = ChatMessageDto(
                     id = UUID.randomUUID().toString(),
                     role = "assistant",
@@ -174,6 +177,7 @@ class ChatPanelViewModel @Inject constructor(
                     it.copy(messages = it.messages + aiMsg, isSending = false)
                 }
             } catch (e: Exception) {
+                android.util.Log.e("ChatPanel", "send() FAILED", e)
                 _uiState.update {
                     it.copy(isSending = false, toast = "发送失败: ${e.message ?: "请检查网络"}")
                 }
@@ -327,7 +331,7 @@ fun ChatPanel(
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
-                        imageVector = Icons.Filled.Mic,
+                        imageVector = LynxIcons.Mic,
                         contentDescription = "语音",
                         tint = Primary,
                         modifier = Modifier.size(18.dp)

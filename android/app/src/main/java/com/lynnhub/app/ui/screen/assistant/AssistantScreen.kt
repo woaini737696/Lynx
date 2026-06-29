@@ -235,7 +235,7 @@ fun AssistantScreen(
                         Icon(
                             imageVector = if (state.text.isBlank()) LynxIcons.Mic else LynxIcons.Send,
                             contentDescription = if (state.text.isBlank()) "语音" else "发送",
-                            tint = Color.White,
+                            tint = TextPrimary,
                             modifier = Modifier.size(20.dp)
                         )
                     }

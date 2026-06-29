@@ -55,6 +55,7 @@ import com.lynnhub.app.ui.screen.panel.SwipeHint
 import com.lynnhub.app.ui.theme.Agent
 import com.lynnhub.app.ui.theme.Deep
 import com.lynnhub.app.ui.theme.Danger
+import com.lynnhub.app.ui.theme.LiquidBorder
 import com.lynnhub.app.ui.theme.Primary
 import com.lynnhub.app.ui.theme.Surface
 import com.lynnhub.app.ui.theme.TextMuted
@@ -228,7 +229,7 @@ fun TokenAnalysisPage(
                     ) {
                         Text(
                             "分析",
-                            color = Color.White,
+                            color = TextPrimary,
                             fontSize = 13.sp,
                             fontWeight = FontWeight.SemiBold
                         )
@@ -436,7 +437,7 @@ private fun CharDistributionBar(stats: com.lynnhub.app.data.remote.dto.TokenStat
         Triple(stats.digit, Think, "数字"),
         Triple(stats.punctuation, Danger, "标点"),
         Triple(stats.space, TextMuted, "空白"),
-        Triple(stats.other, Color.Gray, "其他")
+        Triple(stats.other, TextMuted, "其他")
     )
 
     // 分布条
@@ -506,7 +507,7 @@ private fun TokenVisualization(tokens: List<TokenPieceDto>) {
         "digit" to Think.copy(alpha = 0.15f),
         "punctuation" to Danger.copy(alpha = 0.1f),
         "space" to Color.Transparent,
-        "other" to Color.Gray.copy(alpha = 0.1f)
+        "other" to Surface
     )
     val typeBorders = mapOf(
         "cjk" to Primary.copy(alpha = 0.3f),
@@ -514,7 +515,7 @@ private fun TokenVisualization(tokens: List<TokenPieceDto>) {
         "digit" to Think.copy(alpha = 0.35f),
         "punctuation" to Danger.copy(alpha = 0.25f),
         "space" to Color.Transparent,
-        "other" to Color.Gray.copy(alpha = 0.25f)
+        "other" to LiquidBorder
     )
 
     FlowRow(
