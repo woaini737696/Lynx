@@ -109,7 +109,7 @@ export function SettingsPage() {
     setInstalling(true);
     try {
       // 打开浏览器下载最新安装包
-      const downloadUrl = "https://app.lynnhub.com/download";
+      const downloadUrl = "https://app.lynxdo.com/download";
       await invoke("open_external", { url: downloadUrl });
       toast.success("已在浏览器中打开下载页面");
     } catch (err) {
@@ -315,7 +315,7 @@ export function SettingsPage() {
                     <input
                       value={endpoint}
                       onChange={(e) => setEndpoint(e.target.value)}
-                      placeholder="https://app.lynnhub.com"
+                      placeholder="https://app.lynxdo.com"
                       className="h-11 w-full rounded-xl border border-border/60 bg-background/60 pl-9 pr-4 text-sm text-foreground outline-none focus:border-primary focus:ring-1 focus:ring-primary"
                     />
                   </div>

@@ -14,7 +14,9 @@ import { WebSocketServer, WebSocket } from "ws";
 import { createServer } from "http";
 import { randomUUID } from "crypto";
 import { PrismaClient } from "@prisma/client";
+import { getLogger } from "@/lib/logger";
 
+const logger = getLogger("ws-gateway");
 const prisma = new PrismaClient();
 const PORT = Number(process.env.WS_PORT || 3001);
 
@@ -115,7 +117,7 @@ async function registerDevice(
   (ws as WebSocket & { channelId?: string }).channelId = channelId;
   (ws as WebSocket & { userId?: string }).userId = userId;
 
-  console.log(`[ws-gateway] PC 上线: user=${userId} device=${data.deviceName} channel=${channelId}`);
+  logger.info(`[ws-gateway] PC 上线: user=${userId} device=${data.deviceName} channel=${channelId}`);
 
   // 回复注册成功
   sendJson(ws, {
@@ -159,7 +161,7 @@ async function deviceOffline(channelId: string) {
       } catch (e) {
         console.error("[ws-gateway] 离线状态更新失败:", e);
       }
-      console.log(`[ws-gateway] PC 离线: user=${userId} channel=${channelId}`);
+      logger.info(`[ws-gateway] PC 离线: user=${userId} channel=${channelId}`);
       break;
     }
   }
@@ -215,7 +217,7 @@ async function dispatchRemoteCommand(
     timestamp: Date.now(),
   });
 
-  console.log(`[ws-gateway] 指令已下发: cmd=${commandId} target=${targetChannel}`);
+  logger.info(`[ws-gateway] 指令已下发: cmd=${commandId} target=${targetChannel}`);
   return { dispatched: true };
 }
 
@@ -331,7 +333,7 @@ wss.on("connection", async (ws: WebSocket, req: import("http").IncomingMessage) 
     return;
   }
 
-  console.log(`[ws-gateway] 新 WS 连接: user=${userId}`);
+  logger.info(`[ws-gateway] 新 WS 连接: user=${userId}`);
 
   ws.on("message", async (raw: Buffer) => {
     try {
@@ -409,14 +411,14 @@ setInterval(async () => {
 // ============ 启动 ============
 
 server.listen(PORT, () => {
-  console.log(`[ws-gateway] WebSocket 状态中心已启动，端口 ${PORT}`);
-  console.log(`[ws-gateway] WS 端点: ws://localhost:${PORT}/api/ws/agent`);
-  console.log(`[ws-gateway] HTTP 端点: http://localhost:${PORT}/dispatch, /devices`);
+  logger.info(`[ws-gateway] WebSocket 状态中心已启动，端口 ${PORT}`);
+  logger.info(`[ws-gateway] WS 端点: ws://localhost:${PORT}/api/ws/agent`);
+  logger.info(`[ws-gateway] HTTP 端点: http://localhost:${PORT}/dispatch, /devices`);
 });
 
 // 优雅关闭
 process.on("SIGINT", async () => {
-  console.log("[ws-gateway] 正在关闭...");
+  logger.info("[ws-gateway] 正在关闭...");
   for (const [channelId, ws] of connections) {
     try { ws.close(1001, "服务关闭"); } catch {}
     await deviceOffline(channelId);

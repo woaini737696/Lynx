@@ -4,6 +4,9 @@
 import { readFlows } from "@/lib/flow-store";
 import { executeFlowInternal } from "@/lib/flow-engine";
 import { subscribeWebhookEvents } from "@/lib/lark-webhook-handler";
+import { getLogger } from "@/lib/logger";
+
+const logger = getLogger("flow-scheduler");
 
 // ============ 类型 ============
 
@@ -111,16 +114,16 @@ async function loadScheduledFlows(): Promise<
  * 执行定时触发的工作流。
  */
 async function fireScheduledFlow(flowId: string, flowName: string): Promise<void> {
-  console.log(`[flow-scheduler] 定时触发工作流: ${flowName} (${flowId})`);
+  logger.info(`[flow-scheduler] 定时触发工作流: ${flowName} (${flowId})`);
   try {
     const flows = await readFlows();
     const flow = flows.find((f) => f.id === flowId);
     if (!flow || !flow.enabled) {
-      console.log(`[flow-scheduler] 工作流不存在或未启用，跳过: ${flowId}`);
+      logger.info(`[flow-scheduler] 工作流不存在或未启用，跳过: ${flowId}`);
       return;
     }
     const result = await executeFlowInternal(flow, "");
-    console.log(
+    logger.info(
       `[flow-scheduler] 工作流执行完成: ${flowName} success=${result.success} duration=${result.totalDurationMs}ms`
     );
   } catch (e) {
@@ -172,7 +175,7 @@ async function tick(): Promise<void> {
  */
 export function startFlowScheduler(): void {
   if (schedulerTimer) return;
-  console.log("[flow-scheduler] 定时调度器已启动");
+  logger.info("[flow-scheduler] 定时调度器已启动");
   // 启动后立即执行一次 tick（加载已有定时任务）
   tick().catch((e) => console.error("[flow-scheduler] 启动 tick 失败:", e));
   schedulerTimer = setInterval(() => {
@@ -187,7 +190,7 @@ export function stopFlowScheduler(): void {
   if (schedulerTimer) {
     clearInterval(schedulerTimer);
     schedulerTimer = null;
-    console.log("[flow-scheduler] 定时调度器已停止");
+    logger.info("[flow-scheduler] 定时调度器已停止");
   }
 }
 
@@ -228,7 +231,7 @@ async function loadEventFlows(): Promise<
  */
 export async function startEventTriggers(): Promise<void> {
   if (eventUnsubscribe) return;
-  console.log("[flow-scheduler] 事件触发器已启动");
+  logger.info("[flow-scheduler] 事件触发器已启动");
 
   eventUnsubscribe = subscribeWebhookEvents(async (evt) => {
     try {
@@ -237,7 +240,7 @@ export async function startEventTriggers(): Promise<void> {
       if (matched.length === 0) return;
 
       for (const ef of matched) {
-        console.log(
+        logger.info(
           `[flow-scheduler] 事件触发工作流: ${ef.flowName} (${ef.flowId}) event=${evt.eventType}`
         );
         const flows = await readFlows();
@@ -246,7 +249,7 @@ export async function startEventTriggers(): Promise<void> {
         // 将事件摘要作为初始输入
         const input = evt.summary || `事件: ${evt.eventType}`;
         const result = await executeFlowInternal(flow, input);
-        console.log(
+        logger.info(
           `[flow-scheduler] 事件触发工作流执行完成: ${ef.flowName} success=${result.success}`
         );
       }
@@ -263,7 +266,7 @@ export function stopEventTriggers(): void {
   if (eventUnsubscribe) {
     eventUnsubscribe();
     eventUnsubscribe = null;
-    console.log("[flow-scheduler] 事件触发器已停止");
+    logger.info("[flow-scheduler] 事件触发器已停止");
   }
 }
 

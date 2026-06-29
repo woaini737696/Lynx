@@ -5,6 +5,9 @@ import { promises as fs } from "fs";
 import path from "path";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
+import { getLogger } from "@/lib/logger";
+
+const logger = getLogger("flow-store");
 
 // ============ 类型定义 ============
 
@@ -253,7 +256,7 @@ export async function initializeDefaultFlows(): Promise<void> {
     const raw = await fs.readFile(FLOWS_FILE, "utf-8");
     const data = JSON.parse(raw);
     if (Array.isArray(data) && data.length > 0) {
-      console.log(`[flow-store] 从 .ai-flows.json 迁移 ${data.length} 个工作流到数据库...`);
+      logger.info(`[flow-store] 从 .ai-flows.json 迁移 ${data.length} 个工作流到数据库...`);
       for (const f of data) {
         const lastRunStr = typeof f.lastRun === "string" ? f.lastRun : "未运行";
         await prisma.flow.create({
@@ -268,7 +271,7 @@ export async function initializeDefaultFlows(): Promise<void> {
         });
       }
       migrated = true;
-      console.log("[flow-store] 迁移完成，原文件已保留作为备份");
+      logger.info("[flow-store] 迁移完成，原文件已保留作为备份");
     }
   } catch {
     // 文件不存在或解析失败，使用默认数据
@@ -277,7 +280,7 @@ export async function initializeDefaultFlows(): Promise<void> {
   if (migrated) return;
 
   // 数据库为空且无文件可迁移，创建默认工作流
-  console.log("[flow-store] 数据库为空，创建默认工作流...");
+  logger.info("[flow-store] 数据库为空，创建默认工作流...");
   for (const f of DEFAULT_FLOWS) {
     await prisma.flow.create({
       data: {
@@ -290,5 +293,5 @@ export async function initializeDefaultFlows(): Promise<void> {
       },
     });
   }
-  console.log(`[flow-store] 已创建 ${DEFAULT_FLOWS.length} 个默认工作流`);
+  logger.info(`[flow-store] 已创建 ${DEFAULT_FLOWS.length} 个默认工作流`);
 }

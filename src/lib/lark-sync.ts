@@ -4,7 +4,9 @@ import { promisify } from "util";
 import * as fs from "fs";
 import * as path from "path";
 import { prisma } from "@/lib/db";
+import { getLogger } from "@/lib/logger";
 
+const logger = getLogger("lark-sync");
 const execAsync = promisify(exec);
 
 const LARK_CLI_TIMEOUT = 30000; // 30 秒超时
@@ -567,7 +569,7 @@ export async function getTaskDetailAsync(guid: string): Promise<LarkTaskItem | n
   if (!guid) return null;
   const res = await runLarkCliAsync(`tasks get --task-guid ${shellQuote(guid)}`);
   if (!res.ok) {
-    console.log(`[lark-sync] 获取任务详情失败 guid=${guid}: ${res.error}`);
+    logger.warn(`[lark-sync] 获取任务详情失败 guid=${guid}: ${res.error}`);
     return null;
   }
   const task = res.data?.data?.task;
@@ -1267,7 +1269,7 @@ export function updateAssignees(
     // 空列表时尝试清空负责人
     const res = runLarkCli(`+assign --task-id ${shellQuote(taskId)} --clear`);
     if (!res.ok) {
-      console.log(`[lark-sync] 清空负责人失败，已忽略: ${res.error}`);
+      logger.warn(`[lark-sync] 清空负责人失败，已忽略: ${res.error}`);
       return { ok: true, ignored: true };
     }
     success = true;
@@ -1275,7 +1277,7 @@ export function updateAssignees(
     const ids = openIds.join(",");
     const res = runLarkCli(`+assign --task-id ${shellQuote(taskId)} --add ${shellQuote(ids)}`);
     if (!res.ok) {
-      console.log(`[lark-sync] 更新负责人失败，已忽略: ${res.error}`);
+      logger.warn(`[lark-sync] 更新负责人失败，已忽略: ${res.error}`);
       return { ok: true, ignored: true };
     }
     success = true;
@@ -1293,7 +1295,7 @@ export function updateFollowers(
   if (openIds.length === 0) {
     const res = runLarkCli(`+collaborator --task-id ${shellQuote(taskId)} --clear`);
     if (!res.ok) {
-      console.log(`[lark-sync] 清空关注人失败，已忽略: ${res.error}`);
+      logger.warn(`[lark-sync] 清空关注人失败，已忽略: ${res.error}`);
       return { ok: true, ignored: true };
     }
     success = true;
@@ -1305,7 +1307,7 @@ export function updateFollowers(
       res = runLarkCli(`+follower --task-id ${shellQuote(taskId)} --add ${shellQuote(ids)}`);
     }
     if (!res.ok) {
-      console.log(`[lark-sync] 更新关注人失败，已忽略: ${res.error}`);
+      logger.warn(`[lark-sync] 更新关注人失败，已忽略: ${res.error}`);
       return { ok: true, ignored: true };
     }
     success = true;
@@ -1321,7 +1323,7 @@ export function updateTasklist(
 ): { ok: boolean; error?: string; ignored?: boolean } {
   const res = runLarkCli(`+update --task-id ${shellQuote(taskId)} --tasklist-id ${shellQuote(tasklistId)}`);
   if (!res.ok) {
-    console.log(`[lark-sync] 更新任务清单失败，已忽略: ${res.error}`);
+    logger.warn(`[lark-sync] 更新任务清单失败，已忽略: ${res.error}`);
     return { ok: true, ignored: true };
   }
   invalidateTasksCache();
@@ -1382,7 +1384,7 @@ export async function addComment(
   );
   if (!res.ok) {
     // lark-cli 不支持或失败时使用数据库存储兜底
-    console.log(`[lark-sync] lark-cli 评论失败，已使用数据库存储: ${res.error}`);
+    logger.warn(`[lark-sync] lark-cli 评论失败，已使用数据库存储: ${res.error}`);
     const localComment = await addLocalComment(taskId, content);
     return { ok: true, comment: localComment, local: true };
   }

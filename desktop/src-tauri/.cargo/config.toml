@@ -1,8 +1,0 @@
-[build]
-# 必须使用纯 ASCII 路径，避免 MinGW ld 链接器无法处理 Unicode 路径
-# D:\cargo-target 是真实目录（非 junction），确保链接器能找到 rlib 文件
-target-dir = "D:/cargo-target"
-
-[target.x86_64-pc-windows-gnu]
-# 使用 MinGW 的 ld 链接器而非 rust-lld，避免导入表不匹配导致 STATUS_ENTRYPOINT_NOT_FOUND
-rustflags = ["-C", "link-self-contained=no"]

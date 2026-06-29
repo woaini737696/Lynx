@@ -59,7 +59,7 @@
     "updater": {
       "active": true,
       "endpoints": [
-        "https://app.lynnhub.com/api/desktop/update"
+        "https://app.lynxdo.com/api/desktop/update"
       ],
       "pubkey": "",
       "dialog": true

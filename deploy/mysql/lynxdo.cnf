@@ -1,0 +1,38 @@
+# MySQL 8.x 优化配置 - 阿里云 ECS 2C2G
+# 部署位置：/etc/mysql/conf.d/lynxdo.cnf
+
+[mysqld]
+# ===== 内存限制 =====
+innodb_buffer_pool_size = 256M
+innodb_log_buffer_size = 8M
+key_buffer_size = 32M
+max_connections = 50
+max_user_connections = 40
+thread_cache_size = 8
+
+# ===== 表缓存 =====
+table_open_cache = 200
+table_definition_cache = 200
+
+# ===== 临时表 =====
+tmp_table_size = 32M
+max_heap_table_size = 32M
+
+# ===== 慢查询日志 =====
+slow_query_log = 1
+slow_query_log_file = /var/log/mysql/slow.log
+long_query_time = 2
+
+# ===== 字符集 =====
+character-set-server = utf8mb4
+collation-server = utf8mb4_unicode_ci
+
+# ===== 安全 =====
+bind-address = 127.0.0.1
+skip-name-resolve = 1
+local_infile = 0
+
+# ===== InnoDB 优化 =====
+innodb_file_per_table = 1
+innodb_flush_log_at_trx_commit = 2
+innodb_flush_method = O_DIRECT

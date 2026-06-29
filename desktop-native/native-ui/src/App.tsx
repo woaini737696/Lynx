@@ -17,6 +17,8 @@ import { AIAssistantPage } from "./pages/AIAssistantPage";
 import { AIFlowsPage } from "./pages/AIFlowsPage";
 import { SkillsPage } from "./pages/SkillsPage";
 import { AgentPage } from "./pages/AgentPage";
+import { WalletPage } from "./pages/WalletPage";
+import { MembershipPage } from "./pages/MembershipPage";
 import { LoginPage } from "./pages/LoginPage";
 import { SettingsPage } from "./pages/SettingsPage";
 import { Toaster } from "./components/ui/Toaster";
@@ -161,6 +163,8 @@ export function App() {
             <Route path="ai/assistant" element={<AIAssistantPage />} />
             <Route path="skills" element={<SkillsPage />} />
             <Route path="agent" element={<AgentPage />} />
+            <Route path="wallet" element={<WalletPage />} />
+            <Route path="membership" element={<MembershipPage />} />
             <Route path="settings" element={<SettingsPage />} />
             <Route path="settings/*" element={<Navigate to="/settings" replace />} />
             <Route path="*" element={<Navigate to="/focus" replace />} />

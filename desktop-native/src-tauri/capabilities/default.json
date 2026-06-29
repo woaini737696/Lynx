@@ -7,7 +7,7 @@
     "urls": [
       "http://localhost:5176/**",
       "http://127.0.0.1:5176/**",
-      "https://app.lynnhub.com/**"
+      "https://app.lynxdo.com/**"
     ]
   },
   "permissions": [

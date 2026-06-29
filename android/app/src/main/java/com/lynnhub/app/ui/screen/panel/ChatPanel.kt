@@ -79,6 +79,7 @@ data class ChatPanelUiState(
     val text: String = "",
     val isSending: Boolean = false,
     val sessionId: String? = null,
+    val sessionReady: Boolean = false,
     val toast: String? = null
 )
 
@@ -105,22 +106,31 @@ class ChatPanelViewModel @Inject constructor(
                         ChatCreateSessionRequest(title = "Lynx", provider = "deepseek")
                     ).session.id
                 }
-                _uiState.update { it.copy(sessionId = sid) }
+                // 先标记 sessionReady，再加载历史；加载历史时绝不覆盖用户已发消息
+                _uiState.update { it.copy(sessionId = sid, sessionReady = true) }
                 loadMessages()
-            } catch (_: Exception) {
-                // 静默失败，保留空会话
+            } catch (e: Exception) {
+                _uiState.update {
+                    it.copy(sessionReady = true, toast = "会话初始化失败: ${e.message ?: "网络错误"}")
+                }
             }
         }
     }
 
     private fun loadMessages() {
         val sid = _uiState.value.sessionId ?: return
+        // 发送中或已有本地消息时，不覆盖（避免竞态）
+        if (_uiState.value.isSending || _uiState.value.messages.isNotEmpty()) return
         viewModelScope.launch {
             try {
                 val resp = apiService.getChatMessages(sid)
-                _uiState.update { it.copy(messages = resp.messages) }
-            } catch (_: Exception) {
-                // 静默失败
+                // 仅在消息列表仍为空时才覆盖
+                _uiState.update { state ->
+                    if (state.messages.isEmpty()) state.copy(messages = resp.messages)
+                    else state
+                }
+            } catch (e: Exception) {
+                // 加载历史失败不阻塞用户发送
             }
         }
     }
@@ -163,9 +173,9 @@ class ChatPanelViewModel @Inject constructor(
                 _uiState.update {
                     it.copy(messages = it.messages + aiMsg, isSending = false)
                 }
-            } catch (_: Exception) {
+            } catch (e: Exception) {
                 _uiState.update {
-                    it.copy(isSending = false, toast = "发送失败")
+                    it.copy(isSending = false, toast = "发送失败: ${e.message ?: "请检查网络"}")
                 }
             }
         }

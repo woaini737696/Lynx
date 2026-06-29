@@ -100,11 +100,11 @@ fun LoginScreen(
             // 表单
             Spacer(modifier = Modifier.height(32.dp))
             Column(modifier = Modifier.fillMaxWidth()) {
-                // 用户名
+                // 手机号
                 LynxInputField(
                     value = uiState.username,
                     onValueChange = viewModel::updateUsername,
-                    placeholder = "用户名",
+                    placeholder = "手机号",
                     imeAction = ImeAction.Next,
                     onImeAction = { passwordFocusRequester.requestFocus() }
                 )

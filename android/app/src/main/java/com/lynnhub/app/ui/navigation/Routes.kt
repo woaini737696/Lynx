@@ -29,6 +29,7 @@ object Routes {
     const val NOTIFICATION = "notification"
     const val UPDATE = "update"
     const val ABOUT = "about"
+    const val TOKEN_ANALYSIS = "token_analysis"
 }
 
 /** 核心页面路由集合 */
@@ -46,7 +47,8 @@ val childRoutes = setOf(
     Routes.COGNITION,
     Routes.NOTIFICATION,
     Routes.UPDATE,
-    Routes.ABOUT
+    Routes.ABOUT,
+    Routes.TOKEN_ANALYSIS
 )
 
 fun String?.shouldShowDock(): Boolean = this in coreRoutes

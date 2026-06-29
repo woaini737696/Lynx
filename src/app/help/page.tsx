@@ -440,7 +440,7 @@ export default function HelpCenterPage() {
             遇到问题或有改进建议？提交反馈，我们会尽快处理。
           </p>
           <button
-            onClick={() => (window.location.href = "mailto:support@lynnhub.com?subject=LynxHub 用户反馈")}
+            onClick={() => (window.location.href = "mailto:support@lynxdo.com?subject=Lynx 用户反馈")}
             className="btn-primary inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium text-white"
           >
             发送邮件

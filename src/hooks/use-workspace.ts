@@ -97,8 +97,3 @@ export function useWorkspace(): WorkspaceState & { refetch: () => Promise<void> 
 
   return { ...state, refetch: fetchData };
 }
-
-/** 清除工作空间缓存（角色/职业变更后调用） */
-export function clearWorkspaceCache() {
-  cache = null;
-}

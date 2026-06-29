@@ -219,9 +219,10 @@ fun AssistantScreen(
 
                 Spacer(modifier = Modifier.width(8.dp))
 
-                // 语音发送按钮
+                // 语音发送按钮（发送中禁用，避免重复点击与 IME 残留字符）
                 Pressable(
                     onClick = { viewModel.send() },
+                    enabled = !state.isSending,
                     modifier = Modifier.size(48.dp)
                 ) { pressed ->
                     Box(

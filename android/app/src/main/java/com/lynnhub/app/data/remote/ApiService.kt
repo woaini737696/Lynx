@@ -126,6 +126,10 @@ interface ApiService {
     @PUT("api/ai/settings")
     suspend fun updateAiSettings(@Body body: AiSettingsDto): AiSettingsResponse
 
+    // ============ AI Token Analysis (词元分析) ============
+    @POST("api/ai/token-analysis")
+    suspend fun analyzeTokens(@Body body: TokenAnalysisRequest): TokenAnalysisResponse
+
     // ============ Memory ============
     @GET("api/memory")
     suspend fun getMemory(): MemoryResponse

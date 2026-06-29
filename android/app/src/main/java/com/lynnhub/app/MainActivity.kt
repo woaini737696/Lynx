@@ -12,8 +12,11 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.pointer.PointerInputChange
+import androidx.compose.ui.input.pointer.changedToDown
+import androidx.compose.ui.input.pointer.changedToUp
 import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.lifecycleScope
 import androidx.navigation.NavGraph.Companion.findStartDestination
@@ -128,29 +131,59 @@ class MainActivity : ComponentActivity() {
 /**
  * 核心页面左右滑动手势 Modifier。
  * 仅在当前 route 为核心页面时生效，左右滑动切换到相邻核心页面。
- * 使用 detectHorizontalDragGestures 避免与普通点击/滚动冲突。
+ * 使用 PointerEventPass.Initial 检测，但只在水平滑动超过阈值时消费事件，
+ * 避免拦截顶部 header 的点击和列表滚动。
  */
 private fun Modifier.corePageSwipe(
     currentRoute: String,
     onSwipe: (String) -> Unit
 ): Modifier = this.pointerInput(currentRoute) {
-    detectHorizontalDragGestures { _, dragAmount ->
-        val threshold = 60.dp.toPx()
-        if (kotlin.math.abs(dragAmount) < threshold) return@detectHorizontalDragGestures
+    val threshold = 80.dp.toPx()
+    val topSafeArea = 160.dp.toPx() // 顶部 header 区域不响应滑动切换
 
-        val currentIndex = bottomTabs.indexOfFirst { it.route == currentRoute }
-        if (currentIndex == -1) return@detectHorizontalDragGestures
+    awaitPointerEventScope {
+        while (true) {
+            val downEvent = awaitPointerEvent(PointerEventPass.Initial)
+            val down: PointerInputChange = downEvent.changes.firstOrNull() ?: continue
+            if (!down.changedToDown()) continue
 
-        val targetIndex = if (dragAmount < 0) {
-            // 左滑 → 下一页
-            (currentIndex + 1).coerceAtMost(bottomTabs.lastIndex)
-        } else {
-            // 右滑 → 上一页
-            (currentIndex - 1).coerceAtLeast(0)
-        }
+            val startX: Float = down.position.x
+            val startY: Float = down.position.y
 
-        if (targetIndex != currentIndex) {
-            onSwipe(bottomTabs[targetIndex].route)
+            // 顶部 header 区域交给子组件处理（头像点击等）
+            if (startY < topSafeArea) continue
+
+            var consumed = false
+            while (true) {
+                val event = awaitPointerEvent(PointerEventPass.Initial)
+                val change: PointerInputChange = event.changes.firstOrNull() ?: break
+                if (change.changedToUp()) break
+
+                val currentX: Float = change.position.x
+                val currentY: Float = change.position.y
+                val dx: Float = currentX - startX
+                val dy: Float = currentY - startY
+
+                if (!consumed && kotlin.math.abs(dx) >= threshold && kotlin.math.abs(dx) > kotlin.math.abs(dy)) {
+                    consumed = true
+                    change.consume()
+
+                    val currentIndex = bottomTabs.indexOfFirst { it.route == currentRoute }
+                    if (currentIndex != -1) {
+                        val targetIndex = if (dx < 0) {
+                            // 左滑 → 下一页
+                            (currentIndex + 1).coerceAtMost(bottomTabs.lastIndex)
+                        } else {
+                            // 右滑 → 上一页
+                            (currentIndex - 1).coerceAtLeast(0)
+                        }
+                        if (targetIndex != currentIndex) {
+                            onSwipe(bottomTabs[targetIndex].route)
+                        }
+                    }
+                    break
+                }
+            }
         }
     }
 }

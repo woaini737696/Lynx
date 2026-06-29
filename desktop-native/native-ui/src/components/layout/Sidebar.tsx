@@ -14,6 +14,8 @@ import {
   Bot as AiIcon,
   Workflow,
   BookMarked,
+  Wallet as WalletIcon,
+  Crown,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
@@ -138,8 +140,40 @@ export function Sidebar() {
         </AnimatePresence>
       </div>
 
-      {/* 底部：设置 + 用户卡片 */}
+      {/* 底部：账户分组 + 设置 + 用户卡片 */}
       <div className="shrink-0 px-2.5 pb-3">
+        {/* 账户分组：钱包 + 会员（独立于 work/ai 分组，始终可见） */}
+        <div className="mb-2 flex flex-col gap-1">
+          <NavLink
+            to="/wallet"
+            className={({ isActive }) =>
+              cn(
+                "group relative flex w-full items-center rounded-xl px-2.5 py-1.5 text-[13px] transition-all",
+                isActive
+                  ? "glass-active font-medium text-primary"
+                  : "nav-item text-muted-foreground hover:text-foreground"
+              )
+            }
+          >
+            <WalletIcon className="mr-2 h-4 w-4 shrink-0" />
+            <span className="truncate">钱包</span>
+          </NavLink>
+          <NavLink
+            to="/membership"
+            className={({ isActive }) =>
+              cn(
+                "group relative flex w-full items-center rounded-xl px-2.5 py-1.5 text-[13px] transition-all",
+                isActive
+                  ? "glass-active font-medium text-primary"
+                  : "nav-item text-muted-foreground hover:text-foreground"
+              )
+            }
+          >
+            <Crown className="mr-2 h-4 w-4 shrink-0" />
+            <span className="truncate">会员</span>
+          </NavLink>
+        </div>
+
         <NavLink
           to="/settings"
           className={({ isActive }) =>
