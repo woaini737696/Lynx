@@ -3,7 +3,6 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useLocation } from "react-router-dom";
 import {
   Send,
-  Bot,
   User,
   Sparkles,
   Loader2,
@@ -23,12 +22,15 @@ import {
   Brain,
   BookOpen,
   Zap,
+  Settings,
+  Save,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
 import { toast } from "@/lib/toast";
 import { HelpButton } from "@/components/ui/HelpButton";
 import { Modal } from "@/components/ui/Modal";
+import { cloudApi } from "@/lib/cloud-api";
 import {
   type Message,
   type ChatSession,
@@ -45,12 +47,32 @@ import {
   summarizeToolResult,
 } from "@/lib/ai-assistant";
 
-const WELCOME_MESSAGE: Message = {
-  id: "welcome",
-  role: "assistant",
-  content: "你好，我是 Lynn · 你的 Lynx超级助理。\n\n我可以帮你查询任务、分析灵感、搜索记忆、执行技能，甚至通过 Lynx Agent 操控本地电脑。\n\n试试下方的快捷指令，或直接告诉我你想做什么。",
-  time: new Date().toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit" }),
-};
+// ============ AI 助理设置类型 ============
+interface AISettings {
+  assistantName?: string;
+  assistantAvatar?: string;
+  avatarUrl?: string | null;
+  personaStyle?: string | null;
+  distilledStyle?: string | null;
+  styleStrength?: number;
+  defaultVoice?: string | null;
+  autoSpeak?: boolean;
+  voiceMode?: boolean;
+  feishuNotify?: boolean;
+  hermesTakeover?: boolean;
+  hermesAutoReport?: boolean;
+  hermesReportCron?: string | null;
+  larkWebhookUrl?: string | null;
+}
+
+function buildWelcomeMessage(name: string): Message {
+  return {
+    id: "welcome",
+    role: "assistant",
+    content: `你好，我是 ${name} · 你的 Lynx超级助理。\n\n我可以帮你查询任务、分析灵感、搜索记忆、执行技能，甚至通过 Lynx Agent 操控本地电脑。\n\n试试下方的快捷指令，或直接告诉我你想做什么。`,
+    time: new Date().toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit" }),
+  };
+}
 
 const SUGGESTIONS = [
   { icon: Target, text: "今天有哪些任务需要聚焦？", color: "text-northstar" },
@@ -62,7 +84,7 @@ const SUGGESTIONS = [
 export function AIAssistantPage() {
   const queryClient = useQueryClient();
   const location = useLocation();
-  const [messages, setMessages] = useState<Message[]>([WELCOME_MESSAGE]);
+  const [messages, setMessages] = useState<Message[]>([buildWelcomeMessage("Lynn")]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
@@ -70,6 +92,7 @@ export function AIAssistantPage() {
   const [confirmClear, setConfirmClear] = useState(false);
   const [feedbackTarget, setFeedbackTarget] = useState<Message | null>(null);
   const [feedbackReason, setFeedbackReason] = useState("");
+  const [showSettings, setShowSettings] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -80,6 +103,34 @@ export function AIAssistantPage() {
     queryKey: ["ai-sessions"],
     queryFn: listSessions,
   });
+
+  // 加载 AI 助理设置（对齐 Web 端 /api/ai/settings）
+  const { data: aiSettings, refetch: refetchSettings } = useQuery<AISettings>({
+    queryKey: ["ai-settings"],
+    queryFn: async () => {
+      try {
+        const resp = await cloudApi.get<{ settings: AISettings }>("/api/ai/settings");
+        return resp.settings || {};
+      } catch {
+        return {};
+      }
+    },
+  });
+
+  // 助理显示名称（默认 "Lynn"，可被设置覆盖）
+  const assistantName = aiSettings?.assistantName?.trim() || "Lynn";
+  // 助理头像 URL（默认使用 Lynx PNG 图标，对齐 Web 端 avatarUrl: "/lynx-icon-256.png"）
+  const assistantAvatarUrl = aiSettings?.avatarUrl || "/lynx-icon-256.png";
+
+  // 当助理名称变化时，更新欢迎消息（仅当当前是欢迎消息时）
+  useEffect(() => {
+    setMessages((prev) => {
+      if (prev.length === 1 && prev[0].id === "welcome") {
+        return [buildWelcomeMessage(assistantName)];
+      }
+      return prev;
+    });
+  }, [assistantName]);
 
   // 自动滚动到底部
   useEffect(() => {
@@ -207,11 +258,11 @@ export function AIAssistantPage() {
   const handleNewChat = useCallback(() => {
     abortRef.current?.abort();
     setCurrentSessionId(null);
-    setMessages([WELCOME_MESSAGE]);
+    setMessages([buildWelcomeMessage(assistantName)]);
     setInput("");
     setLoading(false);
     inputRef.current?.focus();
-  }, []);
+  }, [assistantName]);
 
   // 清空当前对话
   const handleClear = useCallback(() => {
@@ -242,7 +293,7 @@ export function AIAssistantPage() {
       setMessages(
         mapped.length > 0
           ? mapped
-          : [{ ...WELCOME_MESSAGE, id: "welcome-" + sessionId }]
+          : [{ ...buildWelcomeMessage(assistantName), id: "welcome-" + sessionId }]
       );
       setCurrentSessionId(session.id);
       setShowSessionList(false);
@@ -251,7 +302,7 @@ export function AIAssistantPage() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [assistantName]);
 
   // 删除历史会话
   const handleDeleteSession = useCallback(
@@ -335,14 +386,31 @@ export function AIAssistantPage() {
           >
             {showSessionList ? <PanelLeftClose className="h-4 w-4" /> : <PanelLeftOpen className="h-4 w-4" />}
           </button>
+          {/* 头像 + 标题（对齐 Web 端：使用 lynx PNG 图标 + 可配置助理名） */}
+          <img
+            src={assistantAvatarUrl}
+            alt={assistantName}
+            className="h-10 w-10 rounded-xl object-cover shadow-md"
+            draggable={false}
+            onError={(e) => {
+              (e.currentTarget as HTMLImageElement).style.display = "none";
+            }}
+          />
           <div>
-            <h1 className="text-2xl font-bold tracking-tight text-foreground">Lynx超级助理</h1>
+            <h1 className="text-2xl font-bold tracking-tight text-foreground">{assistantName} · 超级助理</h1>
             <p className="mt-0.5 text-sm text-muted-foreground">
               基于记忆图谱和认知库 · 支持 Function Calling
             </p>
           </div>
         </div>
         <div className="flex items-center gap-2">
+          <button
+            onClick={() => setShowSettings(true)}
+            title="助理设置"
+            className="flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-primary/10 hover:text-foreground"
+          >
+            <Settings className="h-4 w-4" />
+          </button>
           <button
             onClick={handleNewChat}
             title="新建对话"
@@ -430,12 +498,13 @@ export function AIAssistantPage() {
                 key={msg.id}
                 message={msg}
                 onFeedback={handleFeedback}
+                avatarUrl={assistantAvatarUrl}
               />
             ))}
             {loading && messages[messages.length - 1]?.role === "user" && (
               <div className="flex items-center gap-2 text-sm text-muted-foreground">
                 <Loader2 className="h-4 w-4 animate-spin" />
-                Lynn 正在思考...
+                {assistantName} 正在思考...
               </div>
             )}
             {/* 空状态：欢迎语 + 建议卡片 */}
@@ -539,7 +608,7 @@ export function AIAssistantPage() {
       >
         <div className="space-y-4">
           <p className="text-sm text-foreground/80">
-            告诉 Lynn 哪里做得不好，我会学习改进。
+            告诉 {assistantName} 哪里做得不好，我会学习改进。
           </p>
           {feedbackTarget && (
             <div className="rounded-xl border border-border/60 bg-muted/30 p-3">
@@ -576,6 +645,15 @@ export function AIAssistantPage() {
           </div>
         </div>
       </Modal>
+
+      {/* AI 助理设置弹窗（对齐 Web 端 /api/ai/settings） */}
+      <AISettingsModal
+        open={showSettings}
+        onClose={() => setShowSettings(false)}
+        settings={aiSettings}
+        avatarUrl={assistantAvatarUrl}
+        onSaved={() => refetchSettings()}
+      />
     </div>
   );
 }
@@ -585,9 +663,11 @@ export function AIAssistantPage() {
 function MessageBubble({
   message,
   onFeedback,
+  avatarUrl,
 }: {
   message: Message;
   onFeedback: (msg: Message, feedback: "good" | "bad") => void;
+  avatarUrl: string;
 }) {
   const [copied, setCopied] = useState(false);
   const [showToolDetail, setShowToolDetail] = useState(false);
@@ -606,14 +686,28 @@ function MessageBubble({
       animate={{ opacity: 1, y: 0 }}
       className={cn("group flex gap-3", isUser ? "flex-row-reverse" : "flex-row")}
     >
-      <div
-        className={cn(
-          "flex h-8 w-8 shrink-0 items-center justify-center rounded-full",
-          isUser ? "bg-primary/10 text-primary" : "bg-primary text-primary-foreground"
-        )}
-      >
-        {isUser ? <User className="h-4 w-4" /> : <Bot className="h-4 w-4" />}
-      </div>
+      {isUser ? (
+        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
+          <User className="h-4 w-4" />
+        </div>
+      ) : (
+        <img
+          src={avatarUrl}
+          alt="Lynx"
+          className="h-8 w-8 shrink-0 rounded-full object-cover shadow-sm"
+          draggable={false}
+          onError={(e) => {
+            const t = e.currentTarget as HTMLImageElement;
+            t.style.display = "none";
+            const parent = t.parentElement;
+            if (parent) {
+              parent.className =
+                "flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground";
+              parent.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 8V4H8"/><rect width="16" height="12" x="4" y="8" rx="2"/><path d="M2 14h2"/><path d="M20 14h2"/><path d="M15 13v2"/><path d="M9 13v2"/></svg>';
+            }
+          }}
+        />
+      )}
       <div className={cn("flex max-w-[80%] flex-col", isUser && "items-end")}>
         {/* 工具调用卡片 */}
         {message.toolCalled && (
@@ -747,5 +841,228 @@ function MessageBubble({
         )}
       </div>
     </motion.div>
+  );
+}
+
+// ============ AI 助理设置弹窗（对齐 Web 端 /api/ai/settings） ============
+
+function AISettingsModal({
+  open,
+  onClose,
+  settings,
+  avatarUrl,
+  onSaved,
+}: {
+  open: boolean;
+  onClose: () => void;
+  settings?: AISettings;
+  avatarUrl: string;
+  onSaved: () => void;
+}) {
+  const [form, setForm] = useState<AISettings>({});
+  const [saving, setSaving] = useState(false);
+
+  // 同步 props 到本地表单
+  useEffect(() => {
+    if (open && settings) {
+      setForm({
+        assistantName: settings.assistantName || "",
+        avatarUrl: settings.avatarUrl || "",
+        personaStyle: settings.personaStyle || "",
+        distilledStyle: settings.distilledStyle || "",
+        styleStrength: settings.styleStrength ?? 0.5,
+        autoSpeak: settings.autoSpeak ?? false,
+        voiceMode: settings.voiceMode ?? false,
+        feishuNotify: settings.feishuNotify ?? false,
+        hermesTakeover: settings.hermesTakeover ?? false,
+        hermesAutoReport: settings.hermesAutoReport ?? false,
+        hermesReportCron: settings.hermesReportCron || "",
+        larkWebhookUrl: settings.larkWebhookUrl || "",
+      });
+    }
+  }, [open, settings]);
+
+  const update = <K extends keyof AISettings>(key: K, value: AISettings[K]) => {
+    setForm((prev) => ({ ...prev, [key]: value }));
+  };
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      await cloudApi.put("/api/ai/settings", form);
+      toast.success("设置已保存");
+      onSaved();
+      onClose();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "保存失败");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <Modal open={open} onClose={onClose} title="助理设置" size="lg">
+      <div className="space-y-5">
+        {/* 头像预览 */}
+        <div className="flex items-center gap-4">
+          <img
+            src={form.avatarUrl || avatarUrl}
+            alt="助理头像"
+            className="h-16 w-16 rounded-2xl object-cover shadow-md"
+            onError={(e) => {
+              (e.currentTarget as HTMLImageElement).src = "/lynx-icon-256.png";
+            }}
+          />
+          <div className="flex-1">
+            <label className="text-xs font-medium text-foreground">头像 URL</label>
+            <input
+              type="text"
+              value={form.avatarUrl || ""}
+              onChange={(e) => update("avatarUrl", e.target.value)}
+              placeholder="/lynx-icon-256.png"
+              className="mt-1 h-9 w-full rounded-lg border border-border/60 bg-background/40 px-3 text-sm outline-none focus:ring-2 focus:ring-primary/20"
+            />
+            <p className="mt-1 text-[11px] text-muted-foreground">
+              留空使用默认 Lynx 图标，可输入绝对或相对 URL
+            </p>
+          </div>
+        </div>
+
+        {/* 助理名称 */}
+        <div>
+          <label className="text-xs font-medium text-foreground">助理名称</label>
+          <input
+            type="text"
+            value={form.assistantName || ""}
+            onChange={(e) => update("assistantName", e.target.value)}
+            placeholder="Lynn"
+            maxLength={20}
+            className="mt-1 h-9 w-full rounded-lg border border-border/60 bg-background/40 px-3 text-sm outline-none focus:ring-2 focus:ring-primary/20"
+          />
+        </div>
+
+        {/* 人设风格 */}
+        <div>
+          <label className="text-xs font-medium text-foreground">人设风格（Persona）</label>
+          <textarea
+            value={form.personaStyle || ""}
+            onChange={(e) => update("personaStyle", e.target.value)}
+            placeholder="例如：温和、专业、简洁，偶尔用比喻解释复杂概念"
+            rows={3}
+            className="mt-1 w-full resize-none rounded-lg border border-border/60 bg-background/40 p-3 text-sm outline-none focus:ring-2 focus:ring-primary/20"
+          />
+        </div>
+
+        {/* 风格强度 */}
+        <div>
+          <label className="text-xs font-medium text-foreground">
+            风格强度：{((form.styleStrength ?? 0.5) * 100).toFixed(0)}%
+          </label>
+          <input
+            type="range"
+            min={0}
+            max={1}
+            step={0.1}
+            value={form.styleStrength ?? 0.5}
+            onChange={(e) => update("styleStrength", Number(e.target.value))}
+            className="mt-2 w-full accent-primary"
+          />
+        </div>
+
+        {/* 开关组 */}
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+          <ToggleRow
+            label="自动语音播报"
+            checked={form.autoSpeak ?? false}
+            onChange={(v) => update("autoSpeak", v)}
+          />
+          <ToggleRow
+            label="语音模式"
+            checked={form.voiceMode ?? false}
+            onChange={(v) => update("voiceMode", v)}
+          />
+          <ToggleRow
+            label="飞书通知"
+            checked={form.feishuNotify ?? false}
+            onChange={(v) => update("feishuNotify", v)}
+          />
+          <ToggleRow
+            label="Lynx Agent 接管"
+            checked={form.hermesTakeover ?? false}
+            onChange={(v) => update("hermesTakeover", v)}
+          />
+          <ToggleRow
+            label="自动报告"
+            checked={form.hermesAutoReport ?? false}
+            onChange={(v) => update("hermesAutoReport", v)}
+          />
+        </div>
+
+        {/* 飞书 Webhook */}
+        <div>
+          <label className="text-xs font-medium text-foreground">飞书 Webhook URL</label>
+          <input
+            type="text"
+            value={form.larkWebhookUrl || ""}
+            onChange={(e) => update("larkWebhookUrl", e.target.value)}
+            placeholder="https://open.feishu.cn/open-apis/bot/v2/hook/..."
+            className="mt-1 h-9 w-full rounded-lg border border-border/60 bg-background/40 px-3 text-sm outline-none focus:ring-2 focus:ring-primary/20"
+          />
+        </div>
+
+        {/* 操作按钮 */}
+        <div className="flex items-center justify-end gap-2 border-t border-border/40 pt-4">
+          <button onClick={onClose} className="btn-glass flex h-9 items-center px-4 text-sm">
+            取消
+          </button>
+          <button
+            onClick={handleSave}
+            disabled={saving}
+            className="btn-primary-glass flex h-9 items-center gap-1.5 rounded-lg px-4 text-sm disabled:opacity-50"
+          >
+            {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+            保存设置
+          </button>
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
+function ToggleRow({
+  label,
+  checked,
+  onChange,
+}: {
+  label: string;
+  checked: boolean;
+  onChange: (v: boolean) => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={() => onChange(!checked)}
+      className={cn(
+        "flex items-center justify-between rounded-xl border px-3 py-2.5 text-left text-sm transition-colors",
+        checked
+          ? "border-primary/30 bg-primary/5 text-foreground"
+          : "border-border/40 bg-muted/20 text-muted-foreground hover:text-foreground"
+      )}
+    >
+      <span className="font-medium">{label}</span>
+      <span
+        className={cn(
+          "relative h-5 w-9 rounded-full transition-colors",
+          checked ? "bg-primary" : "bg-muted-foreground/30"
+        )}
+      >
+        <span
+          className={cn(
+            "absolute top-0.5 h-4 w-4 rounded-full bg-white shadow-sm transition-transform",
+            checked ? "translate-x-4" : "translate-x-0.5"
+          )}
+        />
+      </span>
+    </button>
   );
 }

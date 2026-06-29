@@ -347,7 +347,7 @@ export async function getLLMConfigForUser(
       userMimoKey = user.userMimoApiKey || null;
       userPreferredProvider = user.userAiProvider || null;
 
-      // 检查职业工作空间的 allowedProviders 限制
+      // 检查职业空间的 allowedProviders 限制
       if (user.profession) {
         const ws = await prisma.professionWorkspace.findUnique({
           where: { profession: user.profession },

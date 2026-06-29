@@ -9,6 +9,8 @@
 
 | 迭代 | 日期 | 任务概要 |
 |------|------|----------|
+| [迭代 54](#迭代-54---2026-06-29) | 2026-06-29 | TTS/ASR模型+新增模型功能+LynxAgent启动修复+角色权限分类+职业空间改名+用户列表优化+开发日志分页 |
+| [迭代 53](#迭代-53---2026-06-29) | 2026-06-29 | Lynx超级助理重命名+UI深度优化+设置页模型卡片列表+弹窗字体优化+select双箭头修复 |
 | [迭代 52](#迭代-52---2026-06-28) | 2026-06-28 | Lynx 安装/卸载/登录闭环彻底修复：全自定义液态玻璃安装页 + 登录态持久化 + 原生设置页 |
 | [迭代 51](#迭代-51---2026-06-28) | 2026-06-28 | Web 端 UI 同步确认版设计：深邃星空蓝 + 液态玻璃 + 最近页面入口 + 通知三态 |
 | [迭代 50](#迭代-50---2026-06-28) | 2026-06-28 | Lynx 原生桌面端安装包重构：深海蓝液态玻璃安装界面 + 版本统一 1.0.0 |
@@ -25,9 +27,116 @@
 | [迭代 39](#迭代-39---2026-06-27) | 2026-06-27 | AI 大模型响应速度深度优化 + 权限系统完善 |
 | [迭代 38](#迭代-38---2026-06-27) | 2026-06-27 | 桌面端完整实现 + 词元统计增强 + 系统性能深度优化 |
 | [迭代 37](#迭代-37---2026-06-27) | 2026-06-27 | AI 助理体验全面优化 + 词元统计页面 |
-| [迭代 36](#迭代-36---2026-06-26) | 2026-06-26 | 角色管理 CRUD + 用户管理打通 + 职业工作空间 |
+| [迭代 36](#迭代-36---2026-06-26) | 2026-06-26 | 角色管理 CRUD + 用户管理打通 + 职业空间 |
 | [迭代 35](#迭代-35---2026-06-26) | 2026-06-26 | 角色管理按职位分配 + 职业定制 AI 工作空间 |
 | [迭代 34](#迭代-34---2026-06-26) | 2026-06-26 | C 盘数据迁移 + 磁盘使用规范 |
+
+---
+
+## 迭代 54 - 2026-06-29
+
+### 任务概要
+补齐 TTS/ASR 模型配置、实现新增自定义模型功能、修复 Lynx Agent 启动逻辑 bug、角色权限按分类管理、职业工作空间改名、用户列表卡片式优化、开发日志分页+时间/关键词筛选。
+
+### 完成内容
+
+#### 1. TTS/ASR 模型补充 + 新增模型功能
+- `src/app/settings/page.tsx`：
+  - `BUILTIN_MODEL_DEFS` 新增 `mimo-tts`（TTS 分类）和 `mimo-asr`（ASR 分类），复用 MiMo API Key
+  - `ModelDef.id` 类型从联合字面量改为 `string`，支持自定义模型 ID
+  - 新增 `isCustom` 和 `_customApiKey` 字段，自定义模型存 localStorage
+  - 实现「新增模型」弹窗：模型名称、提供商、分类、描述、Base URL、模型 ID、API Key
+  - 实现「添加自定义模型」按钮，空状态和卡片列表头部均可触发
+  - 自定义模型支持编辑、移除（localStorage CRUD）
+  - Modal z-index 从 `z-[100]` 提升到 `z-[200]`，背景遮罩从 `bg-black/30` 加深到 `bg-black/50 backdrop-blur-sm`
+
+#### 2. Lynx Agent 启动逻辑修复
+- `src/app/api/hermes/install/route.ts`：
+  - GET 自动同步：条件从 `config?.status === "not_installed"` 扩展为 `!config || config.status === "not_installed"`，覆盖数据库无记录场景
+  - POST start：判断已安装从 `getHermesConfig()` 改为 `detectHermesInstall()`（文件系统检测），数据库无记录时自动补建
+- `src/app/api/hermes/test/route.ts`：
+  - 测试连接不再将 `status` 设为 `"running"`，只更新 `lastCheckedAt` 和 `lastError`，避免"测试连接后状态变已启动"的误导
+
+#### 3. 角色权限按分类管理
+- `src/app/admin/roles/page.tsx`：
+  - `PermissionDef` 类型补全 `group` 字段
+  - 顶部权限目录从"列出所有权限详情"改为"只显示大分类+数量"（11 个分类卡片）
+  - 新增/编辑角色弹窗权限配置重构：分类下拉筛选 + 关键词搜索 + 全选本页 + 按分类分组展示
+  - 打开/关闭弹窗时重置筛选状态
+
+#### 4. 职业工作空间 → 职业空间改名
+- 16 个文件、43 处"职业工作空间"替换为"职业空间"（URL 路径 `/profession-workspaces` 保留不变）
+
+#### 5. 用户管理列表卡片式优化
+- `src/app/admin/users/page.tsx`：
+  - 从传统 `<table>` 重构为卡片式列表（首字母头像 + 用户名 + 显示名/邮箱 + 角色徽章 + 状态徽章）
+  - 响应式布局：sm 显示用户信息，md 显示角色，lg 显示状态和创建时间
+  - 禁用状态在用户名旁显示红色徽章
+
+#### 6. 开发日志分页 + 时间/关键词筛选
+- `src/app/api/dev-log/route.ts`：
+  - 新增 `parseDevLog()` 函数，按 `## 迭代 N - YYYY-MM-DD` 切分为结构化数组
+  - 返回 `{ content, entries, total }`，entries 含 number/date/title/rawContent
+- `src/app/dev-log/page.tsx`：
+  - 重写为分页模式：`SearchInput` 关键词搜索 + `FilterSelect` 日期筛选 + `Pagination` 分页（默认5条/页）
+  - 每个迭代卡片头部 sticky 显示迭代号+日期+标题
+  - 内容区 `max-h-[600px] overflow-y-auto` 独立滚动
+- `src/lib/help-content.ts`：新增 `dev-log` 使用说明条目
+
+#### 7. 弹窗 select 双箭头修复（延续迭代53）
+- `src/app/settings/page.tsx` 新增模型弹窗的 select 添加 `appearance-none`
+
+### 自测结果
+- `npx tsc --noEmit`：通过（0 错误）
+- 开发日志 API 返回结构化数据验证通过
+- Lynx Agent 启动逻辑修复：已安装状态下点击启动不再提示"请先安装"
+
+### Commit
+- 待提交
+
+---
+
+## 迭代 53 - 2026-06-29
+
+### 任务概要
+AI专属助理全局改名为 Lynx超级助理，默认头像改用卡通猞猁；历史对话/新对话/设置面板深度优化样式与交互；AI工作空间补齐使用说明；修复所有使用说明弹窗滚动与标题重叠问题；多页面弹窗字体深度优化；修复23处 select 双箭头重复显示问题；设置页 AI 模型从表单式重构为卡片列表+分类 Tab+编辑弹窗模式。
+
+### 完成内容
+
+#### 1. Lynx 超级助理重命名 + 猞猁头像
+- Web + desktop-native 全局同步：`AI 专属助理` → `Lynx超级助理`（涉及 Sidebar/CommandPalette/RecentTabs/help-content 等）
+- 默认头像：emoji 从 🤖 改为 🦊，avatarUrl 从 null 改为 `/lynx-icon-256.png`
+- 涉及文件：`src/app/ai/assistant/page.tsx`、`src/components/ai/AssistantChat.tsx`、`src/app/api/ai/settings/route.ts` 等
+
+#### 2. 历史对话/新对话/设置面板深度优化
+- 历史对话侧边栏：`bg-card/50` → `bg-card/80 backdrop-blur-xl`，标题加图标+计数，空状态改为图标+两行文案，选中项加 `ring-1 ring-cognition/20`，字号从 `text-xs` → `text-sm`
+- 设置面板：header 改为 `sticky top-0 z-10 bg-background/95 backdrop-blur-xl`，label 从 `text-xs` → `text-sm font-medium text-foreground`，emoji 按钮从 `h-8 w-8` → `h-9 w-9`
+
+#### 3. AI 工作空间使用说明 + 弹窗滚动修复
+- `src/app/ai/workspace/page.tsx`：新增 `<HelpButton contentKey="ai-workspace" />`
+- `src/components/layout/HelpButton.tsx`：sticky header/footer 添加 `bg-background/95 backdrop-blur-xl z-10`，解决滚动时内容透出重叠
+
+#### 4. 多页面弹窗字体优化
+- 7 个文件：`text-[9/10/11px]` → `text-xs`，`text-muted-foreground` → `text-foreground/80`
+- 涉及：ai/workspace、ai/flows、inbox、skills、UserAIKeyConfig、ai/assistant、skills/market
+
+#### 5. select 双箭头修复
+- 23 处 `<select>` 添加 `appearance-none`，覆盖 admin/ai/skills/settings/flows 全域
+
+#### 6. 设置页 AI 模型卡片列表
+- `src/app/settings/page.tsx`：
+  - 删除旧 `ProviderForm`/`ProviderCard`，重写 `AIConfigSection`
+  - 7 分类 Tab：单模态/多模态/图片/视频/向量/TTS/ASR
+  - 模型卡片：状态徽章 + 配置摘要 + 编辑/设为默认/移除按钮
+  - 编辑弹窗：API Key + Base URL + 模型名称
+- `HermesConfigSection` UI 优化：`rounded-xl`/`p-4`/`text-sm` 网格布局
+
+### 自测结果
+- `npx tsc --noEmit`：通过（0 错误）
+- 已提交推送 Gitee：commit `60eea0ca`
+
+### Commit
+- `60eea0ca` feat(phase-6): Lynx超级助理重命名+UI深度优化+设置页模型卡片列表+弹窗字体优化+select双箭头修复
 
 ---
 
@@ -1128,7 +1237,7 @@ AI 大模型响应速度深度优化（全链路流式输出）+ 系统性能优
 - **职业管理 AI 大模型权限**：
   - Prisma schema: `ProfessionWorkspace` 新增 `allowedProviders Json @default("[]")` 字段
   - `/api/admin/profession-workspaces` GET/POST 支持 `allowedProviders` 字段
-  - 职业工作空间页面新增 allowedProviders 选择 UI（DeepSeek/MiMo 切换按钮）
+  - 职业空间页面新增 allowedProviders 选择 UI（DeepSeek/MiMo 切换按钮）
   - `getLLMConfigForUser` 读取用户职业的 `allowedProviders` 限制
 
 #### 15. 系统性能深度优化
@@ -1145,7 +1254,7 @@ AI 大模型响应速度深度优化（全链路流式输出）+ 系统性能优
   - 新增 `compiler.removeConsole`（生产环境移除 console.log，保留 error/warn）
 - **API 路由 N+1 修复**：
   - `cognitions/route.ts` POST：3 个串行 for 循环 `create` → `createMany` 一次性批量插入
-  - `ai/chat/route.ts`：职业工作空间查询 + AI 设置查询 → `Promise.allSettled` 并行化（减少 2 次 DB 往返）
+  - `ai/chat/route.ts`：职业空间查询 + AI 设置查询 → `Promise.allSettled` 并行化（减少 2 次 DB 往返）
   - `tasks/route.ts` GET：新增 `take: 100` 上限保护
 - **客户端 N+1 fetch 修复**：
   - `board/page.tsx`：认知入库串行 for 循环 fetch → `Promise.all` 并行
@@ -1276,7 +1385,7 @@ AI 助理体验全面优化：Token 统计显示 + 流式回复 + 词元统计�
 ## 迭代 36 - 2026-06-26
 
 ### 任务概要
-悬浮聊天窗技能菜单遮挡修复 + 端口 5176 规范强化 + 角色管理完整 CRUD + 用户管理打通 + 职业工作空间简化 + 头像上传 + 使用说明补全。
+悬浮聊天窗技能菜单遮挡修复 + 端口 5176 规范强化 + 角色管理完整 CRUD + 用户管理打通 + 职业空间简化 + 头像上传 + 使用说明补全。
 
 ### 完成内容
 
@@ -1306,7 +1415,7 @@ AI 助理体验全面优化：Token 统计显示 + 流式回复 + 词元统计�
   - 筛选器角色列表动态拉取
   - RoleBadge 动态显示 displayName + 职业图标
 
-#### 5. 职业工作空间简化
+#### 5. 职业空间简化
 - **`src/app/admin/profession-workspaces/page.tsx`**：
   - 删除"快捷技能可见集"配置维度（改为用户自配）
   - 保留 3 维度：专属功能模块 + 可用 AI 模型 + System Prompt
@@ -1322,7 +1431,7 @@ AI 助理体验全面优化：Token 统计显示 + 流式回复 + 词元统计�
 #### 7. 使用说明补全
 - **`DEVELOPMENT_SPEC.md`** 新增 §3.1 功能模块使用说明规范
 - **`src/lib/help-content.ts`** 新增 4 个 key：`profession-workspaces`、`admin-users`、`admin-roles`、`settings-profile`
-- **4 个页面加 HelpButton**：职业工作空间、用户管理、角色管理、个人资料
+- **4 个页面加 HelpButton**：职业空间、用户管理、角色管理、个人资料
 
 ### 自测结果
 - TypeScript 编译：`npx tsc --noEmit` 通过（src 目录零错误）
@@ -1330,7 +1439,7 @@ AI 助理体验全面优化：Token 统计显示 + 流式回复 + 词元统计�
 - Git 2.54.0 安装到 D:\Git，PATH 配置完成
 
 ### Commit
-- `62793508` - feat: 迭代36 - 悬浮窗技能菜单Portal修复+端口5176规范+角色CRUD+用户管理打通+职业工作空间简化+头像上传+使用说明补全
+- `62793508` - feat: 迭代36 - 悬浮窗技能菜单Portal修复+端口5176规范+角色CRUD+用户管理打通+职业空间简化+头像上传+使用说明补全
 - push 待手动执行（Gitee 需要认证）
 
 ---
@@ -1369,16 +1478,16 @@ AI 助理体验全面优化：Token 统计显示 + 流式回复 + 词元统计�
 - **用户工作空间 API**（`GET /api/ai/workspace`）：按 `Role.profession` 加载工作空间配置
 - **Chat route 注入**（`src/app/api/ai/chat/route.ts`）：
   - auth 后加载 profession workspace
-  - system prompt 追加"职业工作空间设定" + "可用工具白名单"
+  - system prompt 追加"职业空间设定" + "可用工具白名单"
   - 拦截不在白名单的工具调用（返回"工具未授权"）
   - 应用职业默认 model/reasoningMode
 - **Admin 配置页**（`src/app/admin/profession-workspaces/page.tsx`）：12 岗位 4 维度配置（图标/颜色/描述/快捷技能可见集/system prompt/默认模型/工具白名单/启用开关）+ 只读模式 + 编辑模式 + 重置默认
 - **前端注入**（`AssistantChat.tsx`）：
-  - `useWorkspace` hook 拉取职业工作空间
+  - `useWorkspace` hook 拉取职业空间
   - `visibleQuickCommands` 根据 workspace.quickCommands 过滤
   - useEffect 应用职业默认 model（仅初始化一次）
   - 头部副标题显示职业：`${workspace.icon} ${workspace.displayName} · 共享会话`
-- **导航**：Sidebar 管理组新增"职业工作空间"入口，AppShell `PAGE_TITLE_MAP` 加对应标题
+- **导航**：Sidebar 管理组新增"职业空间"入口，AppShell `PAGE_TITLE_MAP` 加对应标题
 
 ### 自测结果
 - TypeScript 编译：`npx tsc --noEmit` 通过（exit 0）
@@ -1387,7 +1496,7 @@ AI 助理体验全面优化：Token 统计显示 + 流式回复 + 词元统计�
   2. /api/ai/workspace 返回 founder 默认工作空间（profession/displayName/quickCommands/systemPrompt/allowedTools 全对）✓
   3. /api/ai/tools 返回 23 个 AI 工具 ✓
   4. /api/admin/profession-workspaces/quick-commands 返回 6 个快捷技能 ✓
-  5. /api/admin/profession-workspaces 返回 12 个职业工作空间 ✓
+  5. /api/admin/profession-workspaces 返回 12 个职业空间 ✓
   6. /api/admin/roles 角色职业绑定正确（admin→founder, editor→pm, viewer→null）✓
   7. POST 保存 founder 自定义配置 ✓
   8. 再查 workspace 确认自定义配置已生效 ✓

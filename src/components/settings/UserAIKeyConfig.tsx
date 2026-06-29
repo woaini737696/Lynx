@@ -249,7 +249,7 @@ export function UserAIKeyConfig() {
           <ul className="ml-4 list-disc space-y-0.5">
             <li>配置你自己的 Key 后，AI 对话将消耗你的配额，不影响管理员配额</li>
             <li>Key 加密存储在数据库中，仅你本人可查看和修改</li>
-            <li>如职业工作空间限制了允许的模型，只能使用允许列表内的模型</li>
+            <li>如职业空间限制了允许的模型，只能使用允许列表内的模型</li>
             <li>留空则使用管理员配置的全局 Key（默认无需配置）</li>
           </ul>
         </div>

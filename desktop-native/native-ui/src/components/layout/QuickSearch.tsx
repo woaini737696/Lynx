@@ -1,17 +1,18 @@
 import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
-import { Search, Command, X, Sparkles, CornerDownLeft } from "lucide-react";
+import { Search, X, CornerDownLeft } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
 const suggestions = [
   { id: "focus", label: "今日聚焦", to: "/focus" },
   { id: "inbox", label: "Inbox 灵感收件箱", to: "/inbox" },
-  { id: "search", label: "全局搜索", to: "/search" },
   { id: "cognition", label: "认知库", to: "/cognition" },
   { id: "board", label: "决策看板", to: "/board" },
   { id: "graveyard", label: "灵感墓地", to: "/graveyard" },
   { id: "ai-workspace", label: "AI 工作空间", to: "/ai/workspace" },
+  { id: "ai-flows", label: "AI 工作流", to: "/ai/flows" },
   { id: "ai-assistant", label: "Lynx超级助理", to: "/ai/assistant" },
+  { id: "skills", label: "技能管理", to: "/skills" },
   { id: "agent", label: "Lynx Agent", to: "/agent" },
   { id: "settings", label: "设置", to: "/settings" },
 ];
@@ -80,10 +81,10 @@ export function QuickSearch() {
           <Search className="h-4 w-4" />
           <span>快速搜索...</span>
         </div>
-        <div className="flex items-center gap-1 text-xs opacity-60">
-          <Command className="h-3 w-3" />
-          <span>K</span>
-        </div>
+        {/* 快捷键提示 - 修复位置：紧贴右侧，使用 Ctrl+K 文字（Windows 桌面端） */}
+        <kbd className="flex shrink-0 items-center gap-0.5 rounded border border-border/60 bg-muted/30 px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground">
+          Ctrl K
+        </kbd>
       </button>
 
       <AnimatePresence>
@@ -113,7 +114,7 @@ export function QuickSearch() {
                     setActiveIndex(0);
                   }}
                   onKeyDown={handleKeyDown}
-                  placeholder="搜索功能、页面或输入 AI 指令..."
+                  placeholder="搜索页面或功能..."
                   className="flex-1 bg-transparent text-base text-foreground outline-none placeholder:text-muted-foreground"
                 />
                 <button
@@ -126,55 +127,31 @@ export function QuickSearch() {
 
               <div className="max-h-[50vh] overflow-auto p-2">
                 <div className="px-3 py-2 text-xs font-medium text-muted-foreground">
-                  {query.trim() ? "全局内容搜索" : "快捷跳转"}
+                  {query.trim() ? "搜索结果" : "快捷跳转"}
                 </div>
 
-                {/* 当有输入时，显示"在全局搜索中查看"入口 */}
-                {query.trim() && (
-                  <div
-                    onClick={() => jumpTo(`/search`)}
-                    className="flex cursor-pointer items-center justify-between rounded-lg bg-primary/5 px-3 py-2.5 text-sm text-primary transition-colors hover:bg-primary/10"
-                  >
-                    <div className="flex items-center gap-2.5">
-                      <Sparkles className="h-4 w-4" />
-                      在全局搜索中查看"{query.trim()}"
+                {filtered.length > 0 ? (
+                  filtered.map((item, idx) => (
+                    <div
+                      key={item.id}
+                      onClick={() => jumpTo(item.to)}
+                      onMouseEnter={() => setActiveIndex(idx)}
+                      className={`flex cursor-pointer items-center justify-between rounded-lg px-3 py-2.5 text-sm transition-colors ${
+                        idx === activeIndex
+                          ? "bg-primary/10 text-foreground"
+                          : "text-foreground/80 hover:bg-primary/10 hover:text-foreground"
+                      }`}
+                    >
+                      <div className="flex items-center gap-2.5">
+                        <Search className="h-4 w-4 text-primary" />
+                        {item.label}
+                      </div>
+                      {idx === activeIndex && (
+                        <CornerDownLeft className="h-3.5 w-3.5 text-muted-foreground" />
+                      )}
                     </div>
-                    <CornerDownLeft className="h-3.5 w-3.5 opacity-60" />
-                  </div>
-                )}
-
-                {/* 快捷跳转列表（按输入过滤） */}
-                {filtered.length > 0 && (
-                  <>
-                    {query.trim() && (
-                      <div className="px-3 pt-2 pb-1 text-xs font-medium text-muted-foreground">
-                        页面
-                      </div>
-                    )}
-                    {filtered.map((item, idx) => (
-                      <div
-                        key={item.id}
-                        onClick={() => jumpTo(item.to)}
-                        onMouseEnter={() => setActiveIndex(idx)}
-                        className={`flex cursor-pointer items-center justify-between rounded-lg px-3 py-2.5 text-sm transition-colors ${
-                          idx === activeIndex
-                            ? "bg-primary/10 text-foreground"
-                            : "text-foreground/80 hover:bg-primary/10 hover:text-foreground"
-                        }`}
-                      >
-                        <div className="flex items-center gap-2.5">
-                          <Sparkles className="h-4 w-4 text-primary" />
-                          {item.label}
-                        </div>
-                        {idx === activeIndex && (
-                          <CornerDownLeft className="h-3.5 w-3.5 text-muted-foreground" />
-                        )}
-                      </div>
-                    ))}
-                  </>
-                )}
-
-                {filtered.length === 0 && !query.trim() && (
+                  ))
+                ) : (
                   <div className="px-3 py-4 text-center text-xs text-muted-foreground">
                     无匹配页面
                   </div>

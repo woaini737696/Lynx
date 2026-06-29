@@ -22,11 +22,12 @@ export async function GET() {
     const config = await getHermesConfig(auth.user.id);
     const detect = await detectHermesInstall();
 
-    // 如果检测到已安装但数据库状态为 not_installed，自动更新
-    if (detect.installed && config?.status === "not_installed") {
+    // 如果检测到已安装但数据库无记录或状态为 not_installed，自动补建/更新
+    if (detect.installed && (!config || config.status === "not_installed")) {
       await upsertHermesConfig(auth.user.id, {
         status: "installed",
         installedAt: new Date(),
+        ...(config ? {} : { endpoint: "http://localhost:9119" }),
       });
     }
 
@@ -96,12 +97,22 @@ export async function POST(req: NextRequest) {
     }
 
     if (action === "start") {
-      const config = await getHermesConfig(auth.user.id);
-      if (!config) {
+      // 用文件系统检测判断是否已安装，而非数据库记录
+      const detect = await detectHermesInstall();
+      if (!detect.installed) {
         return NextResponse.json(
-          { error: "请先安装 Hermes Agent" },
+          { error: "请先安装 Hermes Agent（运行 pip install hermes-agent）" },
           { status: 400 }
         );
+      }
+      // 数据库无记录时自动补建（用户可能通过 pip 手动安装）
+      const config = await getHermesConfig(auth.user.id);
+      if (!config) {
+        await upsertHermesConfig(auth.user.id, {
+          status: "installed",
+          installedAt: new Date(),
+          endpoint: `http://localhost:${port || 9119}`,
+        });
       }
       const targetPort = port || 9119; // Hermes Dashboard 默认端口
       const result = await startHermesAgent(targetPort);

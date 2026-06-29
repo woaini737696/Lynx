@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useMemo } from "react";
 import {
   Briefcase,
   Save,
@@ -17,6 +17,7 @@ import { PageHeader, Card, Button, LoadingState } from "@/components/layout/Page
 import { HelpButton } from "@/components/layout/HelpButton";
 import { Modal } from "@/components/ui/Modal";
 import { toast } from "@/components/ui/toast";
+import { SearchInput, Pagination, useClientPagination } from "@/components/ui/ListControls";
 
 type Workspace = {
   id: string | null;
@@ -64,6 +65,9 @@ export default function ProfessionWorkspacesPage() {
   // 编辑态（深拷贝目标 workspace，独立编辑）
   const [editForm, setEditForm] = useState<Workspace | null>(null);
 
+  // 岗位列表搜索
+  const [search, setSearch] = useState("");
+
   const load = useCallback(async () => {
     try {
       const [wsRes, toolsRes, sessionRes] = await Promise.all([
@@ -94,6 +98,27 @@ export default function ProfessionWorkspacesPage() {
   useEffect(() => {
     load();
   }, [load]);
+
+  // 岗位列表按关键词过滤 + 客户端分页
+  const filteredWorkspaces = useMemo(() => {
+    if (!search.trim()) return workspaces;
+    const q = search.trim().toLowerCase();
+    return workspaces.filter(
+      (ws) =>
+        ws.displayName.toLowerCase().includes(q) ||
+        (ws.description || "").toLowerCase().includes(q) ||
+        ws.profession.toLowerCase().includes(q)
+    );
+  }, [workspaces, search]);
+
+  const {
+    page,
+    pageSize,
+    total,
+    paginated,
+    onPageChange,
+    onPageSizeChange,
+  } = useClientPagination(filteredWorkspaces, 12);
 
   const startEdit = (ws: Workspace) => {
     setEditingKey(ws.profession);
@@ -179,19 +204,19 @@ export default function ProfessionWorkspacesPage() {
     }
   };
 
-  if (loading) return <LoadingState title="职业工作空间" />;
+  if (loading) return <LoadingState title="职业空间" />;
 
   if (!isAdmin) {
     return (
       <div className="p-4 sm:p-8">
-        <PageHeader title="职业工作空间" subtitle="为不同岗位定制 AI 工作空间" />
+        <PageHeader title="职业空间" subtitle="为不同岗位定制 AI 工作空间" />
         <Card className="flex flex-col items-center justify-center py-16 text-center">
           <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-2xl ios-glass-sm">
             <Briefcase className="h-6 w-6 text-muted-foreground" />
           </div>
           <h3 className="text-base font-semibold text-foreground">权限不足</h3>
           <p className="mt-2 max-w-xs text-sm text-muted-foreground">
-            仅管理员可配置职业工作空间
+            仅管理员可配置职业空间
           </p>
         </Card>
       </div>
@@ -201,7 +226,7 @@ export default function ProfessionWorkspacesPage() {
   return (
     <div className="p-4 sm:p-8">
       <PageHeader
-        title="职业工作空间"
+        title="职业空间"
         subtitle="为 12 个岗位差异化配置 AI 助理：System Prompt · 默认模型 · 可见工具"
         action={<HelpButton contentKey="profession-workspaces" />}
       />
@@ -229,25 +254,50 @@ export default function ProfessionWorkspacesPage() {
         </div>
       </Card>
 
+      {/* 岗位搜索框 */}
+      <SearchInput
+        value={search}
+        onChange={setSearch}
+        placeholder="搜索岗位名称..."
+        className="mb-4"
+      />
+
       {/* 12 岗位卡片网格 */}
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
-        {workspaces.map((ws) => (
-          <WorkspaceCard
-            key={ws.profession}
-            ws={ws}
-            tools={tools}
-            isEditing={editingKey === ws.profession}
-            editForm={editingKey === ws.profession ? editForm : null}
-            onStartEdit={() => startEdit(ws)}
-            onCancelEdit={cancelEdit}
-            onChangeForm={setEditForm}
-            onSave={handleSave}
-            saving={saving}
-            onReset={() => handleReset(ws)}
-            onToggleTool={toggleTool}
-          />
-        ))}
-      </div>
+      {filteredWorkspaces.length === 0 ? (
+        <Card className="py-12 text-center text-muted-foreground">
+          {workspaces.length === 0 ? "暂无岗位数据" : "没有匹配的岗位"}
+        </Card>
+      ) : (
+        <>
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+            {paginated.map((ws) => (
+              <WorkspaceCard
+                key={ws.profession}
+                ws={ws}
+                tools={tools}
+                isEditing={editingKey === ws.profession}
+                editForm={editingKey === ws.profession ? editForm : null}
+                onStartEdit={() => startEdit(ws)}
+                onCancelEdit={cancelEdit}
+                onChangeForm={setEditForm}
+                onSave={handleSave}
+                saving={saving}
+                onReset={() => handleReset(ws)}
+                onToggleTool={toggleTool}
+              />
+            ))}
+          </div>
+          <div className="mt-4">
+            <Pagination
+              page={page}
+              pageSize={pageSize}
+              total={total}
+              onPageChange={onPageChange}
+              onPageSizeChange={onPageSizeChange}
+            />
+          </div>
+        </>
+      )}
 
       {/* 重置工作空间二次确认弹窗（替代 confirm()） */}
       <Modal

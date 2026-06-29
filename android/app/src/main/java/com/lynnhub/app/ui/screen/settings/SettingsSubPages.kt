@@ -338,8 +338,8 @@ fun ProfilePage(onBack: () -> Unit, viewModel: ProfileViewModel = hiltViewModel(
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        // 职业工作空间（只读）
-        FieldLabel("职业工作空间")
+        // 职业空间（只读）
+        FieldLabel("职业空间")
         Box(
             modifier = Modifier
                 .fillMaxWidth()

@@ -293,119 +293,126 @@ export default function UsersPage() {
         />
       </div>
 
-      {/* 用户列表 */}
+      {/* 用户列表 - 卡片式列表 */}
       <Card className="overflow-hidden p-0">
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-border ios-glass-sm text-xs text-muted-foreground">
-                <th className="px-4 py-3 text-left font-medium">用户名</th>
-                <th className="px-4 py-3 text-left font-medium">显示名</th>
-                <th className="px-4 py-3 text-left font-medium">邮箱</th>
-                <th className="px-4 py-3 text-left font-medium">角色</th>
-                <th className="px-4 py-3 text-left font-medium">状态</th>
-                <th className="px-4 py-3 text-left font-medium">创建时间</th>
-                <th className="px-4 py-3 text-right font-medium">操作</th>
-              </tr>
-            </thead>
-            <tbody>
-              {users.length === 0 ? (
-                <tr>
-                  <td
-                    colSpan={7}
-                    className="px-4 py-12 text-center text-muted-foreground"
-                  >
-                    暂无用户数据
-                  </td>
-                </tr>
-              ) : filtered.length === 0 ? (
-                <tr>
-                  <td
-                    colSpan={7}
-                    className="px-4 py-12 text-center text-muted-foreground"
-                  >
-                    没有匹配的用户
-                  </td>
-                </tr>
-              ) : (
-                paginated.map((user) => (
-                  <tr
-                    key={user.id}
-                    className="border-b border-border/60 transition-colors last:border-0 hover:bg-primary/10 hover:text-primary"
-                    onContextMenu={(e) => openContextMenu(e, [
-                      { label: "编辑用户", icon: <Pencil className="h-3.5 w-3.5" />, onClick: () => openEdit(user) },
-                      { separator: true },
-                      { label: "删除用户", icon: <Trash2 className="h-3.5 w-3.5" />, danger: true, disabled: currentUser?.id === user.id, onClick: () => setDeleteTarget(user) },
-                    ])}
-                  >
-                    <td className="px-4 py-3">
+        {/* 表头 */}
+        <div className="hidden border-b border-border ios-glass-sm px-4 py-2.5 sm:flex sm:items-center sm:gap-3 text-xs font-medium text-muted-foreground">
+          <div className="flex-1 min-w-0">用户</div>
+          <div className="hidden md:block w-40 shrink-0">角色</div>
+          <div className="hidden lg:block w-24 shrink-0">状态</div>
+          <div className="hidden lg:block w-32 shrink-0">创建时间</div>
+          <div className="w-20 shrink-0 text-right">操作</div>
+        </div>
+
+        {/* 列表内容 */}
+        <div className="divide-y divide-border/50">
+          {users.length === 0 ? (
+            <div className="px-4 py-12 text-center text-sm text-muted-foreground">
+              暂无用户数据
+            </div>
+          ) : filtered.length === 0 ? (
+            <div className="px-4 py-12 text-center text-sm text-muted-foreground">
+              没有匹配的用户
+            </div>
+          ) : (
+            paginated.map((user) => {
+              const initial = (user.displayName || user.username || "?").charAt(0).toUpperCase();
+              const isMe = currentUser?.id === user.id;
+              return (
+                <div
+                  key={user.id}
+                  className="flex items-center gap-3 px-4 py-3 transition-colors hover:bg-primary/5"
+                  onContextMenu={(e) => openContextMenu(e, [
+                    { label: "编辑用户", icon: <Pencil className="h-3.5 w-3.5" />, onClick: () => openEdit(user) },
+                    { separator: true },
+                    { label: "删除用户", icon: <Trash2 className="h-3.5 w-3.5" />, danger: true, disabled: isMe, onClick: () => setDeleteTarget(user) },
+                  ])}
+                >
+                  {/* 用户信息（头像+用户名+邮箱） */}
+                  <div className="flex flex-1 min-w-0 items-center gap-3">
+                    <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-sm font-semibold ${
+                      isMe ? "bg-northstar/15 text-northstar" : "bg-primary/10 text-primary"
+                    }`}>
+                      {initial}
+                    </div>
+                    <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-2">
-                        <span className="font-medium text-foreground">
+                        <span className="text-sm font-medium text-foreground truncate">
                           {user.username}
                         </span>
-                        {currentUser?.id === user.id && (
-                          <span className="rounded bg-northstar/10 px-1.5 py-0.5 text-[10px] text-northstar">
+                        {isMe && (
+                          <span className="rounded bg-northstar/10 px-1.5 py-0.5 text-[10px] font-medium text-northstar">
                             我
                           </span>
                         )}
+                        {!user.active && (
+                          <span className="rounded bg-graveyard/10 px-1.5 py-0.5 text-[10px] font-medium text-graveyard">
+                            已禁用
+                          </span>
+                        )}
                       </div>
-                    </td>
-                    <td className="px-4 py-3 text-foreground/80">
-                      {user.displayName || "-"}
-                    </td>
-                    <td className="px-4 py-3 text-muted-foreground">
-                      {user.email || "-"}
-                    </td>
-                    <td className="px-4 py-3">
-                      <RoleBadge role={user.role} roleMap={roleMap} />
-                    </td>
-                    <td className="px-4 py-3">
-                      {user.active ? (
-                        <span className="inline-flex items-center gap-1 text-xs text-task">
-                          <span className="h-1.5 w-1.5 rounded-full bg-task" />
-                          启用
-                        </span>
-                      ) : (
-                        <span className="inline-flex items-center gap-1 text-xs text-graveyard">
-                          <span className="h-1.5 w-1.5 rounded-full bg-graveyard" />
-                          禁用
-                        </span>
-                      )}
-                    </td>
-                    <td className="px-4 py-3 text-xs text-muted-foreground">
-                      {formatDate(user.createdAt)}
-                    </td>
-                    <td className="px-4 py-3">
-                      <div className="flex items-center justify-end gap-1">
-                        <button
-                          onClick={() => openEdit(user)}
-                          className="rounded-lg p-1.5 text-muted-foreground transition-colors hover:bg-primary/10 hover:text-primary"
-                          title="编辑"
-                        >
-                          <Pencil className="h-3.5 w-3.5" />
-                        </button>
-                        <button
-                          onClick={() => setDeleteTarget(user)}
-                          disabled={currentUser?.id === user.id}
-                          className="rounded-lg p-1.5 text-muted-foreground transition-colors hover:bg-graveyard/10 hover:text-graveyard disabled:cursor-not-allowed disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-muted-foreground"
-                          title={
-                            currentUser?.id === user.id
-                              ? "不能删除自己"
-                              : "删除"
-                          }
-                        >
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </button>
+                      <div className="mt-0.5 truncate text-xs text-muted-foreground">
+                        {user.displayName ? (
+                          <span className="text-foreground/70">{user.displayName}</span>
+                        ) : null}
+                        {user.email ? (
+                          <span className={user.displayName ? "ml-2" : ""}>{user.email}</span>
+                        ) : null}
+                        {!user.displayName && !user.email ? "-" : null}
                       </div>
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
+                    </div>
+                  </div>
+
+                  {/* 角色 */}
+                  <div className="hidden md:block w-40 shrink-0">
+                    <RoleBadge role={user.role} roleMap={roleMap} />
+                  </div>
+
+                  {/* 状态 */}
+                  <div className="hidden lg:block w-24 shrink-0">
+                    {user.active ? (
+                      <span className="inline-flex items-center gap-1 rounded-full bg-task/10 px-2 py-0.5 text-xs font-medium text-task">
+                        <span className="h-1.5 w-1.5 rounded-full bg-task" />
+                        启用
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1 rounded-full bg-graveyard/10 px-2 py-0.5 text-xs font-medium text-graveyard">
+                        <span className="h-1.5 w-1.5 rounded-full bg-graveyard" />
+                        禁用
+                      </span>
+                    )}
+                  </div>
+
+                  {/* 创建时间 */}
+                  <div className="hidden lg:block w-32 shrink-0 text-xs text-muted-foreground">
+                    {formatDate(user.createdAt)}
+                  </div>
+
+                  {/* 操作 */}
+                  <div className="flex w-20 shrink-0 items-center justify-end gap-1">
+                    <button
+                      onClick={() => openEdit(user)}
+                      className="rounded-lg p-1.5 text-muted-foreground transition-colors hover:bg-primary/10 hover:text-primary"
+                      title="编辑"
+                    >
+                      <Pencil className="h-3.5 w-3.5" />
+                    </button>
+                    <button
+                      onClick={() => setDeleteTarget(user)}
+                      disabled={isMe}
+                      className="rounded-lg p-1.5 text-muted-foreground transition-colors hover:bg-graveyard/10 hover:text-graveyard disabled:cursor-not-allowed disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-muted-foreground"
+                      title={isMe ? "不能删除自己" : "删除"}
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+                </div>
+              );
+            })
+          )}
         </div>
         {filtered.length > 0 && (
-          <div className="px-4 py-3">
+          <div className="border-t border-border px-4 py-3">
             <Pagination page={page} pageSize={pageSize} total={total} onPageChange={onPageChange} onPageSizeChange={onPageSizeChange} />
           </div>
         )}

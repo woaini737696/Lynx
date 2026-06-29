@@ -1,4 +1,4 @@
-package com.lynnhub.app.ui.screen.panel
+package com.lynnhub.app.ui.screen.tasks
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -10,8 +10,6 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.OutlinedTextField
@@ -20,10 +18,12 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextDecoration
@@ -31,139 +31,60 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
-import androidx.lifecycle.ViewModel
-import androidx.lifecycle.viewModelScope
-import com.lynnhub.app.data.remote.ApiService
-import com.lynnhub.app.data.remote.dto.TaskCreateRequest
+import com.lynnhub.app.data.local.UserPreferences
 import com.lynnhub.app.data.remote.dto.TaskDto
-import com.lynnhub.app.data.remote.dto.TaskPatchRequest
+import com.lynnhub.app.ui.component.CoreScreenHeader
+import com.lynnhub.app.ui.component.LynxIcons
 import com.lynnhub.app.ui.screen.home.formatRelativeTime
+import com.lynnhub.app.ui.screen.panel.TaskFilter
+import com.lynnhub.app.ui.screen.panel.TaskPanelViewModel
 import com.lynnhub.app.ui.theme.*
-import dagger.hilt.android.lifecycle.HiltViewModel
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.update
-import kotlinx.coroutines.launch
-import javax.inject.Inject
 
-// ============ 任务视图浮层（下滑进入，上滑返回） ============
-// 设计要点：
-// 1. 按"进行中"/"已完成"分组展示看板任务
-// 2. 左侧圆形复选框点击切换完成状态（乐观更新 + 失败回滚）
-// 3. 已完成任务内容加删除线 + 更暗文字
-// 4. 底部输入框回车即创建（column="task"）
-
-enum class TaskFilter { ALL, ACTIVE, DONE }
-
-data class TaskPanelUiState(
-    val tasks: List<TaskDto> = emptyList(),
-    val text: String = "",
-    val isSubmitting: Boolean = false,
-    val isLoading: Boolean = true,
-    val filter: TaskFilter = TaskFilter.ACTIVE
-)
-
-@HiltViewModel
-class TaskPanelViewModel @Inject constructor(
-    private val apiService: ApiService
-) : ViewModel() {
-
-    private val _uiState = MutableStateFlow(TaskPanelUiState())
-    val uiState: StateFlow<TaskPanelUiState> = _uiState.asStateFlow()
-
-    init {
-        loadTasks()
-    }
-
-    fun loadTasks() {
-        viewModelScope.launch {
-            try {
-                val resp = apiService.getTasks()
-                _uiState.update { it.copy(tasks = resp.data, isLoading = false) }
-            } catch (_: Exception) {
-                _uiState.update { it.copy(isLoading = false) }
-            }
-        }
-    }
-
-    fun updateText(t: String) {
-        _uiState.update { it.copy(text = t) }
-    }
-
-    fun setFilter(filter: TaskFilter) {
-        _uiState.update { it.copy(filter = filter) }
-    }
-
-    fun submit() {
-        val content = _uiState.value.text.trim()
-        if (content.isBlank()) return
-        if (_uiState.value.isSubmitting) return
-        _uiState.update { it.copy(isSubmitting = true) }
-        viewModelScope.launch {
-            try {
-                apiService.createTask(TaskCreateRequest(content = content, column = "task"))
-                _uiState.update { it.copy(text = "", isSubmitting = false) }
-                loadTasks()
-            } catch (_: Exception) {
-                _uiState.update { it.copy(isSubmitting = false) }
-            }
-        }
-    }
-
-    /**
-     * 切换任务完成状态：未完成 → done；已完成 → active。
-     * 先乐观更新本地状态，失败时回滚。
-     */
-    fun toggleTask(task: TaskDto) {
-        val previous = _uiState.value.tasks
-        val newCompleted = !task.completed
-        _uiState.update { s ->
-            s.copy(
-                tasks = s.tasks.map {
-                    if (it.id == task.id) it.copy(completed = newCompleted) else it
-                }
-            )
-        }
-        viewModelScope.launch {
-            try {
-                val newStatus = if (newCompleted) "done" else "active"
-                apiService.patchTask(task.id, TaskPatchRequest(status = newStatus))
-            } catch (_: Exception) {
-                // 回滚到先前状态
-                _uiState.update { it.copy(tasks = previous) }
-            }
-        }
-    }
-}
-
+/**
+ * Lynx v6 核心页面：任务
+ *
+ * 设计要点：
+ * - 顶部标题 + 用户头像（设置入口），无返回按钮
+ * - 按"进行中" / "已完成"分组展示看板任务
+ * - 左侧圆形复选框点击切换完成状态
+ * - 底部输入框回车即创建任务
+ */
 @Composable
-fun TaskPanel(
-    onBack: () -> Unit,
+fun TasksScreen(
+    onOpenSettings: () -> Unit,
     viewModel: TaskPanelViewModel = hiltViewModel()
 ) {
     val state by viewModel.uiState.collectAsState()
+    val context = LocalContext.current
+    val userPreferences = remember { UserPreferences(context) }
+    val user by userPreferences.userFlow.collectAsState(initial = null)
+    val userName = user?.displayName?.ifBlank { null } ?: user?.username ?: "用户"
 
     Box(
         modifier = Modifier
             .fillMaxSize()
             .background(Void)
     ) {
-        // 反向滑动检测层（上滑返回）
-        ReturnSwipeDetector(
-            returnDirection = "up",
-            onReturn = onBack,
-            modifier = Modifier.fillMaxSize()
-        )
-
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .systemBarsPadding()
-                .padding(start = 16.dp, end = 16.dp, top = 36.dp, bottom = 16.dp)
+                .padding(horizontal = 16.dp, vertical = 16.dp)
         ) {
-            PanelHeader(title = "任务", onBack = onBack, swipeHint = "↑ 上滑返回")
+            CoreScreenHeader(
+                title = "任务",
+                userName = userName,
+                onOpenSettings = onOpenSettings
+            )
+
             Spacer(modifier = Modifier.height(16.dp))
+
+            // 药丸分段器
+            TaskFilterTabs(
+                selected = state.filter,
+                onSelect = viewModel::setFilter
+            )
+
+            Spacer(modifier = Modifier.height(12.dp))
 
             // 任务列表
             if (state.isLoading) {
@@ -178,38 +99,27 @@ fun TaskPanel(
             } else {
                 val active = state.tasks.filter { !it.completed }
                 val done = state.tasks.filter { it.completed }
+                val visibleTasks = when (state.filter) {
+                    TaskFilter.ACTIVE -> active
+                    TaskFilter.DONE -> done
+                    else -> active
+                }
+
                 LazyColumn(
                     modifier = Modifier.weight(1f),
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    if (active.isNotEmpty()) {
-                        item(key = "header_active") { SectionTitle("进行中") }
+                    if (visibleTasks.isNotEmpty()) {
                         items(
-                            items = active,
-                            key = { "active_${it.id}" }
+                            items = visibleTasks,
+                            key = { "${state.filter}_${it.id}" }
                         ) { task ->
                             TaskRow(
                                 task = task,
                                 onToggle = { viewModel.toggleTask(task) }
                             )
                         }
-                    }
-                    if (done.isNotEmpty()) {
-                        item(key = "header_done") {
-                            Spacer(modifier = Modifier.height(8.dp))
-                            SectionTitle("已完成")
-                        }
-                        items(
-                            items = done,
-                            key = { "done_${it.id}" }
-                        ) { task ->
-                            TaskRow(
-                                task = task,
-                                onToggle = { viewModel.toggleTask(task) }
-                            )
-                        }
-                    }
-                    if (active.isEmpty() && done.isEmpty()) {
+                    } else {
                         item(key = "empty") {
                             Box(
                                 modifier = Modifier
@@ -226,7 +136,7 @@ fun TaskPanel(
 
             Spacer(modifier = Modifier.height(12.dp))
 
-            // 底部输入框：回车即创建
+            // 底部输入框
             OutlinedTextField(
                 value = state.text,
                 onValueChange = viewModel::updateText,
@@ -253,8 +163,8 @@ fun TaskPanel(
                         )
                     } else {
                         Icon(
-                            imageVector = Icons.AutoMirrored.Filled.Send,
-                            contentDescription = "发送",
+                            imageVector = LynxIcons.Send,
+                            contentDescription = "创建",
                             tint = Primary,
                             modifier = Modifier
                                 .clip(CircleShape)
@@ -264,6 +174,46 @@ fun TaskPanel(
                     }
                 }
             )
+        }
+    }
+}
+
+@Composable
+private fun TaskFilterTabs(
+    selected: TaskFilter,
+    onSelect: (TaskFilter) -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(999.dp))
+            .background(Surface)
+            .border(1.dp, BorderSubtle, RoundedCornerShape(999.dp))
+            .padding(4.dp),
+        horizontalArrangement = Arrangement.SpaceEvenly
+    ) {
+        val tabs = listOf(
+            TaskFilter.ACTIVE to "进行中",
+            TaskFilter.DONE to "已完成"
+        )
+        tabs.forEach { (filter, label) ->
+            val isSelected = filter == selected
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .clip(RoundedCornerShape(999.dp))
+                    .background(if (isSelected) Primary.copy(alpha = 0.15f) else Color.Transparent)
+                    .clickable { onSelect(filter) }
+                    .padding(vertical = 8.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = label,
+                    fontSize = 12.sp,
+                    fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal,
+                    color = if (isSelected) Primary else TextMuted
+                )
+            }
         }
     }
 }
@@ -290,10 +240,11 @@ private fun TaskRow(
             .fillMaxWidth()
             .clip(RoundedCornerShape(10.dp))
             .background(Surface)
+            .border(1.dp, BorderSubtle, RoundedCornerShape(10.dp))
             .padding(12.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        // 左侧圆形复选框（20dp，已完成时背景 Agent）
+        // 左侧圆形复选框
         Box(
             modifier = Modifier
                 .size(20.dp)
@@ -304,16 +255,16 @@ private fun TaskRow(
             contentAlignment = Alignment.Center
         ) {
             if (task.completed) {
-                Text(
-                    text = "✓",
-                    color = Void,
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Bold
+                Icon(
+                    imageVector = LynxIcons.Check,
+                    contentDescription = null,
+                    tint = Void,
+                    modifier = Modifier.size(12.dp)
                 )
             }
         }
         Spacer(modifier = Modifier.width(10.dp))
-        // 中间内容（已完成加删除线 + 更暗文字）
+        // 中间内容
         Text(
             text = task.content,
             color = if (task.completed) TextMuted else TextPrimary,

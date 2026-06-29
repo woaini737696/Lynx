@@ -24,7 +24,7 @@ export interface ProfessionDef {
   defaultReasoningMode?: string;
 }
 
-/** 12 岗位目录（admin 可在职业工作空间页面编辑每个岗位的 4 维度配置） */
+/** 12 岗位目录（admin 可在职业空间页面编辑每个岗位的 4 维度配置） */
 export const PROFESSIONS: ProfessionDef[] = [
   {
     key: "pm",

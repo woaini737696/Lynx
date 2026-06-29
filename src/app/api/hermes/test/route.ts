@@ -41,14 +41,15 @@ export async function POST(req: NextRequest) {
 
     const result = await testHermesConnection(testConfig);
 
-    // 更新数据库中的最近检查时间和状态
+    // 测试连接只更新检查时间和错误信息，不修改 status
+    // status 应该只由 install/start/stop 操作改变，避免"测试连接后状态变已启动"的误导
     await prisma.hermesConfig.upsert({
       where: { userId: auth.user.id },
       create: {
         userId: auth.user.id,
         endpoint: testConfig.endpoint,
         apiKey: testConfig.apiKey,
-        status: result.connected ? "running" : "error",
+        status: "installed", // 首次测试时标记为已安装，不标为 running
         lastCheckedAt: new Date(),
         lastError: result.error || null,
       },
@@ -56,9 +57,8 @@ export async function POST(req: NextRequest) {
         endpoint: testConfig.endpoint,
         ...(apiKey !== undefined && { apiKey }),
         lastCheckedAt: new Date(),
-        ...(result.connected
-          ? { status: "running", lastError: null }
-          : { lastError: result.error }),
+        lastError: result.error || null,
+        // 注意：不更新 status 字段，保持原有 running/installed/error 状态
       },
     });
 

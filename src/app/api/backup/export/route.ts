@@ -41,7 +41,7 @@ const SINGLE_TYPES = [
   "hermesreports",
   // 扩展类型：AI 设置（排除敏感字段）
   "aisettings",
-  // 扩展类型：职业工作空间
+  // 扩展类型：职业空间
   "professionworkspaces",
   // 扩展类型：用户（排除 passwordHash）
   "users",
@@ -403,7 +403,7 @@ export async function GET(req: NextRequest) {
       );
     }
 
-    // ===== 扩展类型：职业工作空间 =====
+    // ===== 扩展类型：职业空间 =====
     if (typesToExport.includes("professionworkspaces")) {
       tasks.push(
         (async () => {

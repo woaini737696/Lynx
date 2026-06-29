@@ -1,60 +1,46 @@
 package com.lynnhub.app.ui.navigation
 
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.*
-import androidx.compose.material.icons.outlined.*
 import androidx.compose.ui.graphics.vector.ImageVector
+import com.lynnhub.app.ui.component.LynxIcons
 
 /**
- * 底部导航 5 个 Tab
- * 对应 uniapp pages.json 的 tabBar 配置
+ * 底部 Dock 四个核心 Tab
+ *
+ * 顺序：首页 / Lynx 助理 / 任务 / 记忆
  */
 sealed class BottomTab(
     val route: String,
     val title: String,
-    val selectedIcon: ImageVector,
-    val unselectedIcon: ImageVector
+    val icon: ImageVector
 ) {
-    data object Focus : BottomTab(
-        "focus",
-        "聚焦",
-        Icons.Filled.RadioButtonChecked,
-        Icons.Outlined.RadioButtonUnchecked
+    data object Home : BottomTab(
+        Routes.HOME,
+        "首页",
+        LynxIcons.Home
     )
 
-    data object Board : BottomTab(
-        "board",
-        "看板",
-        Icons.Filled.Dashboard,
-        Icons.Outlined.Dashboard
-    )
-
-    data object Hermes : BottomTab(
-        "hermes",
-        "Hermes",
-        Icons.Filled.SmartToy,
-        Icons.Outlined.SmartToy
+    data object Assistant : BottomTab(
+        Routes.ASSISTANT,
+        "Lynx 助理",
+        LynxIcons.Assistant
     )
 
     data object Tasks : BottomTab(
-        "tasks",
+        Routes.TASKS,
         "任务",
-        Icons.Filled.CheckCircle,
-        Icons.Outlined.CheckCircle
+        LynxIcons.Tasks
     )
 
-    data object Settings : BottomTab(
-        "settings",
-        "我的",
-        Icons.Filled.Person,
-        Icons.Outlined.Person
+    data object Memory : BottomTab(
+        Routes.MEMORY,
+        "记忆",
+        LynxIcons.Memory
     )
 }
 
 val bottomTabs = listOf(
-    BottomTab.Focus,
-    BottomTab.Board,
-    BottomTab.Hermes,
+    BottomTab.Home,
+    BottomTab.Assistant,
     BottomTab.Tasks,
-    BottomTab.Settings
+    BottomTab.Memory
 )

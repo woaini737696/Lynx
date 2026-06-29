@@ -6,6 +6,7 @@ import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -14,9 +15,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.CallEnd
-import androidx.compose.material.icons.filled.Mic
-import androidx.compose.material.icons.filled.MicOff
-import androidx.compose.material.icons.filled.VolumeUp
+import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -31,15 +30,18 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.changedToDown
 import androidx.compose.ui.input.pointer.changedToUp
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.lynnhub.app.R
 import com.lynnhub.app.ui.theme.*
 import kotlinx.coroutines.delay
 import kotlin.math.abs
@@ -70,6 +72,7 @@ fun BackButton(
 // ============ 滑动提示小字 ============
 @Composable
 fun SwipeHint(text: String, modifier: Modifier = Modifier) {
+    if (text.isBlank()) return
     Text(
         text = text,
         fontSize = 11.sp,
@@ -84,7 +87,7 @@ fun SwipeHint(text: String, modifier: Modifier = Modifier) {
 fun PanelHeader(
     title: String,
     onBack: () -> Unit,
-    swipeHint: String
+    swipeHint: String = ""
 ) {
     Row(
         verticalAlignment = Alignment.CenterVertically,
@@ -185,13 +188,13 @@ fun CallPlaceholder(onBack: () -> Unit) {
 }
 
 // ====================================================================
-// 全双工通话 CallScreen —— Lynx v6 阶段5完整实现
+// 全双工通话 CallScreen —— Lynx v6 完整实现
 //
-// 设计要点（来自 Lynx_Android_Complete_v6.html）：
-// - 全屏覆盖，z-index 20
-// - 中央 180×180 可视化区：3 层波纹（错开 0/0.5/1s）+ 80×80 头像
+// 设计要点（来自已确认视觉稿）：
+// - 全屏覆盖
+// - 中央可视化区：3 层波纹 + 白色猞猁 logo
 // - 头像下方：状态文字（聆听/思考）+ 通话时长 MM:SS + AI 摘要
-// - 底部 3 按钮：静音（Muted）/ 挂断（Danger）/ 扬声器（Agent）
+// - 底部仅 2 个按钮：挂断（Danger）/ 打断（Primary）
 // - 控制按钮 3 秒自动隐藏，轻触屏幕唤起
 // - 上滑手势结束通话
 // ====================================================================
@@ -204,9 +207,6 @@ fun CallScreen(onBack: () -> Unit) {
     var elapsedSeconds by remember { mutableIntStateOf(0) }
     // 控制按钮可见性
     var controlsVisible by remember { mutableStateOf(true) }
-    // 静音/扬声器开关
-    var muted by remember { mutableStateOf(false) }
-    var speakerOn by remember { mutableStateOf(true) }
     // AI 摘要文案
     val aiSummary = when (callState) {
         "thinking" -> "正在思考你刚才说的话..."
@@ -243,7 +243,7 @@ fun CallScreen(onBack: () -> Unit) {
         modifier = Modifier
             .fillMaxSize()
             .background(Void)
-            // 上滑手势结束通话（主要手势）+ 轻触唤起控制按钮
+            // 上滑手势结束通话 + 轻触唤起控制按钮
             .pointerInput(Unit) {
                 awaitPointerEventScope {
                     while (true) {
@@ -283,27 +283,29 @@ fun CallScreen(onBack: () -> Unit) {
             horizontalAlignment = Alignment.CenterHorizontally,
             modifier = Modifier.padding(horizontal = 24.dp, vertical = 40.dp)
         ) {
-            // ====== 中央可视化区：3 层波纹 + 头像 ======
+            // ====== 中央可视化区：3 层波纹 + 白色猞猁 logo ======
             Box(
-                modifier = Modifier
-                    .size(180.dp),
+                modifier = Modifier.size(180.dp),
                 contentAlignment = Alignment.Center
             ) {
                 // 3 层波纹
                 CallWave(delayMs = 0)
                 CallWave(delayMs = 500)
                 CallWave(delayMs = 1000)
-                // 中央头像
+                // 中央 logo
                 Box(
                     modifier = Modifier
-                        .size(80.dp)
+                        .size(88.dp)
                         .clip(CircleShape)
-                        .background(
-                            Brush.linearGradient(GradientPrimary)
-                        ),
+                        .background(Brush.linearGradient(GradientPrimary))
+                        .border(1.dp, Color.White.copy(alpha = 0.25f), CircleShape),
                     contentAlignment = Alignment.Center
                 ) {
-                    Text("🐆", fontSize = 32.sp)
+                    Image(
+                        painter = painterResource(id = R.drawable.lynx_logo_white),
+                        contentDescription = "Lynx",
+                        modifier = Modifier.size(54.dp)
+                    )
                 }
             }
 
@@ -342,35 +344,29 @@ fun CallScreen(onBack: () -> Unit) {
 
             Spacer(modifier = Modifier.height(40.dp))
 
-            // ====== 底部控制按钮（3 秒自动隐藏）======
+            // ====== 底部控制按钮（仅挂断 + 打断）======
             if (controlsVisible) {
                 Row(
-                    horizontalArrangement = Arrangement.spacedBy(24.dp),
+                    horizontalArrangement = Arrangement.spacedBy(32.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    // 静音
+                    // 打断
                     CallButton(
-                        icon = if (muted) Icons.Filled.MicOff else Icons.Filled.Mic,
-                        bgColor = SurfaceActive,
-                        iconTint = if (muted) Danger else TextMuted,
-                        borderColor = BorderHover,
-                        onClick = { muted = !muted }
+                        icon = Icons.Filled.Pause,
+                        bgColor = Primary.copy(alpha = 0.15f),
+                        iconTint = Primary,
+                        borderColor = Primary.copy(alpha = 0.25f),
+                        onClick = {
+                            callState = if (callState == "thinking") "listening" else "thinking"
+                        }
                     )
                     // 挂断
                     CallButton(
                         icon = Icons.Filled.CallEnd,
                         bgColor = Danger.copy(alpha = 0.15f),
                         iconTint = Danger,
-                        borderColor = Danger.copy(alpha = 0.2f),
+                        borderColor = Danger.copy(alpha = 0.25f),
                         onClick = onBack
-                    )
-                    // 扬声器
-                    CallButton(
-                        icon = Icons.Filled.VolumeUp,
-                        bgColor = SurfaceActive,
-                        iconTint = if (speakerOn) Agent else TextMuted,
-                        borderColor = BorderHover,
-                        onClick = { speakerOn = !speakerOn }
                     )
                 }
             } else {
