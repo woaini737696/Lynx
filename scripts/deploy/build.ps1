@@ -1,4 +1,4 @@
-﻿# Lynx 本地构建脚本 - 构建产物供服务器部署使用
+# Lynx 本地构建脚本 - 构建产物供服务器部署使用
 # 服务器不做任何编译，只接收此脚本产出的打包文件
 # 用法：.\scripts\deploy\build.ps1 [-SkipDesktop]
 
@@ -76,7 +76,11 @@ New-Item -ItemType Directory -Path "$StandaloneDir\node_modules\@prisma" -Force 
 Copy-Item -Recurse "$ProjectRoot\node_modules\@prisma\client" "$StandaloneDir\node_modules\@prisma\client" -Force
 New-Item -ItemType Directory -Path "$StandaloneDir\node_modules\.prisma" -Force | Out-Null
 Copy-Item -Recurse "$ProjectRoot\node_modules\.prisma\client" "$StandaloneDir\node_modules\.prisma\client" -Force
-Write-Host "  Prisma Client 已手动复制到 standalone/node_modules" -ForegroundColor Green
+# 同时复制到 app 根目录 .prisma/client（Next.js standalone Prisma bundle 也搜索此路径）
+New-Item -ItemType Directory -Path "$StandaloneDir\.prisma\client" -Force | Out-Null
+Copy-Item "$ProjectRoot\node_modules\.prisma\client\libquery_engine-debian-openssl-3.0.x.so.node" "$StandaloneDir\.prisma\client\" -Force
+Copy-Item "$ProjectRoot\node_modules\.prisma\client\schema.prisma" "$StandaloneDir\.prisma\client\" -Force
+Write-Host "  Prisma Client + Linux Engine 已复制到 standalone（node_modules + .prisma/client）" -ForegroundColor Green
 
 # 复制 .next/static（standalone 不含 static，需手动复制）
 New-Item -ItemType Directory -Path "$StandaloneDir\.next\static" -Force | Out-Null

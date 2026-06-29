@@ -9,6 +9,7 @@
 
 | 迭代 | 日期 | 任务概要 |
 |------|------|----------|
+| [迭代 61](#迭代-61---2026-06-29) | 2026-06-29 | 功能闭环修复：Prisma engine路径修复+ws-gateway scripts缺失修复+lynn测试数据生成+12个API验证通过 |
 | [迭代 60](#迭代-60---2026-06-29) | 2026-06-29 | 服务器零构建架构修复：ws-gateway本地esbuild预编译+规范强化+2G swap防OOM+Prisma跨平台engine |
 | [迭代 59](#迭代-59---2026-06-29) | 2026-06-29 | 15项bug修复+功能优化：开发规范/Logo/登录/弹窗/测试数据/AI模型/LynxAgent/助理同步/性能监控/远程操控/会员合并 |
 | [迭代 58](#迭代-58---2026-06-29) | 2026-06-29 | WS心跳+回传bug修复+域名改ai.lynxdo.com+官网改用web_Lynx+部署流程澄清 |
@@ -101,6 +102,60 @@
 
 ### Commit hash
 `4181fb4d`
+
+---
+
+## 迭代 61 - 2026-06-29
+
+### 任务概要
+修复迭代60部署后所有功能无法使用的问题。根因：Prisma engine 路径未覆盖 Next.js standalone 搜索路径 + ws-gateway scripts 目录缺失 + lynn 账号测试数据未在服务器生成。
+
+### 修复内容
+
+#### 1. Prisma engine 路径修复
+- Next.js standalone 的 Prisma bundle 搜索 `/opt/lynx/app/.prisma/client` 路径，但之前只复制到了 `node_modules/.prisma/client`
+- 在服务器创建 `/opt/lynx/app/.prisma/client/` 并复制 `libquery_engine-debian-openssl-3.0.x.so.node` + `schema.prisma`
+- `build.ps1` 更新：同时复制 engine 到 `standalone/.prisma/client/`（app 根目录）和 `standalone/node_modules/.prisma/client/`
+
+#### 2. ws-gateway scripts 目录修复
+- 部署新版本时 standalone 目录被整体替换，导致之前手动上传的 `scripts/ws-gateway.compiled.js` 丢失
+- 重新创建 `/opt/lynx/app/scripts/` 目录并上传 `ws-gateway.compiled.js` + `start-ws-gateway.js`
+- ws-gateway 恢复正常（online, 端口 3001 监听）
+
+#### 3. lynn 账号测试数据生成
+- 用 esbuild 预编译 `scripts/seed-lynn-test-data.ts` 为纯 JS（26KB，external @prisma/client）
+- 在服务器执行 `DATABASE_URL=... node scripts/seed-lynn-test-data.compiled.js`
+- 生成完整测试数据：灵感10 + 任务10 + 技能4 + 工作流2 + 对话2 + 认知3 + 记忆4 + 钱包 + 会员PRO + 订阅订单 + 今日聚焦
+
+#### 4. 功能闭环验证（12个API全部通过）
+通过 `curl -H 'Authorization: Bearer <token>'` 验证所有 API：
+- ✅ 灵感列表: 10 条
+- ✅ 任务列表: 10 条
+- ✅ 技能列表: 4 条
+- ✅ 工作流列表: 5 条
+- ✅ 对话会话: 3 个
+- ✅ 认知库: 3 条
+- ✅ 记忆节点: 8 个
+- ✅ 钱包: 30亿Credits + 300S币
+- ✅ 会员: PRO 档位
+- ✅ 今日聚焦: 3 张卡片
+- ✅ 对话资产: 2 条
+- ✅ 灵感墓地: 2 条
+
+### 涉及文件
+- `scripts/deploy/build.ps1`（Prisma engine 复制到 .prisma/client 根目录路径）
+- `.gitignore`（排除 seed-lynn-test-data.compiled.js）
+- `DEV_LOG.md`（新增迭代61记录）
+
+### 部署状态
+- lynx-app: online, 105MB, Prisma 正常
+- lynx-ws-gateway: online, 66MB, 端口 3001 监听
+- 健康检查 200 OK
+- 所有 12 个 API 验证通过，功能完全闭环
+- PM2 配置已保存
+
+### Commit hash
+`待提交`
 
 ---
 
