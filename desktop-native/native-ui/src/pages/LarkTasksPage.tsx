@@ -14,24 +14,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import { cn, formatRelativeTime } from "@/lib/utils";
 import { cloudApi } from "@/lib/cloud-api";
 import { HelpButton } from "@/components/ui/HelpButton";
-
-interface LarkTask {
-  id: string;
-  guid?: string;        // 后端 NormalizedTask 的 guid
-  title: string;        // 后端 summary 字段
-  summary?: string;     // 后端原始字段
-  description?: string;
-  status?: string;
-  priority?: string;
-  dueDate?: string;
-  due?: string;         // 后端原始字段
-  createdAt?: string;
-  created?: string;     // 后端原始字段
-  completed?: boolean;
-  isCompleted?: boolean; // 后端原始字段
-  origin?: string;
-  tasklistGuid?: string;
-}
+import type { LarkTask } from "@/types/api";
 
 // 状态映射：兼容后端返回的多种字段
 const STATUS_META: Record<string, { label: string; color: string; bg: string; border: string }> = {

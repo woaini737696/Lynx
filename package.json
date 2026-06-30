@@ -2,6 +2,9 @@
   "name": "lynx",
   "version": "0.1.0",
   "private": true,
+  "workspaces": [
+    "packages/*"
+  ],
   "scripts": {
     "dev": "next dev -p 5176",
     "build": "next build",

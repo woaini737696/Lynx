@@ -147,7 +147,6 @@ export function HermesPanel() {
               await invoke("set_user_token", { token: `user:${st.user.id}` });
               await invoke("set_cloud_endpoint", { endpoint: getCloudEndpoint() });
               await invoke("start_hermes_agent");
-              console.log("[HermesPanel] 安装后自动启动 WS 连接成功");
             }
           } catch (e) {
             console.warn("[HermesPanel] 安装后自动启动 WS 失败:", e);

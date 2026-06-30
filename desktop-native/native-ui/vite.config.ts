@@ -8,6 +8,7 @@ export default defineConfig({
   resolve: {
     alias: {
       '@': resolve(__dirname, './src'),
+      '@lynnhub/shared-types': resolve(__dirname, '../../packages/shared-types/index.ts'),
     },
   },
   build: {

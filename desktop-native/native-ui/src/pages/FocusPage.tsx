@@ -33,11 +33,11 @@ export function FocusPage() {
   });
 
   const items: FocusItem[] =
-    focus?.items?.map((item: any) => ({
+    focus?.items?.map((item: FocusItem) => ({
       id: item.id,
       taskId: item.taskId,
       title: item.task?.content || "",
-      column: item.task?.column || "task",
+      column: (item.task?.column || "task") as FocusItem["column"],
       completed: item.completed,
     })) || [];
 

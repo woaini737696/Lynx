@@ -407,14 +407,24 @@ async fn open_external(app: tauri::AppHandle, url: String) -> Result<(), String>
 }
 
 /// 导航当前窗口到指定 URL（用于加载本地 Web 端）
+/// 安全加固：协议白名单 + location.replace（不留历史记录）
 #[tauri::command]
 async fn navigate_to_url(app: tauri::AppHandle, url: String) -> Result<(), String> {
+    // 协议白名单校验：只允许 http/https/file/tauri，拒绝 javascript:/data: 等危险协议
+    let lower = url.to_lowercase();
+    let allowed = lower.starts_with("https://")
+        || lower.starts_with("http://")
+        || lower.starts_with("file://")
+        || lower.starts_with("tauri://");
+    if !allowed {
+        return Err(format!("不允许的 URL 协议: {}", url));
+    }
     log::info!("导航到: {}", url);
     if let Some(window) = app.get_webview_window("main") {
-        // Tauri 2.x WebviewWindow 没有 set_url，使用 eval 执行 JS 导航
         // 用 serde_json::to_string 生成合法 JS 字符串字面量，避免 JS 注入
+        // 使用 location.replace 替代 location.href=，不留浏览器历史记录
         let js_val = serde_json::to_string(&url).map_err(|e| e.to_string())?;
-        let js = format!("window.location.href = {};", js_val);
+        let js = format!("window.location.replace({});", js_val);
         window.eval(&js).map_err(|e| e.to_string())?;
         Ok(())
     } else {

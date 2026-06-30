@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "hermes-agent"
-version = "0.17.0"
+version = "0.18.0"
 description = "Lynx HermesAgent - 本地 AI 代理框架，支持桌面控制、Shell 命令、浏览器自动化与技能自学习"
 readme = "README.md"
 requires-python = ">=3.9"
