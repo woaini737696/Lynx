@@ -1282,6 +1282,110 @@ async function executeExportBackup(
 
 // ============ Hermes Agent ============
 
+/** 检查用户是否有在线的 PC 会话（桌面端已连接 WS 网关） */
+async function getOnlinePcSession(userId: string) {
+  const session = await prisma.pcSession.findFirst({
+    where: { userId, status: "online" },
+    orderBy: { lastHeartbeat: "desc" },
+  });
+  // 心跳超过 60 秒视为离线
+  if (session && Date.now() - session.lastHeartbeat.getTime() > 60_000) {
+    return null;
+  }
+  return session;
+}
+
+/** 通过 WS 网关下发远程指令到桌面端并轮询等待结果 */
+async function dispatchRemoteCommand(
+  userId: string,
+  command: string,
+  timeoutSec: number = 120
+): Promise<{ success: boolean; output: string; error?: string; durationMs?: number; route?: string }> {
+  const { randomUUID } = await import("crypto");
+  const { getLogger } = await import("@/lib/logger");
+  const logger = getLogger("hermes-tool");
+
+  const WS_GATEWAY_URL = process.env.WS_GATEWAY_URL || "http://localhost:3001";
+  const commandId = randomUUID();
+
+  // 1. 写入 RemoteCommand 记录
+  const record = await prisma.remoteCommand.create({
+    data: {
+      commandId,
+      userId,
+      command,
+      source: "assistant",
+      status: "pending",
+      route: "pending",
+    },
+  });
+
+  // 2. 通过 WS 网关下发到桌面端
+  let dispatched = false;
+  let dispatchReason = "";
+  try {
+    const resp = await fetch(`${WS_GATEWAY_URL}/dispatch`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ userId, command, commandId }),
+      signal: AbortSignal.timeout(8000),
+    });
+    const data = await resp.json().catch(() => ({}));
+    dispatched = !!data.dispatched;
+    dispatchReason = data.reason || "";
+  } catch (e) {
+    dispatchReason = "WS 网关不可达：" + (e as Error).message;
+  }
+
+  if (!dispatched) {
+    await prisma.remoteCommand.update({
+      where: { id: record.id },
+      data: { status: "failed", error: dispatchReason || "无在线 PC" },
+    });
+    return { success: false, output: "", error: dispatchReason || "没有在线的 PC，请先在电脑上启动桌面端" };
+  }
+
+  // 3. 轮询等待桌面端回传结果
+  const deadline = Date.now() + timeoutSec * 1000;
+  const pollInterval = 1500;
+  while (Date.now() < deadline) {
+    await new Promise((r) => setTimeout(r, pollInterval));
+    const cmd = await prisma.remoteCommand.findUnique({ where: { commandId } });
+    if (!cmd) break;
+    if (cmd.status === "completed") {
+      const resultData = (cmd.result as Record<string, unknown> | null) || {};
+      const output = typeof resultData.output === "string"
+        ? resultData.output
+        : (typeof cmd.result === "string" ? cmd.result : JSON.stringify(resultData));
+      return {
+        success: true,
+        output,
+        durationMs: cmd.durationMs || 0,
+        route: cmd.route || undefined,
+      };
+    }
+    if (cmd.status === "failed" || cmd.status === "timeout") {
+      return {
+        success: false,
+        output: "",
+        error: cmd.error || "远程执行失败",
+        durationMs: cmd.durationMs || 0,
+        route: cmd.route || undefined,
+      };
+    }
+  }
+
+  // 超时
+  try {
+    await prisma.remoteCommand.update({
+      where: { id: record.id },
+      data: { status: "timeout", error: `执行超时（${timeoutSec}秒）`, completedAt: new Date() },
+    });
+  } catch {}
+  logger.warn({ commandId }, "远程指令轮询超时");
+  return { success: false, output: "", error: `远程执行超时（${timeoutSec}秒），指令已下发但未收到结果` };
+}
+
 /** 通过 Hermes Agent 执行任务（桌面控制/Shell/Skills Hub） */
 async function executeHermesExecute(
   args: { prompt?: string; mode?: string; workDir?: string; timeout?: number },
@@ -1292,21 +1396,43 @@ async function executeHermesExecute(
     return { error: "prompt 不能为空" };
   }
 
-  const { getHermesConfig, executeHermesTask } = await import("@/lib/hermes-client");
+  const { getHermesConfig } = await import("@/lib/hermes-client");
   const config = await getHermesConfig(user.id);
   if (!config || !config.enabled) {
     return { error: "Hermes Agent 未启用，请先在设置中启用" };
   }
-  if (config.status !== "running") {
-    return { error: `Hermes Agent 当前状态为 ${config.status}，请先启动服务` };
-  }
 
-  const result = await executeHermesTask(config, {
-    prompt,
-    mode: (args.mode as "computer_use" | "shell" | "auto") || "auto",
-    workDir: args.workDir,
-    timeout: args.timeout || 120,
-  });
+  const timeoutSec = args.timeout || 120;
+  let result: { success: boolean; output: string; error?: string; durationMs?: number; steps?: unknown[] };
+
+  // 路径 1：桌面端在线 → WS 网关远程执行
+  const onlinePc = await getOnlinePcSession(user.id);
+  if (onlinePc) {
+    const remoteResult = await dispatchRemoteCommand(user.id, prompt, timeoutSec);
+    result = {
+      success: remoteResult.success,
+      output: remoteResult.output,
+      error: remoteResult.error,
+      durationMs: remoteResult.durationMs,
+      steps: remoteResult.success
+        ? [{ action: "remote-dispatch", result: remoteResult.route || "desktop", timestamp: new Date().toISOString() }]
+        : undefined,
+    };
+  } else {
+    // 路径 2：回退到本地 CLI 执行（Web端独立部署 / 本地开发环境）
+    const { executeHermesTask } = await import("@/lib/hermes-client");
+    if (config.status === "error") {
+      return {
+        error: `Hermes Agent 当前未运行（状态: ${config.status}）。请选择：1) 在电脑上启动 Lynx 桌面端客户端并登录；2) 或在 Web 端设置页点击「启动服务」启动本地 Dashboard。` + (config.lastError ? `\n上次错误: ${config.lastError}` : ""),
+      };
+    }
+    result = await executeHermesTask(config, {
+      prompt,
+      mode: (args.mode as "computer_use" | "shell" | "auto") || "auto",
+      workDir: args.workDir,
+      timeout: timeoutSec,
+    }, user.id);
+  }
 
   // 记录执行历史
   try {
@@ -1347,10 +1473,26 @@ async function executeHermesListSkills(
   if (!config || !config.enabled) {
     return { error: "Hermes Agent 未启用" };
   }
-  if (config.status !== "running") {
-    return { error: `Hermes Agent 当前状态为 ${config.status}` };
+
+  // 优先走桌面端远程执行
+  const onlinePc = await getOnlinePcSession(user.id);
+  if (onlinePc) {
+    const remoteResult = await dispatchRemoteCommand(user.id, "hermes skills list --json", 30);
+    if (remoteResult.success && remoteResult.output) {
+      try {
+        const parsed = JSON.parse(remoteResult.output);
+        const skills = Array.isArray(parsed) ? parsed : (parsed.skills || []);
+        return { skills, total: skills.length };
+      } catch {
+        // 解析失败，回退到本地
+      }
+    }
   }
 
+  // 回退：本地 CLI
+  if (config.status !== "running") {
+    return { error: `Hermes Agent 当前状态为 ${config.status}，请先启动服务或连接桌面端` };
+  }
   const result = await listHermesSkills(config, args.category);
   return {
     skills: result.skills,

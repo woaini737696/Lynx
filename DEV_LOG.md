@@ -9,6 +9,7 @@
 
 | 迭代 | 日期 | 任务概要 |
 |------|------|----------|
+| [迭代 74](#迭代-74---2026-06-30) | 2026-06-30 | 桌面端v1.0.21两项核心修复：hermesExecute工具调用走PcSession+WS网关远程执行(不再检查HermesConfig.status)+Web端HermesAgent独立安装恢复(浏览器分支调API非阻断)+install路由自动安装回退 |
 | [迭代 73](#迭代-73---2026-06-30) | 2026-06-30 | 桌面端v1.0.20根因修复：桌面端本地前端AppLayout登录后自动启动WS(非Web端DesktopBridge)+HermesPanel安装/启动按钮同时连接WS(非仅Dashboard)+Web端浏览器分支提示使用桌面端(不再服务器pip install)+hermes-client.ts文件大小检查1MB→1KB+NotificationSettingsPage.tsx泛型语法修复 |
 | [迭代 72](#迭代-72---2026-06-30) | 2026-06-30 | 桌面端v1.0.20六项核心修复：AI助理P0 bug(createSession解构+头像URL+抽屉状态)+3D记忆图谱重写(单次fetch/alpha衰减)+认知库点击详情+AI工作流拖拽(dragDropEnabled)+LynxAgent控制台闪烁+重复安装(CREATE_NO_WINDOW+refetch暂停)+灵感收敛/飞书任务/通知设置三页面补齐 |
 | [迭代 71](#迭代-71---2026-06-30) | 2026-06-30 | 桌面端v1.0.18三项核心修复：HermesAgent安装走Tauri本地安装(非PyPI)+DesktopBridge登录后自动启动WS+TTS环境变量通过start-with-env.js加载+Nginx /downloads/重复location修复 |
@@ -114,6 +115,39 @@
 
 ### Commit hash
 `4181fb4d`
+
+---
+
+## 迭代 74 - 2026-06-30
+
+### 完成内容
+
+#### 1. hermesExecute 工具调用报错修复（核心根因）
+- **根因**：`executeHermesExecute`（tool-executor.ts）检查 `HermesConfig.status`（DB表），该 status 因云端 `startHermesAgent()` 在云服务器 spawn hermes CLI 失败而被写为 "error" 且永久停留。AI 工具走的是遗留"云端本地执行"路径（`executeHermesTask` 在服务器 spawn CLI），而非 WS 网关转发路径
+- **两套并行的 Hermes 状态系统错配**：系统A（HermesConfig DB表，云端status字段）与系统B（PcSession + Tauri Agent，桌面端WS注册）完全独立，UI显示系统B的"运行中"但AI工具检查系统A的status="error"
+- **修复**：`src/app/api/ai/assistant/tool-executor.ts`
+  - 新增 `getOnlinePcSession(userId)` — 查询 PcSession 表，心跳超 60 秒视为离线
+  - 新增 `dispatchRemoteCommand(userId, command, timeoutSec)` — 创建 RemoteCommand 记录 → fetch WS_GATEWAY_URL/dispatch → 轮询 DB 等待桌面端回传结果
+  - `executeHermesExecute` 改为双路径：路径1 桌面端在线→WS网关远程执行；路径2 回退本地CLI（Web端独立部署/本地开发场景）
+  - `executeHermesListSkills` 同样改为优先走桌面端远程执行，回退本地CLI
+
+#### 2. Web端 HermesAgent 独立安装恢复
+- **根因**：`settings/page.tsx` 的 `handleInstall`/`handleStart` 用 `isDesktop()` 分支，浏览器分支直接 toast 报错"Web端无法直接安装"，不调用 `/api/hermes/install` API；`install/route.ts` 的 start action 也阻断未检测到安装的环境
+- **修复**：
+  - `src/app/settings/page.tsx` — `handleInstall` 浏览器分支恢复调用 `/api/hermes/install` API（action=install）；`handleStart` 浏览器分支恢复调用 API（action=start, port=9119）
+  - `src/app/api/hermes/install/route.ts` — start action 检测到未安装时自动调用 `installHermesAgent()` 尝试安装，而非直接返回 400 错误
+
+### 修改文件清单
+- `src/app/api/ai/assistant/tool-executor.ts` — 新增 getOnlinePcSession + dispatchRemoteCommand + executeHermesExecute/executeHermesListSkills 双路径
+- `src/app/settings/page.tsx` — handleInstall/handleStart 浏览器分支恢复调用 API
+- `src/app/api/hermes/install/route.ts` — start action 自动安装回退
+- `desktop-native/native-ui/package.json` — 版本号 1.0.20 → 1.0.21
+- `desktop-native/src-tauri/Cargo.toml` — 版本号 1.0.20 → 1.0.21
+- `desktop-native/src-tauri/tauri.conf.json` — 版本号 1.0.20 → 1.0.21
+- `DEV_LOG.md` — 开发日志更新
+
+### 安装包
+- `desktop-native/dist/Lynx_1.0.21_x64-setup.exe`
 
 ---
 
