@@ -1333,8 +1333,20 @@ function HermesConfigSection() {
         toast("Lynx Agent 已启动，PC 已上线", "success");
         await loadStatus();
       } else {
-        // 浏览器：Web 端无法启动本地 HermesAgent，必须使用桌面端客户端
-        toast("Web 端无法直接启动 HermesAgent，请使用 Lynx 桌面端客户端", "error");
+        // 浏览器：调用 Web API 启动本地或服务器的 HermesAgent Dashboard
+        const port = endpoint.match(/:(\d+)$/)?.[1] || "9119";
+        const res = await fetch("/api/hermes/install", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action: "start", port: parseInt(port, 10) }),
+        });
+        const data = await res.json();
+        if (res.ok && data.success) {
+          toast(data.message || "Lynx Agent 已启动", "success");
+          await loadStatus();
+        } else {
+          toast(data.error || "启动失败，请确认已安装 HermesAgent", "error");
+        }
       }
     } catch (e: any) {
       toast("启动请求失败：" + e.message, "error");
