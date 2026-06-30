@@ -32,6 +32,7 @@ pub struct AppState {
     pub auth_mode: Mutex<String>,
     pub authorized_dirs: Mutex<Vec<String>>,
     pub ws_connected: AtomicBool,
+    pub ws_started: AtomicBool, // WS 客户端是否已启动（防重复 spawn 线程）
     pub user_token: Mutex<Option<String>>,
     pub cloud_endpoint: Mutex<String>,
 }
@@ -53,6 +54,7 @@ impl Default for AppState {
             auth_mode: Mutex::new("approve".to_string()),
             authorized_dirs: Mutex::new(vec![default_dir]),
             ws_connected: AtomicBool::new(false),
+            ws_started: AtomicBool::new(false),
             user_token: Mutex::new(None),
             cloud_endpoint: Mutex::new("https://ai.lynxdo.com".to_string()),
         }
@@ -268,12 +270,19 @@ async fn start_hermes_agent(
     state: tauri::State<'_, Arc<AppState>>,
     app: tauri::AppHandle,
 ) -> Result<(), String> {
+    // 防重复启动：WS 客户端只需启动一次，后续由 start_ws_client 内部循环维护连接
+    if state.ws_started.load(Ordering::SeqCst) {
+        return Ok(());
+    }
+
     let cloud = state.cloud_endpoint.lock().map_err(|e| e.to_string())?.clone();
     let token = state.user_token.lock().map_err(|e| e.to_string())?.clone();
 
     if token.is_none() {
         return Err("未登录，请先登录后再启动 HermesAgent".to_string());
     }
+
+    state.ws_started.store(true, Ordering::SeqCst);
 
     let app_handle = app.clone();
     let cloud_url = cloud.clone();
@@ -340,9 +349,14 @@ async fn stop_hermes_dashboard(port: Option<u16>) -> Result<serde_json::Value, S
 
     #[cfg(windows)]
     {
+        use std::os::windows::process::CommandExt;
+        const CREATE_NO_WINDOW: u32 = 0x08000000;
         // Windows: 通过 netstat 查找端口对应的 PID 并 taskkill
-        let netstat_out = tokio::process::Command::new("netstat")
-            .args(&["-ano"])
+        // 添加 CREATE_NO_WINDOW 避免停止 Dashboard 时弹出控制台窗口闪烁
+        let mut netstat_cmd = tokio::process::Command::new("netstat");
+        netstat_cmd.args(&["-ano"]);
+        netstat_cmd.creation_flags(CREATE_NO_WINDOW);
+        let netstat_out = netstat_cmd
             .output()
             .await
             .map_err(|e| format!("netstat 执行失败: {}", e))?;
@@ -352,10 +366,10 @@ async fn stop_hermes_dashboard(port: Option<u16>) -> Result<serde_json::Value, S
             let parts: Vec<&str> = line.split_whitespace().collect();
             if parts.len() >= 5 && parts[1].ends_with(&format!(":{}", target_port)) && parts[3] == "LISTENING" {
                 let pid = parts[4];
-                let _ = tokio::process::Command::new("taskkill")
-                    .args(&["/PID", pid, "/F"])
-                    .output()
-                    .await;
+                let mut kill_cmd = tokio::process::Command::new("taskkill");
+                kill_cmd.args(&["/PID", pid, "/F"]);
+                kill_cmd.creation_flags(CREATE_NO_WINDOW);
+                let _ = kill_cmd.output().await;
                 killed += 1;
             }
         }

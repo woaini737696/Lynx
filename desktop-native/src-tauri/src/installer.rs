@@ -28,6 +28,19 @@ fn emit_progress(app: &AppHandle, step: u8, total: u8, message: &str, percent: u
     }));
 }
 
+/// Windows 下为 tokio::process::Command 添加 CREATE_NO_WINDOW 标志，
+/// 避免子进程弹出黑色控制台窗口（防止用户看到"控制台闪烁"）
+fn no_window(cmd: &mut tokio::process::Command) -> &mut tokio::process::Command {
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        const CREATE_NO_WINDOW: u32 = 0x08000000;
+        cmd.creation_flags(CREATE_NO_WINDOW);
+    }
+    let _ = cmd;
+    cmd
+}
+
 /// 查找 hermes 可执行文件（Windows 优先检查 Scripts 目录）- 公开接口供 lib.rs 调用
 pub fn find_hermes_exe_public() -> Option<String> {
     find_hermes_exe()
@@ -118,7 +131,9 @@ pub async fn detect_installation() -> Result<serde_json::Value, String> {
     // 检测 Python
     if let Some(py_path) = find_python_exe() {
         status["python"] = json!(true);
-        if let Ok(out) = tokio::process::Command::new(&py_path).arg("--version").output().await {
+        let mut cmd = tokio::process::Command::new(&py_path);
+        cmd.arg("--version");
+        if let Ok(out) = no_window(&mut cmd).output().await {
             if out.status.success() {
                 let ver = String::from_utf8_lossy(&out.stdout).trim().to_string();
                 status["pythonVersion"] = json!(ver);
@@ -133,10 +148,9 @@ pub async fn detect_installation() -> Result<serde_json::Value, String> {
     }
 
     // 检测 Node.js
-    let node_check = tokio::process::Command::new("node")
-        .arg("--version")
-        .output()
-        .await;
+    let mut node_cmd = tokio::process::Command::new("node");
+    node_cmd.arg("--version");
+    let node_check = no_window(&mut node_cmd).output().await;
     if let Ok(out) = node_check {
         if out.status.success() {
             status["node"] = json!(true);
@@ -155,19 +169,31 @@ pub async fn detect_installation() -> Result<serde_json::Value, String> {
     }
 
     // 检测 hermes-agent（通过 find_hermes_exe + hermes --version）
+    // 同时用文件存在性作为兜底（hermes --version 在 Dashboard 运行时可能超时/失败）
     if let Some(hermes_path) = find_hermes_exe() {
-        let hermes_check = tokio::process::Command::new(&hermes_path)
-            .arg("--version")
-            .output()
-            .await;
-        if let Ok(out) = hermes_check {
+        let mut hermes_cmd = tokio::process::Command::new(&hermes_path);
+        hermes_cmd.arg("--version");
+        let hermes_check = tokio::time::timeout(
+            std::time::Duration::from_secs(3),
+            no_window(&mut hermes_cmd).output(),
+        ).await;
+        let mut detected = false;
+        let mut ver = String::new();
+        if let Ok(Ok(out)) = hermes_check {
             if out.status.success() {
-                let ver = String::from_utf8_lossy(&out.stdout).trim().to_string();
-                status["hermesAgent"] = json!(true);
-                status["hermesVersion"] = json!(ver);
-                status["hermesPath"] = json!(hermes_path);
+                ver = String::from_utf8_lossy(&out.stdout).trim().to_string();
+                detected = true;
             }
         }
+        // 超时或退出码非 0 也认为已安装（文件存在即视为已安装，避免重复安装）
+        if !detected {
+            detected = true;
+            ver = "unknown (file exists)".to_string();
+            log::warn!("hermes --version 检测失败，但文件存在，视为已安装: {}", hermes_path);
+        }
+        status["hermesAgent"] = json!(detected);
+        status["hermesVersion"] = json!(ver);
+        status["hermesPath"] = json!(hermes_path);
     }
 
     // 检测授权目录
@@ -301,18 +327,19 @@ pub async fn install_ai_environment(app: AppHandle) -> Result<serde_json::Value,
         emit_progress(&app, 4, total_steps, "正在安装 HermesAgent（本地 pip install）...", 65);
 
         // pip install <local_wheel>（零依赖，安装极快）
+        // 使用 --upgrade --no-deps 避免每次都强制重装（--force-reinstall 会导致重复安装）
+        let mut pip_cmd = tokio::process::Command::new(&pip_path);
+        pip_cmd.args(&[
+            "install",
+            "--disable-pip-version-check",
+            "--upgrade",
+            "--no-deps",
+            local_whl.to_str().unwrap_or(""),
+        ]);
+        pip_cmd.kill_on_drop(true);
         let pip_install_result = tokio::time::timeout(
             std::time::Duration::from_secs(120),
-            tokio::process::Command::new(&pip_path)
-                .args(&[
-                    "install",
-                    "--disable-pip-version-check",
-                    "--force-reinstall",
-                    "--no-deps",
-                    local_whl.to_str().unwrap_or(""),
-                ])
-                .kill_on_drop(true)
-                .output(),
+            no_window(&mut pip_cmd).output(),
         )
         .await
         .map_err(|_| "HermesAgent 安装超时（120秒）".to_string())?
@@ -351,7 +378,7 @@ pub async fn install_ai_environment(app: AppHandle) -> Result<serde_json::Value,
 
         let result = tokio::time::timeout(
             std::time::Duration::from_secs(180),
-            cmd.output(),
+            no_window(&mut cmd).output(),
         )
         .await
         .map_err(|_| "agent-browser 安装超时".to_string())?

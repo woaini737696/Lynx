@@ -98,16 +98,18 @@ export async function listSessions(): Promise<ChatSession[]> {
 }
 
 export async function createSession(title?: string): Promise<ChatSession> {
-  const res = await cloudApi.post<ChatSession>("/api/ai/chat/sessions", { title });
-  return res;
+  // Web 端 API 返回 { session: ChatSession }，需解构
+  const res = await cloudApi.post<{ session: ChatSession }>("/api/ai/chat/sessions", { title });
+  return res.session;
 }
 
 export async function getSession(id: string): Promise<{ session: ChatSession; messages: Message[] }> {
-  const res = await cloudApi.get<{ session: ChatSession; messages: Message[] }>(
+  // Web 端 API 返回 { session: { ..., messages: [...] } }，messages 嵌套在 session 内
+  const res = await cloudApi.get<{ session: ChatSession & { messages?: Message[] } }>(
     `/api/ai/chat/sessions/${id}`
   );
-  // 后端返回的消息字段映射到桌面端 Message
-  const messages = (res.messages || []).map((m) => ({
+  const rawMessages = res.session?.messages || [];
+  const messages = rawMessages.map((m) => ({
     ...m,
     time: m.time || new Date().toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit" }),
   }));
@@ -122,6 +124,8 @@ export async function appendMessage(
   sessionId: string,
   msg: { role: string; content: string; provider?: string; model?: string }
 ): Promise<void> {
+  // 防御：无 sessionId 时静默跳过（避免拼出 /sessions/undefined/messages 导致 404）
+  if (!sessionId) return;
   await cloudApi.post(`/api/ai/chat/sessions/${sessionId}/messages`, msg);
 }
 
