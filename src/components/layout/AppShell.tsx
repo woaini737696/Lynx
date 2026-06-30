@@ -6,6 +6,7 @@ import { Sidebar } from "./Sidebar";
 import { CaptureBar } from "./CaptureBar";
 import { TitleBar } from "./TitleBar";
 import { RecentTabs } from "./RecentTabs";
+import { useDeviceWs } from "@/hooks/use-device-ws";
 
 function ConvergeReminder() {
   const router = useRouter();
@@ -75,6 +76,9 @@ function ConvergeReminder() {
 }
 
 export function AppShell({ children }: { children: React.ReactNode }) {
+  // Web 端注册为在线设备（与桌面端走相同 WS 协议）
+  useDeviceWs();
+
   return (
     <div className="flex h-screen flex-col overflow-hidden">
       <TitleBar />

@@ -1282,7 +1282,7 @@ async function executeExportBackup(
 
 // ============ Hermes Agent ============
 
-/** 检查用户是否有在线的 PC 会话（桌面端已连接 WS 网关） */
+/** 检查用户是否有在线的 PC 会话（桌面端或 Web 端已连接 WS 网关） */
 async function getOnlinePcSession(userId: string) {
   const session = await prisma.pcSession.findFirst({
     where: { userId, status: "online" },
@@ -1293,6 +1293,20 @@ async function getOnlinePcSession(userId: string) {
     return null;
   }
   return session;
+}
+
+/** 获取用户所有在线设备（桌面端 + Web 端） */
+async function getOnlineDevices(userId: string) {
+  const threshold = new Date(Date.now() - 60_000);
+  const sessions = await prisma.pcSession.findMany({
+    where: {
+      userId,
+      status: "online",
+      lastHeartbeat: { gte: threshold },
+    },
+    orderBy: { lastHeartbeat: "desc" },
+  });
+  return sessions;
 }
 
 /** 通过 WS 网关下发远程指令到桌面端并轮询等待结果 */
@@ -1399,16 +1413,20 @@ async function executeHermesExecute(
   const timeoutSec = args.timeout || 120;
   let result: { success: boolean; output: string; error?: string; durationMs?: number; steps?: unknown[] };
 
-  // 唯一路径：通过 WS 网关远程下发到用户电脑的桌面端执行
-  // 桌面端 ws_client.rs 收到后优先调用 HermesAgent Dashboard HTTP API（真正 AI 执行）
-  const onlinePc = await getOnlinePcSession(user.id);
-  if (!onlinePc) {
+  // 唯一路径：通过 WS 网关远程下发到用户电脑（桌面端或 Web 端均可接收）
+  // 接收端收到后优先调用 HermesAgent Dashboard HTTP API（真正 AI 执行）
+  const devices = await getOnlineDevices(user.id);
+  if (devices.length === 0) {
     return {
       success: false,
       output: "",
-      error: "未检测到在线的桌面端。请在您的电脑上启动 Lynx 桌面端客户端并登录，确保 HermesAgent 已启动。AI 助理通过桌面端执行本地操作（如打开浏览器、操作文件等），无法在服务器上执行。",
+      error: "未检测到在线设备。请在您的电脑上打开 Lynx 桌面端或 Web 端并登录，确保至少一台设备在线。AI 助理通过在线设备执行本地操作（如打开浏览器、操作文件等），无法在服务器上执行。",
     };
   }
+
+  // 多设备策略：优先选桌面端（非 Web- 开头），其次选最近心跳的设备
+  const desktopDevice = devices.find((d) => !d.deviceName.startsWith("Web-"));
+  const targetDevice = desktopDevice || devices[0];
 
   const remoteResult = await dispatchRemoteCommand(user.id, prompt, timeoutSec);
   result = {
@@ -1417,7 +1435,7 @@ async function executeHermesExecute(
     error: remoteResult.error,
     durationMs: remoteResult.durationMs,
     steps: remoteResult.success
-      ? [{ action: "remote-dispatch", result: remoteResult.route || "desktop", timestamp: new Date().toISOString() }]
+      ? [{ action: "remote-dispatch", device: targetDevice.deviceName, route: remoteResult.route || "desktop", timestamp: new Date().toISOString() }]
       : undefined,
   };
 
