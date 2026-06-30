@@ -918,11 +918,11 @@ export function clearHermesDetectCache(): void {
 /**
  * 安装 HermesAgent（Web 端一键安装）
  *
- * 安装策略（依次尝试镜像源，任一成功即返回）：
- *   `pip install hermes-agent -i <mirror>`
- * —— HermesAgent v0.14+ 已正式发布到 PyPI，纯 pip 安装本体几秒内完成
- * —— 多镜像源依次回退（清华 → 阿里 → 腾讯 → 官方），适配国内网络环境
- * —— 清除 PIP_INDEX_URL/PIP_EXTRA_INDEX_URL 环境变量，避免继承错误 index
+ * 安装策略（依次尝试，任一成功即返回）：
+ * 1. 从 LynnHub 服务器下载预置 .whl 文件本地安装（最稳妥，不依赖 PyPI 镜像同步）
+ *    —— .whl 文件位于 public/downloads/hermes_agent-0.17.0-py3-none-any.whl
+ *    —— pip install <本地.whl> 会自动从 PyPI 下载依赖（openai/fastapi 等常见包）
+ * 2. PyPI 镜像源依次回退（清华 → 阿里 → 腾讯 → 官方）
  *
  * 验证：安装后执行 `hermes --version` 确认可执行文件就绪
  *
@@ -936,37 +936,30 @@ export async function installHermesAgent(): Promise<{
   const { exec } = await import("child_process");
   const { promisify } = await import("util");
   const execAsync = promisify(exec);
+  const fs = await import("fs");
+  const path = await import("path");
+  const os = await import("os");
 
-  logger.info("HermesAgent 安装请求：pip install hermes-agent");
+  logger.info("HermesAgent 安装请求");
 
   const pipCmd = process.platform === "win32" ? "pip" : "pip3";
 
-  // 清理可能继承的错误 index 环境变量，避免 "HTML index page is not a proper HTML 5" 警告
+  // 清理可能继承的错误 index 环境变量
   const cleanEnv: NodeJS.ProcessEnv = { ...process.env };
   delete cleanEnv.PIP_INDEX_URL;
   delete cleanEnv.PIP_EXTRA_INDEX_URL;
 
-  // 候选镜像源（依次尝试，任一成功即返回）
-  const mirrors = [
-    "https://pypi.tuna.tsinghua.edu.cn/simple",
-    "https://mirrors.aliyun.com/pypi/simple/",
-    "https://mirrors.cloud.tencent.com/pypi/simple",
-    "https://pypi.org/simple",
-  ];
-
-  // 验证安装是否成功（hermes --version 或 pip show）
+  // 验证安装是否成功
   const verifyInstall = async (): Promise<boolean> => {
-    // 1. 先检查 hermes 可执行文件
     const hermesExe = await findHermesExe();
     if (hermesExe) {
       try {
         await execAsync(`"${hermesExe}" --version`, { timeout: 10000, env: cleanEnv });
         return true;
       } catch {
-        // 可执行文件存在但 --version 失败，继续检查 pip
+        // 继续 pip show 检查
       }
     }
-    // 2. 回退到 pip show
     try {
       const verifyCmd = process.platform === "win32" ? "pip show hermes-agent" : "pip3 show hermes-agent";
       await execAsync(verifyCmd, { timeout: 15000, env: cleanEnv });
@@ -979,12 +972,38 @@ export async function installHermesAgent(): Promise<{
   let lastError = "";
   let lastOutput = "";
 
-  for (const mirror of mirrors) {
-    const installCmd = `${pipCmd} install --disable-pip-version-check -i ${mirror} hermes-agent`;
-    logger.info({ mirror }, "尝试安装 HermesAgent");
+  // ===== 策略1：从 LynnHub 服务器下载 .whl 本地安装（最稳妥） =====
+  const WHL_VERSION = "0.17.0";
+  const WHL_FILENAME = `hermes_agent-${WHL_VERSION}-py3-none-any.whl`;
+  const serverUrls = [
+    `https://app.lynnhub.com/downloads/${WHL_FILENAME}`,
+    `https://ai.lynxdo.com/downloads/${WHL_FILENAME}`,
+  ];
+
+  logger.info({ strategy: "server-whl", serverUrls }, "策略1：从服务器下载 .whl 本地安装");
+  for (const serverUrl of serverUrls) {
     try {
+      const tmpDir = path.join(os.tmpdir(), "lynnhub-hermes-install");
+      fs.mkdirSync(tmpDir, { recursive: true });
+      const localWhl = path.join(tmpDir, WHL_FILENAME);
+
+      const isWindows = process.platform === "win32";
+      const curlCmd = isWindows
+        ? `curl -fsSL "${serverUrl}" -o "${localWhl}"`
+        : `curl -fsSL "${serverUrl}" -o "${localWhl}"`;
+      logger.info({ serverUrl, localWhl }, "下载 .whl 文件");
+      await execAsync(curlCmd, { timeout: 120000, maxBuffer: 1024 * 1024, env: cleanEnv });
+
+      const stat = fs.statSync(localWhl);
+      if (stat.size < 1024 * 1024) {
+        throw new Error(`下载的文件过小 (${stat.size} 字节)，可能是 404 页面`);
+      }
+      logger.info({ size: stat.size }, ".whl 下载完成");
+
+      const installCmd = `${pipCmd} install --disable-pip-version-check "${localWhl}"`;
+      logger.info("pip install 本地 .whl（自动从 PyPI 下载依赖）");
       const { stdout, stderr } = await execAsync(installCmd, {
-        timeout: 180000, // 3 分钟超时（首装可能拉取较多依赖）
+        timeout: 300000,
         maxBuffer: 10 * 1024 * 1024,
         env: cleanEnv,
       });
@@ -993,22 +1012,55 @@ export async function installHermesAgent(): Promise<{
 
       if (await verifyInstall()) {
         clearHermesDetectCache();
-        logger.info({ mirror }, "HermesAgent 安装成功");
+        logger.info({ strategy: "server-whl", serverUrl }, "HermesAgent 安装成功（服务器 .whl）");
+        try { fs.unlinkSync(localWhl); } catch { /* ignore */ }
         return { success: true, output };
       }
-      // 该源执行了但验证失败，继续下一个源
+      lastError = `服务器 ${serverUrl} 安装执行但验证失败`;
+    } catch (e) {
+      const err = e as { stderr?: string; message?: string };
+      lastError = `服务器 ${serverUrl} 失败：${err.message || "未知错误"}`;
+      logger.warn({ serverUrl, err: lastError }, "服务器 .whl 下载/安装失败，尝试下一个源");
+    }
+  }
+
+  // ===== 策略2：PyPI 镜像源依次回退 =====
+  const mirrors = [
+    "https://pypi.tuna.tsinghua.edu.cn/simple",
+    "https://mirrors.aliyun.com/pypi/simple/",
+    "https://mirrors.cloud.tencent.com/pypi/simple",
+    "https://pypi.org/simple",
+  ];
+
+  for (const mirror of mirrors) {
+    const installCmd = `${pipCmd} install --disable-pip-version-check -i ${mirror} hermes-agent`;
+    logger.info({ mirror }, "策略2：从 PyPI 镜像源安装");
+    try {
+      const { stdout, stderr } = await execAsync(installCmd, {
+        timeout: 180000,
+        maxBuffer: 10 * 1024 * 1024,
+        env: cleanEnv,
+      });
+      const output = (stdout || "") + (stderr ? `\n${stderr}` : "");
+      lastOutput = output;
+
+      if (await verifyInstall()) {
+        clearHermesDetectCache();
+        logger.info({ mirror }, "HermesAgent 安装成功（PyPI 镜像）");
+        return { success: true, output };
+      }
       lastError = `镜像 ${mirror} 安装执行但验证失败`;
     } catch (e) {
       const err = e as { stderr?: string; message?: string };
       lastError = `镜像 ${mirror} 失败：${err.stderr || err.message || "未知错误"}`;
-      logger.warn({ mirror, err: lastError }, "HermesAgent 安装失败，尝试下一个镜像");
+      logger.warn({ mirror, err: lastError }, "镜像安装失败，尝试下一个");
     }
   }
 
   return {
     success: false,
     output: lastOutput,
-    error: lastError || "所有镜像源安装均失败，请检查 Python 版本（需 3.11+）或网络连接",
+    error: lastError || "所有安装策略均失败，请检查 Python 版本（需 3.11+）或网络连接",
   };
 }
 

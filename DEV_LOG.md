@@ -9,6 +9,7 @@
 
 | 迭代 | 日期 | 任务概要 |
 |------|------|----------|
+| [迭代 69](#迭代-69---2026-06-30) | 2026-06-30 | HermesAgent服务器预置.whl+一键下载安装+ws-gateway修复DATABASE_URL加载+middleware放行downloads路径 |
 | [迭代 68](#迭代-68---2026-06-30) | 2026-06-30 | HermesAgent改回pip install+AI巡检页灰色块清理(--muted定义修正)+远程操控WS路由与认证修复+Trae Solo卡顿诊断 |
 | [迭代 67](#迭代-67---2026-06-30) | 2026-06-30 | 桌面端v1.0.16六项修复：SkillsPage防崩溃+闪电输入白色毛玻璃+灵感通知同步Web端+HermesAgent多镜像源安装+钱包会员设置防御性处理+去除Ultra档位 |
 | [迭代 66](#迭代-66---2026-06-30) | 2026-06-30 | 8项Web端功能崩溃修复：HermesAgent pip安装恢复+ASR/TTS配置显示+Inbox/记忆图谱/技能页面崩溃修复+disabled按钮样式优化+对话资产测试数据 |
@@ -109,6 +110,53 @@
 
 ### Commit hash
 `4181fb4d`
+
+---
+
+## 迭代 69 - 2026-06-30
+
+### 任务概要
+HermesAgent 安装彻底修复（服务器预置 .whl + 一键从服务器下载安装）+ 远程操控 WS 网关根本性修复（DATABASE_URL 加载 + middleware 放行下载路径）。
+
+### 修复内容
+
+#### 1. HermesAgent 安装：服务器预置 .whl + 一键下载安装（彻底修复）
+- **问题**：迭代 68 改回 `pip install hermes-agent`，但所有 PyPI 镜像源都报 `No matching distribution found`（镜像同步延迟或 pip 版本解析问题）
+- **用户建议**：把 hermes-agent 下载下来存服务器，一键安装从服务器安装
+- **修复**：
+  1. 用 `pip download` 把 `hermes_agent-0.17.0-py3-none-any.whl`（8.6MB，py3-none-any 通用 wheel）下载到 `public/downloads/`
+  2. `installHermesAgent` 策略1 改为：从 `https://app.lynnhub.com/downloads/hermes_agent-0.17.0-py3-none-any.whl`（或 `https://ai.lynxdo.com/downloads/...`）curl 下载 .whl 到临时目录，然后 `pip install <本地.whl>`（pip 自动从 PyPI 下载依赖：openai/fastapi/uvicorn 等常见包）
+  3. 策略2 保留 PyPI 镜像源回退
+  4. middleware.ts matcher 添加 `downloads` 路径和 `.whl/.exe/.dmg/.pkg/.deb/.rpm/.msi/.zip/.tar/.gz/.7z` 扩展名，避免认证拦截
+- **验证**：服务器 `curl -I http://localhost:5176/downloads/hermes_agent-0.17.0-py3-none-any.whl` 返回 HTTP 200 ✓
+
+#### 2. 远程操控 WS 网关根本性修复（DATABASE_URL 加载）
+- **问题**：ws-gateway 日志报 `Environment variable not found: DATABASE_URL`，导致 PcSession 表无法写入，Web 端永远看不到在线设备
+- **根因**：PM2 配置 `ecosystem.config.cjs` 中 ws-gateway 的 script 是 `scripts/ws-gateway.compiled.js`（直接运行编译后 JS），但 `start-ws-gateway.js` 才会先 `require("dotenv").config()` 加载 .env —— 跳过了这一步导致 DATABASE_URL 缺失
+- **修复 1**：`ecosystem.config.cjs` ws-gateway 的 script 改为 `scripts/start-ws-gateway.js`
+- **修复 2**：`scripts/start-ws-gateway.js` 移除 `require("dotenv")` 依赖（standalone 构建不包含 dotenv），改为手动解析 .env 文件（纯 Node.js fs 模块，零依赖）
+- **验证**：ws-gateway 日志显示 `已从 .env 加载 33 个环境变量` ✓，`/devices?userId=test123` 返回 `{"devices":[]}` ✓
+
+#### 3. middleware.ts 放行下载路径
+- **问题**：`/downloads/xxx.whl` 被 middleware 认证拦截，307 重定向到登录页
+- **修复**：matcher 正则添加 `downloads` 路径前缀和 `.whl` 等下载文件扩展名
+
+### 构建与部署
+- TS 检查：`npx tsc --noEmit` 通过
+- 本地构建：`lynx-deploy-fast.tar.gz`（含 public/downloads/hermes_agent-0.17.0-py3-none-any.whl）
+- 服务器部署：`cp -a /tmp/lynx-deploy-fast/standalone /opt/lynx/app`
+- PM2 重启：lynx-app (online, 111MB) + lynx-ws-gateway (online, 60MB)
+- 健康检查：`{"ok":true}`
+- .whl 下载验证：HTTP 200 ✓
+- ws-gateway DATABASE_URL：已加载 33 个环境变量 ✓
+- /devices API：返回 `{"devices":[]}` ✓
+
+### 远程操控调试记录
+- ws-gateway 日志历史：从没收到过桌面端 WS 连接（只有启动/关闭日志）
+- Nginx 配置：`/api/ws/agent` 已转发到 ws-gateway:3001（迭代 68 已修复）
+- ws-gateway 认证：已改为从 register 消息体读 token + 支持 JWT（迭代 68 已修复）
+- 本次修复：DATABASE_URL 加载问题（ws-gateway 无法写 PcSession 表的根本原因）
+- 待用户验证：重启桌面端后，WS 连接应能到达 ws-gateway，PcSession 表写入记录，Web 端显示在线设备
 
 ---
 
