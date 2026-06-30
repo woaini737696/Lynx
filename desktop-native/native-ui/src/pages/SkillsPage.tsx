@@ -14,6 +14,8 @@ import {
   Tag,
   Save,
   Store,
+  CheckCircle2,
+  AlertCircle,
 } from "lucide-react";
 import { motion } from "framer-motion";
 import { cn } from "@/lib/utils";
@@ -78,6 +80,7 @@ export function SkillsPage() {
   const [executing, setExecuting] = useState<string | null>(null);
   const [showMarketplace, setShowMarketplace] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<Skill | null>(null);
+  const [execResult, setExecResult] = useState<{ skillName: string; success: boolean; output: string; error?: string } | null>(null);
 
   // 加载技能列表
   const { data: skills = [], isLoading } = useQuery<Skill[]>({
@@ -183,20 +186,31 @@ export function SkillsPage() {
   const handleExecute = async (skill: Skill) => {
     setExecuting(skill.id);
     try {
-      // 调用执行接口（如果存在）；否则提示用户在 AI 助理中调用
-      const resp = await cloudApi.post<{ output?: string; message?: string }>(
+      const resp = await cloudApi.post<{ output?: string; message?: string; error?: string; success?: boolean }>(
         `/api/skills/${skill.id}/execute`,
         { input: "" }
       );
-      toast.success(resp.message || "技能执行完成");
-    } catch (err) {
-      // 404 时接口不存在，引导用户去 AI 助理；其他错误显示真实 message
-      const msg = err instanceof Error ? err.message : "";
-      if (msg.includes("不存在") || msg.includes("404") || msg.includes("Cannot")) {
-        toast.info("请在 AI 助理中通过自然语言调用此技能");
+      const success = resp.success !== false;
+      setExecResult({
+        skillName: skill.name,
+        success,
+        output: resp.output || "",
+        error: resp.error,
+      });
+      if (success) {
+        toast.success(resp.message || "技能执行完成");
       } else {
-        toast.error(msg || "技能执行失败");
+        toast.error(resp.error || "技能执行失败");
       }
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "";
+      setExecResult({
+        skillName: skill.name,
+        success: false,
+        output: "",
+        error: msg || "技能执行失败",
+      });
+      toast.error(msg || "技能执行失败");
     } finally {
       setExecuting(null);
     }
@@ -398,6 +412,50 @@ export function SkillsPage() {
 
       {/* 技能市场弹窗 */}
       <MarketplaceModal open={showMarketplace} onClose={() => setShowMarketplace(false)} />
+
+      {/* 执行结果弹窗 */}
+      <Modal
+        open={!!execResult}
+        onClose={() => setExecResult(null)}
+        title="技能执行结果"
+        size="md"
+      >
+        {execResult && (
+          <div className="space-y-4">
+            <div className="flex items-center gap-2">
+              {execResult.success ? (
+                <CheckCircle2 className="h-5 w-5 text-task" />
+              ) : (
+                <AlertCircle className="h-5 w-5 text-destructive" />
+              )}
+              <span className={cn("text-sm font-semibold", execResult.success ? "text-task" : "text-destructive")}>
+                {execResult.success ? "执行成功" : "执行失败"} · {execResult.skillName}
+              </span>
+            </div>
+            {execResult.error && !execResult.output && (
+              <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-xs text-destructive">
+                {execResult.error}
+              </div>
+            )}
+            {execResult.output && (
+              <div className="rounded-lg border border-border/40 bg-background/40 p-3">
+                <div className="mb-1 text-[11px] font-medium text-muted-foreground">执行输出：</div>
+                <pre className="max-h-64 overflow-auto whitespace-pre-wrap text-xs text-foreground/80">
+                  {execResult.output}
+                </pre>
+              </div>
+            )}
+            <div className="flex justify-end gap-2 border-t border-border/40 pt-3">
+              <button
+                onClick={() => setExecResult(null)}
+                className="btn-primary-glass flex h-8 items-center px-4 text-xs"
+              >
+                关闭
+              </button>
+            </div>
+          </div>
+        )}
+      </Modal>
 
       {/* 删除确认弹窗 */}
       <Modal

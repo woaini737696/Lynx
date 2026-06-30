@@ -9,6 +9,8 @@
 
 | 迭代 | 日期 | 任务概要 |
 |------|------|----------|
+| [迭代 77](#迭代-77---2026-06-30) | 2026-06-30 | 桌面端v1.0.23六项问题修复：自签名代码签名证书(NSIS签名+timestampUrl)+Lynx助理远程指令走HermesAgent Dashboard HTTP API(POST /api/execute真正AI执行)+AI工作流执行结果弹窗(节点详情+最终输出)+通知渠道扩展(Web端/移动端+飞书404修复路径/api/ai/notify-feishu)+技能执行API新建(/api/skills/[id]/execute调用executeTool+执行结果弹窗)+飞书任务字段映射(NormalizedTask归一化+db_only参数+同步状态提示) |
+| [迭代 77](#迭代-77---2026-07-01) | 2026-07-01 | 修复HermesAgent"虚假成功"严重bug：executor.py只调LLM生成文本从不真正执行RPA→重写为<action>标签+execute_rpa_action真实执行(webbrowser/subprocess); 升级hermes-agent 0.17.0→0.18.0; hermes-client.ts加RPA关键词识别+executed真实性校验; 服务器升级验证通过 |
 | [迭代 76](#迭代-76---2026-06-30) | 2026-06-30 | Web端性能优化4阶段全量推进：阶段1拆全局重包(AssistantDrawer dynamic+RoutePreloader裁到top3)+阶段2降渲染成本(去background-attachment:fixed+contain/isolation+prefers-reduced-transparency)+阶段3拆巨石(RichTextEditor/3个settings tab组件dynamic)+阶段4统一数据层(usePollWhenVisible hook+应用AssistantGlobalEntry/CaptureBar全局轮询) |
 | [迭代 75](#迭代-75---2026-06-30) | 2026-06-30 | 桌面端v1.0.22六项问题修复：HermesAgent调用改HTTP API优先(CLI回退)+LynxAgent测试按钮+通知设置重构(localStorage+toast替代Web Notification)+飞书任务路径修正(/api/lark-tasks)+AI工作流执行历史UI+认知库编辑/使用功能(PATCH接口+发送助理/转技能) |
 | [迭代 74](#迭代-74---2026-06-30) | 2026-06-30 | 桌面端v1.0.21两项核心修复：hermesExecute工具调用走PcSession+WS网关远程执行(不再检查HermesConfig.status)+Web端HermesAgent独立安装恢复(浏览器分支调API非阻断)+install路由自动安装回退 |
@@ -117,6 +119,75 @@
 
 ### Commit hash
 `4181fb4d`
+
+---
+
+## 迭代 77 - 2026-06-30
+
+### 完成内容
+
+#### 1. 安装包开发者信息（代码签名）
+- **根因**：NSIS 安装包未签名，Windows SmartScreen 提示"开发者未知应用"
+- **修复**：生成自签名 CodeSigning 证书（`New-SelfSignedCertificate`），导出 PFX（`lynnhub-code-sign.pfx`，密码 `LynnHub2026`，3年有效期），导入 TrustedPeople 存储
+- **配置**：`desktop-native/src-tauri/tauri.conf.json` 新增 `certificateThumbprint: 7BCF15A9E0867DADA9F97DAC69297EAF2672F748` + `digestAlgorithm: sha256` + `timestampUrl: http://timestamp.digicert.com`
+
+#### 2. Lynx 助理远程指令真正执行（HermesAgent Dashboard HTTP API 优先）
+- **根因**：`ws_client.rs` `handle_cloud_message` 收到云端远程指令后直接调 `route_and_execute`（关键词匹配的简单 RPA），而非真正 AI 执行。即使 HermesAgent Dashboard 已在本地 9119 运行并提供 `POST /api/execute`（完整 LLM + computer_use），远程指令也绕过了它，导致"说已打开浏览器但实际未执行"
+- **修复**：`desktop-native/src-tauri/src/ws_client.rs`
+  - 新增 `execute_via_dashboard(command)` 函数：POST `http://127.0.0.1:9119/api/execute`，body `{prompt, timeout:120, mode:"auto"}`，130s 超时
+  - `handle_cloud_message` 改为优先调 Dashboard API（真正 AI Agent 执行），失败/不可用才回退 `route_and_execute`
+  - 新增 `DashboardExecResult` 结构体
+
+#### 3. AI 工作流执行结果弹窗
+- **修复**：`desktop-native/native-ui/src/pages/AIFlowsPage.tsx`
+  - 新增 `showResultModal` state
+  - `handleExecute` / `handleRunFromCanvas` 执行后 `setShowResultModal(true)`
+  - 新增结果展示 Modal（size=lg）：成功/失败图标 + 工作流名 + 耗时 + 时间 + 错误信息 + 节点执行详情 + 最终输出 pre + 关闭按钮
+
+#### 4. 通知渠道扩展 + 飞书通知 404 修复
+- **根因**：`NotificationSettingsPage.tsx` 调 `/api/notify-feishu`，但后端实际路径为 `/api/ai/notify-feishu`
+- **修复**：`desktop-native/native-ui/src/pages/NotificationSettingsPage.tsx`
+  - 路径修正 `/api/notify-feishu` → `/api/ai/notify-feishu`
+  - 新增 `webNotifications` / `mobileNotifications` 字段
+  - 新增"Web端通知"（Globe 图标）和"移动端通知"（Smartphone 图标）两个 SettingRow
+
+#### 5. 技能执行 API 新建 + 结果展示
+- **根因**：`/api/skills/[id]/execute` 路由完全不存在，导致所有技能执行 404
+- **修复**：新建 `src/app/api/skills/[id]/execute/route.ts`
+  - `requirePermission("skill:execute")` 鉴权
+  - 查询技能，构造 prompt（优先 `promptTemplate` 替换 `{{input}}`，否则 `content + input`）
+  - 调 `executeTool("hermesExecute", {prompt, mode:"auto", timeout:120}, user)` 真正执行
+  - 记录执行历史到 `prisma.skillExecution`（userId/skillId/skillName/result/success 必填）
+  - 更新 `usageCount`
+- **UI**：`SkillsPage.tsx` 新增 `execResult` state + 执行结果 Modal（成功/失败图标 + 技能名 + 输出 pre + 关闭按钮）
+
+#### 6. 飞书任务字段映射 + db_only 参数
+- **根因**：后端返回 NormalizedTask（guid/summary/due/created/isCompleted），前端期望 id/title/dueDate/createdAt/completed，字段不匹配；且云端未装 lark-cli 时 API 报错
+- **修复**：`desktop-native/native-ui/src/pages/LarkTasksPage.tsx`
+  - `LarkTask` 接口扩展：新增 guid/summary/due/created/isCompleted/origin/tasklistGuid
+  - queryFn 改用 `/api/lark-tasks?db_only=true&fast=true`（从数据库获取，绕过云端 lark-cli 限制）
+  - 字段归一化映射：`id=guid||id`、`title=summary||title`、`dueDate=due`、`createdAt=created`、`completed=isCompleted`
+  - `normalizeStatus` 兼容 `isCompleted`
+  - `getStatusMeta` 新增第三参数 `isCompleted`
+  - tasks.length===0 时显示同步状态提示
+  - dueDate/createdAt 显示兼容 due/created 字段（`as string` 类型断言）
+
+### 自测验证
+- TypeScript 编译：Web 端 `npx tsc --noEmit` 0 错误，桌面端 native-ui 0 错误
+- 版本号升级：1.0.22 → 1.0.23（tauri.conf.json + package.json + Cargo.toml 三处）
+
+### 修改文件清单
+- `desktop-native/src-tauri/tauri.conf.json` — 版本 1.0.23 + 代码签名配置
+- `desktop-native/src-tauri/lynnhub-code-sign.pfx` — 新建（自签名证书）
+- `desktop-native/src-tauri/src/ws_client.rs` — execute_via_dashboard + handle_cloud_message 优先调 Dashboard
+- `desktop-native/native-ui/src/pages/AIFlowsPage.tsx` — 执行结果弹窗
+- `desktop-native/native-ui/src/pages/NotificationSettingsPage.tsx` — 飞书404修复 + Web/移动端通知渠道
+- `desktop-native/native-ui/src/pages/SkillsPage.tsx` — 执行结果弹窗
+- `desktop-native/native-ui/src/pages/LarkTasksPage.tsx` — 字段映射 + db_only + 同步提示
+- `desktop-native/native-ui/package.json` — 版本 1.0.23
+- `desktop-native/src-tauri/Cargo.toml` — 版本 1.0.23
+- `src/app/api/skills/[id]/execute/route.ts` — 新建（技能执行 API）
+- `DEV_LOG.md` — 开发日志更新
 
 ---
 
