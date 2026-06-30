@@ -9,6 +9,7 @@
 
 | 迭代 | 日期 | 任务概要 |
 |------|------|----------|
+| [迭代 67](#迭代-67---2026-06-30) | 2026-06-30 | 桌面端v1.0.16六项修复：SkillsPage防崩溃+闪电输入白色毛玻璃+灵感通知同步Web端+HermesAgent多镜像源安装+钱包会员设置防御性处理+去除Ultra档位 |
 | [迭代 66](#迭代-66---2026-06-30) | 2026-06-30 | 8项Web端功能崩溃修复：HermesAgent pip安装恢复+ASR/TTS配置显示+Inbox/记忆图谱/技能页面崩溃修复+disabled按钮样式优化+对话资产测试数据 |
 | [迭代 65](#迭代-65---2026-06-30) | 2026-06-30 | 部署失败紧急修复：cp -r改cp -a正确复制隐藏文件+PM2彻底重启+端到端验证全部功能恢复 |
 | [迭代 64](#迭代-64---2026-06-30) | 2026-06-30 | 服务器部署根因修复：AUTH_URL缺失导致中间件崩溃+添加到.env.production+PM2彻底重启+端到端验证 |
@@ -107,6 +108,55 @@
 
 ### Commit hash
 `4181fb4d`
+
+---
+
+## 迭代 67 - 2026-06-30
+
+### 任务概要
+桌面端 v1.0.16 六项修复：SkillsPage tags 崩溃 + 闪电输入弹窗白色毛玻璃 + 灵感通知同步 Web 端 + HermesAgent 多镜像源 pip 安装 + 钱包/会员/设置页防御性处理 + 去除 Ultra 档位会员。
+
+### 修复内容
+
+#### 1. SkillsPage tags 崩溃修复（p.tags.slice is not a function）
+- **问题**：技能管理页面打开提示「页面渲染失败 P.tags.slice(..).map is not a function」
+- **根因**：后端返回的 `tags`/`parameters` 字段可能为 null/字符串/对象，调用 `.slice()` 时崩溃
+- **修复**：`desktop-native/native-ui/src/pages/SkillsPage.tsx` 的 queryFn 中添加 `Array.isArray()` 防御性规范化，确保 tags/parameters 均为数组
+
+#### 2. 闪电输入弹窗白色毛玻璃背景
+- **问题**：记录灵感的闪电输入弹窗太透明，内容看不清
+- **修复**：`desktop-native/native-ui/src/components/lightning/LightningInput.tsx` 将 `ios-glass` 类替换为 `bg-white/95 backdrop-blur-2xl` + `ring-1 ring-black/5` + 自定义 boxShadow
+
+#### 3. 灵感通知同步 Web 端逻辑
+- **问题**：右下角灵感通知实现不正确
+- **根因**：`src/lib/reminder-scheduler.ts` 的 `checkInboxReminder` 使用过时的字段名 `data.ideas`，但 `/api/ideas` 返回 `{ data, total }` 分页格式
+- **修复**：改为兼容 `data.total || data.data?.length || data.ideas?.length` 三种响应格式
+
+#### 4. HermesAgent pip 安装失败修复
+- **问题**：pip install 报错「Could not find a version that satisfies the requirement hermes-agent」+「HTML index page is not a proper HTML 5 document」
+- **根因**：环境变量 `PIP_INDEX_URL` 可能被设置为无效 URL，导致 pip 使用错误的索引页
+- **修复**：`src/lib/hermes-client.ts` 重写 `installHermesAgent`：清除 `PIP_INDEX_URL`/`PIP_EXTRA_INDEX_URL` 环境变量 + 4 个镜像源依次回退（清华 → 阿里 → 腾讯 → 官方 PyPI）+ 每个源安装后用 `pip show` 验证
+
+#### 5. 钱包/会员/设置页防御性处理
+- **问题**：三个页面打不开（ErrorBoundary 捕获运行时异常或 API 失败导致「加载失败」）
+- **修复**：
+  - `WalletPage.tsx`：loadWallet/loadCreditTxs/loadSCoinTxs 添加 `json?.data` 可选链 + `Array.isArray()` 检查 + 字段默认值（credits/frozenCredits/availableCredits 用 `String(?? "0")`，sCoins 用 `Number(?? 0)`）
+  - `MembershipPage.tsx`：loadMembership 检查 `data.plan && data.tier` 存在才 setMembership；loadPlans 确保 plans/billingCycles 为数组
+  - 三个页面 TS 检查通过，确保 API 失败时不崩溃
+
+#### 6. 去除 Ultra 档位会员
+- **范围**：保留 FREE/LITE/PRO/MAX 四档，ULTRA 下架（现有 ULTRA 会员权益保留）
+- **修复**：
+  - Web 端 `src/app/api/membership/plans/route.ts`：过滤 `tier !== "ULTRA"`
+  - 桌面端 `MembershipPage.tsx`：MembershipPlan 类型去除 ULTRA + TIER_THEME 删除 ULTRA + loadPlans 过滤 ULTRA + 「5 档套餐」改「4 档套餐」+ `xl:grid-cols-5` 改 `xl:grid-cols-4`
+  - 桌面端 `WalletPage.tsx`：TIER_BADGE_CLASS 删除 ULTRA
+  - 桌面端 `help-content.ts`：会员使用说明文案更新为 4 档
+
+### 构建与部署
+- 版本号：1.0.15 → 1.0.16（4 个文件同步：package.json ×2、Cargo.toml、tauri.conf.json）
+- TS 检查：`npx tsc --noEmit` 通过
+- 安装包：`desktop-native/dist/Lynx_1.0.16_x64-setup.exe`（6.67MB）
+- Gitee 提交：`a2aec645`
 
 ---
 
