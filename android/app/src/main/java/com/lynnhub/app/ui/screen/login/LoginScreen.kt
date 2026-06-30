@@ -3,6 +3,7 @@ package com.lynnhub.app.ui.screen.login
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -32,9 +33,11 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.animation.core.*
 import androidx.compose.runtime.LaunchedEffect
+import com.lynnhub.app.R
 import com.lynnhub.app.ui.theme.*
 
 @Composable
@@ -66,13 +69,13 @@ fun LoginScreen(
                 .verticalScroll(rememberScrollState()),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            // Logo（64px 圆角方形，深海蓝微光）
+            // Logo（产品标准Logo：黑色背景白色猞猁）
             Box(
                 modifier = Modifier
-                    .size(64.dp)
+                    .size(72.dp)
                     .clip(RoundedCornerShape(18.dp))
-                    .background(Deep)
-                    .border(1.dp, BorderHover, RoundedCornerShape(18.dp))
+                    .background(Void)
+                    .border(1.dp, LiquidBorder, RoundedCornerShape(18.dp))
                     .shadow(
                         elevation = 0.dp,
                         ambientColor = PrimaryGlow,
@@ -80,9 +83,10 @@ fun LoginScreen(
                     ),
                 contentAlignment = Alignment.Center
             ) {
-                Text(
-                    text = "\uD83E\uDD81", // 猞猁 emoji 🐆
-                    fontSize = 32.sp
+                Image(
+                    painter = painterResource(id = R.drawable.lynx_logo_standard),
+                    contentDescription = "Lynx",
+                    modifier = Modifier.size(52.dp)
                 )
             }
 
@@ -219,50 +223,44 @@ private fun LynxInputField(
     modifier: Modifier = Modifier,
     trailingIcon: @Composable (() -> Unit)? = null
 ) {
-    Box(
+    TextField(
+        value = value,
+        onValueChange = onValueChange,
+        placeholder = {
+            Text(
+                text = placeholder,
+                color = TextMuted,
+                fontSize = 14.sp
+            )
+        },
+        singleLine = true,
+        visualTransformation = if (isPassword) PasswordVisualTransformation()
+            else VisualTransformation.None,
+        keyboardOptions = KeyboardOptions(
+            keyboardType = if (isPassword) KeyboardType.Password else KeyboardType.Text,
+            imeAction = imeAction
+        ),
+        keyboardActions = KeyboardActions(onAny = { onImeAction() }),
+        trailingIcon = trailingIcon,
+        colors = TextFieldDefaults.colors(
+            focusedContainerColor = Surface,
+            unfocusedContainerColor = Surface,
+            disabledContainerColor = Surface,
+            focusedIndicatorColor = Primary.copy(alpha = 0.5f),
+            unfocusedIndicatorColor = BorderHover,
+            disabledIndicatorColor = Color.Transparent,
+            cursorColor = Primary,
+            focusedTextColor = TextPrimary,
+            unfocusedTextColor = TextPrimary
+        ),
+        textStyle = MaterialTheme.typography.bodyMedium.copy(
+            fontSize = 14.sp
+        ),
+        shape = RoundedCornerShape(12.dp),
         modifier = modifier
             .fillMaxWidth()
-            .height(44.dp)
-            .background(Surface, RoundedCornerShape(12.dp))
-            .border(1.dp, BorderHover, RoundedCornerShape(12.dp)),
-        contentAlignment = Alignment.CenterStart
-    ) {
-        TextField(
-            value = value,
-            onValueChange = onValueChange,
-            placeholder = {
-                Text(
-                    text = placeholder,
-                    color = TextMuted,
-                    fontSize = 14.sp
-                )
-            },
-            singleLine = true,
-            visualTransformation = if (isPassword) PasswordVisualTransformation()
-                else VisualTransformation.None,
-            keyboardOptions = KeyboardOptions(
-                keyboardType = if (isPassword) KeyboardType.Password else KeyboardType.Text,
-                imeAction = imeAction
-            ),
-            keyboardActions = KeyboardActions(onAny = { onImeAction() }),
-            trailingIcon = trailingIcon,
-            colors = TextFieldDefaults.colors(
-                focusedContainerColor = Color.Transparent,
-                unfocusedContainerColor = Color.Transparent,
-                disabledContainerColor = Color.Transparent,
-                focusedIndicatorColor = Color.Transparent,
-                unfocusedIndicatorColor = Color.Transparent,
-                disabledIndicatorColor = Color.Transparent,
-                cursorColor = Primary,
-                focusedTextColor = TextPrimary,
-                unfocusedTextColor = TextPrimary
-            ),
-            textStyle = MaterialTheme.typography.bodyMedium.copy(
-                fontSize = 14.sp
-            ),
-            modifier = Modifier.fillMaxSize()
-        )
-    }
+            .heightIn(min = 52.dp)
+    )
 }
 
 // 颜色引用（避免顶层 import 冲突）

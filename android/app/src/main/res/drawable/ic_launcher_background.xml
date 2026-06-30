@@ -4,7 +4,8 @@
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
+    <!-- 黑色背景（产品标准Logo） -->
     <path
-        android:fillColor="#FF6B1A"
+        android:fillColor="#02040C"
         android:pathData="M0,0h108v108h-108z" />
 </vector>

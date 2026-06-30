@@ -52,7 +52,12 @@ class MainActivity : ComponentActivity() {
 
         // 异步加载已保存的 baseUrl 到拦截器（不在主线程阻塞）
         lifecycleScope.launch {
-            val savedUrl = userPreferences.getBaseUrl()
+            var savedUrl = userPreferences.getBaseUrl()
+            // 迁移旧地址：模拟器本地地址和旧的 lynnhub 域名统一替换为云服务器新域名
+            if (savedUrl.contains("10.0.2.2") || savedUrl.contains("app.lynnhub.com")) {
+                savedUrl = com.lynnhub.app.util.Constants.DEFAULT_BASE_URL
+                userPreferences.setBaseUrl(savedUrl)
+            }
             dynamicBaseUrlInterceptor.setBaseUrl(savedUrl)
         }
 
