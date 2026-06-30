@@ -290,6 +290,102 @@ async fn start_hermes_agent(
     Ok(())
 }
 
+/// 启动 Hermes Dashboard（本地 HTTP 服务）
+/// 调用 `hermes dashboard --port <port> --no-open` 启动本地 Dashboard
+#[tauri::command]
+async fn start_hermes_dashboard(port: Option<u16>) -> Result<serde_json::Value, String> {
+    let target_port = port.unwrap_or(9119);
+
+    // 查找 hermes 可执行文件（复用 installer 的检测逻辑）
+    let hermes_path = installer::find_hermes_exe_public()
+        .ok_or_else(|| "未找到 hermes 可执行文件，请先点击一键安装".to_string())?;
+
+    log::info!("启动 Hermes Dashboard: {} --port {}", hermes_path, target_port);
+
+    // spawn detached 进程
+    let mut cmd = tokio::process::Command::new(&hermes_path);
+    cmd.args(&["dashboard", "--port", &target_port.to_string(), "--no-open"]);
+    cmd.stdin(std::process::Stdio::null());
+    cmd.stdout(std::process::Stdio::null());
+    cmd.stderr(std::process::Stdio::piped());
+    cmd.kill_on_drop(false);
+
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        const CREATE_NO_WINDOW: u32 = 0x08000000;
+        cmd.creation_flags(CREATE_NO_WINDOW);
+    }
+
+    let child = cmd.spawn().map_err(|e| format!("启动 Hermes Dashboard 失败: {}", e))?;
+    let pid = child.id().unwrap_or(0);
+
+    // 不等待子进程（detached），让它后台运行
+    // 注意：不要 unref，tokio Command spawn 已经是 detached
+
+    log::info!("Hermes Dashboard 已启动, PID: {}, 端口: {}", pid, target_port);
+
+    Ok(serde_json::json!({
+        "success": true,
+        "pid": pid,
+        "port": target_port,
+        "endpoint": format!("http://localhost:{}", target_port),
+    }))
+}
+
+/// 停止 Hermes Dashboard（通过端口查找并终止进程）
+#[tauri::command]
+async fn stop_hermes_dashboard(port: Option<u16>) -> Result<serde_json::Value, String> {
+    let target_port = port.unwrap_or(9119);
+
+    #[cfg(windows)]
+    {
+        // Windows: 通过 netstat 查找端口对应的 PID 并 taskkill
+        let netstat_out = tokio::process::Command::new("netstat")
+            .args(&["-ano"])
+            .output()
+            .await
+            .map_err(|e| format!("netstat 执行失败: {}", e))?;
+        let stdout = String::from_utf8_lossy(&netstat_out.stdout);
+        let mut killed = 0;
+        for line in stdout.lines() {
+            let parts: Vec<&str> = line.split_whitespace().collect();
+            if parts.len() >= 5 && parts[1].ends_with(&format!(":{}", target_port)) && parts[3] == "LISTENING" {
+                let pid = parts[4];
+                let _ = tokio::process::Command::new("taskkill")
+                    .args(&["/PID", pid, "/F"])
+                    .output()
+                    .await;
+                killed += 1;
+            }
+        }
+        log::info!("停止 Hermes Dashboard: 端口 {}, 终止 {} 个进程", target_port, killed);
+        return Ok(serde_json::json!({ "success": true, "killed": killed }));
+    }
+
+    #[cfg(not(windows))]
+    {
+        // Linux/macOS: 通过 lsof 查找并 kill
+        let lsof_out = tokio::process::Command::new("lsof")
+            .args(&["-ti", &format!(":{}", target_port)])
+            .output()
+            .await;
+        if let Ok(out) = lsof_out {
+            let pids = String::from_utf8_lossy(&out.stdout);
+            let mut killed = 0;
+            for pid in pids.lines().filter(|l| !l.is_empty()) {
+                let _ = tokio::process::Command::new("kill")
+                    .args(&["-9", pid])
+                    .output()
+                    .await;
+                killed += 1;
+            }
+            log::info!("停止 Hermes Dashboard: 端口 {}, 终止 {} 个进程", target_port, killed);
+        }
+        return Ok(serde_json::json!({ "success": true }));
+    }
+}
+
 /// 打开外部链接（默认浏览器）
 #[tauri::command]
 async fn open_external(app: tauri::AppHandle, url: String) -> Result<(), String> {
@@ -530,6 +626,8 @@ pub fn run() {
             install_ai_env,
             detect_ai_env,
             start_hermes_agent,
+            start_hermes_dashboard,
+            stop_hermes_dashboard,
             open_external,
             navigate_to_url,
             check_local_server,

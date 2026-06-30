@@ -17,24 +17,33 @@ import {
   Rocket,
   ExternalLink,
 } from "lucide-react";
+import { useEffect, useState } from "react";
 
 import { cn } from "@/lib/utils";
-import { cloudApi } from "@/lib/cloud-api";
-import { invoke } from "@/lib/tauri";
+import { invoke, listen } from "@/lib/tauri";
 import { toast } from "@/lib/toast";
 
-interface HermesStatus {
-  installed: boolean;
-  installVersion?: string;
-  connected?: boolean;
-  version?: string;
-  config?: {
-    endpoint?: string;
-    enabled?: boolean;
-    autoStart?: boolean;
-    status?: string;
-    capabilities?: string[];
-  };
+interface LocalDetectStatus {
+  tauri: boolean;
+  python: boolean;
+  pythonVersion?: string;
+  pip: boolean;
+  pipPath?: string;
+  node: boolean;
+  nodeVersion?: string;
+  agentBrowser: boolean;
+  hermesAgent: boolean;
+  hermesVersion?: string;
+  hermesPath?: string;
+  authorizedDir: boolean;
+  ready: boolean;
+}
+
+interface InstallProgress {
+  step: number;
+  total: number;
+  message: string;
+  percent: number;
 }
 
 const CAPABILITIES = [
@@ -46,96 +55,165 @@ const CAPABILITIES = [
 
 type AgentState = "unknown" | "not_installed" | "installed" | "running";
 
+const DASHBOARD_PORT = 9119;
+
 export function HermesPanel() {
   const queryClient = useQueryClient();
+  const [installProgress, setInstallProgress] = useState<InstallProgress | null>(null);
+  const [isDashboardRunning, setIsDashboardRunning] = useState(false);
 
-  const { data: status, isLoading } = useQuery<HermesStatus>({
-    queryKey: ["agent-status"],
-    queryFn: async () => cloudApi.get<HermesStatus>("/api/hermes/status"),
-    refetchInterval: 10000,
+  // 本地检测 AI 环境（通过 Tauri 命令，不走云端 API）
+  const { data: status, isLoading } = useQuery<LocalDetectStatus>({
+    queryKey: ["local-ai-env"],
+    queryFn: async () => invoke<LocalDetectStatus>("detect_ai_env"),
+    refetchInterval: 15000,
   });
 
-  const installMutation = useMutation({
-    mutationFn: async () => {
-      return cloudApi.post<{ success: boolean; error?: string }>("/api/hermes/install", { action: "install" });
-    },
-    onSuccess: (data) => {
-      if (data.success) {
-        queryClient.invalidateQueries({ queryKey: ["agent-status"] });
-        toast.success("Lynx Agent 安装成功");
-      } else {
-        toast.error(data.error || "安装失败");
+  // 检测 Dashboard 是否在运行（HTTP 探测本地端口）
+  const { data: dashboardOnline } = useQuery<boolean>({
+    queryKey: ["dashboard-online"],
+    queryFn: async () => {
+      try {
+        const ctrl = new AbortController();
+        const timer = setTimeout(() => ctrl.abort(), 2000);
+        const res = await fetch(`http://127.0.0.1:${DASHBOARD_PORT}/api/status`, {
+          signal: ctrl.signal,
+        });
+        clearTimeout(timer);
+        return res.ok;
+      } catch {
+        return false;
       }
     },
-    onError: (e: unknown) => toast.error(e instanceof Error ? e.message : "安装失败"),
+    refetchInterval: 5000,
   });
 
+  useEffect(() => {
+    setIsDashboardRunning(!!dashboardOnline);
+  }, [dashboardOnline]);
+
+  // 监听安装进度事件
+  useEffect(() => {
+    let unlisten: (() => void) | null = null;
+    listen<InstallProgress>("install-progress", (payload) => {
+      setInstallProgress(payload);
+    }).then((fn) => {
+      unlisten = fn;
+    });
+    return () => {
+      if (unlisten) unlisten();
+    };
+  }, []);
+
+  // 安装：调用本地 Tauri 命令（从服务器下载 wheel + 本地 pip install）
+  const installMutation = useMutation({
+    mutationFn: async () => {
+      setInstallProgress({ step: 0, total: 6, message: "开始安装...", percent: 0 });
+      // 监听进度
+      const unlisten = await listen<InstallProgress>("install-progress", (p) => {
+        setInstallProgress(p);
+      });
+      try {
+        const result = await invoke<{ success: boolean; message?: string; error?: string }>("install_ai_env");
+        return result;
+      } finally {
+        unlisten();
+      }
+    },
+    onSuccess: (data) => {
+      setInstallProgress(null);
+      if (data.success) {
+        queryClient.invalidateQueries({ queryKey: ["local-ai-env"] });
+        toast.success("Lynx Agent 安装成功");
+      } else {
+        toast.error(data.error || data.message || "安装失败");
+      }
+    },
+    onError: (e: unknown) => {
+      setInstallProgress(null);
+      toast.error(e instanceof Error ? e.message : "安装失败");
+    },
+  });
+
+  // 启动 Dashboard：调用本地 Tauri 命令
   const startMutation = useMutation({
     mutationFn: async () => {
-      const endpoint = status?.config?.endpoint || "http://localhost:9119";
-      const port = endpoint.match(/:(\d+)$/)?.[1] || "9119";
-      return cloudApi.post<{ success: boolean; message?: string; error?: string }>("/api/hermes/install", {
-        action: "start",
-        port: parseInt(port, 10),
+      return invoke<{ success: boolean; pid?: number; port: number; endpoint: string }>("start_hermes_dashboard", {
+        port: DASHBOARD_PORT,
       });
     },
     onSuccess: (data) => {
       if (data.success) {
-        queryClient.invalidateQueries({ queryKey: ["agent-status"] });
-        toast.success(data.message || "Lynx Agent 已启动");
-      } else {
-        toast.error(data.error || "启动失败");
+        queryClient.invalidateQueries({ queryKey: ["dashboard-online"] });
+        toast.success(`Lynx Agent Dashboard 已启动（端口 ${data.port}）`);
       }
     },
     onError: (e: unknown) => toast.error(e instanceof Error ? e.message : "启动失败"),
   });
 
+  // 停止 Dashboard：调用本地 Tauri 命令
   const stopMutation = useMutation({
     mutationFn: async () => {
-      return cloudApi.post<{ success: boolean }>("/api/hermes/install", { action: "stop" });
+      return invoke<{ success: boolean; killed?: number }>("stop_hermes_dashboard", {
+        port: DASHBOARD_PORT,
+      });
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["agent-status"] });
-      toast.success("Lynx Agent 已停止");
+      queryClient.invalidateQueries({ queryKey: ["dashboard-online"] });
+      queryClient.invalidateQueries({ queryKey: ["local-ai-env"] });
+      toast.success("Lynx Agent Dashboard 已停止");
     },
     onError: (e: unknown) => toast.error(e instanceof Error ? e.message : "停止失败"),
   });
 
+  // 测试连接：HTTP fetch 本地 Dashboard
   const testMutation = useMutation({
     mutationFn: async () => {
-      return cloudApi.post<{ success: boolean; message?: string }>("/api/hermes/test", {});
+      const ctrl = new AbortController();
+      const timer = setTimeout(() => ctrl.abort(), 5000);
+      try {
+        const res = await fetch(`http://127.0.0.1:${DASHBOARD_PORT}/api/status`, {
+          signal: ctrl.signal,
+        });
+        clearTimeout(timer);
+        if (res.ok) {
+          const data = await res.json().catch(() => ({}));
+          return { success: true as const, version: (data as { version?: string }).version };
+        }
+        return { success: false as const, error: `HTTP ${res.status}` };
+      } catch (e) {
+        clearTimeout(timer);
+        return { success: false as const, error: e instanceof Error ? e.message : "连接失败" };
+      }
     },
     onSuccess: (data) => {
       if (data.success) {
-        toast.success("连接测试成功");
+        toast.success(`连接测试成功${data.version ? `（v${data.version}）` : ""}`);
       } else {
-        toast.error(data.message || "连接测试失败");
+        toast.error(data.error || "连接测试失败");
       }
-      queryClient.invalidateQueries({ queryKey: ["agent-status"] });
+      queryClient.invalidateQueries({ queryKey: ["dashboard-online"] });
     },
     onError: (e: unknown) => toast.error(e instanceof Error ? e.message : "测试失败"),
   });
 
   const handleOpenDashboard = async () => {
-    const endpoint = status?.config?.endpoint || "http://localhost:9119";
-    try {
-      // 如果未运行，先启动
-      if (status?.config?.status !== "running" && status?.installed) {
-        const port = endpoint.match(/:(\d+)$/)?.[1] || "9119";
-        await cloudApi.post("/api/hermes/install", { action: "start", port: parseInt(port, 10) });
-        queryClient.invalidateQueries({ queryKey: ["agent-status"] });
-      }
-      await invoke("open_external", { url: endpoint });
-    } catch (e: unknown) {
-      toast.error(e instanceof Error ? e.message : "打开 Dashboard 失败");
+    const endpoint = `http://localhost:${DASHBOARD_PORT}`;
+    // 如果未运行，先启动
+    if (!isDashboardRunning && status?.hermesAgent) {
+      await invoke("start_hermes_dashboard", { port: DASHBOARD_PORT });
+      queryClient.invalidateQueries({ queryKey: ["dashboard-online"] });
+      // 等待 1 秒让服务启动
+      await new Promise((r) => setTimeout(r, 1000));
     }
+    await invoke("open_external", { url: endpoint });
   };
 
   const getAgentState = (): AgentState => {
     if (isLoading || !status) return "unknown";
-    if (status.config?.status === "running") return "running";
-    if (status.installed) return "installed";
-    return "not_installed";
+    if (!status.hermesAgent) return "not_installed";
+    if (isDashboardRunning) return "running";
+    return "installed";
   };
 
   const state = getAgentState();
@@ -149,8 +227,8 @@ export function HermesPanel() {
     running: { label: "运行中", color: "text-green-500", dotColor: "bg-green-500", icon: CheckCircle2 },
   };
 
-  const endpoint = status?.config?.endpoint || "http://localhost:9119";
-  const configuredCaps = status?.config?.capabilities || [];
+  const endpoint = `http://localhost:${DASHBOARD_PORT}`;
+  const hermesVersion = status?.hermesVersion?.replace("hermes-agent ", "") || "";
 
   return (
     <div className="flex flex-col gap-4">
@@ -165,8 +243,8 @@ export function HermesPanel() {
               <h3 className="font-semibold text-foreground">Lynx Agent</h3>
               <p className="text-xs text-muted-foreground">
                 本地 AI 代理 · 操控电脑 · 数据不出本机
-                {status?.installVersion && (
-                  <span className="ml-1.5 text-muted-foreground/70">v{status.installVersion}</span>
+                {hermesVersion && (
+                  <span className="ml-1.5 text-muted-foreground/70">v{hermesVersion}</span>
                 )}
               </p>
             </div>
@@ -177,25 +255,28 @@ export function HermesPanel() {
           </div>
         </div>
 
-        {/* 状态信息卡片 */}
+        {/* 环境状态卡片 */}
         <div className="grid grid-cols-3 gap-3 text-sm">
+          <div className="rounded-xl bg-muted/50 px-3 py-2">
+            <span className="text-xs text-muted-foreground">Python</span>
+            <p className={cn("flex items-center gap-1 font-medium", status?.python ? "text-green-500" : "text-red-500")}>
+              {status?.python ? <CheckCircle2 className="h-3 w-3" /> : <AlertCircle className="h-3 w-3" />}
+              {status?.python ? status.pythonVersion?.split(" ")[1] || "已安装" : "未安装"}
+            </p>
+          </div>
+          <div className="rounded-xl bg-muted/50 px-3 py-2">
+            <span className="text-xs text-muted-foreground">Dashboard</span>
+            <p className={cn("flex items-center gap-1 font-medium", isRunning ? "text-green-500" : "text-muted-foreground")}>
+              {isRunning ? <CheckCircle2 className="h-3 w-3" /> : <AlertCircle className="h-3 w-3" />}
+              {isRunning ? "运行中" : "未启动"}
+            </p>
+          </div>
           <div className="rounded-xl bg-muted/50 px-3 py-2">
             <span className="text-xs text-muted-foreground">服务地址</span>
             <p className="flex items-center gap-1 font-medium text-foreground truncate" title={endpoint}>
               <Cpu className="h-3 w-3 shrink-0" />
-              <span className="truncate">{endpoint}</span>
+              <span className="truncate">:{DASHBOARD_PORT}</span>
             </p>
-          </div>
-          <div className="rounded-xl bg-muted/50 px-3 py-2">
-            <span className="text-xs text-muted-foreground">连接状态</span>
-            <p className={cn("flex items-center gap-1 font-medium", status?.connected ? "text-green-500" : "text-muted-foreground")}>
-              {status?.connected ? <CheckCircle2 className="h-3 w-3" /> : <AlertCircle className="h-3 w-3" />}
-              {status?.connected ? "已连接" : "未连接"}
-            </p>
-          </div>
-          <div className="rounded-xl bg-muted/50 px-3 py-2">
-            <span className="text-xs text-muted-foreground">核心能力</span>
-            <p className="font-medium text-foreground">{CAPABILITIES.length} 项</p>
           </div>
         </div>
 
@@ -253,15 +334,38 @@ export function HermesPanel() {
           )}
         </div>
 
-        {installMutation.isPending && (
-          <div className="rounded-xl border border-primary/30 bg-primary/5 p-3 text-xs text-foreground/80">
-            <div className="mb-1.5 flex items-center gap-1.5 font-medium text-primary">
-              <Loader2 className="h-3 w-3 animate-spin" />
-              正在安装 Lynx Agent...
+        {/* 安装进度 */}
+        {installMutation.isPending && installProgress && (
+          <div className="rounded-xl border border-primary/30 bg-primary/5 p-3">
+            <div className="mb-2 flex items-center justify-between text-xs">
+              <span className="flex items-center gap-1.5 font-medium text-primary">
+                <Loader2 className="h-3 w-3 animate-spin" />
+                {installProgress.message}
+              </span>
+              <span className="text-muted-foreground">{installProgress.percent}%</span>
             </div>
-            <p className="text-muted-foreground">
-              正在服务端部署 Hermes Agent 环境，请保持网络畅通。安装过程可能需要 1-2 分钟。
+            <div className="h-1.5 overflow-hidden rounded-full bg-muted">
+              <div
+                className="h-full rounded-full bg-primary transition-all duration-300"
+                style={{ width: `${installProgress.percent}%` }}
+              />
+            </div>
+            <p className="mt-2 text-[11px] text-muted-foreground">
+              步骤 {installProgress.step}/{installProgress.total} · 从服务器下载 HermesAgent 并本地安装
             </p>
+          </div>
+        )}
+
+        {/* 环境缺失提示 */}
+        {status && !status.python && (
+          <div className="rounded-xl border border-red-500/30 bg-red-500/5 p-3 text-xs text-red-600">
+            <div className="flex items-start gap-2">
+              <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+              <div>
+                <p className="font-medium">未检测到 Python</p>
+                <p className="mt-0.5">请先安装 Python 3.9+（<span className="underline">https://python.org/downloads</span>）后再点击一键安装</p>
+              </div>
+            </div>
           </div>
         )}
       </div>
@@ -278,7 +382,7 @@ export function HermesPanel() {
         <div className="grid grid-cols-2 gap-2">
           {CAPABILITIES.map((cap) => {
             const Icon = cap.icon;
-            const enabled = configuredCaps.includes(cap.key);
+            const enabled = isRunning;
             return (
               <div
                 key={cap.key}
