@@ -627,7 +627,7 @@ export default function PatrolSettingsPage() {
           <div className="flex items-center gap-2">
             <Bot className="h-4 w-4 text-cognition" />
             <h2 className="text-sm font-semibold">🤖 Hermes Cron 自动巡检</h2>
-            <span className="ml-1 rounded-full bg-muted px-2 py-0.5 text-[10px] text-muted-foreground">
+            <span className="ml-1 rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-medium text-primary">
               {cronJobs.length} 个定时任务
             </span>
           </div>
@@ -742,7 +742,7 @@ export default function PatrolSettingsPage() {
               </span>
             </div>
             {cronJobs.length === 0 ? (
-              <div className="rounded-xl border border-dashed border-border bg-muted/30 py-4 text-center text-[11px] text-muted-foreground">
+              <div className="rounded-xl border border-dashed border-border bg-background/60 backdrop-blur-sm py-4 text-center text-[11px] text-muted-foreground">
                 暂无 Cron 任务
                 <br />
                 选择预设时间并描述任务后创建
@@ -809,7 +809,7 @@ export default function PatrolSettingsPage() {
           <div className="flex items-center gap-2">
             <Sparkles className="h-4 w-4 text-cognition" />
             <h2 className="text-sm font-semibold">模板库</h2>
-            <span className="ml-1 rounded-full bg-muted px-2 py-0.5 text-[10px] text-muted-foreground">
+            <span className="ml-1 rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-medium text-primary">
               {PATROL_TEMPLATES.length} 个预置模板
             </span>
           </div>
@@ -867,7 +867,7 @@ export default function PatrolSettingsPage() {
             <div className="flex items-center gap-2">
               <Sparkles className="h-4 w-4 text-cognition" />
               <h2 className="text-sm font-semibold">巡检规则</h2>
-              <span className="ml-1 rounded-full bg-muted px-2 py-0.5 text-[10px] text-muted-foreground">
+              <span className="ml-1 rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-medium text-primary">
                 {rules.length}
               </span>
             </div>
@@ -886,7 +886,7 @@ export default function PatrolSettingsPage() {
                 <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
               </div>
             ) : rules.length === 0 ? (
-              <div className="flex h-32 flex-col items-center justify-center rounded-xl border border-dashed border-border bg-muted/30 text-center">
+              <div className="flex h-32 flex-col items-center justify-center rounded-xl border border-dashed border-border bg-background/60 backdrop-blur-sm text-center">
                 <span className="text-xs text-muted-foreground">
                   暂无巡检规则
                   <br />
@@ -894,7 +894,7 @@ export default function PatrolSettingsPage() {
                 </span>
               </div>
             ) : filteredRules.length === 0 ? (
-              <div className="flex h-20 flex-col items-center justify-center rounded-xl border border-dashed border-border bg-muted/30 text-center">
+              <div className="flex h-20 flex-col items-center justify-center rounded-xl border border-dashed border-border bg-background/60 backdrop-blur-sm text-center">
                 <span className="text-xs text-muted-foreground">没有匹配的规则</span>
               </div>
             ) : (
@@ -924,7 +924,7 @@ export default function PatrolSettingsPage() {
                         {rule.notifyChannels.map((ch) => (
                           <span
                             key={ch}
-                            className="rounded bg-muted px-1.5 py-0.5 text-[9px] text-muted-foreground"
+                            className="rounded ios-glass-sm border border-border/40 px-1.5 py-0.5 text-[9px] text-muted-foreground"
                           >
                             {CHANNEL_LABELS[ch] || ch}
                           </span>
@@ -1010,7 +1010,7 @@ export default function PatrolSettingsPage() {
           </div>
 
           {/* 模式切换：创建新规则 / 编辑现有规则 */}
-          <div className="flex items-center gap-2 border-b border-border bg-muted/20 px-4 py-2">
+          <div className="flex items-center gap-2 border-b border-border bg-background/40 px-4 py-2">
             <button
               onClick={() => {
                 setChatMode("create");
@@ -1111,7 +1111,7 @@ export default function PatrolSettingsPage() {
                         "max-w-[85%] rounded-xl px-3 py-2 text-xs",
                         msg.role === "user"
                           ? "bg-primary text-primary-foreground"
-                          : "bg-muted text-foreground"
+                          : "ios-glass-sm text-foreground"
                       )}
                     >
                       <p className="whitespace-pre-wrap">{msg.content}</p>
@@ -1121,7 +1121,7 @@ export default function PatrolSettingsPage() {
               )}
               {chatLoading && (
                 <div className="flex justify-start">
-                  <div className="rounded-xl bg-muted px-3 py-2">
+                  <div className="rounded-xl ios-glass-sm px-3 py-2">
                     <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />
                   </div>
                 </div>
@@ -1225,7 +1225,7 @@ export default function PatrolSettingsPage() {
           <div className="flex items-center gap-2">
             <Clock className="h-4 w-4 text-muted-foreground" />
             <h2 className="text-sm font-semibold">巡检日志</h2>
-            <span className="ml-1 rounded-full bg-muted px-2 py-0.5 text-[10px] text-muted-foreground">
+            <span className="ml-1 rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-medium text-primary">
               最近 {logs.length} 条
             </span>
           </div>
@@ -1247,11 +1247,11 @@ export default function PatrolSettingsPage() {
 
         <div className="space-y-2 p-3">
           {logs.length === 0 ? (
-            <div className="flex h-20 flex-col items-center justify-center rounded-xl border border-dashed border-border bg-muted/30 text-center">
+            <div className="flex h-20 flex-col items-center justify-center rounded-xl border border-dashed border-border bg-background/60 backdrop-blur-sm text-center">
               <span className="text-xs text-muted-foreground">暂无巡检日志</span>
             </div>
           ) : filteredLogs.length === 0 ? (
-            <div className="flex h-20 flex-col items-center justify-center rounded-xl border border-dashed border-border bg-muted/30 text-center">
+            <div className="flex h-20 flex-col items-center justify-center rounded-xl border border-dashed border-border bg-background/60 backdrop-blur-sm text-center">
               <span className="text-xs text-muted-foreground">没有匹配的日志</span>
             </div>
           ) : (
@@ -1317,7 +1317,7 @@ export default function PatrolSettingsPage() {
                                 "rounded-lg border p-2 text-[11px]",
                                 r.matched
                                   ? "border-campaign/30 bg-campaign/5"
-                                  : "border-border bg-muted/20"
+                                  : "border-border bg-background/40"
                               )}
                             >
                               <div className="flex items-center gap-1.5">
@@ -1330,7 +1330,7 @@ export default function PatrolSettingsPage() {
                                   {r.content || r.itemId}
                                 </span>
                                 {r.itemType && (
-                                  <span className="rounded bg-muted px-1.5 py-0.5 text-[9px] text-muted-foreground">
+                                  <span className="rounded ios-glass-sm border border-border/40 px-1.5 py-0.5 text-[9px] text-muted-foreground">
                                     {r.itemType === "idea"
                                       ? "灵感"
                                       : r.itemType === "task"

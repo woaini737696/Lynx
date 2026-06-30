@@ -62,15 +62,37 @@ function broadcastToUser(userId: string, message: unknown) {
   }
 }
 
-/** 验证 token 并返回 userId（简化版：直接用 token 查 PcSession，或扩展为查 User） */
+/** 验证 token 并返回 userId
+ *
+ * 支持两种 token 格式：
+ * 1. JWT（三段式，由 /api/auth/token 签发）—— 用 verifyToken 解析，拿到 payload.id
+ * 2. 简易格式 "user:<userId>" 或裸 userId —— 仅开发期兼容
+ */
 async function authenticate(token: string): Promise<string | null> {
   if (!token) return null;
-  // 简化实现：token 格式为 "user:<userId>"，由桌面端登录后生成
-  // 生产环境应查 JWT
+
+  // 1. JWT（三段式）
+  if (token.split(".").length === 3) {
+    try {
+      // 动态导入，避免 esbuild 预编译时路径解析问题
+      const { verifyToken } = await import("./jwt");
+      const payload = await verifyToken(token);
+      if (payload && payload.id) {
+        return payload.id;
+      }
+      return null;
+    } catch (e) {
+      console.warn("[ws-gateway] JWT 验证失败:", (e as Error).message);
+      return null;
+    }
+  }
+
+  // 2. 简易格式 "user:<userId>"（仅开发期兼容）
   if (token.startsWith("user:")) {
     return token.slice(5);
   }
-  // 兼容：直接视为 userId（开发期）
+
+  // 3. 裸 userId（仅开发期兼容）
   return token;
 }
 
@@ -361,17 +383,17 @@ const server = createServer(async (req, res) => {
 const wss = new WebSocketServer({ server, path: "/api/ws/agent" });
 
 wss.on("connection", async (ws: WebSocket, req: import("http").IncomingMessage) => {
-  const url = new URL(req.url || "", `http://localhost:${PORT}`);
-  const token = url.searchParams.get("token") || "";
+  // 认证改为在收到 register 消息时进行（token 在消息体内，不在 URL 中）
+  // 这样 token 不会暴露在 Nginx access log 中，更安全
+  let authenticatedUserId: string | null = null;
+  let authDeadline = setTimeout(() => {
+    if (!authenticatedUserId) {
+      sendJson(ws, { type: "error", message: "认证超时：未在 10 秒内发送 register 消息" });
+      ws.close(4002, "认证超时");
+    }
+  }, 10000);
 
-  const userId = await authenticate(token);
-  if (!userId) {
-    sendJson(ws, { type: "error", message: "认证失败：无效的 token" });
-    ws.close(4001, "认证失败");
-    return;
-  }
-
-  logger.info(`[ws-gateway] 新 WS 连接: user=${userId}`);
+  logger.info(`[ws-gateway] 新 WS 连接，等待 register 消息`);
 
   ws.on("message", async (raw: Buffer) => {
     try {
@@ -379,6 +401,18 @@ wss.on("connection", async (ws: WebSocket, req: import("http").IncomingMessage) 
       const msgType = msg.type;
 
       if (msgType === "register") {
+        // 首条消息：从消息体读 token 鉴权
+        const token = msg.token || "";
+        const userId = await authenticate(token);
+        if (!userId) {
+          sendJson(ws, { type: "error", message: "认证失败：无效的 token" });
+          ws.close(4001, "认证失败");
+          return;
+        }
+        authenticatedUserId = userId;
+        clearTimeout(authDeadline);
+        logger.info(`[ws-gateway] PC 认证成功: user=${userId}`);
+
         const channelId = await registerDevice(ws, userId, {
           deviceName: msg.deviceName,
           agentVersion: msg.agentVersion,
@@ -388,9 +422,12 @@ wss.on("connection", async (ws: WebSocket, req: import("http").IncomingMessage) 
         (ws as WebSocket & { deviceName?: string }).deviceName = msg.deviceName;
         // 推送现有指令订阅
       } else if (msgType === "heartbeat") {
+        // 心跳必须在认证后
+        if (!authenticatedUserId) return;
         const channelId = (ws as WebSocket & { channelId?: string }).channelId;
         if (channelId) await heartbeat(channelId);
       } else if (msgType === "command-update") {
+        if (!authenticatedUserId) return;
         await handleCommandUpdate(msg);
       } else if (msgType === "watch-command") {
         // 安卓端/Web端订阅指令进度
@@ -413,6 +450,7 @@ wss.on("connection", async (ws: WebSocket, req: import("http").IncomingMessage) 
   });
 
   ws.on("close", async () => {
+    clearTimeout(authDeadline);
     const channelId = (ws as WebSocket & { channelId?: string }).channelId;
     if (channelId) {
       await deviceOffline(channelId);
