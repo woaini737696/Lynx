@@ -105,7 +105,7 @@ export function Button({
       disabled={disabled}
       title={title}
       className={cn(
-        "inline-flex items-center justify-center rounded-xl font-medium transition-all focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-offset-background active:scale-[0.97] disabled:opacity-50 disabled:pointer-events-none",
+        "inline-flex items-center justify-center rounded-xl font-medium transition-all focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-offset-background active:scale-[0.97] disabled:opacity-80 disabled:pointer-events-none disabled:saturate-50",
         variants[variant],
         sizes[size],
         className

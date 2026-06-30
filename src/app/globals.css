@@ -253,6 +253,20 @@
       0 0 0 1px rgba(80, 150, 255, 0.35),
       0 8px 22px -6px rgba(37, 99, 235, 0.45);
   }
+  /* disabled 状态：保持背景色但降低饱和度，文字保持可读 */
+  .btn-primary:disabled,
+  .btn-primary:disabled:hover {
+    background: linear-gradient(135deg, #6b7a99 0%, #7a8aa8 100%);
+    box-shadow: 0 0 0 1px rgba(107, 122, 153, 0.3);
+    filter: none;
+    cursor: not-allowed;
+    opacity: 0.85;
+  }
+  .dark .btn-primary:disabled,
+  .dark .btn-primary:disabled:hover {
+    background: linear-gradient(135deg, #4b5563 0%, #6b7280 100%);
+    opacity: 0.8;
+  }
 
   /* 玻璃按钮（1:1 还原 HTML btn-glass） */
   .btn-glass {
@@ -278,6 +292,20 @@
   .dark .btn-glass:hover {
     border-color: rgba(100, 150, 255, 0.20);
     background: rgba(20, 30, 60, 0.65);
+  }
+  /* disabled 玻璃按钮：保持文字可读 */
+  .btn-glass:disabled,
+  .btn-glass:disabled:hover {
+    background: rgba(200, 205, 215, 0.5);
+    border-color: rgba(150, 155, 165, 0.2);
+    cursor: not-allowed;
+    opacity: 0.9;
+  }
+  .dark .btn-glass:disabled,
+  .dark .btn-glass:disabled:hover {
+    background: rgba(40, 45, 55, 0.5);
+    border-color: rgba(80, 85, 95, 0.2);
+    opacity: 0.85;
   }
 
   /* 顶部导航栏 — 液态玻璃 */

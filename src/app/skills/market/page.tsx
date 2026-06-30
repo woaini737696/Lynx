@@ -191,8 +191,8 @@ function SkillMarketContent() {
       const res = await fetch(`/api/skills/marketplace?${params.toString()}`);
       const data = await res.json();
       if (res.ok) {
-        setSkills(data.skills || []);
-        setTotal(data.total || 0);
+        setSkills(Array.isArray(data?.skills) ? data.skills : []);
+        setTotal(typeof data?.total === "number" ? data.total : 0);
       } else {
         toast(data.error || "加载失败", "error");
       }
@@ -212,7 +212,7 @@ function SkillMarketContent() {
       if (!contentType.includes("application/json")) return;
       const data = await res.json();
       // 后端 /api/skills 使用 paginatedResponse 返回 { success, data: [...], total, hasMore, cursor }
-      const skillsList = data.data || data.skills || [];
+      const skillsList = Array.isArray(data?.data) ? data.data : (Array.isArray(data?.skills) ? data.skills : []);
       const names = new Set<string>(
         (skillsList).map((s: { name: string }) => s.name)
       );
@@ -732,9 +732,9 @@ function SkillDetailModal({
       const contentType = res.headers.get("content-type") || "";
       if (!contentType.includes("application/json")) return;
       const data = await res.json();
-      setReviews(data.reviews || []);
-      setAverage(data.average || 0);
-      setCount(data.count || 0);
+      setReviews(Array.isArray(data?.reviews) ? data.reviews : []);
+      setAverage(typeof data?.average === "number" ? data.average : 0);
+      setCount(typeof data?.count === "number" ? data.count : 0);
     } catch (e) {
       console.error("获取评论失败:", e);
     } finally {

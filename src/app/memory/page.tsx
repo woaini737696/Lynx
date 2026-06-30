@@ -194,7 +194,10 @@ function computeClusters(nodes: GraphNode[], edges: GraphEdge[]) {
 
   nodes.forEach((n) => parent.set(n.id, n.id));
   edges.forEach((e) => union(e.from, e.to));
-  nodes.forEach((n) => n.connections.forEach((c) => parent.has(c) && union(n.id, c)));
+  nodes.forEach((n) => {
+    const conns = Array.isArray(n.connections) ? n.connections : [];
+    conns.forEach((c) => parent.has(c) && union(n.id, c));
+  });
 
   const rootIndex = new Map<string, number>();
   const nodeCluster = new Map<string, number>();
@@ -417,7 +420,7 @@ export default function MemoryPage() {
     if (!focusNodeId) return null;
     const center = nodes.find((n) => n.id === focusNodeId);
     if (!center) return null;
-    const connectedIds = new Set<string>([focusNodeId, ...center.connections]);
+    const connectedIds = new Set<string>([focusNodeId, ...(Array.isArray(center.connections) ? center.connections : [])]);
     const subNodes = nodes.filter((n) => connectedIds.has(n.id));
     const subEdges = edges.filter(
       (e) => connectedIds.has(e.from) && connectedIds.has(e.to)
@@ -629,7 +632,7 @@ export default function MemoryPage() {
   const activeNode = selectedNode || hoveredNode;
   const activeIds = useMemo(() => {
     return activeNode
-      ? new Set<string>([activeNode.id, ...activeNode.connections])
+      ? new Set<string>([activeNode.id, ...(Array.isArray(activeNode.connections) ? activeNode.connections : [])])
       : null;
   }, [activeNode]);
 
@@ -637,12 +640,14 @@ export default function MemoryPage() {
   const expandedNode = expandedId ? filteredNodes.find((n) => n.id === expandedId) : null;
   const secondaryIds = useMemo(() => {
     if (!expandedNode) return new Set<string>();
-    const direct = new Set(expandedNode.connections);
+    const expandedConns = Array.isArray(expandedNode.connections) ? expandedNode.connections : [];
+    const direct = new Set(expandedConns);
     const secondary = new Set<string>();
-    for (const cid of expandedNode.connections) {
+    for (const cid of expandedConns) {
       const c = filteredNodes.find((n) => n.id === cid);
       if (c) {
-        for (const scid of c.connections) {
+        const cConns = Array.isArray(c.connections) ? c.connections : [];
+        for (const scid of cConns) {
           if (scid !== expandedNode.id && !direct.has(scid)) {
             secondary.add(scid);
           }
@@ -657,7 +662,7 @@ export default function MemoryPage() {
     if (activeIds) activeIds.forEach((x) => s.add(x));
     if (expandedNode) {
       s.add(expandedNode.id);
-      expandedNode.connections.forEach((c) => s.add(c));
+      (Array.isArray(expandedNode.connections) ? expandedNode.connections : []).forEach((c) => s.add(c));
       secondaryIds.forEach((c) => s.add(c));
     }
     return s;
@@ -1200,7 +1205,7 @@ export default function MemoryPage() {
         return tb - ta;
       });
     } else if (sortBy === "connections") {
-      list.sort((a, b) => b.connections.length - a.connections.length);
+      list.sort((a, b) => (Array.isArray(b.connections) ? b.connections.length : 0) - (Array.isArray(a.connections) ? a.connections.length : 0));
     } else if (sortBy === "type") {
       const order: Record<GraphNode["type"], number> = {
         idea: 0,
@@ -1216,7 +1221,7 @@ export default function MemoryPage() {
   // ---- 批量管理 ----
   // 孤立节点（无连接），用于"全选孤立"快捷操作
   const orphanNodes = useMemo(
-    () => nodes.filter((n) => n.connections.length === 0),
+    () => nodes.filter((n) => !Array.isArray(n.connections) || n.connections.length === 0),
     [nodes]
   );
 
@@ -1554,7 +1559,7 @@ export default function MemoryPage() {
                     : "展开二级关联（双击图谱节点）"}
                 </button>
 
-                {selectedNode.connections.length > 0 && (
+                {Array.isArray(selectedNode.connections) && selectedNode.connections.length > 0 && (
                   <div className="space-y-1">
                     <div className="text-[10px] text-muted-foreground">
                       直接关联 {selectedNode.connections.length} 个
@@ -1766,7 +1771,7 @@ export default function MemoryPage() {
                         </span>
                         {/* 连接数 */}
                         <span className="shrink-0 text-[10px] text-muted-foreground">
-                          {node.connections.length} 连接
+                          {Array.isArray(node.connections) ? node.connections.length : 0} 连接
                         </span>
                         {/* 创建时间 */}
                         <span className="shrink-0 text-[10px] text-muted-foreground/70">

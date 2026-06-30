@@ -5,6 +5,7 @@ import {
   Navigate,
 } from "react-router-dom";
 import { AppLayout } from "./components/layout/AppLayout";
+import { ErrorBoundary } from "./components/ErrorBoundary";
 import { FocusPage } from "./pages/FocusPage";
 import { BoardPage } from "./pages/BoardPage";
 import { InboxPage } from "./pages/InboxPage";
@@ -123,19 +124,19 @@ export function App() {
         <Routes>
           <Route path="/" element={<AppLayout />}>
             <Route index element={<Navigate to="/focus" replace />} />
-            <Route path="focus" element={<FocusPage />} />
-            <Route path="inbox" element={<InboxPage />} />
-            <Route path="cognition" element={<CognitionPage />} />
-            <Route path="board" element={<BoardPage />} />
-            <Route path="graveyard" element={<GraveyardPage />} />
-            <Route path="ai/workspace" element={<AIWorkspacePage />} />
-            <Route path="ai/flows" element={<AIFlowsPage />} />
-            <Route path="ai/assistant" element={<AIAssistantPage />} />
-            <Route path="skills" element={<SkillsPage />} />
-            <Route path="agent" element={<AgentPage />} />
-            <Route path="wallet" element={<WalletPage />} />
-            <Route path="membership" element={<MembershipPage />} />
-            <Route path="settings" element={<SettingsPage />} />
+            <Route path="focus" element={<ErrorBoundary><FocusPage /></ErrorBoundary>} />
+            <Route path="inbox" element={<ErrorBoundary><InboxPage /></ErrorBoundary>} />
+            <Route path="cognition" element={<ErrorBoundary><CognitionPage /></ErrorBoundary>} />
+            <Route path="board" element={<ErrorBoundary><BoardPage /></ErrorBoundary>} />
+            <Route path="graveyard" element={<ErrorBoundary><GraveyardPage /></ErrorBoundary>} />
+            <Route path="ai/workspace" element={<ErrorBoundary><AIWorkspacePage /></ErrorBoundary>} />
+            <Route path="ai/flows" element={<ErrorBoundary><AIFlowsPage /></ErrorBoundary>} />
+            <Route path="ai/assistant" element={<ErrorBoundary><AIAssistantPage /></ErrorBoundary>} />
+            <Route path="skills" element={<ErrorBoundary><SkillsPage /></ErrorBoundary>} />
+            <Route path="agent" element={<ErrorBoundary><AgentPage /></ErrorBoundary>} />
+            <Route path="wallet" element={<ErrorBoundary><WalletPage /></ErrorBoundary>} />
+            <Route path="membership" element={<ErrorBoundary><MembershipPage /></ErrorBoundary>} />
+            <Route path="settings" element={<ErrorBoundary><SettingsPage /></ErrorBoundary>} />
             <Route path="settings/*" element={<Navigate to="/settings" replace />} />
             <Route path="*" element={<Navigate to="/focus" replace />} />
           </Route>

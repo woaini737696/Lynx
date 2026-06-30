@@ -137,10 +137,17 @@ export async function GET(req: NextRequest) {
     ]);
 
     const hasMore = ideas.length > limit;
-    const data = hasMore ? ideas.slice(0, limit) : ideas;
+    const rawIdeas = hasMore ? ideas.slice(0, limit) : ideas;
     const nextCursor = hasMore
-      ? nextCursorFrom(data as unknown as Record<string, unknown>[], "createdAt")
+      ? nextCursorFrom(rawIdeas as unknown as Record<string, unknown>[], "createdAt")
       : null;
+
+    // 防御：tags/attachments 是 Json 字段，可能为 null/对象/字符串等非数组值
+    const data = rawIdeas.map((idea) => ({
+      ...idea,
+      tags: Array.isArray(idea.tags) ? idea.tags : [],
+      attachments: Array.isArray(idea.attachments) ? idea.attachments : [],
+    }));
 
     return paginatedResponse(data, total, hasMore, nextCursor);
   } catch (e) {

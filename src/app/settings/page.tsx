@@ -344,7 +344,7 @@ const BUILTIN_MODEL_DEFS: ModelDef[] = [
     name: "小米 MiMo",
     desc: "多模态模型，支持图片/文件输入",
     provider: "MiMo",
-    defaultBaseUrl: "https://api.mimo.com/v1",
+    defaultBaseUrl: "https://api.xiaomimimo.com/v1",
     defaultModel: "mimo-v2.5",
     canBeDefault: true,
   },
@@ -354,8 +354,8 @@ const BUILTIN_MODEL_DEFS: ModelDef[] = [
     name: "MiMo TTS",
     desc: "小米 MiMo 语音合成，复用 MiMo API Key",
     provider: "MiMo",
-    defaultBaseUrl: "https://api.mimo.com/v1",
-    defaultModel: "mimo-tts-v1",
+    defaultBaseUrl: "https://api.xiaomimimo.com/v1",
+    defaultModel: "mimo-v2.5-tts",
   },
   {
     id: "mimo-asr",
@@ -363,8 +363,8 @@ const BUILTIN_MODEL_DEFS: ModelDef[] = [
     name: "MiMo ASR",
     desc: "小米 MiMo 语音识别，复用 MiMo API Key",
     provider: "MiMo",
-    defaultBaseUrl: "https://api.mimo.com/v1",
-    defaultModel: "mimo-asr-v1",
+    defaultBaseUrl: "https://api.xiaomimimo.com/v1",
+    defaultModel: "mimo-v2.5-asr",
   },
   {
     id: "embedding",
@@ -460,6 +460,15 @@ function AIConfigSection({
     if (model.isCustom) {
       // 自定义模型：检查 localStorage 里的 apiKey 是否存在
       return Boolean(model._customApiKey);
+    }
+    // mimo-tts/mimo-asr 检查 tts/asr 字段（共用 MIMO_API_KEY）
+    if (model.id === "mimo-tts") {
+      const dbKey = dbSettings.ttsApiKey;
+      return dbKey?.configured || envSettings.ttsApiKey || envSettings.mimoApiKey || false;
+    }
+    if (model.id === "mimo-asr") {
+      const dbKey = dbSettings.asrApiKey;
+      return dbKey?.configured || envSettings.asrApiKey || envSettings.mimoApiKey || false;
     }
     const dbKey = dbSettings[`${model.id}ApiKey`];
     return dbKey?.configured || envSettings[`${model.id}ApiKey`] || false;

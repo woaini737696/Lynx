@@ -44,6 +44,7 @@ const config: Config = {
         task: "hsl(var(--task))",
         graveyard: "hsl(var(--graveyard))",
         cognition: "hsl(var(--cognition))",
+        sidebar: "hsl(var(--sidebar))",
       },
       borderRadius: {
         lg: "var(--radius)",

@@ -352,7 +352,8 @@ export default function SkillsPage() {
       const data = await res.json();
       if (res.ok) {
         // 后端 /api/skills 使用 paginatedResponse 返回 { success, data: [...], total, hasMore, cursor }
-        setSkills(data.data || data.skills || []);
+        const list = Array.isArray(data?.data) ? data.data : (Array.isArray(data?.skills) ? data.skills : []);
+        setSkills(list);
       } else {
         toast(data.error || "加载失败", "error");
       }
@@ -769,7 +770,7 @@ function SkillCard({
         </span>
         <span className="inline-flex items-center gap-1">
           <Tag className="h-3 w-3" />
-          {skill.parameters.length} 参数
+          {Array.isArray(skill.parameters) ? skill.parameters.length : 0} 参数
         </span>
         <span className="ios-glass-sm rounded px-1 py-0">
           {SOURCE_LABEL[skill.source] || skill.source}

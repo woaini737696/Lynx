@@ -198,10 +198,16 @@ export async function GET(req: NextRequest) {
         const subtaskMap = buildSubtaskMap(dbAll);
         return NextResponse.json({ tasks: dbTasks, assignees, tasklists, subtaskMap, myOpenId: result.myOpenId, source: "db-fallback" });
       }
-      return NextResponse.json(
-        { error: "lark-cli 不可用：" + result.error },
-        { status: 502 }
-      );
+      // DB 也为空：返回空列表 + lark-cli 不可用提示（不返回 502 错误，避免前端崩溃）
+      return NextResponse.json({
+        tasks: [],
+        assignees: [],
+        tasklists: [],
+        subtaskMap: {},
+        myOpenId: "",
+        source: "lark-cli-unavailable",
+        warning: "飞书 Cli 不可用（服务器未安装或未认证）。请使用桌面端客户端访问飞书任务，或在本地开发环境运行。",
+      });
     }
 
     const tasks = result.tasks;

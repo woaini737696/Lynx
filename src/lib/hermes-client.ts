@@ -896,29 +896,95 @@ export function clearHermesDetectCache(): void {
 }
 
 /**
- * 安装 HermesAgent
+ * 安装 HermesAgent（Web 端通过 pip install）
  *
- * 重要说明（迭代62确认，迭代64修复）：
- * - HermesAgent 引擎是自研 Rust 实现，已内置在桌面端 Tauri 安装包中
- * - PyPI 上不存在 `hermes-agent` 包，pip install 永远失败
- * - Web 端不应再尝试 pip install，直接返回提示让用户使用桌面端
- * - 桌面端通过 installer.rs 的 Rust 引擎提供 Hermes 能力
+ * 实现说明：
+ * - 通过 child_process 执行 pip install hermes-agent
+ * - 优先使用清华源，回退默认源
+ * - 安装成功后清除检测缓存，便于后续启动
+ * - 安装失败时返回详细错误信息，便于排查
  *
- * @returns 始终返回 success:false，附带引导提示
+ * @returns { success, output?, error? }
  */
 export async function installHermesAgent(): Promise<{
   success: boolean;
   output?: string;
   error?: string;
 }> {
-  logger.info("HermesAgent 安装请求：引擎已内置在桌面端，Web 端无需 pip install");
-  return {
-    success: false,
-    error:
-      "HermesAgent 引擎已内置在桌面端安装包中，无需 pip 安装。\n" +
-      "请下载并安装 Lynx 桌面端客户端，引擎会随安装包自动就绪。\n" +
-      "Web 端通过云端 API + LLM Function Calling 提供完整 AI 助理能力（Hermes 模式自动 8 秒超时回退到 LLM）。",
-  };
+  const { exec } = await import("child_process");
+  const { promisify } = await import("util");
+  const execAsync = promisify(exec);
+
+  logger.info("HermesAgent 安装请求：通过 pip install 安装");
+
+  // 安装命令：优先清华源
+  const pipCmd = process.platform === "win32" ? "pip" : "pip3";
+  const installCmd = `${pipCmd} install --disable-pip-version-check -i https://pypi.tuna.tsinghua.edu.cn/simple hermes-agent`;
+
+  try {
+    const { stdout, stderr } = await execAsync(installCmd, {
+      timeout: 120000, // 2 分钟超时
+      maxBuffer: 5 * 1024 * 1024,
+    });
+    const output = (stdout || "") + (stderr ? `\n${stderr}` : "");
+
+    // 检查是否安装成功（pip show 验证）
+    try {
+      const verifyCmd = process.platform === "win32" ? "pip show hermes-agent" : "pip3 show hermes-agent";
+      await execAsync(verifyCmd, { timeout: 15000 });
+      // 安装成功，清除检测缓存
+      clearHermesDetectCache();
+      logger.info("HermesAgent 安装成功");
+      return { success: true, output };
+    } catch {
+      // pip install 执行了但验证失败，可能包名不匹配
+      return {
+        success: false,
+        output,
+        error: "pip install 已执行，但 pip show 验证失败。请检查包名是否正确，或尝试手动安装。",
+      };
+    }
+  } catch (e) {
+    const err = e as { stderr?: string; message?: string };
+    const errorDetail = err.stderr || err.message || "未知错误";
+
+    // 如果清华源失败，尝试默认源
+    if (errorDetail.includes("pypi.tuna") || errorDetail.includes("Could not find")) {
+      logger.warn("清华源安装失败，尝试默认源...");
+      try {
+        const fallbackCmd = `${pipCmd} install --disable-pip-version-check hermes-agent`;
+        const { stdout, stderr } = await execAsync(fallbackCmd, {
+          timeout: 120000,
+          maxBuffer: 5 * 1024 * 1024,
+        });
+        const output = (stdout || "") + (stderr ? `\n${stderr}` : "");
+        try {
+          const verifyCmd = process.platform === "win32" ? "pip show hermes-agent" : "pip3 show hermes-agent";
+          await execAsync(verifyCmd, { timeout: 15000 });
+          clearHermesDetectCache();
+          logger.info("HermesAgent 安装成功（默认源）");
+          return { success: true, output };
+        } catch {
+          return {
+            success: false,
+            output,
+            error: "pip install 已执行（默认源），但验证失败。请检查包名或手动安装。",
+          };
+        }
+      } catch (e2) {
+        const err2 = e2 as { stderr?: string; message?: string };
+        return {
+          success: false,
+          error: `安装失败（默认源）：${err2.stderr || err2.message || "未知错误"}`,
+        };
+      }
+    }
+
+    return {
+      success: false,
+      error: `安装失败：${errorDetail}`,
+    };
+  }
 }
 
 /**

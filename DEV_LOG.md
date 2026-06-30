@@ -9,6 +9,7 @@
 
 | 迭代 | 日期 | 任务概要 |
 |------|------|----------|
+| [迭代 66](#迭代-66---2026-06-30) | 2026-06-30 | 8项Web端功能崩溃修复：HermesAgent pip安装恢复+ASR/TTS配置显示+Inbox/记忆图谱/技能页面崩溃修复+disabled按钮样式优化+对话资产测试数据 |
 | [迭代 65](#迭代-65---2026-06-30) | 2026-06-30 | 部署失败紧急修复：cp -r改cp -a正确复制隐藏文件+PM2彻底重启+端到端验证全部功能恢复 |
 | [迭代 64](#迭代-64---2026-06-30) | 2026-06-30 | 服务器部署根因修复：AUTH_URL缺失导致中间件崩溃+添加到.env.production+PM2彻底重启+端到端验证 |
 | [迭代 63](#迭代-63---2026-06-30) | 2026-06-30 | 前后端API字段不匹配修复：6处前端读取data.data兼容+installHermesAgent移除pip install+AUTH_URL格式修复 |
@@ -106,6 +107,113 @@
 
 ### Commit hash
 `4181fb4d`
+
+---
+
+## 迭代 66 - 2026-06-30
+
+### 任务概要
+修复用户反馈的 8 项 Web 端功能崩溃与显示错误问题。核心根因是 Prisma Json 字段（tags/attachments/connections/parameters）在 DB 中可能为 null/对象/字符串等非数组值，但 API 层仅做 TypeScript 类型断言（`as string[]`）无运行时校验，前端直接 `.map()`/`.forEach()` 导致页面崩溃；同时修复了 HermesAgent pip 安装被错误改为桩函数、ASR/TTS 配置显示"未配置"、disabled 按钮文字不可读等问题。新增对话资产测试数据 14 条，桌面端 v1.0.15 添加 ErrorBoundary 防崩溃。
+
+### 修复内容
+
+#### 1. HermesAgent 一键安装恢复（pip install）
+- **问题**：迭代63将 `installHermesAgent()` 错误改为永远返回 `success: false` 的桩函数，引导用户下载桌面端。用户反馈"在桌面客户端做出来之前，Web端就已经实现了 HermesAgent 一键安装部署"
+- **修复**：`src/lib/hermes-client.ts` 恢复为真正执行 `pip install hermes-agent` 的实现
+- **策略**：优先使用清华源（`-i https://pypi.tuna.tsinghua.edu.cn/simple`），失败回退默认源；安装后用 `pip show` 验证；超时 120 秒；清理检测缓存
+
+#### 2. ASR/TTS 配置显示"未配置"修复
+- **问题**：设置页 AI 模型管理中 ASR 和 TTS 显示"未配置"，但实际语音通话功能正常（共用 MIMO_API_KEY，调用不同模型型号）
+- **根因**：
+  1. `src/app/api/settings/route.ts` 的 `envSettings` 未暴露 `asrApiKey`/`ttsApiKey` 字段
+  2. `src/app/settings/page.tsx` 的 `BUILTIN_MODEL_DEFS` 中 mimo-tts/mimo-asr 的 defaultBaseUrl 和 defaultModel 错误
+- **修复**：
+  - envSettings 添加 ASR/TTS 字段（兼容 `ASR_API_KEY || MIMO_API_KEY`、`ASR_BASE_URL || MIMO_BASE_URL`）
+  - 修正 `BUILTIN_MODEL_DEFS`：mimo defaultBaseUrl 改为 `https://api.xiaomimimo.com/v1`；mimo-tts defaultModel 改为 `mimo-v2.5-tts`；mimo-asr defaultModel 改为 `mimo-v2.5-asr`
+  - `isConfigured` 添加 mimo-tts/mimo-asr 特殊处理，回退到 mimoApiKey
+
+#### 3. Inbox 页面崩溃修复（s.map is not a function）
+- **问题**：Inbox 页面 `s.map is not a function`
+- **根因**：`idea.tags` 是 Prisma Json 字段，可能为 null/对象/字符串等非数组值；`?.map()` 的可选链只能防御 null/undefined，不能防御 truthy 非数组
+- **修复**：
+  - `src/app/api/ideas/route.ts`：`paginatedResponse` 前添加 `Array.isArray(idea.tags) ? idea.tags : []` 校验
+  - `src/app/inbox/page.tsx`：第680行 `idea.tags?.map()` 改为 `(Array.isArray(idea.tags) ? idea.tags : []).map()`
+
+#### 4. 对话资产模块测试数据（14条）
+- **问题**：对话资产模块无数据
+- **修复**：新建 `scripts/seed-conversations.ts`，esbuild 预编译后上传服务器执行
+- **数据**：14 条对话资产，覆盖 kimi/claude/codex/gpt 4 种来源，包含 conclusions/todos/prompts/data 4 类提取结果
+
+#### 5. 记忆图谱崩溃修复（e.connections.forEach is not a function）
+- **问题**：记忆图谱页面 `e.connections.forEach is not a function`
+- **根因**：`src/app/api/memory/route.ts` 第267行 `connections: m.connections as string[]` 仅是 TypeScript 类型断言，无运行时校验；前端第197行 `n.connections.forEach()` 在生产构建压缩后变量 `n` 变为 `e`
+- **修复**：
+  - API 层：`Array.isArray(rawConnections) ? rawConnections.filter(c => typeof c === "string") : []`
+  - 前端 `src/app/memory/page.tsx`：共修复 8 处 `connections` 访问（computeClusters、focusSubgraph、activeIds、secondaryIds、highlightIds、排序比较、orphanNodes 过滤、selectedNode 连接展示、连接数显示），全部添加 `Array.isArray()` 防御
+
+#### 6. 飞书任务模块降级处理
+- **问题**：飞书任务模块不可用，服务器未安装 lark-cli，API 返回 502 导致前端崩溃
+- **修复**：`src/app/api/lark-tasks/route.ts` 当 lark-cli 不可用且 DB 也为空时，返回空列表 + 友好提示（`source: "lark-cli-unavailable"`），不返回 502 错误
+- **说明**：飞书任务能力需在本地开发环境或桌面端客户端使用（服务器 2C2G 不部署 lark-cli）
+
+#### 7. 技能管理/Skill市场页面崩溃修复
+- **问题**：技能管理和 Skill 市场页面无法打开
+- **根因**：`skill.parameters.length` 在 parameters 为 null/undefined 时崩溃；数据加载缺乏空值防御
+- **修复**：
+  - `src/app/skills/page.tsx`：`{skill.parameters.length}` 改为 `{Array.isArray(skill.parameters) ? skill.parameters.length : 0}`；`setSkills` 添加 `Array.isArray` 校验
+  - `src/app/skills/market/page.tsx`：`fetchReviews`、`fetchLocalSkills`、`fetchMarketplace` 全部添加 `Array.isArray` 防御
+
+#### 8. AI巡检页面灰色块/disabled按钮样式优化
+- **问题**：AI 巡检页面多个灰色块，disabled 按钮文字看不见（如 Hermes Cron 自动巡检旁边的数量提示）
+- **根因**：`src/app/globals.css` 中 `.btn-primary`、`.btn-glass` 等自定义类缺少 `:disabled` 伪类样式，仅靠 Tailwind `disabled:opacity-50` 导致文字与背景一起变半透明
+- **修复**：
+  - `globals.css` 添加 `.btn-primary:disabled` 样式（保持背景色但降低饱和度，opacity 0.85，文字保持可读）
+  - `globals.css` 添加 `.btn-glass:disabled` 样式（opacity 0.9，文字保持可读）
+  - `src/components/layout/PageHeader.tsx`：Button 的 `disabled:opacity-50` 改为 `disabled:opacity-80 disabled:saturate-50`
+
+#### 9. 桌面端 v1.0.15 防崩溃优化
+- **版本**：1.0.14 → 1.0.15（4 文件同步：package.json、native-ui/package.json、Cargo.toml、tauri.conf.json）
+- **ErrorBoundary**：新建 `desktop-native/native-ui/src/components/ErrorBoundary.tsx`，App.tsx 所有路由包裹 ErrorBoundary，单页崩溃不影响全局
+- **QuickSearch UI 优化**：快速搜索改为长条输入框样式；记录灵感按钮改为 `btn-primary-glass` 样式（最右）
+
+### 端到端验证结果（全部通过）
+
+| 验证项 | 结果 | 说明 |
+|--------|------|------|
+| 健康检查 | HTTP 200 | `{"ok":true}` |
+| 登录认证 | 成功 | Session 正常 |
+| `/api/ideas` | `tags:[]` 正确 | Array.isArray 防御生效 |
+| `/api/tasks` | 返回数据 | 正常 |
+| `/api/conversations` | 14 条数据 | 测试数据已入库 |
+| `/api/memory` | nodes 正常 | connections 为数组 |
+| `/api/lark-tasks` | `source:"lark-cli-unavailable"` | 优雅降级 |
+| `/api/settings` | `asrApiKey:True, ttsApiKey:True` | 配置显示修复 |
+| `/api/hermes/status` | `lastError:null` | 状态正常 |
+
+### 涉及文件
+- `src/lib/hermes-client.ts`（恢复 pip install 实现）
+- `src/app/api/settings/route.ts`（envSettings 添加 ASR/TTS 字段）
+- `src/app/settings/page.tsx`（BUILTIN_MODEL_DEFS 修正 + isConfigured 逻辑）
+- `src/app/api/ideas/route.ts`（tags/attachments Array.isArray 防御）
+- `src/app/inbox/page.tsx`（前端 Array.isArray 防御）
+- `src/app/api/memory/route.ts`（connections 运行时校验）
+- `src/app/memory/page.tsx`（8 处 connections 访问防御）
+- `src/app/api/lark-tasks/route.ts`（lark-cli 不可用优雅降级）
+- `src/app/skills/page.tsx`（parameters.length 防御）
+- `src/app/skills/market/page.tsx`（数据加载防御）
+- `src/app/globals.css`（disabled 按钮样式）
+- `src/components/layout/PageHeader.tsx`（disabled opacity 调整）
+- `scripts/seed-conversations.ts`（新建，对话资产测试数据）
+- `desktop-native/native-ui/src/components/ErrorBoundary.tsx`（新建，防崩溃边界）
+- `desktop-native/native-ui/src/App.tsx`（路由包裹 ErrorBoundary）
+- `desktop-native/native-ui/src/components/layout/QuickSearch.tsx`（UI 优化）
+- `desktop-native/native-ui/src/index.css`、`tailwind.config.ts`（样式补充）
+- `desktop-native/{package.json, native-ui/package.json, src-tauri/Cargo.toml, src-tauri/tauri.conf.json}`（版本号 1.0.14 → 1.0.15）
+
+### 部署状态
+- 服务器：/opt/lynx/app/ 完整部署（含所有修复）
+- PM2：lynx-app (online) + lynx-ws-gateway (online)
+- 14 条对话资产数据已入库
 
 ---
 

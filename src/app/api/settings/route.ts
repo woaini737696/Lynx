@@ -81,6 +81,13 @@ export async function GET() {
       embeddingApiKey: Boolean(process.env.EMBEDDING_API_KEY),
       embeddingBaseUrl: Boolean(process.env.EMBEDDING_BASE_URL),
       embeddingModel: Boolean(process.env.EMBEDDING_MODEL),
+      // ASR/TTS 共用 MIMO_API_KEY，只调用不同模型
+      asrApiKey: Boolean(process.env.ASR_API_KEY || process.env.MIMO_API_KEY),
+      asrBaseUrl: Boolean(process.env.ASR_BASE_URL || process.env.MIMO_BASE_URL),
+      asrModel: Boolean(process.env.ASR_MODEL),
+      ttsApiKey: Boolean(process.env.TTS_API_KEY || process.env.MIMO_API_KEY),
+      ttsBaseUrl: Boolean(process.env.TTS_BASE_URL || process.env.MIMO_BASE_URL),
+      ttsModel: Boolean(process.env.TTS_MODEL),
     };
 
     // ============ 数据库已保存的配置（mask 敏感字段） ============

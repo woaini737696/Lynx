@@ -258,13 +258,19 @@ export async function GET() {
         else if (m.cognition) label = m.cognition.content.slice(0, 20);
       }
 
+      // 防御：connections 是 Json 字段，可能为 null/对象/字符串等非数组值
+      const rawConnections = m.connections;
+      const connections = Array.isArray(rawConnections)
+        ? (rawConnections.filter((c) => typeof c === "string") as string[])
+        : [];
+
       return {
         id: m.id,
         label,
         type: m.type,
         color: colorMap[m.type] || "#666",
         strength: m.strength,
-        connections: m.connections as string[],
+        connections,
         fullContent: m.content.slice(0, 200),
         createdAt: m.createdAt.toISOString(),
       };
