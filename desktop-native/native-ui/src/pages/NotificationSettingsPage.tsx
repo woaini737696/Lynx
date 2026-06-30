@@ -7,6 +7,8 @@ import {
   Clock,
   Save,
   Monitor,
+  Globe,
+  Smartphone,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { cloudApi } from "@/lib/cloud-api";
@@ -21,6 +23,8 @@ interface NotificationSettings {
   taskDueReminders: boolean;
   dailyDigest: boolean;
   desktopNotifications: boolean;
+  webNotifications: boolean;
+  mobileNotifications: boolean;
   feishuNotifications: boolean;
   quietHoursStart: string;
   quietHoursEnd: string;
@@ -31,6 +35,8 @@ const DEFAULT_SETTINGS: NotificationSettings = {
   taskDueReminders: true,
   dailyDigest: false,
   desktopNotifications: true,
+  webNotifications: true,
+  mobileNotifications: false,
   feishuNotifications: false,
   quietHoursStart: "22:00",
   quietHoursEnd: "08:00",
@@ -174,7 +180,7 @@ export function NotificationSettingsPage() {
 
       // 额外调用飞书通知接口验证飞书通道（失败不阻塞主流程）
       try {
-        await cloudApi.post("/api/notify-feishu", {
+        await cloudApi.post("/api/ai/notify-feishu", {
           message: "这是一条来自 LynnHub 的测试通知",
         });
         toast.success("飞书测试通知已发送");
@@ -269,6 +275,22 @@ export function NotificationSettingsPage() {
                 }
                 checked={settings.desktopNotifications}
                 onChange={(v) => updateField("desktopNotifications", v)}
+              />
+              <SettingRow
+                icon={Globe}
+                iconClass="bg-northstar/10 text-northstar"
+                title="Web端通知"
+                description="通过 Web 端浏览器推送通知"
+                checked={settings.webNotifications}
+                onChange={(v) => updateField("webNotifications", v)}
+              />
+              <SettingRow
+                icon={Smartphone}
+                iconClass="bg-campaign/10 text-campaign"
+                title="移动端通知"
+                description="通过安卓 App 推送通知（需安装 Lynx App）"
+                checked={settings.mobileNotifications}
+                onChange={(v) => updateField("mobileNotifications", v)}
               />
               <SettingRow
                 icon={BellRing}

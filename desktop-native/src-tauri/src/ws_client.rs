@@ -195,15 +195,34 @@ async fn handle_cloud_message(
                 "percent": 50,
             }));
 
-            // 执行指令（路由到云端/本地/混合）
-            let result = router::route_and_execute(
-                &command,
-                &cloud,
-                Some(token),
-                &auth_mode,
-                state.inner().clone(),
-                app.clone(),
-            ).await;
+            // 优先调用本地 HermesAgent Dashboard HTTP API（真正的 AI Agent 执行）
+            // 这样 HermesAgent（有完整 LLM + computer_use 能力）会理解 prompt 并真正执行
+            // 例如"打开浏览器"会真正调用浏览器，而非简单的关键词匹配
+            let start = std::time::Instant::now();
+            let dashboard_result = execute_via_dashboard(&command).await;
+
+            let result = match dashboard_result {
+                Some(r) => router::ExecutionResult {
+                    success: r.success,
+                    output: r.output,
+                    route: "dashboard".to_string(),
+                    steps: vec![],
+                    error: r.error,
+                    duration_ms: start.elapsed().as_millis() as u64,
+                },
+                None => {
+                    // Dashboard 不可用，回退到 route_and_execute（关键词匹配 + 本地 RPA）
+                    log::warn!("Dashboard 不可用，回退到 route_and_execute: {}", command);
+                    router::route_and_execute(
+                        &command,
+                        &cloud,
+                        Some(token),
+                        &auth_mode,
+                        state.inner().clone(),
+                        app.clone(),
+                    ).await
+                }
+            };
 
             // 通过 WS 回传最终结果给云端
             // 网关 handleCommandUpdate 会更新 RemoteCommand 表 status = completed/failed
@@ -239,6 +258,73 @@ async fn handle_cloud_message(
     }
 
     Ok(())
+}
+
+/// 通过本地 HermesAgent Dashboard HTTP API 执行指令
+/// Dashboard 提供 POST /api/execute 端点，复用 HermesAgent 的完整 LLM + computer_use 能力
+/// 返回 None 表示 Dashboard 不可用（未启动或端口不通），调用方应回退到 route_and_execute
+struct DashboardExecResult {
+    success: bool,
+    output: String,
+    error: Option<String>,
+}
+
+async fn execute_via_dashboard(command: &str) -> Option<DashboardExecResult> {
+    const DASHBOARD_URL: &str = "http://127.0.0.1:9119/api/execute";
+
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(130))
+        .build()
+        .ok()?;
+
+    let resp = client
+        .post(DASHBOARD_URL)
+        .json(&json!({
+            "prompt": command,
+            "timeout": 120,
+            "mode": "auto",
+        }))
+        .send()
+        .await
+        .ok()?;
+
+    if !resp.status().is_success() {
+        log::debug!("Dashboard 返回非 2xx: {}", resp.status());
+        return None;
+    }
+
+    let data: serde_json::Value = resp.json().await.ok()?;
+    let success = data
+        .get("success")
+        .and_then(|v| v.as_bool())
+        .unwrap_or(true);
+
+    if !success {
+        let err = data
+            .get("error")
+            .or_else(|| data.get("message"))
+            .and_then(|v| v.as_str())
+            .unwrap_or("Dashboard 执行失败")
+            .to_string();
+        return Some(DashboardExecResult {
+            success: false,
+            output: String::new(),
+            error: Some(err),
+        });
+    }
+
+    let output = data
+        .get("output")
+        .or_else(|| data.get("result"))
+        .and_then(|v| v.as_str())
+        .unwrap_or("(任务已完成，无控制台输出)")
+        .to_string();
+
+    Some(DashboardExecResult {
+        success: true,
+        output,
+        error: None,
+    })
 }
 
 /// 获取设备名

@@ -17,13 +17,20 @@ import { HelpButton } from "@/components/ui/HelpButton";
 
 interface LarkTask {
   id: string;
-  title: string;
+  guid?: string;        // 后端 NormalizedTask 的 guid
+  title: string;        // 后端 summary 字段
+  summary?: string;     // 后端原始字段
   description?: string;
   status?: string;
   priority?: string;
   dueDate?: string;
+  due?: string;         // 后端原始字段
   createdAt?: string;
+  created?: string;     // 后端原始字段
   completed?: boolean;
+  isCompleted?: boolean; // 后端原始字段
+  origin?: string;
+  tasklistGuid?: string;
 }
 
 // 状态映射：兼容后端返回的多种字段
@@ -62,15 +69,15 @@ type FilterKey = (typeof FILTER_TABS)[number]["key"];
 
 // 归一化状态：将后端各种状态值映射到过滤使用的分类
 function normalizeStatus(task: LarkTask): string {
-  if (task.completed) return "done";
+  if (task.completed || task.isCompleted) return "done";
   const s = (task.status || "").toLowerCase();
   if (["done", "completed"].includes(s)) return "done";
   if (["in_progress", "doing", "processing"].includes(s)) return "in_progress";
   return "todo";
 }
 
-function getStatusMeta(status?: string, completed?: boolean) {
-  if (completed) return STATUS_META.done;
+function getStatusMeta(status?: string, completed?: boolean, isCompleted?: boolean) {
+  if (completed || isCompleted) return STATUS_META.done;
   if (!status) return STATUS_META.todo;
   return STATUS_META[status.toLowerCase()] || STATUS_META.todo;
 }
@@ -87,12 +94,29 @@ export function LarkTasksPage() {
   const { data: tasks = [], isLoading, isFetching, refetch, error } = useQuery<LarkTask[]>({
     queryKey: ["lark-tasks"],
     queryFn: async () => {
-      const res = await cloudApi.get<unknown>("/api/lark-tasks");
+      const res = await cloudApi.get<unknown>("/api/lark-tasks?db_only=true&fast=true");
       // 防御性解析：API 可能返回数组、{tasks:[]}、{data:[]}、{items:[]} 等多种结构
-      if (Array.isArray(res)) return res as LarkTask[];
       const obj = res as Record<string, unknown>;
-      const arr = obj.tasks || obj.data || obj.items || obj.list;
-      return Array.isArray(arr) ? (arr as LarkTask[]) : [];
+      const arr = Array.isArray(res) ? res : (obj.tasks || obj.data || obj.items || obj.list || []);
+      if (!Array.isArray(arr)) return [];
+      // 字段归一化：后端返回 guid/summary/due/created/isCompleted，前端统一用 id/title/dueDate/createdAt/completed
+      return (arr as Record<string, unknown>[]).map((t) => ({
+        id: String(t.guid || t.id || t.taskGuid || ""),
+        guid: String(t.guid || ""),
+        title: String(t.summary || t.title || t.name || "(无标题)"),
+        summary: String(t.summary || ""),
+        description: String(t.description || ""),
+        status: String(t.status || ""),
+        priority: String(t.priority || ""),
+        dueDate: String(t.due || t.dueDate || ""),
+        due: String(t.due || ""),
+        createdAt: String(t.created || t.createdAt || ""),
+        created: String(t.created || ""),
+        completed: Boolean(t.isCompleted || t.completed),
+        isCompleted: Boolean(t.isCompleted),
+        origin: String(t.origin || ""),
+        tasklistGuid: String(t.tasklistGuid || t.containerGuid || ""),
+      })) as LarkTask[];
     },
   });
 
@@ -148,6 +172,14 @@ export function LarkTasksPage() {
           <HelpButton module="lark-tasks" />
         </div>
       </div>
+
+      {/* 同步状态提示 */}
+      {tasks.length === 0 && (
+        <div className="glass-card mb-4 flex items-center gap-2 px-4 py-3 text-xs text-muted-foreground">
+          <AlertCircle className="h-4 w-4 text-amber-500" />
+          <span>飞书任务通过云端数据库同步。如无数据，请先在 Web 端或本地开发环境运行飞书任务同步。</span>
+        </div>
+      )}
 
       {/* 过滤 Tab + 搜索 */}
       <div className="glass-card mb-4 flex flex-wrap items-center justify-between gap-3 px-3 py-2">
@@ -220,12 +252,13 @@ export function LarkTasksPage() {
         <div className="flex flex-col gap-2">
           <AnimatePresence mode="popLayout">
             {filtered.map((task) => {
-              const statusMeta = getStatusMeta(task.status, task.completed);
+              const statusMeta = getStatusMeta(task.status, task.completed, task.isCompleted);
               const priorityMeta = getPriorityMeta(task.priority);
               const isOverdue =
-                task.dueDate &&
+                (task.dueDate || task.due) &&
                 !task.completed &&
-                new Date(task.dueDate).getTime() < Date.now();
+                !task.isCompleted &&
+                new Date(task.dueDate || task.due!).getTime() < Date.now();
               return (
                 <motion.div
                   key={task.id}
@@ -239,7 +272,7 @@ export function LarkTasksPage() {
                   <div className="flex items-start gap-3">
                     {/* 完成状态图标 */}
                     <div className="mt-0.5 shrink-0">
-                      {task.completed || normalizeStatus(task) === "done" ? (
+                      {task.completed || task.isCompleted || normalizeStatus(task) === "done" ? (
                         <CheckCircle2 className="h-4 w-4 text-task" />
                       ) : normalizeStatus(task) === "in_progress" ? (
                         <Clock className="h-4 w-4 text-campaign" />
@@ -254,7 +287,7 @@ export function LarkTasksPage() {
                         <h3
                           className={cn(
                             "text-sm font-medium leading-snug",
-                            task.completed
+                            task.completed || task.isCompleted
                               ? "text-muted-foreground line-through"
                               : "text-foreground"
                           )}
@@ -292,23 +325,23 @@ export function LarkTasksPage() {
                             {priorityMeta.label}
                           </span>
                         )}
-                        {task.dueDate && (
+                        {(task.dueDate || task.due) && (
                           <span
                             className={cn(
                               "inline-flex items-center gap-1",
                               isOverdue && "text-graveyard"
                             )}
-                            title={`截止：${new Date(task.dueDate).toLocaleString("zh-CN")}`}
+                            title={`截止：${new Date(task.dueDate || task.due!).toLocaleString("zh-CN")}`}
                           >
                             <Calendar className="h-2.5 w-2.5" />
                             {isOverdue ? "已逾期 · " : ""}
-                            {formatRelativeTime(task.dueDate)}
+                            {formatRelativeTime((task.dueDate || task.due || "") as string)}
                           </span>
                         )}
-                        {task.createdAt && (
+                        {(task.createdAt || task.created) && (
                           <span className="inline-flex items-center gap-1 opacity-70">
                             <Clock className="h-2.5 w-2.5" />
-                            {formatRelativeTime(task.createdAt)}
+                            {formatRelativeTime((task.createdAt || task.created || "") as string)}
                           </span>
                         )}
                       </div>

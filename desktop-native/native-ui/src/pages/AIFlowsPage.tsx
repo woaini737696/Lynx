@@ -192,6 +192,7 @@ export function AIFlowsPage() {
   const [canvasMode, setCanvasMode] = useState(false);
   const [executing, setExecuting] = useState<string | null>(null);
   const [lastResult, setLastResult] = useState<ExecutionResult | null>(null);
+  const [showResultModal, setShowResultModal] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<Flow | null>(null);
 
   // ===== 执行历史 Modal 状态 =====
@@ -387,8 +388,10 @@ export function AIFlowsPage() {
       }
       if (resp.result.success) {
         toast.success("工作流执行成功");
+        setShowResultModal(true);
       } else {
         toast.error("工作流执行失败：" + (resp.result.error || "未知错误"));
+        setShowResultModal(true);
       }
       queryClient.invalidateQueries({ queryKey: ["ai-flows"] });
     } catch (err) {
@@ -434,8 +437,10 @@ export function AIFlowsPage() {
       setLastResult(resp.result);
       if (resp.result.success) {
         toast.success("工作流执行成功");
+        setShowResultModal(true);
       } else {
         toast.error("工作流执行失败：" + (resp.result.error || "未知错误"));
+        setShowResultModal(true);
       }
       queryClient.invalidateQueries({ queryKey: ["ai-flows"] });
     } catch (err) {
@@ -1625,6 +1630,114 @@ export function AIFlowsPage() {
 
       {/* 执行历史 Modal */}
       {historyModal}
+
+      {/* 执行结果弹窗 Modal */}
+      <Modal
+        open={showResultModal && !!lastResult}
+        onClose={() => {
+          setShowResultModal(false);
+          setLastResult(null);
+        }}
+        title="工作流执行结果"
+        size="lg"
+      >
+        {lastResult && (
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                {lastResult.success ? (
+                  <CheckCircle2 className="h-5 w-5 text-task" />
+                ) : (
+                  <AlertCircle className="h-5 w-5 text-destructive" />
+                )}
+                <span className={cn("text-sm font-semibold", lastResult.success ? "text-task" : "text-destructive")}>
+                  {lastResult.success ? "执行成功" : "执行失败"}
+                </span>
+              </div>
+              <button
+                onClick={() => {
+                  setShowResultModal(false);
+                  setLastResult(null);
+                }}
+                className="text-muted-foreground hover:text-foreground"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            <div className="flex items-center gap-3 text-[11px] text-muted-foreground">
+              <span>工作流：{lastResult.flowName}</span>
+              <span>·</span>
+              <span>耗时：{lastResult.totalDurationMs}ms</span>
+              <span>·</span>
+              <span>{new Date(lastResult.startedAt).toLocaleString("zh-CN")}</span>
+            </div>
+            {lastResult.error && (
+              <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-xs text-destructive">
+                {lastResult.error}
+              </div>
+            )}
+            {Array.isArray(lastResult.nodes) && lastResult.nodes.length > 0 && (
+              <div className="space-y-2">
+                <div className="text-xs font-medium text-muted-foreground">节点执行详情：</div>
+                {lastResult.nodes.map((n) => (
+                  <div
+                    key={n.nodeId}
+                    className={cn(
+                      "flex items-start gap-2 rounded-lg border p-2 text-xs",
+                      n.status === "done"
+                        ? "border-task/30 bg-task/5"
+                        : n.status === "error"
+                          ? "border-destructive/30 bg-destructive/5"
+                          : "border-border/40 bg-muted/20"
+                    )}
+                  >
+                    <span
+                      className={cn(
+                        "mt-0.5 h-2 w-2 shrink-0 rounded-full",
+                        n.status === "done"
+                          ? "bg-task"
+                          : n.status === "error"
+                            ? "bg-destructive"
+                            : "bg-muted-foreground"
+                      )}
+                    />
+                    <div className="flex-1 min-w-0">
+                      <div className="font-medium text-foreground">{n.nodeLabel}</div>
+                      <div className="mt-0.5 text-muted-foreground">{n.message}</div>
+                      {n.error && <div className="mt-1 text-destructive">错误：{n.error}</div>}
+                      {n.output && (
+                        <pre className="mt-1 max-h-32 overflow-auto rounded bg-muted/30 p-1.5 text-[10px] text-foreground/70">
+                          {n.output}
+                        </pre>
+                      )}
+                    </div>
+                    <span className="text-[10px] text-muted-foreground shrink-0">{n.durationMs}ms</span>
+                  </div>
+                ))}
+              </div>
+            )}
+            {lastResult.finalOutput && (
+              <div className="rounded-lg border border-border/40 bg-background/40 p-3">
+                <div className="mb-1 text-[11px] font-medium text-muted-foreground">最终输出：</div>
+                <pre className="max-h-48 overflow-auto whitespace-pre-wrap text-xs text-foreground/80">
+                  {lastResult.finalOutput}
+                </pre>
+              </div>
+            )}
+            <div className="flex justify-end gap-2 border-t border-border/40 pt-3">
+              <button
+                onClick={() => {
+                  setShowResultModal(false);
+                  setLastResult(null);
+                }}
+                className="btn-primary-glass flex h-8 items-center px-4 text-xs"
+              >
+                关闭
+              </button>
+            </div>
+          </div>
+        )}
+      </Modal>
 
       {/* 删除确认弹窗 */}
       <Modal
