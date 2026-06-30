@@ -37,7 +37,6 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.lynnhub.app.data.remote.ApiService
-import com.lynnhub.app.data.remote.dto.HermesExecuteRequest
 import com.lynnhub.app.data.remote.dto.HermesReportDto
 import com.lynnhub.app.data.remote.dto.HermesStatusResponse
 import com.lynnhub.app.ui.theme.Agent
@@ -64,41 +63,74 @@ import javax.inject.Inject
 // 2. 快捷指令：3 个胶囊（整理灵感/跑巡检/生成日报），按颜色区分指令类型
 // 3. 待审批卡片：红色边框，描述取最近报告 content 前 80 字，"拒绝"/"批准" 两个按钮
 // 4. Agent 未连接时显示提示，toast 2s 自动清除
+//
+// PC 在线检测改造（v1.0.20+）：
+// - 旧方案：调用 /api/hermes/status 仅查数据库配置，无法反映真实 PC 在线状态
+// - 新方案：注入 WsGatewayClient 实时订阅 + 调用 /devices 查询在线 PC 列表
+//           通过 /dispatch 下发指令到指定 PC，PC 执行后通过 WS 回传进度
 
 data class AgentPanelUiState(
     val status: HermesStatusResponse? = null,
     val reports: List<HermesReportDto> = emptyList(),
+    val onlineDevices: List<com.lynnhub.app.data.remote.dto.OnlineDeviceDto> = emptyList(),
+    val wsConnected: Boolean = false,
     val isExecuting: Boolean = false,
     val toast: String? = null
-)
+) {
+    /** 真实 PC 在线状态：WS 已连且有在线设备，或 devices 接口返回非空 */
+    val pcOnline: Boolean get() = wsConnected || onlineDevices.isNotEmpty()
+}
 
 @HiltViewModel
 class AgentPanelViewModel @Inject constructor(
-    private val apiService: ApiService
+    private val apiService: ApiService,
+    private val wsGatewayClient: com.lynnhub.app.data.remote.WsGatewayClient,
+    private val userPreferences: com.lynnhub.app.data.local.UserPreferences
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(AgentPanelUiState())
     val uiState: StateFlow<AgentPanelUiState> = _uiState.asStateFlow()
 
     init {
+        // 1. 启动 WS 连接（订阅 PC 端 command-update 进度）
+        wsGatewayClient.start()
+        // 2. 监听 WS 连接状态
+        viewModelScope.launch {
+            wsGatewayClient.connectionState.collect { state ->
+                _uiState.update { it.copy(wsConnected = state == com.lynnhub.app.data.remote.WsGatewayClient.ConnectionState.CONNECTED) }
+            }
+        }
+        // 3. 加载历史报告 + 在线设备列表
         loadAll()
     }
 
     private fun loadAll() {
         viewModelScope.launch {
             try {
-                val status = apiService.getHermesStatus()
-                _uiState.update { it.copy(status = status) }
-            } catch (_: Exception) {
-                // 静默失败
-            }
-        }
-        viewModelScope.launch {
-            try {
                 val resp = apiService.getHermesReports(page = 1, pageSize = 3)
                 _uiState.update { it.copy(reports = resp.reports) }
             } catch (_: Exception) {
                 // 静默失败
+            }
+        }
+        refreshOnlineDevices()
+    }
+
+    /** 查询当前用户在线 PC 设备列表（走 WS Gateway 的 HTTP 端点） */
+    fun refreshOnlineDevices() {
+        viewModelScope.launch {
+            try {
+                val userId = userPreferences.userFlow.let { flow ->
+                    var id: String? = null
+                    flow.collect { if (it != null) { id = it.id; return@collect } }
+                    id
+                }
+                if (userId != null) {
+                    val resp = apiService.getOnlineDevices(userId)
+                    _uiState.update { it.copy(onlineDevices = resp.devices) }
+                }
+            } catch (_: Exception) {
+                // 静默失败：可能 WS Gateway 未运行或不支持 /devices
             }
         }
     }
@@ -108,23 +140,34 @@ class AgentPanelViewModel @Inject constructor(
         _uiState.update { it.copy(isExecuting = true) }
         viewModelScope.launch {
             try {
-                val resp = apiService.hermesExecute(
-                    HermesExecuteRequest(prompt = prompt, mode = "auto")
+                val userId = userPreferences.userFlow.let { flow ->
+                    var id: String? = null
+                    flow.collect { if (it != null) { id = it.id; return@collect } }
+                    id
+                }
+                if (userId == null) {
+                    _uiState.update { it.copy(isExecuting = false, toast = "未登录") }
+                    return@launch
+                }
+                // 通过 WS Gateway /dispatch 下发到 PC
+                val targetDeviceId = _uiState.value.onlineDevices.firstOrNull()?.deviceId
+                val resp = apiService.dispatchRemoteCommand(
+                    com.lynnhub.app.data.remote.dto.DispatchRequest(
+                        userId = userId,
+                        command = prompt,
+                        targetDeviceId = targetDeviceId
+                    )
                 )
-                val msg = if (resp.success) {
-                    if (resp.output.isNotBlank()) {
-                        "指令已发送：" + resp.output.take(100)
-                    } else {
-                        "指令已发送"
-                    }
+                val msg = if (resp.dispatched) {
+                    "指令已下发到 PC" + (resp.commandId?.let { "（任务ID: ${it.take(8)}）" } ?: "")
                 } else {
-                    "执行失败"
+                    resp.reason ?: "下发失败：PC 不在线"
                 }
                 _uiState.update { it.copy(isExecuting = false, toast = msg) }
-                // 重新加载状态
-                loadAll()
-            } catch (_: Exception) {
-                _uiState.update { it.copy(isExecuting = false, toast = "执行失败") }
+                // 订阅指令进度
+                resp.commandId?.let { wsGatewayClient.watchCommand(it) }
+            } catch (e: Exception) {
+                _uiState.update { it.copy(isExecuting = false, toast = "下发失败: ${e.message ?: "网络错误"}") }
             }
         }
     }
@@ -166,19 +209,35 @@ fun AgentPanel(
             PanelHeader(title = "Agent", onBack = onBack, swipeHint = "→ 左滑返回")
             Spacer(modifier = Modifier.height(0.dp))
 
-            // Agent 未连接提示
-            if (!statusInfo.connected) {
+            // PC 在线状态提示
+            if (!state.pcOnline) {
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
                         .weight(1f),
                     contentAlignment = Alignment.Center
                 ) {
-                    Text(
-                        text = "Agent 未连接，请先在 PC 端启动",
-                        color = TextMuted,
-                        fontSize = 13.sp
-                    )
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text(
+                            text = if (state.wsConnected) "WS 已连接，但未发现在线 PC" else "PC 未连接",
+                            color = TextMuted,
+                            fontSize = 13.sp
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            text = "请先在 PC 端启动 Lynx 桌面端并登录",
+                            color = TextMuted.copy(alpha = 0.6f),
+                            fontSize = 11.sp
+                        )
+                        Spacer(modifier = Modifier.height(16.dp))
+                        // 手动刷新按钮
+                        Text(
+                            text = "刷新设备列表",
+                            color = Primary,
+                            fontSize = 12.sp,
+                            modifier = Modifier.clickable { viewModel.refreshOnlineDevices() }
+                        )
+                    }
                 }
             } else {
                 // 设备卡片

@@ -1,7 +1,9 @@
 package com.lynnhub.app.ui.theme
 
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
+import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.SideEffect
 import androidx.compose.ui.graphics.Color
@@ -10,8 +12,7 @@ import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsControllerCompat
 
 // ============ Lynx v6 深色配色方案 ============
-// 设计文档明确为纯深色主题，不再支持 light/system 切换
-private val LynxColorScheme = darkColorScheme(
+private val LynxDarkColorScheme = darkColorScheme(
     primary = Primary,
     onPrimary = Color.White,
     primaryContainer = PrimaryGlow,
@@ -32,29 +33,57 @@ private val LynxColorScheme = darkColorScheme(
     onError = Color.White,
 )
 
+// ============ Lynx v6 浅色配色方案 ============
+private val LynxLightColorScheme = lightColorScheme(
+    primary = PrimaryDeep,
+    onPrimary = Color.White,
+    primaryContainer = Color(0xFFD6E4FF),
+    onPrimaryContainer = Color(0xFF0A1F44),
+    secondary = Agent,
+    onSecondary = Color.White,
+    tertiary = Think,
+    onTertiary = Color(0xFF3A2A00),
+    background = Color(0xFFF7F9FC),
+    onBackground = Color(0xFF0A0F1E),
+    surface = Color(0xFFFFFFFF),
+    onSurface = Color(0xFF0A0F1E),
+    surfaceVariant = Color(0xFFEEF2F8),
+    onSurfaceVariant = Color(0xFF5A6478),
+    outline = Color(0xFFD8DEE8),
+    outlineVariant = Color(0xFFE8ECF2),
+    error = Danger,
+    onError = Color.White,
+)
+
 /**
  * Lynx v6 主题
- * 纯深色主题，忽略 themeMode 参数（保留签名兼容旧调用）
+ * @param themeMode "dark"/"light"/"system"，默认 "system" 跟随系统
  */
 @Composable
 fun LynnHubTheme(
-    @Suppress("UNUSED_PARAMETER") themeMode: String = "dark",
+    themeMode: String = "system",
     content: @Composable () -> Unit
 ) {
+    val isDark = when (themeMode) {
+        "dark" -> true
+        "light" -> false
+        else -> isSystemInDarkTheme()
+    }
+    val colorScheme = if (isDark) LynxDarkColorScheme else LynxLightColorScheme
+
     val view = LocalView.current
     if (!view.isInEditMode) {
         SideEffect {
             val window = (view.context as android.app.Activity).window
             WindowCompat.setDecorFitsSystemWindows(window, false)
             val controller = WindowInsetsControllerCompat(window, view)
-            // 深色背景 → 状态栏图标用浅色
-            controller.isAppearanceLightStatusBars = false
-            controller.isAppearanceLightNavigationBars = false
+            controller.isAppearanceLightStatusBars = !isDark
+            controller.isAppearanceLightNavigationBars = !isDark
         }
     }
 
     MaterialTheme(
-        colorScheme = LynxColorScheme,
+        colorScheme = colorScheme,
         typography = LynnHubTypography,
         content = content
     )

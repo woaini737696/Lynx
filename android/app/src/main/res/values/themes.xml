@@ -1,7 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <style name="Theme.LynnHub" parent="android:Theme.Material.Light.NoActionBar">
+    <!-- 启动主题统一用深色父主题，避免浅色模式下白屏闪烁。
+         Compose 内容渲染后由 Theme.kt 根据 themeMode 动态切换状态栏图标色。 -->
+    <style name="Theme.LynnHub" parent="android:Theme.Material.NoActionBar">
         <item name="android:statusBarColor">@android:color/transparent</item>
-        <item name="android:windowLightStatusBar">true</item>
+        <item name="android:windowLightStatusBar">false</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
     </style>
 </resources>

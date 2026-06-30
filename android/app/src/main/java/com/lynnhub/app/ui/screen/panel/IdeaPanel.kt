@@ -206,6 +206,14 @@ class IdeaPanelViewModel @Inject constructor(
     fun clearToast() {
         _uiState.update { it.copy(toast = null) }
     }
+
+    override fun onCleared() {
+        super.onCleared()
+        // 退出页面时若仍在录音，停止并释放 AudioRecord 系统资源
+        if (audioRecorder.isRecording()) {
+            audioRecorder.stop()
+        }
+    }
 }
 
 @Composable

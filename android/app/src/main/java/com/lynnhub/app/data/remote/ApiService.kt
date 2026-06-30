@@ -192,4 +192,14 @@ interface ApiService {
 
     @GET("api/hermes/profile")
     suspend fun getHermesProfile(): HermesProfileResponse
+
+    // ============ WS Gateway HTTP 端点（在线设备查询 + 指令下发） ============
+    // 这些端点由独立的 ws-gateway 进程提供，通过 Nginx 反代到主域名
+    /** 查询当前用户在线 PC 设备列表 */
+    @GET("devices")
+    suspend fun getOnlineDevices(@Query("userId") userId: String): OnlineDevicesResponse
+
+    /** 向指定 PC 下发远程指令 */
+    @POST("dispatch")
+    suspend fun dispatchRemoteCommand(@Body body: DispatchRequest): DispatchResponse
 }

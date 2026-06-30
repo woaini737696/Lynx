@@ -13,6 +13,7 @@ import androidx.navigation.compose.composable
 import com.lynnhub.app.ui.screen.assistant.AssistantScreen
 import com.lynnhub.app.ui.screen.home.HomeScreen
 import com.lynnhub.app.ui.screen.memory.MemoryScreen
+import com.lynnhub.app.ui.screen.panel.AgentPanel
 import com.lynnhub.app.ui.screen.panel.IdeaPanel
 import com.lynnhub.app.ui.screen.settings.SettingsScreen
 import com.lynnhub.app.ui.screen.tasks.TasksScreen
@@ -84,6 +85,17 @@ fun AppNavigation(
             popExitTransition = { slideOutHorizontally(tween(duration, easing = easing)) { it } }
         ) {
             com.lynnhub.app.ui.screen.panel.CallScreen(onBack = { navController.popBackStack() })
+        }
+
+        // ====== Agent 远程浮层（统一水平滑入） ======
+        composable(
+            route = Routes.AGENT,
+            enterTransition = { slideInHorizontally(tween(duration, easing = easing)) { it } },
+            exitTransition = { slideOutHorizontally(tween(duration, easing = easing)) { it } },
+            popEnterTransition = { slideInHorizontally(tween(duration, easing = easing)) { it } },
+            popExitTransition = { slideOutHorizontally(tween(duration, easing = easing)) { it } }
+        ) {
+            AgentPanel(onBack = { navController.popBackStack() })
         }
 
         // ====== 设置面板（从右侧滑入，88% 宽度侧滑面板，400ms 专用时长） ======

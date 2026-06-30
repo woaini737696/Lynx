@@ -14,9 +14,6 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import okhttp3.Response
-import okhttp3.sse.EventSource
-import okhttp3.sse.EventSourceListener
-import okhttp3.sse.EventSources
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -75,48 +72,44 @@ class StreamChatClient @Inject constructor(
             return@flow
         }
 
-        val source = EventSources.createFactory(okHttpClient)
-            .newEventSource(request, object : EventSourceListener() {
-                // 在 flow 中处理，这里不做实际监听
-            })
+        // 手动读取 SSE 流（response.use 保证连接释放）
+        response.use { resp ->
+            resp.body?.byteStream()?.bufferedReader()?.use { reader ->
+                var currentData = StringBuilder()
+                var currentEvent = "message"
 
-        // 手动读取 SSE 流
-        response.body?.byteStream()?.bufferedReader()?.use { reader ->
-            var currentData = StringBuilder()
-            var currentEvent = "message"
+                while (true) {
+                    val line = reader.readLine() ?: break
 
-            while (true) {
-                val line = reader.readLine() ?: break
-
-                when {
-                    line.startsWith("event:") -> {
-                        currentEvent = line.removePrefix("event:").trim()
-                    }
-                    line.startsWith("data:") -> {
-                        val data = line.removePrefix("data:").trim()
-                        if (data.isNotEmpty()) {
-                            currentData.append(data)
+                    when {
+                        line.startsWith("event:") -> {
+                            currentEvent = line.removePrefix("event:").trim()
                         }
-                    }
-                    line.isEmpty() -> {
-                        // 空行表示事件结束
-                        if (currentData.isNotEmpty()) {
-                            val dataStr = currentData.toString()
-                            when (currentEvent) {
-                                "message" -> emit(SseEvent.Message(dataStr))
-                                "tool_call" -> emit(parseToolCall(dataStr))
-                                "done" -> emit(SseEvent.Done)
-                                "error" -> emit(SseEvent.Error(dataStr))
+                        line.startsWith("data:") -> {
+                            val data = line.removePrefix("data:").trim()
+                            if (data.isNotEmpty()) {
+                                currentData.append(data)
                             }
-                            currentData = StringBuilder()
                         }
-                        currentEvent = "message"
+                        line.isEmpty() -> {
+                            // 空行表示事件结束
+                            if (currentData.isNotEmpty()) {
+                                val dataStr = currentData.toString()
+                                when (currentEvent) {
+                                    "message" -> emit(SseEvent.Message(dataStr))
+                                    "tool_call" -> emit(parseToolCall(dataStr))
+                                    "done" -> emit(SseEvent.Done)
+                                    "error" -> emit(SseEvent.Error(dataStr))
+                                }
+                                currentData = StringBuilder()
+                            }
+                            currentEvent = "message"
+                        }
                     }
                 }
             }
         }
 
-        response.close()
         emit(SseEvent.Done)
     }.flowOn(Dispatchers.IO)
 
