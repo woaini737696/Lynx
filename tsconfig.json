@@ -33,8 +33,7 @@
     "next-env.d.ts",
     "**/*.ts",
     "**/*.tsx",
-    ".next/types/**/*.ts",
-    "desktop-native/dist-web/types/**/*.ts"
+    ".next/types/**/*.ts"
   ],
   "exclude": [
     "node_modules",
@@ -44,8 +43,6 @@
     "test-hello",
     "npm-cache",
     "android",
-    "mobile",
-    "desktop",
     "dist",
     "e2e",
     "desktop-native"

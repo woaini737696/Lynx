@@ -53,11 +53,6 @@ next-env.d.ts
 .idea/
 .vscode/
 
-# mobile (uniapp)
-/mobile/node_modules/
-/mobile/dist/
-/mobile/unpackage/
-
 # lark-cli local state
 .lark-sync-state.json
 .lark-task-comments.json
@@ -88,8 +83,6 @@ Temp/
 npm-cache/
 _to_delete_/
 cargo-target/
-desktop-build/
-desktop-junction/
 # 桌面端打包产物（22MB+ 二进制，不入版本控制）
 /desktop/dist/
 
@@ -124,15 +117,6 @@ test_ui.xml
 /Lynx_*.html
 # Android 测试截图
 /android/test-screenshots/
-# 桌面端构建日志
-/npm-*.log
-/cargo-*.log
-/nsis-*.log
-/desktop-native/npm-*.log
-/desktop-native/cargo-*.log
-/desktop-native/nsis-*.log
-/desktop-native/*-build*.log
-/desktop-native/build-native*.log
 
 # 部署构建产物（本地构建后同步到服务器，不入版本控制）
 /deploy/dist/

@@ -44,7 +44,7 @@ Lynx 是一个会自主学习、成长、进化的超级 AI 助理平台。它�
 ### 多端支持
 - 🌐 **Web 端**：Next.js 14，端口 5176（强制），响应式 + PWA
 - 🖥️ **桌面端**：Tauri 2.x + Rust（MSVC 工具链），1280×800 居中，托盘 + 全局快捷键 `Ctrl+Shift+L`，内置自动更新
-- 📱 **移动端**：uni-app Android，五 Tab 结构（聚焦 / 看板 / 助理 / 任务 / 我的），便携使用 + 远程操控 Lynx Agent
+- 📱 **移动端**：Android 原生（Kotlin + Jetpack Compose + Material3 + Hilt），五 Tab 结构（首页 / Lynx 助理 / 任务 / 记忆），便携使用 + 远程操控 Lynx Agent
 
 ## 技术架构
 
@@ -54,7 +54,7 @@ Lynx 是一个会自主学习、成长、进化的超级 AI 助理平台。它�
 | 后端 | Next.js API Routes, Prisma ORM, MySQL 8.0+ |
 | AI | DeepSeek, MiMo（小米大模型）, BGE-M3 Embedding, TTS/ASR, 视觉多模态 |
 | 桌面 | Tauri 2.x, Rust, HermesAgent 引擎（本地超级 AI 助理） |
-| 移动 | uni-app, Vue 3, Vite |
+| 移动 | Android 原生 (Kotlin, Jetpack Compose, Material3, Hilt) |
 | 部署 | Node.js 20, PM2, Nginx |
 
 ### 架构亮点
@@ -106,16 +106,16 @@ npx next dev -p 5176
 
 ### 桌面端开发
 ```bash
-cd desktop
+cd desktop-native
 npm install
-npm run dev      # 启动 Tauri 桌面端（自动拉起 Web 端 5176）
+npm run dev      # 启动 Tauri 桌面端（独立 Vite 5177）
 ```
 
 ### 安卓端开发
 ```bash
-cd mobile
-npm install
-# 使用 HBuilderX 打开 mobile/ 目录，运行到 Android 真机或模拟器
+cd android
+./gradlew.bat :app:assembleDebug     # 构建 debug APK
+adb install -r app/build/outputs/apk/debug/app-debug.apk
 ```
 
 ### 访问
@@ -155,11 +155,10 @@ src/
 ├── lib/                    # 工具库（含 hermes-learner / hermes-client / flow-engine）
 ├── hooks/                  # React Hooks
 └── workers/                # Web Worker（力导向仿真）
-desktop/                    # Tauri 桌面应用（Rust）
-│   └── src-tauri/
-│       ├── src/            # HermesAgent 引擎 + RPA + 自动更新 + auth
-│       └── tauri.conf.json # 桌面端配置
-mobile/                     # uni-app Android 应用（Vue 3）
+desktop-native/             # Tauri 原生桌面应用（Rust + React）
+│   ├── src-tauri/          # HermesAgent 引擎 + RPA + 自动更新 + auth
+│   └── native-ui/          # 独立 React SPA 前端（Vite + TypeScript）
+android/                    # Android 原生应用（Kotlin + Jetpack Compose + Hilt）
 prisma/                     # 数据库 schema 和 seed
 scripts/                    # 测试和维护脚本
 web_Lynx/                   # 官网（Vite + React + TypeScript）

@@ -429,7 +429,7 @@
 
 ### 10.1 推送通道
 - **Web Push**：通过 VAPID 密钥推送到 PWA（安卓 Chrome）
-- **APP 本地推送**：uni-app plus.push.createMessage
+- **APP 本地推送**：Android NotificationChannel（Kotlin）
 - **飞书加急**：通过飞书机器人推送到飞书 APP
 
 ### 10.2 通知类型

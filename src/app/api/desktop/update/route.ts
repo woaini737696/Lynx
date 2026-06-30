@@ -42,11 +42,11 @@ function getLatestVersion(): string {
     return process.env.DESKTOP_LATEST_VERSION;
   }
   try {
-    const pkgPath = join(process.cwd(), "desktop", "package.json");
+    const pkgPath = join(process.cwd(), "desktop-native", "package.json");
     const pkg = JSON.parse(readFileSync(pkgPath, "utf-8"));
     return pkg.version || "1.0.0";
   } catch (e) {
-    logger.warn({ err: e }, "读取 desktop/package.json 失败，回退到 1.0.0");
+    logger.warn({ err: e }, "读取 desktop-native/package.json 失败，回退到 1.0.0");
     return "1.0.0";
   }
 }

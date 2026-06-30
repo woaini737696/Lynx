@@ -147,7 +147,7 @@ git push origin master
 1. **禁止跳过类型检查**：tsc 报错必须修复，不得用 `as any` / `@ts-ignore` 绕过
 2. **禁止使用 GNU 工具链**：Rust 必须用 `stable-x86_64-pc-windows-msvc`
 3. **禁止改动 Cargo target 路径**：固定 `D:\cargo-target-native`
-4. **禁止改动 `next.config.mjs`**：那是 Web 端配置，桌面端配置在 `next.desktop-native.config.mjs` / `vite.config.ts`
+4. **禁止改动 `next.config.mjs`**：那是 Web 端配置，桌面端配置在 `native-ui/vite.config.ts`
 5. **禁止提交构建产物**：`dist/` `bin/` `out/` `src-tauri/out/` `src-tauri/target/` 均在 .gitignore
 6. **端口固定 3002**：Web 端 dev server 必须在 3002 端口运行；桌面端**默认连接云端** `https://ai.lynxdo.com`（生产环境），所有 API 通过 Tauri `cloud_request` 命令代理到云端，无需启动本地服务即可使用
 7. **每次开发后必须打安装包**：用户要求每次完成开发后都要打包最新安装包供验收
