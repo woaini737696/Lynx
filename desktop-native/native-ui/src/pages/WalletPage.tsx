@@ -131,7 +131,6 @@ const TIER_BADGE_CLASS: Record<string, string> = {
   LITE: "bg-cognition/10 text-cognition",
   PRO: "bg-campaign/10 text-campaign",
   MAX: "bg-northstar/10 text-northstar",
-  ULTRA: "bg-task/10 text-task",
 };
 
 // ============ 主组件 ============
@@ -161,7 +160,17 @@ export function WalletPage() {
   const loadWallet = useCallback(async () => {
     try {
       const json = await cloudApi.get<{ success: boolean; data: WalletData }>("/api/wallet");
-      setWallet(json.data);
+      const data = json?.data;
+      // 防御性处理：确保关键字段存在，避免渲染时崩溃
+      if (data) {
+        setWallet({
+          credits: String(data.credits ?? "0"),
+          sCoins: Number(data.sCoins ?? 0),
+          frozenCredits: String(data.frozenCredits ?? "0"),
+          availableCredits: String(data.availableCredits ?? "0"),
+          membership: data.membership || { tier: "FREE", name: "免费版", features: [] },
+        });
+      }
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "加载钱包失败");
     } finally {
@@ -178,10 +187,11 @@ export function WalletPage() {
       const json = await cloudApi.get<{ success: boolean; data: TxPage<CreditTx> }>(
         `/api/wallet/transactions?${params}`
       );
-      const page = json.data;
-      setCreditTxs((prev) => (cursor ? [...prev, ...page.data] : page.data));
-      setCreditCursor(page.nextCursor);
-      setCreditHasMore(page.hasMore);
+      const page = json?.data;
+      const items = Array.isArray(page?.data) ? page.data : [];
+      setCreditTxs((prev) => (cursor ? [...prev, ...items] : items));
+      setCreditCursor(page?.nextCursor ?? null);
+      setCreditHasMore(!!page?.hasMore);
       loadedRef.current.add("credits");
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "加载 Credits 流水失败");
@@ -199,10 +209,11 @@ export function WalletPage() {
       const json = await cloudApi.get<{ success: boolean; data: TxPage<SCoinTx> }>(
         `/api/wallet/transactions?${params}`
       );
-      const page = json.data;
-      setScoinTxs((prev) => (cursor ? [...prev, ...page.data] : page.data));
-      setScoinCursor(page.nextCursor);
-      setScoinHasMore(page.hasMore);
+      const page = json?.data;
+      const items = Array.isArray(page?.data) ? page.data : [];
+      setScoinTxs((prev) => (cursor ? [...prev, ...items] : items));
+      setScoinCursor(page?.nextCursor ?? null);
+      setScoinHasMore(!!page?.hasMore);
       loadedRef.current.add("scoins");
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "加载 S币 流水失败");

@@ -79,7 +79,13 @@ export async function GET(req: NextRequest) {
     ]);
 
     const hasMore = skills.length > limit;
-    const data = hasMore ? skills.slice(0, limit) : skills;
+    const rawData = hasMore ? skills.slice(0, limit) : skills;
+    // 防御：tags/parameters 是 Prisma Json 字段，可能为 null/对象/字符串等非数组值
+    const data = rawData.map((s) => ({
+      ...s,
+      tags: Array.isArray(s.tags) ? s.tags : [],
+      parameters: Array.isArray(s.parameters) ? s.parameters : [],
+    }));
     const nextCursor = hasMore
       ? nextCursorFrom(data as unknown as Record<string, unknown>[], "updatedAt")
       : null;

@@ -71,7 +71,8 @@ export async function GET(req: NextRequest) {
       name: s.name,
       description: s.description,
       category: s.category,
-      tags: s.tags,
+      // 防御：tags 是 Prisma Json 字段，可能为 null/对象/字符串等非数组值
+      tags: Array.isArray(s.tags) ? s.tags : [],
       downloadCount: s.downloadCount,
       ratingAvg: s.ratingAvg,
       publishedAt: s.publishedAt,

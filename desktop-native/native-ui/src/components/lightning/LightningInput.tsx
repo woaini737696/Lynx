@@ -99,7 +99,7 @@ export function LightningInput() {
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
-          className="fixed inset-0 z-[200] flex items-start justify-center bg-black/30 p-4 pt-[16vh] backdrop-blur-xl"
+          className="fixed inset-0 z-[200] flex items-start justify-center bg-black/40 p-4 pt-[16vh] backdrop-blur-md"
           onClick={close}
         >
           <motion.div
@@ -107,7 +107,11 @@ export function LightningInput() {
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: -16, scale: 0.97 }}
             transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
-            className="ios-glass w-full max-w-xl rounded-3xl p-5"
+            className="relative w-full max-w-xl overflow-hidden rounded-3xl bg-white/95 p-5 shadow-2xl ring-1 ring-black/5 backdrop-blur-2xl"
+            style={{
+              boxShadow:
+                "0 12px 48px rgba(31, 38, 135, 0.25), inset 0 1px 0 rgba(255,255,255,0.8)",
+            }}
             onClick={(e) => e.stopPropagation()}
           >
             {/* 头部 */}
