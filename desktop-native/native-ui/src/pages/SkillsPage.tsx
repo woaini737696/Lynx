@@ -23,31 +23,7 @@ import { toast } from "@/lib/toast";
 import { HelpButton } from "@/components/ui/HelpButton";
 import { Modal } from "@/components/ui/Modal";
 import { cloudApi } from "@/lib/cloud-api";
-
-// ============ 类型定义 ============
-
-interface SkillParameter {
-  name: string;
-  type: string;
-  description?: string;
-  required?: boolean;
-  default?: unknown;
-}
-
-interface Skill {
-  id: string;
-  name: string;
-  description: string;
-  category: string;
-  content: string;
-  parameters: SkillParameter[];
-  promptTemplate: string;
-  source: string;
-  tags: string[];
-  usageCount: number;
-  createdAt: string;
-  updatedAt: string;
-}
+import type { Skill } from "@/types/api";
 
 // 12 岗位分类 + 通用
 const CATEGORIES: Array<{ key: string; label: string }> = [

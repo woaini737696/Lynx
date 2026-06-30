@@ -17,7 +17,8 @@
     "noFallthroughCasesInSwitch": true,
     "baseUrl": ".",
     "paths": {
-      "@/*": ["./src/*"]
+      "@/*": ["./src/*"],
+      "@lynnhub/shared-types": ["../../packages/shared-types/index.ts"]
     }
   },
   "include": ["src"],

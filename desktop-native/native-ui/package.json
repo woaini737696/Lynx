@@ -1,7 +1,7 @@
 {
   "name": "lynx-native-ui",
   "private": true,
-  "version": "1.0.23",
+  "version": "1.0.24",
   "type": "module",
   "scripts": {
     "dev": "vite --port 5177 --host 127.0.0.1",
@@ -10,6 +10,7 @@
     "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0"
   },
   "dependencies": {
+    "@lynnhub/shared-types": "workspace:*",
     "@tanstack/react-query": "^5.45.0",
     "@tauri-apps/api": "^2.0.0",
     "@tauri-apps/plugin-shell": "^2.0.0",

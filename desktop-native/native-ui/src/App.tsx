@@ -6,27 +6,8 @@ import {
 } from "react-router-dom";
 import { AppLayout } from "./components/layout/AppLayout";
 import { ErrorBoundary } from "./components/ErrorBoundary";
-import { FocusPage } from "./pages/FocusPage";
-import { BoardPage } from "./pages/BoardPage";
-import { InboxPage } from "./pages/InboxPage";
-import { CognitionPage } from "./pages/CognitionPage";
-import { GraveyardPage } from "./pages/GraveyardPage";
-import { AIWorkspacePage } from "./pages/AIWorkspacePage";
-import { AIAssistantPage } from "./pages/AIAssistantPage";
-import { AIFlowsPage } from "./pages/AIFlowsPage";
-import { SkillsPage } from "./pages/SkillsPage";
-import { AgentPage } from "./pages/AgentPage";
-import { AssetsPage } from "./pages/AssetsPage";
-import { MemoryPage } from "./pages/MemoryPage";
-import { SearchPage } from "./pages/SearchPage";
-import { WalletPage } from "./pages/WalletPage";
-import { MembershipPage } from "./pages/MembershipPage";
-import { SettingsPage } from "./pages/SettingsPage";
-import { ConvergePage } from "./pages/ConvergePage";
-import { LarkTasksPage } from "./pages/LarkTasksPage";
-import { NotificationSettingsPage } from "./pages/NotificationSettingsPage";
 import { Toaster } from "./components/ui/Toaster";
-import { useEffect, useState } from "react";
+import { useEffect, useState, lazy, Suspense } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { applyTheme, getStoredTheme } from "./lib/theme";
 import { useUIStore } from "./stores/uiStore";
@@ -35,6 +16,36 @@ import { loadAuth, clearAuth } from "./lib/auth-persistence";
 import { AUTH_EXPIRED_EVENT, cloudApi } from "./lib/cloud-api";
 import { openLoginModal } from "./lib/login-modal";
 import { Loader2 } from "lucide-react";
+
+// 页面懒加载：首屏只加载 FocusPage，其余按需加载
+const FocusPage = lazy(() => import("./pages/FocusPage").then((m) => ({ default: m.FocusPage })));
+const BoardPage = lazy(() => import("./pages/BoardPage").then((m) => ({ default: m.BoardPage })));
+const InboxPage = lazy(() => import("./pages/InboxPage").then((m) => ({ default: m.InboxPage })));
+const CognitionPage = lazy(() => import("./pages/CognitionPage").then((m) => ({ default: m.CognitionPage })));
+const GraveyardPage = lazy(() => import("./pages/GraveyardPage").then((m) => ({ default: m.GraveyardPage })));
+const AIWorkspacePage = lazy(() => import("./pages/AIWorkspacePage").then((m) => ({ default: m.AIWorkspacePage })));
+const AIAssistantPage = lazy(() => import("./pages/AIAssistantPage").then((m) => ({ default: m.AIAssistantPage })));
+const AIFlowsPage = lazy(() => import("./pages/AIFlowsPage").then((m) => ({ default: m.AIFlowsPage })));
+const SkillsPage = lazy(() => import("./pages/SkillsPage").then((m) => ({ default: m.SkillsPage })));
+const AgentPage = lazy(() => import("./pages/AgentPage").then((m) => ({ default: m.AgentPage })));
+const AssetsPage = lazy(() => import("./pages/AssetsPage").then((m) => ({ default: m.AssetsPage })));
+const MemoryPage = lazy(() => import("./pages/MemoryPage").then((m) => ({ default: m.MemoryPage })));
+const SearchPage = lazy(() => import("./pages/SearchPage").then((m) => ({ default: m.SearchPage })));
+const WalletPage = lazy(() => import("./pages/WalletPage").then((m) => ({ default: m.WalletPage })));
+const MembershipPage = lazy(() => import("./pages/MembershipPage").then((m) => ({ default: m.MembershipPage })));
+const SettingsPage = lazy(() => import("./pages/SettingsPage").then((m) => ({ default: m.SettingsPage })));
+const ConvergePage = lazy(() => import("./pages/ConvergePage").then((m) => ({ default: m.ConvergePage })));
+const LarkTasksPage = lazy(() => import("./pages/LarkTasksPage").then((m) => ({ default: m.LarkTasksPage })));
+const NotificationSettingsPage = lazy(() => import("./pages/NotificationSettingsPage").then((m) => ({ default: m.NotificationSettingsPage })));
+
+// 页面级加载占位
+function PageLoader() {
+  return (
+    <div className="flex h-full min-h-[60vh] items-center justify-center">
+      <Loader2 className="h-6 w-6 animate-spin text-primary" />
+    </div>
+  );
+}
 
 function ThemeSync() {
   const theme = useUIStore((s) => s.theme);
@@ -130,25 +141,25 @@ export function App() {
         <Routes>
           <Route path="/" element={<AppLayout />}>
             <Route index element={<Navigate to="/focus" replace />} />
-            <Route path="focus" element={<ErrorBoundary><FocusPage /></ErrorBoundary>} />
-            <Route path="inbox" element={<ErrorBoundary><InboxPage /></ErrorBoundary>} />
-            <Route path="converge" element={<ErrorBoundary><ConvergePage /></ErrorBoundary>} />
-            <Route path="cognition" element={<ErrorBoundary><CognitionPage /></ErrorBoundary>} />
-            <Route path="board" element={<ErrorBoundary><BoardPage /></ErrorBoundary>} />
-            <Route path="graveyard" element={<ErrorBoundary><GraveyardPage /></ErrorBoundary>} />
-            <Route path="ai/workspace" element={<ErrorBoundary><AIWorkspacePage /></ErrorBoundary>} />
-            <Route path="ai/flows" element={<ErrorBoundary><AIFlowsPage /></ErrorBoundary>} />
-            <Route path="ai/assistant" element={<ErrorBoundary><AIAssistantPage /></ErrorBoundary>} />
-            <Route path="ai/lark-tasks" element={<ErrorBoundary><LarkTasksPage /></ErrorBoundary>} />
-            <Route path="assets" element={<ErrorBoundary><AssetsPage /></ErrorBoundary>} />
-            <Route path="memory" element={<ErrorBoundary><MemoryPage /></ErrorBoundary>} />
-            <Route path="search" element={<ErrorBoundary><SearchPage /></ErrorBoundary>} />
-            <Route path="skills" element={<ErrorBoundary><SkillsPage /></ErrorBoundary>} />
-            <Route path="agent" element={<ErrorBoundary><AgentPage /></ErrorBoundary>} />
-            <Route path="wallet" element={<ErrorBoundary><WalletPage /></ErrorBoundary>} />
-            <Route path="membership" element={<ErrorBoundary><MembershipPage /></ErrorBoundary>} />
-            <Route path="settings" element={<ErrorBoundary><SettingsPage /></ErrorBoundary>} />
-            <Route path="settings/notifications" element={<ErrorBoundary><NotificationSettingsPage /></ErrorBoundary>} />
+            <Route path="focus" element={<ErrorBoundary><Suspense fallback={<PageLoader />}><FocusPage /></Suspense></ErrorBoundary>} />
+            <Route path="inbox" element={<ErrorBoundary><Suspense fallback={<PageLoader />}><InboxPage /></Suspense></ErrorBoundary>} />
+            <Route path="converge" element={<ErrorBoundary><Suspense fallback={<PageLoader />}><ConvergePage /></Suspense></ErrorBoundary>} />
+            <Route path="cognition" element={<ErrorBoundary><Suspense fallback={<PageLoader />}><CognitionPage /></Suspense></ErrorBoundary>} />
+            <Route path="board" element={<ErrorBoundary><Suspense fallback={<PageLoader />}><BoardPage /></Suspense></ErrorBoundary>} />
+            <Route path="graveyard" element={<ErrorBoundary><Suspense fallback={<PageLoader />}><GraveyardPage /></Suspense></ErrorBoundary>} />
+            <Route path="ai/workspace" element={<ErrorBoundary><Suspense fallback={<PageLoader />}><AIWorkspacePage /></Suspense></ErrorBoundary>} />
+            <Route path="ai/flows" element={<ErrorBoundary><Suspense fallback={<PageLoader />}><AIFlowsPage /></Suspense></ErrorBoundary>} />
+            <Route path="ai/assistant" element={<ErrorBoundary><Suspense fallback={<PageLoader />}><AIAssistantPage /></Suspense></ErrorBoundary>} />
+            <Route path="ai/lark-tasks" element={<ErrorBoundary><Suspense fallback={<PageLoader />}><LarkTasksPage /></Suspense></ErrorBoundary>} />
+            <Route path="assets" element={<ErrorBoundary><Suspense fallback={<PageLoader />}><AssetsPage /></Suspense></ErrorBoundary>} />
+            <Route path="memory" element={<ErrorBoundary><Suspense fallback={<PageLoader />}><MemoryPage /></Suspense></ErrorBoundary>} />
+            <Route path="search" element={<ErrorBoundary><Suspense fallback={<PageLoader />}><SearchPage /></Suspense></ErrorBoundary>} />
+            <Route path="skills" element={<ErrorBoundary><Suspense fallback={<PageLoader />}><SkillsPage /></Suspense></ErrorBoundary>} />
+            <Route path="agent" element={<ErrorBoundary><Suspense fallback={<PageLoader />}><AgentPage /></Suspense></ErrorBoundary>} />
+            <Route path="wallet" element={<ErrorBoundary><Suspense fallback={<PageLoader />}><WalletPage /></Suspense></ErrorBoundary>} />
+            <Route path="membership" element={<ErrorBoundary><Suspense fallback={<PageLoader />}><MembershipPage /></Suspense></ErrorBoundary>} />
+            <Route path="settings" element={<ErrorBoundary><Suspense fallback={<PageLoader />}><SettingsPage /></Suspense></ErrorBoundary>} />
+            <Route path="settings/notifications" element={<ErrorBoundary><Suspense fallback={<PageLoader />}><NotificationSettingsPage /></Suspense></ErrorBoundary>} />
             <Route path="settings/*" element={<Navigate to="/settings" replace />} />
             <Route path="*" element={<Navigate to="/focus" replace />} />
           </Route>

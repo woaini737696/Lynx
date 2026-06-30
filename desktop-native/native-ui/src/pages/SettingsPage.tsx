@@ -28,16 +28,7 @@ import { applyTheme, saveTheme, type Theme } from "@/lib/theme";
 import { HelpButton } from "@/components/ui/HelpButton";
 import { Logo } from "@/components/ui/Logo";
 import { toast } from "@/lib/toast";
-
-interface AgentStatus {
-  version: string;
-  wsConnected: boolean;
-  cloudEndpoint: string;
-  authMode: string;
-  authorizedDirs: string[];
-  capabilities: string[];
-  hasToken: boolean;
-}
+import type { AgentStatus } from "@/types/api";
 
 const tabs = [
   { key: "account", label: "账号", icon: User },

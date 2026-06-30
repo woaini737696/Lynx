@@ -43,6 +43,89 @@ function notifyLoginRequired() {
   window.dispatchEvent(new CustomEvent(LOGIN_REQUIRED_EVENT));
 }
 
+// ============ 离线缓存层（GET 请求缓存 + 断网回退）============
+// 内存缓存 + localStorage 持久化，TTL 5 分钟
+const CACHE_TTL_MS = 5 * 60 * 1000;
+const CACHE_PREFIX = "lynx-cache:";
+const memoryCache = new Map<string, { data: unknown; expiresAt: number }>();
+
+interface CacheEntry<T> {
+  data: T;
+  expiresAt: number;
+}
+
+function readCache<T>(url: string): T | null {
+  // 内存缓存优先
+  const mem = memoryCache.get(url);
+  if (mem && mem.expiresAt > Date.now()) {
+    return mem.data as T;
+  }
+  // 回退 localStorage
+  try {
+    const raw = localStorage.getItem(CACHE_PREFIX + url);
+    if (!raw) return null;
+    const entry: CacheEntry<T> = JSON.parse(raw);
+    if (entry.expiresAt > Date.now()) {
+      memoryCache.set(url, entry);
+      return entry.data;
+    }
+    localStorage.removeItem(CACHE_PREFIX + url);
+  } catch {
+    // localStorage 损坏或配额满，忽略
+  }
+  return null;
+}
+
+function writeCache<T>(url: string, data: T): void {
+  const entry: CacheEntry<T> = { data, expiresAt: Date.now() + CACHE_TTL_MS };
+  memoryCache.set(url, entry);
+  try {
+    localStorage.setItem(CACHE_PREFIX + url, JSON.stringify(entry));
+  } catch {
+    // 配额满：清旧缓存后重试一次
+    try {
+      clearExpiredCache();
+      localStorage.setItem(CACHE_PREFIX + url, JSON.stringify(entry));
+    } catch {
+      // 仍失败则放弃持久化，仅保留内存缓存
+    }
+  }
+}
+
+function clearExpiredCache(): void {
+  const now = Date.now();
+  memoryCache.forEach((v, k) => {
+    if (v.expiresAt <= now) memoryCache.delete(k);
+  });
+  try {
+    for (let i = localStorage.length - 1; i >= 0; i--) {
+      const key = localStorage.key(i);
+      if (!key || !key.startsWith(CACHE_PREFIX)) continue;
+      try {
+        const entry = JSON.parse(localStorage.getItem(key) || "{}");
+        if (entry.expiresAt <= now) localStorage.removeItem(key);
+      } catch {
+        localStorage.removeItem(key);
+      }
+    }
+  } catch {
+    // 忽略
+  }
+}
+
+/** 供用户手动清空缓存的公开方法 */
+export function clearApiCache(): void {
+  memoryCache.clear();
+  try {
+    for (let i = localStorage.length - 1; i >= 0; i--) {
+      const key = localStorage.key(i);
+      if (key && key.startsWith(CACHE_PREFIX)) localStorage.removeItem(key);
+    }
+  } catch {
+    // 忽略
+  }
+}
+
 // ============ fetch 实现的 cloudApi ============
 // 走 WebView2 (Edge Chromium) 网络栈，与浏览器完全一致，彻底解决 reqwest TLS 指纹/SNI 阻断问题
 export async function cloudRequest<T>(
@@ -54,6 +137,20 @@ export async function cloudRequest<T>(
   const url = path.startsWith("http://") || path.startsWith("https://")
     ? path
     : `${base}/${path.replace(/^\/+/, "")}`;
+
+  // GET 请求：先查缓存，断网时直接返回缓存
+  const isGet = method === "GET";
+  if (isGet) {
+    const cached = readCache<T>(url);
+    if (cached !== null) {
+      // 后台静默刷新（不阻塞 UI），失败则保留缓存
+      fetch(url, { headers: { "Content-Type": "application/json", ...(useAuthStore.getState().token ? { Authorization: `Bearer ${useAuthStore.getState().token}` } : {}) } })
+        .then((r) => (r.ok ? r.text() : Promise.reject()))
+        .then((text) => { if (text) { try { writeCache(url, JSON.parse(text)); } catch { /* ignore */ } } })
+        .catch(() => { /* 断网保留缓存 */ });
+      return cached;
+    }
+  }
 
   const token = useAuthStore.getState().token;
 
@@ -114,6 +211,11 @@ export async function cloudRequest<T>(
       (data as Record<string, unknown>)?.error ||
       `请求失败 (${res.status})`;
     throw new Error(message as string);
+  }
+
+  // GET 请求成功：写入缓存供断网回退
+  if (isGet && data !== null) {
+    writeCache(url, data);
   }
 
   return data as T;

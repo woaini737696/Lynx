@@ -15,13 +15,7 @@ import { cloudApi } from "@/lib/cloud-api";
 import { toast } from "@/lib/toast";
 import { HelpButton } from "@/components/ui/HelpButton";
 import { Modal } from "@/components/ui/Modal";
-
-interface Idea {
-  id: string;
-  content: string;
-  source: string;
-  createdAt: string;
-}
+import type { Idea } from "@/types/api";
 
 const COLUMNS = [
   { key: "northstar", label: "北极星", color: "text-northstar", bg: "bg-northstar/10", border: "border-northstar/30" },

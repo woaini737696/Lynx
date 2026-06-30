@@ -193,8 +193,8 @@ export function renderMarkdown(text: string): string {
   return blocks.map(renderBlock).join("");
 }
 
-function splitMarkdownBlocks(text: string): string[] {
-  const blocks: string[] = [];
+function splitMarkdownBlocks(text: string): Array<string | { type: "code"; content: string; lang: string }> {
+  const blocks: Array<string | { type: "code"; content: string; lang: string }> = [];
   const lines = text.split("\n");
   let current: string[] = [];
   let inCodeBlock = false;
@@ -206,7 +206,7 @@ function splitMarkdownBlocks(text: string): string[] {
       if (inCodeBlock) {
         // 结束代码块
         current.push(line);
-        blocks.push({ type: "code", content: current.join("\n"), lang: codeLang } as any);
+        blocks.push({ type: "code", content: current.join("\n"), lang: codeLang });
         current = [];
         inCodeBlock = false;
         codeLang = "";
@@ -226,7 +226,7 @@ function splitMarkdownBlocks(text: string): string[] {
   }
   if (current.length > 0) {
     if (inCodeBlock) {
-      blocks.push({ type: "code", content: current.join("\n"), lang: codeLang } as any);
+      blocks.push({ type: "code", content: current.join("\n"), lang: codeLang });
     } else {
       blocks.push(current.join("\n"));
     }

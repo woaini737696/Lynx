@@ -52,7 +52,6 @@ export function AppLayout() {
         await invoke("set_user_token", { token: `user:${user.id}` });
         await invoke("set_cloud_endpoint", { endpoint: getCloudEndpoint() });
         await invoke("start_hermes_agent");
-        console.log("[AppLayout] WS 连接已自动启动，PC 已上线");
       } catch (e) {
         console.warn("[AppLayout] WS 自动启动失败:", e);
         wsStartedRef.current = false; // 允许重试

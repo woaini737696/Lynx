@@ -9,8 +9,9 @@
 
 | 迭代 | 日期 | 任务概要 |
 |------|------|----------|
+| [迭代 79](#迭代-79---2026-06-30) | 2026-06-30 | 桌面端v1.0.24深度优化：monorepo共享类型包(packages/shared-types+npm workspaces+6页面迁移)+离线缓存层(cloud-api GET缓存+内存/localStorage+后台静默刷新+断网回退)+UI性能优化(20页面React.lazy+Suspense懒加载)+安全加固(navigate_to_url协议白名单+location.replace)+endpoint配置化(SettingsPage UI入口)+代码清理(2处console.log+3处any类型+7个重复interface移除) |
 | [迭代 77](#迭代-77---2026-06-30) | 2026-06-30 | 桌面端v1.0.23六项问题修复：自签名代码签名证书(NSIS签名+timestampUrl)+Lynx助理远程指令走HermesAgent Dashboard HTTP API(POST /api/execute真正AI执行)+AI工作流执行结果弹窗(节点详情+最终输出)+通知渠道扩展(Web端/移动端+飞书404修复路径/api/ai/notify-feishu)+技能执行API新建(/api/skills/[id]/execute调用executeTool+执行结果弹窗)+飞书任务字段映射(NormalizedTask归一化+db_only参数+同步状态提示) |
-| [迭代 77](#迭代-77---2026-07-01) | 2026-07-01 | 修复HermesAgent"虚假成功"严重bug：executor.py只调LLM生成文本从不真正执行RPA→重写为<action>标签+execute_rpa_action真实执行(webbrowser/subprocess); 升级hermes-agent 0.17.0→0.18.0; hermes-client.ts加RPA关键词识别+executed真实性校验; 服务器升级验证通过 |
+| [迭代 78](#迭代-78---2026-07-01) | 2026-07-01 | 修复HermesAgent"虚假成功"严重bug：executor.py只调LLM生成文本从不真正执行RPA→重写为<action>标签+execute_rpa_action真实执行(webbrowser/subprocess); 升级hermes-agent 0.17.0→0.18.0; hermes-client.ts加RPA关键词识别+executed真实性校验; 服务器升级验证通过 |
 | [迭代 76](#迭代-76---2026-06-30) | 2026-06-30 | Web端性能优化4阶段全量推进：阶段1拆全局重包(AssistantDrawer dynamic+RoutePreloader裁到top3)+阶段2降渲染成本(去background-attachment:fixed+contain/isolation+prefers-reduced-transparency)+阶段3拆巨石(RichTextEditor/3个settings tab组件dynamic)+阶段4统一数据层(usePollWhenVisible hook+应用AssistantGlobalEntry/CaptureBar全局轮询) |
 | [迭代 75](#迭代-75---2026-06-30) | 2026-06-30 | 桌面端v1.0.22六项问题修复：HermesAgent调用改HTTP API优先(CLI回退)+LynxAgent测试按钮+通知设置重构(localStorage+toast替代Web Notification)+飞书任务路径修正(/api/lark-tasks)+AI工作流执行历史UI+认知库编辑/使用功能(PATCH接口+发送助理/转技能) |
 | [迭代 74](#迭代-74---2026-06-30) | 2026-06-30 | 桌面端v1.0.21两项核心修复：hermesExecute工具调用走PcSession+WS网关远程执行(不再检查HermesConfig.status)+Web端HermesAgent独立安装恢复(浏览器分支调API非阻断)+install路由自动安装回退 |
@@ -122,6 +123,75 @@
 
 ---
 
+## 迭代 79 - 2026-06-30
+
+### 完成内容
+
+#### 1. monorepo 共享类型包（减少双端维护成本）
+- **新建** `packages/shared-types/` 包，导出 35+ 共享接口（FocusItem/Idea/Skill/Flow/LarkTask/Membership 等）
+- **根 package.json** 添加 `workspaces: ["packages/*"]`
+- **native-ui** 通过 vite alias + tsconfig paths 引用 `@lynnhub/shared-types`
+- **native-ui/types/api.ts** 改为从共享包 re-export
+- **6 个页面迁移**：SettingsPage(AgentStatus)/ConvergePage(Idea)/SkillsPage(Skill)/LarkTasksPage(LarkTask)/InboxPage(ChatMessage)/AIFlowsPage(7个Flow类型) 移除本地 interface 改为 import
+
+#### 2. 离线缓存层（强化离线能力）
+- `desktop-native/native-ui/src/lib/cloud-api.ts` 新增 GET 请求缓存层
+- 内存缓存 `Map` + localStorage 持久化，TTL 5 分钟
+- 缓存命中时后台静默刷新（不阻塞 UI），断网保留缓存
+- `clearApiCache()` 公开方法供手动清空
+- 写操作（POST/PUT/PATCH/DELETE）不缓存
+
+#### 3. UI 性能优化（懒加载）
+- `App.tsx` 20 个页面全部改为 `React.lazy` + `Suspense` 懒加载
+- 首屏只加载 FocusPage，其余页面按需加载
+- 新增 `PageLoader` 加载占位组件
+
+#### 4. 安全加固 navigate_to_url
+- `desktop-native/src-tauri/src/lib.rs` `navigate_to_url` 函数
+- 新增协议白名单校验（仅允许 http/https/file/tauri，拒绝 javascript:/data:）
+- `window.location.href =` 改为 `window.location.replace()`（不留历史记录）
+
+#### 5. endpoint 配置化
+- SettingsPage 已有云端地址输入框 + 保存按钮（localStorage 持久化）
+- `cloud-api.ts` 的 `getCloudEndpoint()` 从 localStorage 读取覆盖默认值
+
+#### 6. 代码清理（去重去垃圾）
+- 移除 2 处调试 `console.log`（HermesPanel.tsx:150、AppLayout.tsx:55）
+- 修复 3 处 `any` 类型（FocusPage.tsx:36 item:any→FocusItem、ai-assistant.ts:209/229 as any→联合类型）
+- 移除 7 个重复 interface 定义（迁移到共享包）
+
+### 自测验证
+- native-ui `npx tsc --noEmit` 0 错误
+- Web 端 `npx tsc --noEmit` 0 错误
+- 版本号升级：1.0.23 → 1.0.24（tauri.conf.json + package.json + Cargo.toml）
+
+### 修改文件清单
+- `packages/shared-types/package.json` — 新建（共享类型包）
+- `packages/shared-types/index.ts` — 新建（35+ 共享接口）
+- `package.json` — 添加 workspaces
+- `desktop-native/native-ui/package.json` — 版本 1.0.24 + 依赖 @lynnhub/shared-types
+- `desktop-native/native-ui/vite.config.ts` — alias @lynnhub/shared-types
+- `desktop-native/native-ui/tsconfig.json` — paths @lynnhub/shared-types
+- `desktop-native/native-ui/src/types/api.ts` — 改为 re-export from shared-types
+- `desktop-native/native-ui/src/lib/cloud-api.ts` — 离线缓存层 + clearApiCache
+- `desktop-native/native-ui/src/App.tsx` — 20 页面 React.lazy 懒加载
+- `desktop-native/native-ui/src/pages/SettingsPage.tsx` — 移除 AgentStatus 本地定义
+- `desktop-native/native-ui/src/pages/ConvergePage.tsx` — 移除 Idea 本地定义
+- `desktop-native/native-ui/src/pages/SkillsPage.tsx` — 移除 Skill/SkillParameter 本地定义
+- `desktop-native/native-ui/src/pages/LarkTasksPage.tsx` — 移除 LarkTask 本地定义
+- `desktop-native/native-ui/src/pages/InboxPage.tsx` — 移除 ChatMessage 本地定义
+- `desktop-native/native-ui/src/pages/AIFlowsPage.tsx` — 移除 7 个 Flow 类型本地定义
+- `desktop-native/native-ui/src/pages/FocusPage.tsx` — any→FocusItem + column 类型断言
+- `desktop-native/native-ui/src/lib/ai-assistant.ts` — as any→联合类型
+- `desktop-native/native-ui/src/components/agent/HermesPanel.tsx` — 移除调试 log
+- `desktop-native/native-ui/src/components/layout/AppLayout.tsx` — 移除调试 log
+- `desktop-native/src-tauri/src/lib.rs` — navigate_to_url 安全加固
+- `desktop-native/src-tauri/tauri.conf.json` — 版本 1.0.24
+- `desktop-native/src-tauri/Cargo.toml` — 版本 1.0.24
+- `DEV_LOG.md` — 开发日志更新
+
+---
+
 ## 迭代 77 - 2026-06-30
 
 ### 完成内容
@@ -188,6 +258,76 @@
 - `desktop-native/src-tauri/Cargo.toml` — 版本 1.0.23
 - `src/app/api/skills/[id]/execute/route.ts` — 新建（技能执行 API）
 - `DEV_LOG.md` — 开发日志更新
+
+---
+
+## 迭代 78 - 2026-07-01
+
+### 严重 bug：HermesAgent"虚假成功"
+
+#### 用户反馈
+> "HermesAgent安装成功并且启动成功后，我输入打开浏览器访问GitHub，然后返回了成功提示：✓ 执行成功 耗时 3.9s ... 但实际上没有打开浏览器和访问HermesAgent，这个功能是虚假的"
+
+#### 根因分析
+- `desktop-native/hermes-agent-pkg/hermes_agent/executor.py`（0.17.0 及更早）的 `execute_task` 函数只调用 LLM 生成描述性文本，**从不真正执行任何 RPA 动作**
+- system_prompt 里写着"如果任务需要操作系统或执行命令，请说明操作步骤，Lynx 桌面端会通过 RPA 能力执行" —— 但实际没有任何 RPA 执行代码
+- LLM 生成的"操作步骤说明"被当作"成功结果"返回给用户，造成"虚假成功"
+
+#### 修复方案
+
+**1. 重写 executor.py 实现真正的 RPA 执行**
+- 新增 `SYSTEM_PROMPT`：要求 LLM 在需要 OS 操作时输出结构化动作标签 `<action>{"type":"open_url","url":"..."}</action>`
+- 新增 `parse_actions(text)`：用正则解析所有 `<action>` 标签
+- 新增 `execute_rpa_action(action)`：实际执行 RPA 动作
+  - `open_url`：调用 `webbrowser.open(url)` 真实打开默认浏览器，Windows 回退 `os.startfile`
+  - `open_app`：跨平台启动应用（Windows `os.startfile` / macOS `open -a` / Linux 直接执行）
+  - `run_command`：`subprocess.Popen` 执行 shell 命令（30s 超时）
+- 重写 `execute_task`：调用 LLM → 解析 `<action>` 标签 → 实际执行每个动作 → 返回结果含 `executed: true` + `actions_executed: [...]`
+- 纯文本任务（无 action 标签）正确标记为 `executed: false` + `actions_executed: []`
+
+**2. 升级 hermes-agent 0.17.0 → 0.18.0**
+- `pyproject.toml` 版本号升级
+- `__init__.py` `__version__` 升级
+- 重新打包 `hermes_agent-0.18.0-py3-none-any.whl`（18134 bytes）
+- 部署到 `public/downloads/` + 服务器 pip 升级
+
+**3. hermes-client.ts 增加真实性校验**
+- 新增 `RPA_KEYWORDS` 关键词列表（"打开浏览器"/"访问"/"启动应用"/"运行命令" 等）
+- 新增 `isRpaPrompt(prompt)` 判断 prompt 是否为 RPA 任务
+- 路径 A（HTTP API）校验：当 `isRpa === true` 但 `data.executed !== true` 时，**不当作成功返回**，而是返回 `success: false` + 提示用户升级 hermes-agent 到 0.18.0+
+
+#### 自测验证
+
+**本地单元测试**（`test_executor_rpa.py`）：
+- `parse_actions` 正确解析 `<action>` 标签 ✓
+- `strip_action_tags` 正确移除标签 ✓
+- `execute_rpa_action({"type":"open_url","url":"https://github.com"})` 真实打开浏览器 ✓
+- 未知动作类型正确返回错误 ✓
+- 缺参数正确返回错误 ✓
+
+**服务器验证**（hermes 0.18.0 + DeepSeek LLM）：
+- `/api/status` 返回 `version: "0.18.0"` + `configured: true` ✓
+- 纯文本任务"解释 Python"：`success: true` + `executed: false` + LLM 文本回复 ✓
+- RPA 任务"打开浏览器访问 github.com"：
+  - LLM 生成 `<action>{"type":"open_url","url":"https://github.com"}</action>` ✓
+  - executor 真实调用 `webbrowser.open()` ✓
+  - 服务器无头环境失败 → 诚实返回 `success: false` + 详细错误 ✓
+  - **不再"虚假成功"** ✓
+
+#### 修改文件清单
+- `desktop-native/hermes-agent-pkg/hermes_agent/executor.py` — 重写，加 RPA 执行能力
+- `desktop-native/hermes-agent-pkg/hermes_agent/__init__.py` — 版本号 0.17.0 → 0.18.0
+- `desktop-native/hermes-agent-pkg/pyproject.toml` — 版本号 0.17.0 → 0.18.0
+- `desktop-native/hermes-agent-pkg/build/lib/hermes_agent/executor.py` — 同步源码
+- `desktop-native/hermes-agent-pkg/build/lib/hermes_agent/__init__.py` — 同步源码
+- `public/downloads/hermes_agent-0.18.0-py3-none-any.whl` — 新增（18134 bytes）
+- `src/lib/hermes-client.ts` — 加 RPA_KEYWORDS + isRpaPrompt + executed 真实性校验
+- `DEV_LOG.md` — 开发日志更新
+
+#### 架构说明
+- **桌面端用户**：本地 hermes dashboard 0.18.0 真实执行 RPA（webbrowser.open 在用户本地 PC 打开浏览器）✓
+- **Web 端用户**：服务器 hermes dashboard 0.18.0 尝试执行 RPA，但服务器无头环境无浏览器，会返回 `success: false` + 诚实错误信息（不再"虚假成功"）
+- 旧版 hermes-agent（<0.18）的"虚假成功"由 hermes-client.ts 的 `executed` 校验拦截，返回明确错误提示用户升级
 
 ---
 

@@ -404,11 +404,32 @@ export async function testHermesConnection(
  * 可直接执行 prompt 任务并返回结果，复用 Dashboard 的会话状态和 LLM 配置。
  * 优先调用 HTTP API（响应快、复用进程），失败时回退到 CLI 子进程。
  *
+ * 真实性校验（2026-07-01 增强，修复"虚假成功"bug）：
+ * - 0.17.0 及更早版本的 executor.py 只调用 LLM 生成描述性文本，
+ *   没有真正执行 RPA 动作，导致用户看到"已执行"但实际什么都没发生
+ * - 0.18.0+ executor.py 引入 <action> 标签 + execute_rpa_action 真实执行
+ * - 客户端校验：当 prompt 含 RPA 关键词但 data.executed !== true 时，
+ *   不当作成功返回，避免虚假成功
+ *
  * 执行流程：
  * 1. 优先：HTTP POST {endpoint}/api/execute（本地 Dashboard 已启动时）
  * 2. 回退：CLI `hermes -z "prompt" --yolo`（Dashboard 未启动时）
  * 3. 预检 LLM 模型配置（CLI 路径需要，HTTP 路径由 Dashboard 自检）
  */
+
+// RPA 任务关键词：prompt 含这些词时需要校验 executed 标记
+const RPA_KEYWORDS = [
+  "打开浏览器", "打开网页", "访问", "浏览", "启动应用", "启动程序",
+  "打开应用", "打开程序", "运行命令", "执行命令", "打开文件", "打开文件夹",
+  "open browser", "open url", "visit", "launch app", "run command",
+  "start app", "open app",
+];
+
+function isRpaPrompt(prompt: string): boolean {
+  const lower = prompt.toLowerCase();
+  return RPA_KEYWORDS.some((kw) => lower.includes(kw.toLowerCase()));
+}
+
 export async function executeHermesTask(
   config: HermesConfig,
   request: HermesTaskRequest,
@@ -416,6 +437,7 @@ export async function executeHermesTask(
 ): Promise<HermesTaskResult> {
   const start = Date.now();
   const timeoutMs = (request.timeout ?? 120) * 1000;
+  const isRpa = isRpaPrompt(request.prompt);
 
   // ===== 路径 A：优先调用本地 Dashboard HTTP API（复用已启动的 HermesAgent）=====
   try {
@@ -436,6 +458,24 @@ export async function executeHermesTask(
     if (res.ok) {
       const data = await res.json();
       if (data.success !== false) {
+        // 真实性校验：RPA 任务必须有 executed: true 标记，否则视为虚假成功
+        if (isRpa && data.executed !== true) {
+          // 旧版 hermes-agent（<0.18）只会返回 LLM 描述文本，没有真正执行
+          // 返回错误而非虚假成功，提示用户升级或检查环境
+          return {
+            success: false,
+            output: data.output || "",
+            error: (
+              "HermesAgent 未真正执行 RPA 动作。\n\n" +
+              "检测到当前安装的 hermes-agent 版本不支持真实 RPA 执行（仅返回 LLM 生成的描述文本）。\n" +
+              "请将 hermes-agent 升级到 0.18.0 或更高版本：\n" +
+              "  pip install --upgrade hermes-agent\n\n" +
+              "如果已安装最新版，请确认 Hermes Dashboard 已重启加载新代码。\n" +
+              "LLM 返回内容（仅供参考）：\n" + (data.output || "").slice(0, 500)
+            ),
+            durationMs: data.durationMs || Date.now() - start,
+          };
+        }
         return {
           success: true,
           output: data.output || data.result || JSON.stringify(data),

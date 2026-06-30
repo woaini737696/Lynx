@@ -1,6 +1,6 @@
 [package]
 name = "lynnhub-desktop-native"
-version = "1.0.23"
+version = "1.0.24"
 description = "Lynx 原生桌面端 - 本地前端 + 云端 API"
 authors = ["LynnHub"]
 edition = "2021"

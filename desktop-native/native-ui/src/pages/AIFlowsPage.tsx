@@ -38,109 +38,17 @@ import { HelpButton } from "@/components/ui/HelpButton";
 import { Modal } from "@/components/ui/Modal";
 import { cloudApi } from "@/lib/cloud-api";
 
-// ============ 类型定义 ============
+// ============ 类型定义（从共享类型包导入）============
 
-type NodeType = "trigger" | "action" | "condition" | "output" | "hermes" | "http" | "database" | "transform" | "delay";
-
-/** 节点配置（按节点类型使用不同字段） */
-interface NodeConfig {
-  triggerType?: "manual" | "schedule" | "event";
-  schedule?: string;
-  eventType?: string;
-  prompt?: string;
-  model?: string;
-  expression?: string;
-  outputTarget?: string;
-  hermesMode?: "computer_use" | "shell" | "auto";
-  hermesPrompt?: string;
-  workDir?: string;
-  timeout?: number;
-  httpMethod?: "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
-  httpUrl?: string;
-  httpHeaders?: Record<string, string>;
-  httpBody?: string;
-  dbOperation?: "query" | "create" | "update" | "delete";
-  dbModel?: string;
-  dbQuery?: string;
-  dbData?: Record<string, unknown>;
-  transformType?: "jsonpath" | "template" | "regex" | "javascript";
-  transformExpression?: string;
-  transformTemplate?: string;
-  delayMs?: number;
-}
-
-interface FlowNode {
-  id: string;
-  type: NodeType;
-  label: string;
-  status?: "idle" | "running" | "done" | "error";
-  config?: NodeConfig;
-  /** 画布坐标（持久化到后端，加载时复用） */
-  x?: number;
-  y?: number;
-}
-
-/** 画布节点：FlowNode + 必有坐标 */
-interface CanvasNode extends FlowNode {
-  x: number;
-  y: number;
-}
-
-interface CanvasEdge {
-  id: string;
-  from: string;
-  to: string;
-  /** 条件分支标记：condition 节点求值为 true/false 时走对应分支；未标记为普通顺序连线 */
-  condition?: "true" | "false";
-}
-
-interface Flow {
-  id: string;
-  name: string;
-  description: string;
-  nodes: FlowNode[];
-  edges?: CanvasEdge[];
-  lastRun: string;
-  enabled: boolean;
-}
-
-interface ExecutionResult {
-  flowId: string;
-  flowName: string;
-  success: boolean;
-  startedAt: string;
-  finishedAt: string;
-  totalDurationMs: number;
-  finalOutput: string | null;
-  nodes: Array<{
-    nodeId: string;
-    nodeLabel: string;
-    status: "done" | "error" | "skipped";
-    output?: string;
-    durationMs: number;
-    error?: string;
-    message: string;
-  }>;
-  error: string | null;
-}
-
-/** 执行历史条目（GET /api/ai/flows/{id}/executions 返回的单条记录） */
-interface ExecutionHistoryItem {
-  id: string;
-  success: boolean;
-  startedAt: string;
-  finishedAt: string | null;
-  totalDurationMs: number | null;
-  finalOutput: string | null;
-  nodeResults: Array<{
-    nodeId: string;
-    nodeName: string;
-    success: boolean;
-    output: string;
-    durationMs: number;
-  }> | null;
-  error: string | null;
-}
+import type {
+  NodeType,
+  NodeConfig,
+  CanvasNode,
+  CanvasEdge,
+  Flow,
+  ExecutionResult,
+  ExecutionHistoryItem,
+} from "@/types/api";
 
 // 节点样式映射（对齐 Web 端配色 + iOS26 液态玻璃质感）
 const NODE_STYLES: Record<NodeType, { color: string; bg: string; icon: typeof Zap }> = {
