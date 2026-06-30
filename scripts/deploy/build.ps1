@@ -1,4 +1,4 @@
-﻿# Lynx 本地构建脚本 - 构建产物供服务器部署使用
+# Lynx 本地构建脚本 - 构建产物供服务器部署使用
 # 服务器不做任何编译，只接收此脚本产出的打包文件
 # 用法：.\scripts\deploy\build.ps1 [-SkipDesktop]
 
@@ -106,7 +106,10 @@ if (Test-Path "$ProjectRoot\prisma\seed.ts") {
 New-Item -ItemType Directory -Path "$StandaloneDir\scripts" -Force | Out-Null
 Copy-Item "$ProjectRoot\scripts\ws-gateway.compiled.js" "$StandaloneDir\scripts\"
 Copy-Item "$ProjectRoot\scripts\start-ws-gateway.js" "$StandaloneDir\scripts\"
-Write-Host "  WS 网关预编译产物已复制到 standalone/scripts/" -ForegroundColor Green
+# start-with-env.js 同时复制到根目录和 scripts/（PM2 启动入口在根目录）
+Copy-Item "$ProjectRoot\scripts\start-with-env.js" "$StandaloneDir\start-with-env.js" -Force
+Copy-Item "$ProjectRoot\scripts\start-with-env.js" "$StandaloneDir\scripts\start-with-env.js" -Force
+Write-Host "  WS 网关预编译产物已复制到 standalone/scripts/ + start-with-env.js 已复制到根目录" -ForegroundColor Green
 
 # 复制生产环境 .env.production 到 standalone/.env
 if (Test-Path "$ProjectRoot\.env.production") {
