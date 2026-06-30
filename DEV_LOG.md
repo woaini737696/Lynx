@@ -9,6 +9,8 @@
 
 | 迭代 | 日期 | 任务概要 |
 |------|------|----------|
+| [迭代 73](#迭代-73---2026-06-30) | 2026-06-30 | 桌面端v1.0.20根因修复：桌面端本地前端AppLayout登录后自动启动WS(非Web端DesktopBridge)+HermesPanel安装/启动按钮同时连接WS(非仅Dashboard)+Web端浏览器分支提示使用桌面端(不再服务器pip install)+hermes-client.ts文件大小检查1MB→1KB+NotificationSettingsPage.tsx泛型语法修复 |
+| [迭代 72](#迭代-72---2026-06-30) | 2026-06-30 | 桌面端v1.0.19六项核心修复：AI助理P0 bug(createSession解构+头像URL+抽屉状态)+3D记忆图谱重写(单次fetch/alpha衰减)+认知库点击详情+AI工作流拖拽(dragDropEnabled)+LynxAgent控制台闪烁+重复安装(CREATE_NO_WINDOW+refetch暂停)+灵感收敛/飞书任务/通知设置三页面补齐 |
 | [迭代 71](#迭代-71---2026-06-30) | 2026-06-30 | 桌面端v1.0.18三项核心修复：HermesAgent安装走Tauri本地安装(非PyPI)+DesktopBridge登录后自动启动WS+TTS环境变量通过start-with-env.js加载+Nginx /downloads/重复location修复 |
 | [迭代 70](#迭代-70---2026-06-30) | 2026-06-30 | 桌面端v1.0.17五项同步：HermesAgent真实Python包+本地Tauri安装+灵感通知已读机制+AI工作流可视化编排+对话资产/记忆图谱页面补齐 |
 | [迭代 69](#迭代-69---2026-06-30) | 2026-06-30 | HermesAgent服务器预置.whl+一键下载安装+ws-gateway修复DATABASE_URL加载+middleware放行downloads路径 |
@@ -112,6 +114,133 @@
 
 ### Commit hash
 `4181fb4d`
+
+---
+
+## 迭代 73 - 2026-06-30
+
+### 完成内容
+
+#### 1. 桌面端 WS 自动连接修复（核心根因）
+- **根因**：桌面端使用**独立的本地前端**（native-ui），而非 Web 端代码。之前修改的 `DesktopBridge.tsx`（Web端）不会在桌面端运行，导致 WS 从不连接
+- **修复**：`desktop-native/native-ui/src/components/layout/AppLayout.tsx` 添加登录后自动启动 WS 的 useEffect
+  - 监听 `user.id` 和 `token` 变化
+  - 自动调用 `set_user_token` + `set_cloud_endpoint` + `start_hermes_agent`
+  - 使用 `wsStartedRef` 防重复
+
+#### 2. HermesPanel 启动按钮修复
+- **根因**：HermesPanel 的"启动"按钮只调用 `start_hermes_dashboard`（本地 HTTP Dashboard），不调用 `start_hermes_agent`（WS 连接云端），所以 PC 永远不上线
+- **修复**：
+  - `HermesPanel.tsx` startMutation 同时启动 WS 连接和 Dashboard
+  - installMutation 安装成功后自动启动 WS 连接
+
+#### 3. Web 端安装提示修复
+- **根因**：Web 端浏览器中点击"一键安装"走 `/api/hermes/install`，在**服务器上**执行 pip install，装到服务器而非用户本地，且 PyPI 上没有 hermes-agent 包
+- **修复**：`src/app/settings/page.tsx` 浏览器分支直接提示"请使用桌面端客户端一键安装"，不再调用服务器 API
+
+#### 4. hermes-client.ts 文件大小检查修复
+- **根因**：`.whl` 文件只有 15KB（纯 Python 轻量包），但代码要求 `stat.size < 1024 * 1024`（1MB），导致策略1失败，回退到 PyPI 策略2 也失败
+- **修复**：阈值从 1MB 降到 1KB
+
+#### 5. NotificationSettingsPage.tsx 泛型语法修复
+- **根因**：`.tsx` 文件中 `<K extends keyof NotificationSettings>` 被 TS 解析器误解为 JSX 标签，导致编译失败
+- **修复**：加逗号 `<K extends keyof NotificationSettings,>` 消除歧义
+
+### 修改文件清单
+- `desktop-native/native-ui/src/components/layout/AppLayout.tsx` - 登录后自动启动 WS 连接
+- `desktop-native/native-ui/src/components/agent/HermesPanel.tsx` - 安装/启动按钮同时连接 WS
+- `desktop-native/native-ui/src/pages/NotificationSettingsPage.tsx` - 泛型语法修复
+- `src/app/settings/page.tsx` - 浏览器分支提示使用桌面端
+- `src/lib/hermes-client.ts` - 文件大小检查 1MB → 1KB
+- `desktop-native/package.json` - 版本号 1.0.19 → 1.0.20
+- `desktop-native/native-ui/package.json` - 版本号 1.0.19 → 1.0.20
+- `desktop-native/src-tauri/Cargo.toml` - 版本号 1.0.19 → 1.0.20
+- `desktop-native/src-tauri/tauri.conf.json` - 版本号 1.0.19 → 1.0.20
+- `DEV_LOG.md` - 开发日志更新
+
+### 安装包
+- `desktop-native/dist/Lynx_1.0.20_x64-setup.exe`（6.77MB）
+
+---
+
+## 迭代 72 - 2026-06-30
+
+### 任务概要
+桌面端 v1.0.19 六项核心修复：AI 助理 P0 bug + 3D 记忆图谱重写 + 认知库点击详情 + AI 工作流拖拽 + LynxAgent 控制台闪烁/重复安装 + 灵感收敛/飞书任务/通知设置三页面补齐。
+
+### 修复内容
+
+#### 1. AI 助理完全无法使用（P0 核心 bug）
+- **根因 1**：`createSession` 未解构 `{ session: ChatSession }` 响应，`sessionId=undefined`，`appendMessage` 拼出 `/sessions/undefined/messages` → 404
+- **根因 2**：`getSession` 从 `res.messages` 读取消息，但 API 实际返回 `res.session.messages`
+- **根因 3**：头像 URL 是相对路径 `/lynx-icon-256.png`，WebView2 origin 是 `tauri.localhost` → 404
+- **根因 4**：`AssistantDrawer` 用 `AnimatePresence + {open && <motion.aside>}` 条件挂载，关闭重开会话状态丢失
+- **修复**：
+  - `ai-assistant.ts`：`createSession` 解构 `res.session`；`getSession` 从 `res.session?.messages` 读取；`appendMessage` 添加 `if (!sessionId) return` 防御
+  - `AIAssistantPage.tsx`：新增 `resolveAvatarUrl()` 拼接云端 endpoint
+  - `AssistantDrawer.tsx`：改为始终挂载 `motion.aside`，通过 `animate={{ x: open ? 0 : "100%" }}` + `pointerEvents` 控制可见性
+
+#### 2. 记忆图谱重复跳动 → 3D 力导向重写
+- **根因**：调用不存在的 `/api/memory/connections` → 404 → React Query retry → isLoading 翻转 → initSimulation 重新随机化位置 → 跳动
+- **修复**：`MemoryPage.tsx` 完整重写
+  - 单次 `cloudApi.get("/api/memory")` 返回 `{ nodes, edges }`，`staleTime: Infinity, refetchInterval: false, retry: false`
+  - 3D 坐标 + 透视投影（FOCAL=720, Z_RANGE=170），对齐 Web 端
+  - 主线程 3D 力导向（alpha 衰减 0.98/步，alpha<0.005 单次 settle）
+  - `hasInitializedRef` 确保 initSimulation 仅调用一次
+  - 过滤变化不重建模拟，仅控制绘制可见性
+  - 拖拽空白旋转、拖拽节点 3D 逆投影、滚轮缩放
+
+#### 3. 认知库点击卡片查看详情
+- **修复**：`CognitionPage.tsx` 新增 `selectedCognition` state + 卡片 `onClick` + 详情 Modal
+  - 详情 Modal 展示完整内容、类型徽章、来源、时间、全部标签
+  - 删除按钮添加 `e.stopPropagation()` 防止误触卡片点击
+
+#### 4. AI 工作流节点无法拖动到画布
+- **根因**：Tauri 2 `dragDropEnabled` 默认 true，在 WebView2 上抑制 HTML5 drag/drop 事件
+- **修复**：`tauri.conf.json` 窗口配置添加 `"dragDropEnabled": false`
+
+#### 5. LynxAgent 控制台闪烁 + 重复安装
+- **根因 1**：`installer.rs` 5 处 `tokio::process::Command` 都没加 `CREATE_NO_WINDOW`，每 15 秒 refetch 触发子进程弹窗
+- **根因 2**：`hermes --version` 在 Dashboard 运行时可能超时 → 判定未安装 → `--force-reinstall` 每次都真正重装
+- **根因 3**：`lib.rs` `stop_hermes_dashboard` 的 netstat/taskkill 也没加 `CREATE_NO_WINDOW`
+- **根因 4**：`HermesPanel.tsx` 安装期间 `refetchInterval: 15000` 不暂停，detect_ai_env 调用子进程导致竞态
+- **修复**：
+  - `installer.rs`：新增 `no_window()` 辅助函数，5 处 Command 全部应用；hermes 检测加 3 秒 timeout + 文件存在兜底；pip install 从 `--force-reinstall` 改为 `--upgrade`
+  - `lib.rs`：`stop_hermes_dashboard` 的 netstat/taskkill 加 `CREATE_NO_WINDOW`
+  - `HermesPanel.tsx`：新增 `isInstalling` state，`onMutate` 时置 true，`refetchInterval: isInstalling ? false : 15000`，`enabled: !isInstalling`
+
+#### 6. 灵感收敛、飞书任务、通知设置三页面补齐
+- **新建**：
+  - `ConvergePage.tsx`（灵感收敛）：`/api/ideas` 拉取 + 3 列归位（北极星/战役/任务）+ 放弃弹窗 + 搜索/时间过滤
+  - `LarkTasksPage.tsx`（飞书任务）：`/api/lark/tasks` 拉取 + 状态/优先级徽章 + 搜索/过滤 + 刷新
+  - `NotificationSettingsPage.tsx`（通知设置）：`/api/notifications/settings` 读写 + Toggle 开关 + 免打扰时段 + 测试通知 + 桌面权限请求
+- **路由**：`App.tsx` 添加 `/converge`、`/ai/lark-tasks`、`/settings/notifications` 三条路由
+- **导航**：`Sidebar.tsx` 工作 Tab 添加"灵感收敛"，AI Tab 添加"飞书任务"+"通知设置"
+- **帮助**：`help-content.ts` 新增 `converge`、`lark-tasks`、`notifications` 三个 HelpKey
+
+### 修改文件清单
+- `desktop-native/native-ui/src/lib/ai-assistant.ts` - createSession 解构 + getSession 消息路径 + appendMessage 防御
+- `desktop-native/native-ui/src/pages/AIAssistantPage.tsx` - resolveAvatarUrl 拼接云端 endpoint
+- `desktop-native/native-ui/src/components/ai/AssistantDrawer.tsx` - 始终挂载避免状态丢失
+- `desktop-native/native-ui/src/pages/MemoryPage.tsx` - 3D 力导向完整重写
+- `desktop-native/native-ui/src/pages/CognitionPage.tsx` - 点击卡片查看详情
+- `desktop-native/native-ui/src/pages/ConvergePage.tsx` - 灵感收敛（新增）
+- `desktop-native/native-ui/src/pages/LarkTasksPage.tsx` - 飞书任务（新增）
+- `desktop-native/native-ui/src/pages/NotificationSettingsPage.tsx` - 通知设置（新增）
+- `desktop-native/native-ui/src/lib/help-content.ts` - 新增 3 个 HelpKey
+- `desktop-native/native-ui/src/App.tsx` - 3 条新路由
+- `desktop-native/native-ui/src/components/layout/Sidebar.tsx` - 3 个新导航项
+- `desktop-native/native-ui/src/components/agent/HermesPanel.tsx` - isInstalling 暂停 refetch
+- `desktop-native/src-tauri/src/installer.rs` - no_window 辅助函数 + 5 处 CREATE_NO_WINDOW + hermes 检测兜底
+- `desktop-native/src-tauri/src/lib.rs` - stop_hermes_dashboard 加 CREATE_NO_WINDOW
+- `desktop-native/src-tauri/tauri.conf.json` - dragDropEnabled: false + 版本 1.0.19
+- `desktop-native/package.json` - 版本 1.0.19
+- `desktop-native/native-ui/package.json` - 版本 1.0.19
+- `desktop-native/src-tauri/Cargo.toml` - 版本 1.0.19
+- `DEV_LOG.md` - 开发日志更新
+
+### 安装包
+- `desktop-native/dist/Lynx_1.0.19_x64-setup.exe`
 
 ---
 

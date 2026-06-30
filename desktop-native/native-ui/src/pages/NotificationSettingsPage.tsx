@@ -148,7 +148,7 @@ export function NotificationSettingsPage() {
     }
   }, [isLoading, error, queryData, loaded]);
 
-  const updateField = <K extends keyof NotificationSettings>(
+  const updateField = <K extends keyof NotificationSettings,>(
     key: K,
     value: NotificationSettings[K]
   ) => {
