@@ -100,10 +100,16 @@ export async function POST(req: NextRequest) {
       // 用文件系统检测判断是否已安装，而非数据库记录
       const detect = await detectHermesInstall();
       if (!detect.installed) {
-        return NextResponse.json(
-          { error: "HermesAgent 引擎已内置在桌面端安装包中，Web 端无法直接启动。请下载并安装 Lynx 桌面端客户端，引擎会随安装包自动就绪。" },
-          { status: 400 }
-        );
+        // 未安装时自动尝试安装（Web端独立部署场景）
+        const installResult = await installHermesAgent();
+        clearHermesDetectCache();
+        if (!installResult.success) {
+          return NextResponse.json(
+            { error: "HermesAgent 未安装且自动安装失败：" + (installResult.error || "未知原因") + "。请先点击「一键安装」，或下载 Lynx 桌面端客户端。" },
+            { status: 400 }
+          );
+        }
+        // 安装成功，继续启动
       }
       // 数据库无记录时自动补建（用户可能通过 pip 手动安装）
       const config = await getHermesConfig(auth.user.id);
