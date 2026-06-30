@@ -75,27 +75,26 @@ export function QuickSearch() {
   return (
     <>
       <div className="flex items-center gap-2 px-4 py-2">
+        {/* 快速搜索 - 长条输入框样式 */}
         <button
           onClick={() => setOpen(true)}
-          className="glass-btn flex h-9 flex-1 max-w-md items-center gap-3 rounded-lg px-3 text-sm text-muted-foreground transition-all hover:text-foreground"
+          className="flex h-9 flex-1 max-w-md items-center gap-2.5 rounded-lg border border-border/60 bg-background/50 px-3 text-sm text-muted-foreground transition-all hover:border-primary/40 hover:bg-background/70"
         >
-          <Search className="h-4 w-4 shrink-0" />
+          <Search className="h-4 w-4 shrink-0 text-muted-foreground" />
           <span>快速搜索...</span>
-          <kbd className="flex shrink-0 items-center gap-0.5 rounded border border-border/60 bg-muted/30 px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground">
+          <kbd className="ml-auto flex shrink-0 items-center gap-0.5 rounded border border-border/60 bg-muted/30 px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground">
             Ctrl K
           </kbd>
         </button>
 
+        {/* 记录灵感 - 按钮样式（闪电输入入口，最右） */}
         <button
           onClick={() => window.dispatchEvent(new CustomEvent(OPEN_LIGHTNING_INPUT_EVENT))}
-          className="glass-btn flex h-9 items-center gap-1.5 rounded-lg px-3 text-sm font-medium text-muted-foreground transition-all hover:text-primary"
-          aria-label="闪电输入"
+          className="btn-primary-glass flex h-9 shrink-0 items-center gap-1.5 rounded-lg px-4 text-sm font-medium"
+          aria-label="记录灵感"
         >
-          <Zap className="h-4 w-4 shrink-0 text-primary" />
+          <Zap className="h-4 w-4 shrink-0" />
           <span>记录灵感</span>
-          <kbd className="flex shrink-0 items-center gap-0.5 rounded border border-border/60 bg-muted/30 px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground">
-            Ctrl J
-          </kbd>
         </button>
       </div>
 

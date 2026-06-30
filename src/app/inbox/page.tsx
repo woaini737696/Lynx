@@ -677,7 +677,7 @@ export default function InboxPage() {
                         {idea.source === "lightning" ? "闪电输入" : "对话提取"}
                       </span>
                       <span>{formatTime(idea.createdAt)}</span>
-                      {idea.tags?.map((tag) =>
+                      {(Array.isArray(idea.tags) ? idea.tags : []).map((tag) =>
                         tag === "AI建议" ? (
                           <span
                             key={tag}
