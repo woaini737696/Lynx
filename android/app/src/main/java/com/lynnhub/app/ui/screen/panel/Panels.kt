@@ -471,8 +471,7 @@ private fun PlaceholderPanel(
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .systemBarsPadding()
-                .padding(start = 22.dp, end = 22.dp, top = 66.dp, bottom = 110.dp)
+                .padding(start = 22.dp, end = 22.dp, top = 16.dp, bottom = 24.dp)
         ) {
             PanelHeader(title = title, onBack = onBack, swipeHint = hint)
             Spacer(modifier = Modifier.height(24.dp))

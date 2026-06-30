@@ -91,7 +91,6 @@ fun AssistantScreen(
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .systemBarsPadding()
                 .imePadding()
                 .padding(horizontal = 16.dp, vertical = 16.dp)
         ) {

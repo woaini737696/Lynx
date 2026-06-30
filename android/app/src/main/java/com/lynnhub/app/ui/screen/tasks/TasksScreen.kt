@@ -11,6 +11,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.OutlinedTextField
@@ -68,6 +69,7 @@ fun TasksScreen(
     val userName = user?.displayName?.ifBlank { null } ?: user?.username ?: "用户"
     val keyboardController = LocalSoftwareKeyboardController.current
     var isInputFocused by remember { mutableStateOf(false) }
+    var showAddTaskDialog by remember { mutableStateOf(false) }
 
     Box(
         modifier = Modifier
@@ -80,7 +82,6 @@ fun TasksScreen(
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .systemBarsPadding()
                 .imePadding()
                 .padding(horizontal = 16.dp, vertical = 16.dp)
         ) {
@@ -155,47 +156,118 @@ fun TasksScreen(
 
             Spacer(modifier = Modifier.height(12.dp))
 
-            // 底部输入框
-            OutlinedTextField(
-                value = state.text,
-                onValueChange = viewModel::updateText,
-                placeholder = { Text("输入新任务...", color = TextMuted, fontSize = 14.sp) },
+            // 底部新增任务按钮
+            Row(
                 modifier = Modifier
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(14.dp))
-                    .background(Surface)
-                    .onFocusChanged { isInputFocused = it.isFocused },
-                shape = RoundedCornerShape(14.dp),
-                colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = Color.Transparent,
-                    unfocusedBorderColor = Color.Transparent,
-                    cursorColor = Primary
-                ),
-                singleLine = true,
-                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
-                keyboardActions = KeyboardActions(onSend = { viewModel.submit() }),
-                trailingIcon = {
-                    if (state.isSubmitting) {
-                        CircularProgressIndicator(
-                            modifier = Modifier.size(18.dp),
-                            strokeWidth = 2.dp,
-                            color = Primary
-                        )
-                    } else {
-                        Icon(
-                            imageVector = LynxIcons.Send,
-                            contentDescription = "创建",
-                            tint = Primary,
-                            modifier = Modifier
-                                .clip(CircleShape)
-                                .clickable { viewModel.submit() }
-                                .padding(6.dp)
-                        )
-                    }
-                }
-            )
+                    .background(Primary.copy(alpha = 0.12f))
+                    .border(1.dp, Primary.copy(alpha = 0.3f), RoundedCornerShape(14.dp))
+                    .clickable { showAddTaskDialog = true }
+                    .padding(horizontal = 16.dp, vertical = 14.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.Center
+            ) {
+                Icon(
+                    imageVector = LynxIcons.Add,
+                    contentDescription = null,
+                    tint = Primary,
+                    modifier = Modifier.size(18.dp)
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = "新增任务",
+                    color = Primary,
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Medium
+                )
+            }
         }
     }
+
+    // 新增任务对话框
+    if (showAddTaskDialog) {
+        AddTaskDialog(
+            isSubmitting = state.isSubmitting,
+            onDismiss = { showAddTaskDialog = false },
+            onSubmit = { content ->
+                viewModel.updateText(content)
+                viewModel.submit()
+            }
+        )
+    }
+}
+
+@Composable
+private fun AddTaskDialog(
+    isSubmitting: Boolean,
+    onDismiss: () -> Unit,
+    onSubmit: (String) -> Unit
+) {
+    var taskContent by remember { mutableStateOf("") }
+    val keyboardController = LocalSoftwareKeyboardController.current
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = Surface,
+        titleContentColor = TextPrimary,
+        title = {
+            Text(
+                text = "新增任务",
+                color = TextPrimary,
+                fontWeight = FontWeight.Bold,
+                fontSize = 16.sp
+            )
+        },
+        text = {
+            OutlinedTextField(
+                value = taskContent,
+                onValueChange = { taskContent = it },
+                placeholder = { Text("输入任务内容...", color = TextMuted, fontSize = 14.sp) },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(Void),
+                shape = RoundedCornerShape(12.dp),
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedBorderColor = Primary,
+                    unfocusedBorderColor = BorderHover,
+                    cursorColor = Primary,
+                    focusedTextColor = TextPrimary,
+                    unfocusedTextColor = TextPrimary
+                ),
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+                keyboardActions = KeyboardActions(onDone = {
+                    if (taskContent.isNotBlank()) {
+                        onSubmit(taskContent.trim())
+                        taskContent = ""
+                        onDismiss()
+                    }
+                })
+            )
+        },
+        confirmButton = {
+            Text(
+                text = "创建",
+                color = if (taskContent.isNotBlank()) Primary else TextMuted,
+                fontWeight = FontWeight.SemiBold,
+                modifier = Modifier.clickable(enabled = !isSubmitting && taskContent.isNotBlank()) {
+                    onSubmit(taskContent.trim())
+                    taskContent = ""
+                    keyboardController?.hide()
+                    onDismiss()
+                }.padding(vertical = 8.dp, horizontal = 12.dp)
+            )
+        },
+        dismissButton = {
+            Text(
+                text = "取消",
+                color = TextMuted,
+                modifier = Modifier.clickable { onDismiss() }.padding(vertical = 8.dp, horizontal = 12.dp)
+            )
+        }
+    )
 }
 
 @Composable
