@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Brain,
   HelpCircle,
@@ -34,15 +34,31 @@ interface MemoryEdge {
   to: string;
 }
 
+interface MemoryGraphData {
+  nodes: MemoryNode[];
+  edges: MemoryEdge[];
+}
+
+// 3D 力导向模拟节点
 interface SimNode {
   id: string;
   x: number;
   y: number;
+  z: number;
   vx: number;
   vy: number;
+  vz: number;
   r: number;
   data: MemoryNode;
   fixed: boolean;
+}
+
+interface ProjectedNode {
+  node: SimNode;
+  sx: number;
+  sy: number;
+  depth: number;
+  scale: number;
 }
 
 // ============ 常量 ============
@@ -76,6 +92,13 @@ const VALID_TYPES: MemoryType[] = [
   "cognition",
   "hermes",
 ];
+
+// 3D 透视投影常量（对齐 Web 端）
+const FOCAL = 720;
+const Z_RANGE = 170;
+const BG_COLOR = "#f8fafc";
+const DEFAULT_ROT_X = -0.32;
+const DEFAULT_ROT_Y = 0.42;
 
 // ============ 防御性数据解析 ============
 function parseNodes(res: unknown): MemoryNode[] {
@@ -153,24 +176,31 @@ function formatTime(iso?: string): string {
 
 // ============ 主组件 ============
 export function MemoryPage() {
-  // ---- 数据加载 ----
+  const queryClient = useQueryClient();
+
+  // ---- 单次数据加载：永不自动 refetch / retry，避免位置抖动 ----
   const {
-    data: nodes = [],
-    isLoading: nodesLoading,
-    error: nodesError,
-  } = useQuery<MemoryNode[]>({
-    queryKey: ["memory-nodes"],
-    queryFn: async () =>
-      parseNodes(await cloudApi.get<unknown>("/api/memory")),
+    data,
+    isLoading,
+    error: loadError,
+  } = useQuery<MemoryGraphData>({
+    queryKey: ["memory-graph"],
+    queryFn: async () => {
+      const res = await cloudApi.get<{ nodes?: unknown; edges?: unknown }>(
+        "/api/memory"
+      );
+      return {
+        nodes: parseNodes(res.nodes ?? res),
+        edges: parseEdges(res.edges ?? []),
+      };
+    },
+    staleTime: Infinity,
+    refetchInterval: false,
+    retry: false,
   });
 
-  const { data: edges = [], isLoading: edgesLoading } = useQuery<MemoryEdge[]>({
-    queryKey: ["memory-edges"],
-    queryFn: async () =>
-      parseEdges(await cloudApi.get<unknown>("/api/memory/connections")),
-  });
-
-  const isLoading = nodesLoading || edgesLoading;
+  const nodes = data?.nodes ?? [];
+  const edges = data?.edges ?? [];
 
   // ---- UI 状态 ----
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -187,20 +217,22 @@ export function MemoryPage() {
   const simNodesRef = useRef<SimNode[]>([]);
   const edgesRef = useRef<MemoryEdge[]>([]);
   const rafRef = useRef<number | null>(null);
-  const stableCountRef = useRef(0);
-  const viewRef = useRef({ panX: 0, panY: 0, scale: 1 });
+  const alphaRef = useRef(1);
+  const hasInitializedRef = useRef(false);
+  // 3D 视角：rotX/rotY 旋转 + scale 缩放（无 pan，对齐 Web 端 3D 交互）
+  const viewRef = useRef({
+    rotX: DEFAULT_ROT_X,
+    rotY: DEFAULT_ROT_Y,
+    scale: 1,
+  });
   const drawRef = useRef<() => void>(() => {});
-  const panningRef = useRef<{
-    startX: number;
-    startY: number;
-    panX: number;
-    panY: number;
-  } | null>(null);
+  const rotatingRef = useRef<{ x: number; y: number } | null>(null);
   const draggingNodeRef = useRef<SimNode | null>(null);
+  const lastDragMouseRef = useRef<{ x: number; y: number } | null>(null);
   const mouseDownPosRef = useRef<{ x: number; y: number } | null>(null);
   const canvasSizeRef = useRef<{ w: number; h: number }>({ w: 800, h: 600 });
 
-  // ---- 过滤 ----
+  // ---- 过滤（仅影响绘制可见性 / 统计 / 详情面板，不重建模拟）----
   const filteredNodes = useMemo(() => {
     if (filterType === "all") return nodes;
     return nodes.filter((n) => n.type === filterType);
@@ -211,87 +243,82 @@ export function MemoryPage() {
     return edges.filter((e) => ids.has(e.from) && ids.has(e.to));
   }, [edges, filteredNodes]);
 
-  // ---- 初始化力导向模拟 ----
+  // ---- 初始化 3D 力导向模拟（球面分布，原点为中心）----
   const initSimulation = useCallback(
     (nodeList: MemoryNode[], edgeList: MemoryEdge[]) => {
-      const { w, h } = canvasSizeRef.current;
-      const cx = w / 2;
-      const cy = h / 2;
       simNodesRef.current = nodeList.map((n) => {
-        const angle = Math.random() * Math.PI * 2;
-        const radius = 30 + Math.random() * Math.min(w, h) * 0.3;
+        // 球面均匀分布（theta/phi 球坐标，对齐 Web 端）
+        const theta = Math.random() * Math.PI * 2;
+        const phi = Math.acos(2 * Math.random() - 1);
+        const radius = 90 + Math.random() * 130;
         return {
           id: n.id,
-          x: cx + Math.cos(angle) * radius,
-          y: cy + Math.sin(angle) * radius,
+          x: Math.sin(phi) * Math.cos(theta) * radius,
+          y: Math.sin(phi) * Math.sin(theta) * radius,
+          z: Math.cos(phi) * radius,
           vx: 0,
           vy: 0,
-          r: Math.max(8, Math.min(22, 8 + (n.strength || 1) * 1.5)),
+          vz: 0,
+          r: Math.max(8, Math.min(24, 8 + (n.strength || 1) * 1.5)),
           data: n,
           fixed: false,
         };
       });
       edgesRef.current = edgeList;
-      stableCountRef.current = 0;
+      alphaRef.current = 1;
       setSimulating(true);
     },
     []
   );
 
-  // 数据变化时重建模拟
+  // 数据首次到达时初始化一次（hasInitializedRef 防止 refetch/重渲染导致重随）
   useEffect(() => {
     if (isLoading) return;
-    if (filteredNodes.length === 0) {
-      simNodesRef.current = [];
-      edgesRef.current = [];
-      return;
-    }
-    initSimulation(filteredNodes, filteredEdges);
-  }, [filteredNodes, filteredEdges, isLoading, initSimulation]);
+    if (nodes.length === 0) return;
+    if (hasInitializedRef.current) return;
+    hasInitializedRef.current = true;
+    initSimulation(nodes, edges);
+  }, [nodes, edges, isLoading, initSimulation]);
 
-  // ---- 力导向模拟单步 ----
+  // ---- 3D 力导向单步（主线程，alpha 衰减，单次稳定不重触）----
   const step = useCallback(() => {
     const simNodes = simNodesRef.current;
     const edgeList = edgesRef.current;
-    if (simNodes.length === 0) {
+    if (simNodes.length === 0) return;
+
+    alphaRef.current *= 0.98;
+    if (alphaRef.current < 0.005) {
       setSimulating(false);
       return;
     }
-    const { w, h } = canvasSizeRef.current;
-    const cx = w / 2;
-    const cy = h / 2;
+    const alpha = alphaRef.current;
 
-    const REPULSION = 8000;
-    const ATTRACTION = 0.02;
-    const REST_LENGTH = 120;
-    const CENTERING = 0.005;
-    const DAMPING = 0.88;
-    const MAX_SPEED = 30;
-
-    // 排斥力（O(n²)）
+    // 1. 斥力（库仑，3D，O(n²)）
     for (let i = 0; i < simNodes.length; i++) {
       const a = simNodes[i];
-      if (a.fixed) continue;
       for (let j = i + 1; j < simNodes.length; j++) {
         const b = simNodes[j];
-        const dx = a.x - b.x;
-        const dy = a.y - b.y;
-        let dist2 = dx * dx + dy * dy;
+        const dx = b.x - a.x;
+        const dy = b.y - a.y;
+        const dz = b.z - a.z;
+        let dist2 = dx * dx + dy * dy + dz * dz;
         if (dist2 < 1) dist2 = 1;
         const dist = Math.sqrt(dist2);
-        const force = REPULSION / dist2;
-        const fx = (dx / dist) * force;
-        const fy = (dy / dist) * force;
-        a.vx += fx;
-        a.vy += fy;
-        if (!b.fixed) {
-          b.vx -= fx;
-          b.vy -= fy;
-        }
+        const repulsion = 950 / dist2;
+        const f = (repulsion * alpha) / dist;
+        const fx = dx * f;
+        const fy = dy * f;
+        const fz = dz * f;
+        a.vx -= fx;
+        a.vy -= fy;
+        a.vz -= fz;
+        b.vx += fx;
+        b.vy += fy;
+        b.vz += fz;
       }
     }
 
-    // 吸引力（沿边）
+    // 2. 引力（胡克，3D，沿边）
     const nodeMap = new Map(simNodes.map((n) => [n.id, n]));
     for (const edge of edgeList) {
       const a = nodeMap.get(edge.from);
@@ -299,51 +326,53 @@ export function MemoryPage() {
       if (!a || !b) continue;
       const dx = b.x - a.x;
       const dy = b.y - a.y;
-      const dist = Math.sqrt(dx * dx + dy * dy) || 1;
-      const force = ATTRACTION * (dist - REST_LENGTH);
-      const fx = (dx / dist) * force;
-      const fy = (dy / dist) * force;
-      if (!a.fixed) {
-        a.vx += fx;
-        a.vy += fy;
-      }
-      if (!b.fixed) {
-        b.vx -= fx;
-        b.vy -= fy;
-      }
+      const dz = b.z - a.z;
+      const dist = Math.sqrt(dx * dx + dy * dy + dz * dz) || 1;
+      const attraction = (dist - 130) * 0.04 * alpha;
+      const f = attraction / dist;
+      const fx = dx * f;
+      const fy = dy * f;
+      const fz = dz * f;
+      a.vx += fx;
+      a.vy += fy;
+      a.vz += fz;
+      b.vx -= fx;
+      b.vy -= fy;
+      b.vz -= fz;
     }
 
-    // 中心引力 + 阻尼 + 限速 + 位置更新
-    let totalEnergy = 0;
+    // 3. 中心引力 + 阻尼 + 限速 + 位置更新
     for (const n of simNodes) {
-      if (n.fixed) continue;
-      n.vx += (cx - n.x) * CENTERING;
-      n.vy += (cy - n.y) * CENTERING;
-      n.vx *= DAMPING;
-      n.vy *= DAMPING;
-      const speed = Math.sqrt(n.vx * n.vx + n.vy * n.vy);
-      if (speed > MAX_SPEED) {
-        n.vx = (n.vx / speed) * MAX_SPEED;
-        n.vy = (n.vy / speed) * MAX_SPEED;
+      if (n.fixed) {
+        n.vx = 0;
+        n.vy = 0;
+        n.vz = 0;
+        continue;
+      }
+      n.vx += (0 - n.x) * 0.004 * alpha;
+      n.vy += (0 - n.y) * 0.004 * alpha;
+      n.vz += (0 - n.z) * 0.004 * alpha;
+      n.vx *= 0.85;
+      n.vy *= 0.85;
+      n.vz *= 0.85;
+      const speed = Math.sqrt(
+        n.vx * n.vx + n.vy * n.vy + n.vz * n.vz
+      );
+      const maxSpeed = 10;
+      if (speed > maxSpeed) {
+        const k = maxSpeed / speed;
+        n.vx *= k;
+        n.vy *= k;
+        n.vz *= k;
       }
       n.x += n.vx;
       n.y += n.vy;
-      totalEnergy += speed * speed;
-    }
-
-    // 稳定性检测：连续 30 帧能量低于阈值则停止
-    if (totalEnergy < 0.5) {
-      stableCountRef.current++;
-      if (stableCountRef.current > 30) {
-        setSimulating(false);
-        return;
-      }
-    } else {
-      stableCountRef.current = 0;
+      n.z += n.vz;
+      n.z = Math.max(-Z_RANGE, Math.min(Z_RANGE, n.z));
     }
   }, []);
 
-  // ---- 模拟循环（rAF，稳定后自动停止）----
+  // ---- 模拟循环（rAF，稳定后自动停止，单次 settle）----
   useEffect(() => {
     if (!simulating) return;
     let cancelled = false;
@@ -363,7 +392,43 @@ export function MemoryPage() {
     };
   }, [simulating, step]);
 
-  // ---- Canvas 绘制 ----
+  // ---- 3D 透视投影（供绘制与命中检测共用）----
+  const computeProjection = useCallback((): ProjectedNode[] => {
+    const simNodes = simNodesRef.current;
+    const { w, h } = canvasSizeRef.current;
+    const cx = w / 2;
+    const cy = h / 2;
+    const view = viewRef.current;
+    const cosY = Math.cos(view.rotY);
+    const sinY = Math.sin(view.rotY);
+    const cosX = Math.cos(view.rotX);
+    const sinX = Math.sin(view.rotX);
+
+    const projected = simNodes.map((n) => {
+      // 原点为中心的世界坐标，无需减去 cx/cy
+      const x = n.x;
+      const y = n.y;
+      const z = n.z;
+      const x1 = x * cosY + z * sinY;
+      const z1 = -x * sinY + z * cosY;
+      const y1 = y * cosX - z1 * sinX;
+      const z2 = y * sinX + z1 * cosX;
+      const denom = FOCAL - z2;
+      const s = denom > 60 ? FOCAL / denom : FOCAL / 60;
+      return {
+        node: n,
+        sx: cx + x1 * s,
+        sy: cy + y1 * s,
+        depth: z2,
+        scale: s,
+      };
+    });
+    // 画家算法：远的先画
+    projected.sort((a, b) => a.depth - b.depth);
+    return projected;
+  }, []);
+
+  // ---- Canvas 绘制（神经元网络风格）----
   const draw = useCallback(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -386,12 +451,12 @@ export function MemoryPage() {
     ctx.scale(dpr, dpr);
 
     // 浅色背景
-    ctx.fillStyle = "#f8fafc";
+    ctx.fillStyle = BG_COLOR;
     ctx.fillRect(0, 0, w, h);
 
-    // 背景光点
-    ctx.fillStyle = "rgba(148,163,184,0.1)";
-    for (let i = 0; i < 30; i++) {
+    // 背景光点（40 个，确定性位置）
+    ctx.fillStyle = "rgba(148,163,184,0.12)";
+    for (let i = 0; i < 40; i++) {
       const seed = i * 9301 + 49297;
       const px = ((seed % 233280) / 233280) * w;
       const py = (((seed * 7) % 233280) / 233280) * h;
@@ -400,19 +465,22 @@ export function MemoryPage() {
       ctx.fill();
     }
 
-    const simNodes = simNodesRef.current;
-    const edgeList = edgesRef.current;
-    if (simNodes.length === 0) return;
+    const projected = computeProjection();
+    if (projected.length === 0) return;
 
-    const view = viewRef.current;
-    const nodeMap = new Map(simNodes.map((n) => [n.id, n]));
+    // 可见性过滤：仅绘制当前筛选类型范围内的节点 / 边
+    const visibleIds = new Set(filteredNodes.map((n) => n.id));
+    const projMap = new Map<string, ProjectedNode>();
+    for (const p of projected) {
+      if (visibleIds.has(p.node.id)) projMap.set(p.node.id, p);
+    }
 
-    // 高亮集合：选中或悬停节点的直接关联（IIFE 避免 closure 类型收窄问题）
+    // 高亮集合：选中或悬停节点的直接关联
     const highlightIds: Set<string> | null = (() => {
       const ids = new Set<string>();
       const collect = (id: string | null) => {
         if (!id) return;
-        const node = nodeMap.get(id);
+        const node = simNodesRef.current.find((n) => n.id === id);
         if (!node) return;
         ids.add(id);
         const conns = Array.isArray(node.data.connections)
@@ -425,112 +493,149 @@ export function MemoryPage() {
       return ids.size > 0 ? ids : null;
     })();
 
-    ctx.save();
-    ctx.translate(w / 2 + view.panX, h / 2 + view.panY);
-    ctx.scale(view.scale, view.scale);
+    const view = viewRef.current;
+    const cx = w / 2;
+    const cy = h / 2;
 
-    // 绘制边
-    for (const edge of edgeList) {
-      const a = nodeMap.get(edge.from);
-      const b = nodeMap.get(edge.to);
-      if (!a || !b) continue;
+    // 应用用户缩放（围绕画布中心）
+    ctx.save();
+    ctx.translate(cx, cy);
+    ctx.scale(view.scale, view.scale);
+    ctx.translate(-cx, -cy);
+
+    // ---- 绘制边（二次贝塞尔曲线，神经元突触风格）----
+    for (const edge of filteredEdges) {
+      const from = projMap.get(edge.from);
+      const to = projMap.get(edge.to);
+      if (!from || !to) continue;
       const isActive =
         highlightIds !== null &&
         highlightIds.has(edge.from) &&
         highlightIds.has(edge.to);
+      // 控制点：连线中点做垂直偏移，形成柔和弧线
+      const midX = (from.sx + to.sx) / 2;
+      const midY = (from.sy + to.sy) / 2;
+      const dx = to.sx - from.sx;
+      const dy = to.sy - from.sy;
+      const dist = Math.sqrt(dx * dx + dy * dy) || 1;
+      const offset = Math.min(18, dist * 0.12);
+      const cpx = midX + (-dy / dist) * offset;
+      const cpy = midY + (dx / dist) * offset;
+
       ctx.beginPath();
-      ctx.moveTo(a.x, a.y);
-      ctx.lineTo(b.x, b.y);
+      ctx.moveTo(from.sx, from.sy);
+      ctx.quadraticCurveTo(cpx, cpy, to.sx, to.sy);
       if (isActive) {
-        ctx.strokeStyle = "rgba(100,116,139,0.6)";
+        const { h: hh, s, l } = TYPE_HSL[from.node.data.type];
+        ctx.strokeStyle = `hsla(${hh}, ${s}%, ${l}%, 0.7)`;
         ctx.lineWidth = 1.8;
       } else {
-        ctx.strokeStyle = "rgba(148,163,184,0.25)";
+        ctx.strokeStyle = "rgba(100,116,139,0.3)";
         ctx.lineWidth = 1;
       }
       ctx.stroke();
     }
 
-    // 绘制节点
-    for (const n of simNodes) {
-      const isSelected = n.id === selectedId;
-      const isHovered = n.id === hoveredId;
-      const { h: hh, s, l } = TYPE_HSL[n.data.type];
-      const r = isSelected ? n.r * 1.25 : isHovered ? n.r * 1.12 : n.r;
+    // ---- 绘制节点（神经元细胞体，按深度已排序）----
+    for (const p of projected) {
+      if (!visibleIds.has(p.node.id)) continue;
+      const { node } = p;
+      const isSelected = node.id === selectedId;
+      const isHovered = node.id === hoveredId;
+      const useGradient = isSelected || isHovered;
+      const { h: hh, s, l } = TYPE_HSL[node.data.type];
+      const depthNorm = (p.depth + Z_RANGE) / (2 * Z_RANGE);
+      const opacity = Math.max(0.6, Math.min(1, 0.7 + depthNorm * 0.3));
 
-      if (isSelected || isHovered) {
-        ctx.shadowColor = `hsla(${hh}, ${s}%, ${l}%, 0.5)`;
-        ctx.shadowBlur = isSelected ? 16 : 10;
-      } else {
-        ctx.shadowBlur = 0;
-      }
+      // 节点半径：基础半径 × 透视缩放（近大远小）
+      const baseR = Math.max(
+        8,
+        Math.min(24, 8 + (node.data.strength || 1) * 1.5)
+      );
+      const r = baseR * p.scale;
+      const nodeR = isSelected ? r * 1.2 : isHovered ? r * 1.12 : r;
 
-      if (isSelected || isHovered) {
+      ctx.globalAlpha = opacity;
+
+      if (useGradient) {
+        // 径向渐变 + 阴影（高亮节点立体感）
         const grad = ctx.createRadialGradient(
-          n.x - r * 0.3,
-          n.y - r * 0.3,
-          r * 0.1,
-          n.x,
-          n.y,
-          Math.max(0.1, r)
+          p.sx - nodeR * 0.35,
+          p.sy - nodeR * 0.35,
+          nodeR * 0.1,
+          p.sx,
+          p.sy,
+          Math.max(0.1, nodeR)
         );
         grad.addColorStop(
           0,
-          `hsla(${hh}, ${s}%, ${Math.min(80, l + 15)}%, 0.95)`
+          `hsla(${hh}, ${s}%, ${Math.min(85, l + 12)}%, 0.95)`
         );
-        grad.addColorStop(1, `hsla(${hh}, ${s}%, ${l}%, 0.7)`);
+        grad.addColorStop(0.65, `hsla(${hh}, ${s}%, ${l}%, 0.75)`);
+        grad.addColorStop(1, `hsla(${hh}, ${s}%, ${l}%, 0.4)`);
+
+        ctx.shadowColor = `hsla(${hh}, ${s}%, ${l}%, ${
+          isSelected ? 0.55 : 0.4
+        })`;
+        ctx.shadowBlur = isSelected ? 18 : 13;
+
         ctx.beginPath();
-        ctx.arc(n.x, n.y, Math.max(0.1, r), 0, Math.PI * 2);
+        ctx.arc(p.sx, p.sy, Math.max(0.1, nodeR), 0, Math.PI * 2);
         ctx.fillStyle = grad;
         ctx.fill();
+        ctx.shadowBlur = 0;
       } else {
+        // 普通节点：纯色填充
         ctx.beginPath();
-        ctx.arc(n.x, n.y, Math.max(0.1, r), 0, Math.PI * 2);
+        ctx.arc(p.sx, p.sy, Math.max(0.1, nodeR), 0, Math.PI * 2);
         ctx.fillStyle = `hsla(${hh}, ${s}%, ${l}%, 0.85)`;
         ctx.fill();
       }
-      ctx.shadowBlur = 0;
 
+      // 描边
       if (isSelected) {
-        ctx.strokeStyle = `hsl(${hh}, ${s}%, ${Math.max(30, l - 20)}%)`;
+        ctx.strokeStyle = `hsl(${hh}, ${s}%, ${Math.max(35, l - 25)}%)`;
         ctx.lineWidth = 2.5;
         ctx.stroke();
       } else if (isHovered) {
-        ctx.strokeStyle = `hsla(${hh}, ${s}%, ${l}%, 0.6)`;
+        ctx.strokeStyle = `hsla(${hh}, ${s}%, ${l}%, 0.7)`;
         ctx.lineWidth = 1.5;
         ctx.stroke();
       }
 
-      // 文字标签
-      const rawLabel = n.data.label || n.data.fullContent.slice(0, 20);
+      // 文字标签：白色描边 + 深色填充
+      const rawLabel = node.data.label || node.data.fullContent.slice(0, 20);
       const label =
-        rawLabel.length > 12 ? rawLabel.slice(0, 12) + "…" : rawLabel;
+        rawLabel.length > 14 ? rawLabel.slice(0, 14) + "…" : rawLabel;
+      const textY = p.sy + nodeR + 14;
       ctx.font =
-        "600 12px -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif";
+        "600 13px -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif";
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
       ctx.lineJoin = "round";
       ctx.strokeStyle = "rgba(255,255,255,0.92)";
       ctx.lineWidth = 3.5;
-      ctx.strokeText(label, n.x, n.y + r + 13);
+      ctx.strokeText(label, p.sx, textY);
       ctx.fillStyle = "#1e293b";
-      ctx.fillText(label, n.x, n.y + r + 13);
+      ctx.fillText(label, p.sx, textY);
+
+      ctx.globalAlpha = 1;
     }
 
     ctx.restore();
-  }, [selectedId, hoveredId]);
+  }, [computeProjection, selectedId, hoveredId, filteredNodes, filteredEdges]);
 
-  // 同步 draw 到 ref
+  // 同步 draw 到 ref，供 rAF 循环与交互回调调用
   useEffect(() => {
     drawRef.current = draw;
   }, [draw]);
 
-  // 非模拟状态下重绘
+  // 非模拟状态下重绘（选中 / 悬停 / 筛选 / 视角变化）
   useEffect(() => {
     drawRef.current();
   }, [draw]);
 
-  // ---- ResizeObserver ----
+  // ---- ResizeObserver：跟踪容器尺寸 ----
   useEffect(() => {
     const container = containerRef.current;
     if (!container) return;
@@ -547,32 +652,44 @@ export function MemoryPage() {
     return () => ro.disconnect();
   }, []);
 
-  // ---- 坐标转换 ----
-  const screenToWorld = useCallback((sx: number, sy: number) => {
+  // ---- 屏幕坐标 → 画布逻辑坐标（逆用户缩放）----
+  const screenToWorld = useCallback((clientX: number, clientY: number) => {
     const canvas = canvasRef.current;
     if (!canvas) return { x: 0, y: 0 };
     const rect = canvas.getBoundingClientRect();
     const { w, h } = canvasSizeRef.current;
+    const cx = w / 2;
+    const cy = h / 2;
     const view = viewRef.current;
-    const cssX = ((sx - rect.left) / rect.width) * w;
-    const cssY = ((sy - rect.top) / rect.height) * h;
-    return {
-      x: (cssX - w / 2 - view.panX) / view.scale,
-      y: (cssY - h / 2 - view.panY) / view.scale,
-    };
+    const mx = ((clientX - rect.left) / rect.width) * w;
+    const my = ((clientY - rect.top) / rect.height) * h;
+    // 逆 scale 变换：translate(cx,cy) scale(s) translate(-cx,-cy)
+    const lx = (mx - cx) / view.scale + cx;
+    const ly = (my - cy) / view.scale + cy;
+    return { x: lx, y: ly };
   }, []);
 
-  // ---- 命中检测 ----
-  const hitTest = useCallback((wx: number, wy: number): SimNode | null => {
-    const simNodes = simNodesRef.current;
-    for (let i = simNodes.length - 1; i >= 0; i--) {
-      const n = simNodes[i];
-      const dx = wx - n.x;
-      const dy = wy - n.y;
-      if (dx * dx + dy * dy <= n.r * n.r) return n;
-    }
-    return null;
-  }, []);
+  // ---- 命中检测（从前到后，深度大者在前）----
+  const hitTest = useCallback(
+    (lx: number, ly: number): SimNode | null => {
+      const projected = computeProjection();
+      const visibleIds = new Set(filteredNodes.map((n) => n.id));
+      for (let i = projected.length - 1; i >= 0; i--) {
+        const p = projected[i];
+        if (!visibleIds.has(p.node.id)) continue;
+        const baseR = Math.max(
+          8,
+          Math.min(24, 8 + (p.node.data.strength || 1) * 1.5)
+        );
+        const r = baseR * p.scale;
+        const dx = lx - p.sx;
+        const dy = ly - p.sy;
+        if (dx * dx + dy * dy <= r * r) return p.node;
+      }
+      return null;
+    },
+    [computeProjection, filteredNodes]
+  );
 
   // ---- 鼠标交互 ----
   const handleMouseDown = useCallback(
@@ -581,17 +698,17 @@ export function MemoryPage() {
       const { x, y } = screenToWorld(e.clientX, e.clientY);
       const hit = hitTest(x, y);
       if (hit) {
+        // 拖拽节点：固定该节点，暂停模拟避免邻居跳动
         draggingNodeRef.current = hit;
+        lastDragMouseRef.current = { x: e.clientX, y: e.clientY };
         hit.fixed = true;
-        if (!simulating) setSimulating(true);
+        hit.vx = 0;
+        hit.vy = 0;
+        hit.vz = 0;
+        if (simulating) setSimulating(false);
       } else {
-        const view = viewRef.current;
-        panningRef.current = {
-          startX: e.clientX,
-          startY: e.clientY,
-          panX: view.panX,
-          panY: view.panY,
-        };
+        // 空白处：旋转图谱
+        rotatingRef.current = { x: e.clientX, y: e.clientY };
       }
     },
     [screenToWorld, hitTest, simulating]
@@ -600,25 +717,74 @@ export function MemoryPage() {
   const handleMouseMove = useCallback(
     (e: React.MouseEvent) => {
       const dragging = draggingNodeRef.current;
-      const panning = panningRef.current;
+      const rotating = rotatingRef.current;
+
       if (dragging) {
-        const { x, y } = screenToWorld(e.clientX, e.clientY);
-        dragging.x = x;
-        dragging.y = y;
-        dragging.vx = 0;
-        dragging.vy = 0;
+        // ---- 拖拽节点：屏幕增量逆投影到世界增量 ----
+        const last = lastDragMouseRef.current;
+        if (last) {
+          const canvas = canvasRef.current;
+          const rect = canvas?.getBoundingClientRect();
+          const { w, h } = canvasSizeRef.current;
+          const rectW = rect?.width || w;
+          const rectH = rect?.height || h;
+          const view = viewRef.current;
+          // 屏幕像素增量 → 画布逻辑增量
+          const dmx = ((e.clientX - last.x) / rectW) * w;
+          const dmy = ((e.clientY - last.y) / rectH) * h;
+          // 去除用户缩放
+          const sDmx = dmx / view.scale;
+          const sDmy = dmy / view.scale;
+
+          // 该节点当前深度的透视缩放
+          const cosY = Math.cos(view.rotY);
+          const sinY = Math.sin(view.rotY);
+          const cosX = Math.cos(view.rotX);
+          const sinX = Math.sin(view.rotX);
+          const wx = dragging.x;
+          const wy = dragging.y;
+          const wz = dragging.z;
+          const z1 = -wx * sinY + wz * cosY;
+          const z2 = wy * sinX + z1 * cosX;
+          const denom = FOCAL - z2;
+          const persp = denom > 60 ? FOCAL / denom : FOCAL / 60;
+
+          // 去除透视缩放，得到旋转后坐标系增量
+          const projDx = sDmx / persp;
+          const projDy = sDmy / persp;
+
+          // 逆旋转（保持 z 不变，仅求解 world dx/dy）
+          const worldDx = Math.abs(cosY) > 1e-4 ? projDx / cosY : 0;
+          const worldDy =
+            Math.abs(cosX) > 1e-4
+              ? (projDy - worldDx * sinY * sinX) / cosX
+              : 0;
+
+          dragging.x += worldDx;
+          dragging.y += worldDy;
+          dragging.vx = 0;
+          dragging.vy = 0;
+          dragging.vz = 0;
+        }
+        lastDragMouseRef.current = { x: e.clientX, y: e.clientY };
         drawRef.current();
         return;
       }
-      if (panning) {
-        const dx = e.clientX - panning.startX;
-        const dy = e.clientY - panning.startY;
+
+      if (rotating) {
+        // 旋转图谱
+        const dx = e.clientX - rotating.x;
+        const dy = e.clientY - rotating.y;
+        rotating.x = e.clientX;
+        rotating.y = e.clientY;
         const view = viewRef.current;
-        view.panX = panning.panX + dx;
-        view.panY = panning.panY + dy;
+        view.rotY += dx * 0.006;
+        view.rotX = Math.max(-1.3, Math.min(1.3, view.rotX - dy * 0.006));
         drawRef.current();
         return;
       }
+
+      // 悬停检测
       const { x, y } = screenToWorld(e.clientX, e.clientY);
       const hit = hitTest(x, y);
       const hitId = hit?.id ?? null;
@@ -634,8 +800,24 @@ export function MemoryPage() {
     if (draggingNodeRef.current) {
       draggingNodeRef.current.fixed = false;
       draggingNodeRef.current = null;
+      lastDragMouseRef.current = null;
+      // 释放后给 alpha 一个小脉冲，让邻居重新 settle
+      alphaRef.current = Math.max(alphaRef.current, 0.3);
+      setSimulating(true);
     }
-    panningRef.current = null;
+    rotatingRef.current = null;
+  }, []);
+
+  const handleMouseLeave = useCallback(() => {
+    if (draggingNodeRef.current) {
+      draggingNodeRef.current.fixed = false;
+      draggingNodeRef.current = null;
+      lastDragMouseRef.current = null;
+      alphaRef.current = Math.max(alphaRef.current, 0.3);
+      setSimulating(true);
+    }
+    rotatingRef.current = null;
+    setHoveredId(null);
   }, []);
 
   const handleClick = useCallback(
@@ -658,7 +840,7 @@ export function MemoryPage() {
     const handler = (e: WheelEvent) => {
       e.preventDefault();
       const view = viewRef.current;
-      const delta = e.deltaY > 0 ? 0.9 : 1.1;
+      const delta = e.deltaY > 0 ? 1 / 1.1 : 1.1;
       view.scale = Math.max(0.3, Math.min(3, view.scale * delta));
       setScaleDisplay(view.scale);
       drawRef.current();
@@ -668,13 +850,35 @@ export function MemoryPage() {
   }, []);
 
   // ---- 控制操作 ----
+  const toggleSim = useCallback(() => {
+    if (simulating) {
+      setSimulating(false);
+    } else {
+      // 用户手动续跑：给 alpha 一个脉冲，单次 settle 后自动停
+      alphaRef.current = Math.max(alphaRef.current, 0.3);
+      setSimulating(true);
+    }
+  }, [simulating]);
+
   const reLayout = useCallback(() => {
-    if (filteredNodes.length === 0) return;
-    initSimulation(filteredNodes, filteredEdges);
-    viewRef.current = { panX: 0, panY: 0, scale: 1 };
+    if (nodes.length === 0) return;
+    hasInitializedRef.current = true;
+    initSimulation(nodes, edges);
+    viewRef.current = {
+      rotX: DEFAULT_ROT_X,
+      rotY: DEFAULT_ROT_Y,
+      scale: 1,
+    };
     setScaleDisplay(1);
     toast.info("已重新布局");
-  }, [filteredNodes, filteredEdges, initSimulation]);
+  }, [nodes, edges, initSimulation]);
+
+  const refresh = useCallback(() => {
+    // 手动刷新：重置初始化标记，重新拉取数据后会重建一次模拟
+    hasInitializedRef.current = false;
+    queryClient.invalidateQueries({ queryKey: ["memory-graph"] });
+    toast.info("正在刷新记忆图谱...");
+  }, [queryClient]);
 
   const zoomBy = useCallback((factor: number) => {
     const view = viewRef.current;
@@ -684,7 +888,11 @@ export function MemoryPage() {
   }, []);
 
   const resetView = useCallback(() => {
-    viewRef.current = { panX: 0, panY: 0, scale: 1 };
+    viewRef.current = {
+      rotX: DEFAULT_ROT_X,
+      rotY: DEFAULT_ROT_Y,
+      scale: 1,
+    };
     setScaleDisplay(1);
     drawRef.current();
   }, []);
@@ -723,12 +931,12 @@ export function MemoryPage() {
           </h1>
           <p className="mt-1 text-sm text-muted-foreground">
             {stats.total} 节点 · {stats.edges} 关联 · {stats.isolated} 孤立 ·
-            2D 力导向布局
+            3D 力导向布局
           </p>
         </div>
         <div className="flex items-center gap-2">
           <button
-            onClick={() => setSimulating((s) => !s)}
+            onClick={toggleSim}
             className="btn-glass flex h-8 items-center gap-1.5 px-3 text-xs"
           >
             {simulating ? "暂停模拟" : "继续模拟"}
@@ -738,6 +946,12 @@ export function MemoryPage() {
             className="btn-glass flex h-8 items-center gap-1.5 px-3 text-xs"
           >
             <RotateCcw className="h-3.5 w-3.5" /> 重新布局
+          </button>
+          <button
+            onClick={refresh}
+            className="btn-glass flex h-8 items-center gap-1.5 px-3 text-xs"
+          >
+            刷新
           </button>
           <div className="relative">
             <button
@@ -796,12 +1010,12 @@ export function MemoryPage() {
       </div>
 
       {/* 主体内容 */}
-      {nodesError ? (
+      {loadError ? (
         <div className="flex flex-1 flex-col items-center justify-center gap-3 text-muted-foreground">
           <Brain className="h-12 w-12 opacity-40" />
           <p className="text-sm">加载记忆图谱失败</p>
           <p className="text-xs">
-            {nodesError instanceof Error ? nodesError.message : "未知错误"}
+            {loadError instanceof Error ? loadError.message : "未知错误"}
           </p>
         </div>
       ) : isLoading ? (
@@ -809,7 +1023,7 @@ export function MemoryPage() {
           <Loader2 className="h-6 w-6 animate-spin text-primary" />
           <p className="text-sm">正在构建记忆图谱...</p>
         </div>
-      ) : filteredNodes.length === 0 ? (
+      ) : nodes.length === 0 ? (
         <div className="flex flex-1 flex-col items-center justify-center gap-3 text-muted-foreground">
           <Brain className="h-12 w-12 opacity-40" />
           <p className="text-sm font-medium">暂无记忆数据</p>
@@ -830,10 +1044,7 @@ export function MemoryPage() {
               onMouseDown={handleMouseDown}
               onMouseMove={handleMouseMove}
               onMouseUp={handleMouseUp}
-              onMouseLeave={() => {
-                handleMouseUp();
-                setHoveredId(null);
-              }}
+              onMouseLeave={handleMouseLeave}
               onClick={handleClick}
             />
 
@@ -881,7 +1092,7 @@ export function MemoryPage() {
 
             {/* 状态栏 */}
             <div className="absolute bottom-3 left-3 rounded-lg border border-border/60 bg-card/80 px-2 py-1 text-[10px] text-muted-foreground backdrop-blur">
-              缩放 {Math.round(scaleDisplay * 100)}% · 拖拽空白平移 · 滚轮缩放
+              缩放 {Math.round(scaleDisplay * 100)}% · 拖拽空白旋转 · 滚轮缩放
               · 点击节点查看详情
               {simulating ? " · 模拟中" : " · 已稳定"}
             </div>

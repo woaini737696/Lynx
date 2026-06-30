@@ -134,6 +134,23 @@ export function HermesPanel() {
       if (data.success) {
         queryClient.invalidateQueries({ queryKey: ["local-ai-env"] });
         toast.success("Lynx Agent 安装成功");
+        // 安装成功后自动启动 WS 连接（PC 上线，远程操控可用）
+        // 需要先 set_user_token + set_cloud_endpoint，再 start_hermes_agent
+        (async () => {
+          try {
+            const { useAuthStore } = await import("@/stores/authStore");
+            const { getCloudEndpoint } = await import("@/lib/cloud-api");
+            const st = useAuthStore.getState();
+            if (st.user?.id && st.token) {
+              await invoke("set_user_token", { token: `user:${st.user.id}` });
+              await invoke("set_cloud_endpoint", { endpoint: getCloudEndpoint() });
+              await invoke("start_hermes_agent");
+              console.log("[HermesPanel] 安装后自动启动 WS 连接成功");
+            }
+          } catch (e) {
+            console.warn("[HermesPanel] 安装后自动启动 WS 失败:", e);
+          }
+        })();
       } else {
         toast.error(data.error || data.message || "安装失败");
       }
@@ -145,9 +162,23 @@ export function HermesPanel() {
     },
   });
 
-  // 启动 Dashboard：调用本地 Tauri 命令
+  // 启动 Dashboard + WS 连接：调用本地 Tauri 命令
   const startMutation = useMutation({
     mutationFn: async () => {
+      // 1. 启动 WS 连接（PC 上线，远程操控可用）
+      try {
+        const { useAuthStore } = await import("@/stores/authStore");
+        const { getCloudEndpoint } = await import("@/lib/cloud-api");
+        const st = useAuthStore.getState();
+        if (st.user?.id && st.token) {
+          await invoke("set_user_token", { token: `user:${st.user.id}` });
+          await invoke("set_cloud_endpoint", { endpoint: getCloudEndpoint() });
+          await invoke("start_hermes_agent");
+        }
+      } catch (e) {
+        console.warn("[HermesPanel] 启动 WS 连接失败:", e);
+      }
+      // 2. 启动本地 Dashboard
       return invoke<{ success: boolean; pid?: number; port: number; endpoint: string }>("start_hermes_dashboard", {
         port: DASHBOARD_PORT,
       });
@@ -155,7 +186,7 @@ export function HermesPanel() {
     onSuccess: (data) => {
       if (data.success) {
         queryClient.invalidateQueries({ queryKey: ["dashboard-online"] });
-        toast.success(`Lynx Agent Dashboard 已启动（端口 ${data.port}）`);
+        toast.success(`Lynx Agent 已启动（Dashboard 端口 ${data.port}，WS 已连接云端）`);
       }
     },
     onError: (e: unknown) => toast.error(e instanceof Error ? e.message : "启动失败"),

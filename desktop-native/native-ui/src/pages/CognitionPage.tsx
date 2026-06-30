@@ -46,6 +46,9 @@ export function CognitionPage() {
   // 删除确认
   const [deleteTarget, setDeleteTarget] = useState<Cognition | null>(null);
 
+  // 详情查看
+  const [selectedCognition, setSelectedCognition] = useState<Cognition | null>(null);
+
   // 加载认知列表
   const { data: cognitions = [], isLoading } = useQuery<Cognition[]>({
     queryKey: ["cognitions"],
@@ -213,7 +216,8 @@ export function CognitionPage() {
                   animate={{ opacity: 1, scale: 1 }}
                   exit={{ opacity: 0, scale: 0.9 }}
                   transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
-                  className="glass-card group relative flex flex-col p-4 transition-all hover:-translate-y-0.5"
+                  onClick={() => setSelectedCognition(c)}
+                  className="glass-card group relative flex cursor-pointer flex-col p-4 transition-all hover:-translate-y-0.5"
                 >
                   {/* 顶部：类型标签 + 来源 + 时间 */}
                   <div className="mb-2 flex items-center justify-between gap-2">
@@ -271,7 +275,10 @@ export function CognitionPage() {
 
                   {/* 删除按钮（hover 显示） */}
                   <button
-                    onClick={() => setDeleteTarget(c)}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setDeleteTarget(c);
+                    }}
                     title="删除认知"
                     className="absolute right-2 top-2 flex h-7 w-7 items-center justify-center rounded-lg text-muted-foreground opacity-0 transition-all hover:bg-destructive/10 hover:text-destructive group-hover:opacity-100"
                   >
@@ -396,6 +403,104 @@ export function CognitionPage() {
             </button>
           </div>
         </div>
+      </Modal>
+
+      {/* 详情查看弹窗 */}
+      <Modal
+        open={!!selectedCognition}
+        onClose={() => setSelectedCognition(null)}
+        title="认知详情"
+        size="lg"
+      >
+        {selectedCognition && (() => {
+          const meta = COGNITION_TYPE_META[selectedCognition.type] || COGNITION_TYPE_META.method;
+          const SourceIcon = SOURCE_ICON[selectedCognition.source] || Sparkles;
+          return (
+            <div className="space-y-4">
+              {/* 头部：类型标签 + 来源 + 相对时间 */}
+              <div className="flex flex-wrap items-center gap-2">
+                <span
+                  className={cn(
+                    "rounded-full border px-2.5 py-0.5 text-[11px] font-medium",
+                    meta.bg,
+                    meta.color,
+                    meta.border
+                  )}
+                >
+                  {meta.label}
+                </span>
+                <span
+                  className="flex items-center gap-1 text-[11px] text-muted-foreground"
+                  title={`来源：${selectedCognition.source}`}
+                >
+                  <SourceIcon className="h-3 w-3" />
+                  {selectedCognition.source === "idea"
+                    ? "灵感"
+                    : selectedCognition.source === "conversation"
+                      ? "对话"
+                      : "手动"}
+                </span>
+                <span className="text-[11px] text-muted-foreground/70">
+                  {formatRelativeTime(selectedCognition.createdAt)}
+                </span>
+                <span className="ml-auto text-[10px] text-muted-foreground/60">
+                  {new Date(selectedCognition.createdAt).toLocaleString("zh-CN")}
+                </span>
+              </div>
+
+              {/* 正文：完整内容（可滚动） */}
+              <div className="max-h-[40vh] overflow-y-auto rounded-xl border border-border/60 bg-muted/20 p-4">
+                <p className="whitespace-pre-wrap break-words text-sm leading-relaxed text-foreground/90">
+                  {selectedCognition.content}
+                </p>
+              </div>
+
+              {/* 标签区（显示全部） */}
+              {Array.isArray(selectedCognition.tags) && selectedCognition.tags.length > 0 && (
+                <div>
+                  <div className="mb-1.5 text-[11px] font-medium text-muted-foreground">
+                    标签（{selectedCognition.tags.length}）
+                  </div>
+                  <div className="flex flex-wrap gap-1.5">
+                    {selectedCognition.tags.map((tag, i) => (
+                      <span
+                        key={i}
+                        className="rounded-md bg-muted/60 px-2 py-0.5 text-[11px] text-muted-foreground"
+                      >
+                        #{tag}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* 底部：关闭 + 删除 */}
+              <div className="flex items-center justify-end gap-2 border-t border-border/60 pt-3">
+                <button
+                  onClick={() => setSelectedCognition(null)}
+                  className="btn-glass flex h-8 items-center px-3 text-xs"
+                >
+                  关闭
+                </button>
+                <button
+                  onClick={() => {
+                    setDeleteTarget(selectedCognition);
+                    setSelectedCognition(null);
+                  }}
+                  disabled={deleteMutation.isPending}
+                  className="flex h-8 items-center gap-1.5 rounded-lg bg-destructive/10 px-3 text-xs font-medium text-destructive transition-colors hover:bg-destructive/20 disabled:opacity-50"
+                >
+                  {deleteMutation.isPending ? (
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  ) : (
+                    <Trash2 className="h-3.5 w-3.5" />
+                  )}
+                  删除
+                </button>
+              </div>
+            </div>
+          );
+        })()}
       </Modal>
     </div>
   );

@@ -36,8 +36,8 @@ class LoginViewModel @Inject constructor(
     init {
         viewModelScope.launch {
             var baseUrl = userPreferences.getBaseUrl()
-            // 迁移旧地址：模拟器本地地址和旧的 lynnhub 域名统一替换为云服务器新域名
-            if (baseUrl.contains("10.0.2.2") || baseUrl.contains("app.lynnhub.com")) {
+            // 迁移旧地址：模拟器本地地址和域名（被备案拦截）统一替换为 IP 直连
+            if (baseUrl.contains("10.0.2.2") || baseUrl.contains("lynnhub.com") || baseUrl.contains("lynxdo.com")) {
                 baseUrl = com.lynnhub.app.util.Constants.DEFAULT_BASE_URL
                 userPreferences.setBaseUrl(baseUrl)
             }

@@ -22,6 +22,9 @@ import { SearchPage } from "./pages/SearchPage";
 import { WalletPage } from "./pages/WalletPage";
 import { MembershipPage } from "./pages/MembershipPage";
 import { SettingsPage } from "./pages/SettingsPage";
+import { ConvergePage } from "./pages/ConvergePage";
+import { LarkTasksPage } from "./pages/LarkTasksPage";
+import { NotificationSettingsPage } from "./pages/NotificationSettingsPage";
 import { Toaster } from "./components/ui/Toaster";
 import { useEffect, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
@@ -129,12 +132,14 @@ export function App() {
             <Route index element={<Navigate to="/focus" replace />} />
             <Route path="focus" element={<ErrorBoundary><FocusPage /></ErrorBoundary>} />
             <Route path="inbox" element={<ErrorBoundary><InboxPage /></ErrorBoundary>} />
+            <Route path="converge" element={<ErrorBoundary><ConvergePage /></ErrorBoundary>} />
             <Route path="cognition" element={<ErrorBoundary><CognitionPage /></ErrorBoundary>} />
             <Route path="board" element={<ErrorBoundary><BoardPage /></ErrorBoundary>} />
             <Route path="graveyard" element={<ErrorBoundary><GraveyardPage /></ErrorBoundary>} />
             <Route path="ai/workspace" element={<ErrorBoundary><AIWorkspacePage /></ErrorBoundary>} />
             <Route path="ai/flows" element={<ErrorBoundary><AIFlowsPage /></ErrorBoundary>} />
             <Route path="ai/assistant" element={<ErrorBoundary><AIAssistantPage /></ErrorBoundary>} />
+            <Route path="ai/lark-tasks" element={<ErrorBoundary><LarkTasksPage /></ErrorBoundary>} />
             <Route path="assets" element={<ErrorBoundary><AssetsPage /></ErrorBoundary>} />
             <Route path="memory" element={<ErrorBoundary><MemoryPage /></ErrorBoundary>} />
             <Route path="search" element={<ErrorBoundary><SearchPage /></ErrorBoundary>} />
@@ -143,6 +148,7 @@ export function App() {
             <Route path="wallet" element={<ErrorBoundary><WalletPage /></ErrorBoundary>} />
             <Route path="membership" element={<ErrorBoundary><MembershipPage /></ErrorBoundary>} />
             <Route path="settings" element={<ErrorBoundary><SettingsPage /></ErrorBoundary>} />
+            <Route path="settings/notifications" element={<ErrorBoundary><NotificationSettingsPage /></ErrorBoundary>} />
             <Route path="settings/*" element={<Navigate to="/settings" replace />} />
             <Route path="*" element={<Navigate to="/focus" replace />} />
           </Route>

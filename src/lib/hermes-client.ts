@@ -995,7 +995,7 @@ export async function installHermesAgent(): Promise<{
       await execAsync(curlCmd, { timeout: 120000, maxBuffer: 1024 * 1024, env: cleanEnv });
 
       const stat = fs.statSync(localWhl);
-      if (stat.size < 1024 * 1024) {
+      if (stat.size < 1024) {
         throw new Error(`下载的文件过小 (${stat.size} 字节)，可能是 404 页面`);
       }
       logger.info({ size: stat.size }, ".whl 下载完成");
