@@ -10,7 +10,7 @@
 | 迭代 | 日期 | 任务概要 |
 |------|------|----------|
 | [迭代 73](#迭代-73---2026-06-30) | 2026-06-30 | 桌面端v1.0.20根因修复：桌面端本地前端AppLayout登录后自动启动WS(非Web端DesktopBridge)+HermesPanel安装/启动按钮同时连接WS(非仅Dashboard)+Web端浏览器分支提示使用桌面端(不再服务器pip install)+hermes-client.ts文件大小检查1MB→1KB+NotificationSettingsPage.tsx泛型语法修复 |
-| [迭代 72](#迭代-72---2026-06-30) | 2026-06-30 | 桌面端v1.0.19六项核心修复：AI助理P0 bug(createSession解构+头像URL+抽屉状态)+3D记忆图谱重写(单次fetch/alpha衰减)+认知库点击详情+AI工作流拖拽(dragDropEnabled)+LynxAgent控制台闪烁+重复安装(CREATE_NO_WINDOW+refetch暂停)+灵感收敛/飞书任务/通知设置三页面补齐 |
+| [迭代 72](#迭代-72---2026-06-30) | 2026-06-30 | 桌面端v1.0.20六项核心修复：AI助理P0 bug(createSession解构+头像URL+抽屉状态)+3D记忆图谱重写(单次fetch/alpha衰减)+认知库点击详情+AI工作流拖拽(dragDropEnabled)+LynxAgent控制台闪烁+重复安装(CREATE_NO_WINDOW+refetch暂停)+灵感收敛/飞书任务/通知设置三页面补齐 |
 | [迭代 71](#迭代-71---2026-06-30) | 2026-06-30 | 桌面端v1.0.18三项核心修复：HermesAgent安装走Tauri本地安装(非PyPI)+DesktopBridge登录后自动启动WS+TTS环境变量通过start-with-env.js加载+Nginx /downloads/重复location修复 |
 | [迭代 70](#迭代-70---2026-06-30) | 2026-06-30 | 桌面端v1.0.17五项同步：HermesAgent真实Python包+本地Tauri安装+灵感通知已读机制+AI工作流可视化编排+对话资产/记忆图谱页面补齐 |
 | [迭代 69](#迭代-69---2026-06-30) | 2026-06-30 | HermesAgent服务器预置.whl+一键下载安装+ws-gateway修复DATABASE_URL加载+middleware放行downloads路径 |
@@ -166,7 +166,7 @@
 ## 迭代 72 - 2026-06-30
 
 ### 任务概要
-桌面端 v1.0.19 六项核心修复：AI 助理 P0 bug + 3D 记忆图谱重写 + 认知库点击详情 + AI 工作流拖拽 + LynxAgent 控制台闪烁/重复安装 + 灵感收敛/飞书任务/通知设置三页面补齐。
+桌面端 v1.0.20 六项核心修复：AI 助理 P0 bug + 3D 记忆图谱重写 + 认知库点击详情 + AI 工作流拖拽 + LynxAgent 控制台闪烁/重复安装 + 灵感收敛/飞书任务/通知设置三页面补齐。
 
 ### 修复内容
 
@@ -233,14 +233,14 @@
 - `desktop-native/native-ui/src/components/agent/HermesPanel.tsx` - isInstalling 暂停 refetch
 - `desktop-native/src-tauri/src/installer.rs` - no_window 辅助函数 + 5 处 CREATE_NO_WINDOW + hermes 检测兜底
 - `desktop-native/src-tauri/src/lib.rs` - stop_hermes_dashboard 加 CREATE_NO_WINDOW
-- `desktop-native/src-tauri/tauri.conf.json` - dragDropEnabled: false + 版本 1.0.19
-- `desktop-native/package.json` - 版本 1.0.19
-- `desktop-native/native-ui/package.json` - 版本 1.0.19
-- `desktop-native/src-tauri/Cargo.toml` - 版本 1.0.19
+- `desktop-native/src-tauri/tauri.conf.json` - dragDropEnabled: false + 版本 1.0.20
+- `desktop-native/package.json` - 版本 1.0.20
+- `desktop-native/native-ui/package.json` - 版本 1.0.20
+- `desktop-native/src-tauri/Cargo.toml` - 版本 1.0.20
 - `DEV_LOG.md` - 开发日志更新
 
 ### 安装包
-- `desktop-native/dist/Lynx_1.0.19_x64-setup.exe`
+- `desktop-native/dist/Lynx_1.0.20_x64-setup.exe`
 
 ---
 

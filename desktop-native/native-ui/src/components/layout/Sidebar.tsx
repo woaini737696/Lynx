@@ -15,6 +15,9 @@ import {
   MessageSquare,
   Database,
   Network,
+  Filter,
+  ListTodo,
+  Bell,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
@@ -35,6 +38,7 @@ const NAV_GROUPS: Record<TabKey, { label: string; icon: React.ElementType; items
     items: [
       { to: "/focus", label: "今日聚焦", icon: Target },
       { to: "/inbox", label: "Inbox", icon: InboxIcon },
+      { to: "/converge", label: "灵感收敛", icon: Filter },
       { to: "/board", label: "决策看板", icon: LayoutDashboard },
       { to: "/graveyard", label: "灵感墓地", icon: Skull },
       { to: "/cognition", label: "认知库", icon: Brain },
@@ -49,8 +53,10 @@ const NAV_GROUPS: Record<TabKey, { label: string; icon: React.ElementType; items
       { to: "/ai/workspace", label: "AI 工作空间", icon: Sparkles },
       { to: "/ai/flows", label: "AI 工作流", icon: Workflow },
       { to: "/ai/assistant", label: "Lynx超级助理", icon: MessageSquare },
+      { to: "/ai/lark-tasks", label: "飞书任务", icon: ListTodo },
       { to: "/skills", label: "技能管理", icon: BookMarked },
       { to: "/agent", label: "Lynx Agent", icon: Cpu },
+      { to: "/settings/notifications", label: "通知设置", icon: Bell },
     ],
   },
 };
