@@ -38,6 +38,13 @@ class UserPreferences(private val context: Context) {
         private val KEY_AI_MODEL = stringPreferencesKey("ai_model")
         private val KEY_CACHE_LARK_TASKS = stringPreferencesKey("cache_lark_tasks")
 
+        /**
+         * 飞书任务缓存内存层：避免每次 getTasksCache() 都 .first() 读 DataStore。
+         * holder 同时记录是否已从 DataStore 加载，避免"无缓存"和"未加载"混淆。
+         * 注意：tasksCacheHolder 放在 companion，进程级单例，避免多实例不同步。
+         */
+        private val tasksCacheHolder = MutableStateFlow<Pair<String?, Boolean>>(null to false)
+
         /** Token 混淆用的 XOR 密钥 */
         private val TOKEN_XOR_KEY = "LynnHub!".toByteArray(Charsets.UTF_8)
 
@@ -79,26 +86,18 @@ class UserPreferences(private val context: Context) {
         }
     }
 
-    /**
-     * 飞书任务缓存内存层：避免每次 getTasksCache() 都 .first() 读 DataStore。
-     * holder 同时记录是否已从 DataStore 加载，避免“无缓存”和“未加载”混淆。
-     */
-    private data class TasksCacheHolder(val value: String? = null, val loaded: Boolean = false)
-
-    private val tasksCacheHolder = MutableStateFlow(TasksCacheHolder())
-
     /** 缓存飞书任务 JSON，用于离线浏览 */
     suspend fun saveTasksCache(json: String) {
         context.dataStore.edit { it[KEY_CACHE_LARK_TASKS] = json }
-        tasksCacheHolder.value = TasksCacheHolder(value = json, loaded = true)
+        tasksCacheHolder.value = json to true
     }
 
     suspend fun getTasksCache(): String? {
-        val holder = tasksCacheHolder.value
-        if (holder.loaded) return holder.value
-        val value = context.dataStore.data.map { it[KEY_CACHE_LARK_TASKS] }.first()
-        tasksCacheHolder.value = TasksCacheHolder(value = value, loaded = true)
-        return value
+        val (value, loaded) = tasksCacheHolder.value
+        if (loaded) return value
+        val fresh = context.dataStore.data.map { it[KEY_CACHE_LARK_TASKS] }.first()
+        tasksCacheHolder.value = fresh to true
+        return fresh
     }
 
     val tokenFlow: Flow<String?> = context.dataStore.data.map { decryptToken(it[KEY_TOKEN]) }
@@ -112,7 +111,7 @@ class UserPreferences(private val context: Context) {
         )
     }
     val themeFlow: Flow<String> = context.dataStore.data.map { prefs ->
-        prefs[KEY_THEME] ?: Constants.THEME_DARK
+        prefs[KEY_THEME] ?: Constants.THEME_SYSTEM
     }
     val baseUrlFlow: Flow<String> = context.dataStore.data.map {
         it[KEY_BASE_URL] ?: Constants.DEFAULT_BASE_URL

@@ -16,6 +16,7 @@ object Routes {
     // 全屏浮层（Dock 隐藏）
     const val IDEA_PANEL = "idea"
     const val CALL = "call"
+    const val AGENT = "agent"
 
     // 设置面板（右侧 88% 侧滑，Dock 隐藏）
     const val SETTINGS = "settings"

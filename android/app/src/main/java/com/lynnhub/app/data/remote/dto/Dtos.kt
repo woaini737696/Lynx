@@ -494,3 +494,34 @@ data class TokenAnalysisResponse(
     val model: String = "deepseek-chat",
     val estimatedCost: TokenEstimatedCostDto = TokenEstimatedCostDto()
 )
+
+// ============ WS Gateway（在线设备 + 远程指令下发） ============
+@Serializable
+data class OnlineDeviceDto(
+    val deviceId: String = "",
+    val deviceName: String = "",
+    val agentVersion: String = "",
+    val capabilities: List<String> = emptyList(),
+    val connectedAt: String? = null,
+    val lastSeen: String? = null
+)
+
+@Serializable
+data class OnlineDevicesResponse(
+    val devices: List<OnlineDeviceDto> = emptyList(),
+    val total: Int = 0
+)
+
+@Serializable
+data class DispatchRequest(
+    val userId: String,
+    val command: String,
+    val targetDeviceId: String? = null
+)
+
+@Serializable
+data class DispatchResponse(
+    val dispatched: Boolean = false,
+    val commandId: String? = null,
+    val reason: String? = null
+)

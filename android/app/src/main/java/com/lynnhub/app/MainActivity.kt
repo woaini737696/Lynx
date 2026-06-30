@@ -63,9 +63,10 @@ class MainActivity : ComponentActivity() {
 
         setContent {
             val token by userPreferences.tokenFlow.collectAsState(initial = null)
+            val themeMode by userPreferences.themeFlow.collectAsState(initial = "system")
             val isLoggedIn = token != null
 
-            LynnHubTheme(themeMode = com.lynnhub.app.util.Constants.THEME_DARK) {
+            LynnHubTheme(themeMode = themeMode) {
                 if (isLoggedIn) {
                     val navController = rememberNavController()
                     val navBackStackEntry by navController.currentBackStackEntryAsState()

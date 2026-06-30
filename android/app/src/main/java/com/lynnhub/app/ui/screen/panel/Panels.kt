@@ -230,15 +230,9 @@ fun CallScreen(onBack: () -> Unit) {
         }
     }
 
-    // 模拟状态切换（聆听 5s → 思考 3s → 聆听...）
-    LaunchedEffect(Unit) {
-        while (true) {
-            delay(5000)
-            callState = "thinking"
-            delay(3000)
-            callState = "listening"
-        }
-    }
+    // 状态切换：listening ↔ thinking（保留 stub 行为，但移除自动循环，等待真实语音通话集成）
+    // 真实通话流程见 CallViewModel（待实现）：
+    //   listening → VAD 端点检测 → thinking → ASR+LLM → speaking → 流式 TTS → listening
 
     Box(
         modifier = Modifier
