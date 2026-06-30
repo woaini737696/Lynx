@@ -1396,43 +1396,30 @@ async function executeHermesExecute(
     return { error: "prompt 不能为空" };
   }
 
-  const { getHermesConfig } = await import("@/lib/hermes-client");
-  const config = await getHermesConfig(user.id);
-  if (!config || !config.enabled) {
-    return { error: "Hermes Agent 未启用，请先在设置中启用" };
-  }
-
   const timeoutSec = args.timeout || 120;
   let result: { success: boolean; output: string; error?: string; durationMs?: number; steps?: unknown[] };
 
-  // 路径 1：桌面端在线 → WS 网关远程执行
+  // 唯一路径：通过 WS 网关远程下发到用户电脑的桌面端执行
+  // 桌面端 ws_client.rs 收到后优先调用 HermesAgent Dashboard HTTP API（真正 AI 执行）
   const onlinePc = await getOnlinePcSession(user.id);
-  if (onlinePc) {
-    const remoteResult = await dispatchRemoteCommand(user.id, prompt, timeoutSec);
-    result = {
-      success: remoteResult.success,
-      output: remoteResult.output,
-      error: remoteResult.error,
-      durationMs: remoteResult.durationMs,
-      steps: remoteResult.success
-        ? [{ action: "remote-dispatch", result: remoteResult.route || "desktop", timestamp: new Date().toISOString() }]
-        : undefined,
+  if (!onlinePc) {
+    return {
+      success: false,
+      output: "",
+      error: "未检测到在线的桌面端。请在您的电脑上启动 Lynx 桌面端客户端并登录，确保 HermesAgent 已启动。AI 助理通过桌面端执行本地操作（如打开浏览器、操作文件等），无法在服务器上执行。",
     };
-  } else {
-    // 路径 2：回退到本地 CLI 执行（Web端独立部署 / 本地开发环境）
-    const { executeHermesTask } = await import("@/lib/hermes-client");
-    if (config.status === "error") {
-      return {
-        error: `Hermes Agent 当前未运行（状态: ${config.status}）。请选择：1) 在电脑上启动 Lynx 桌面端客户端并登录；2) 或在 Web 端设置页点击「启动服务」启动本地 Dashboard。` + (config.lastError ? `\n上次错误: ${config.lastError}` : ""),
-      };
-    }
-    result = await executeHermesTask(config, {
-      prompt,
-      mode: (args.mode as "computer_use" | "shell" | "auto") || "auto",
-      workDir: args.workDir,
-      timeout: timeoutSec,
-    }, user.id);
   }
+
+  const remoteResult = await dispatchRemoteCommand(user.id, prompt, timeoutSec);
+  result = {
+    success: remoteResult.success,
+    output: remoteResult.output,
+    error: remoteResult.error,
+    durationMs: remoteResult.durationMs,
+    steps: remoteResult.success
+      ? [{ action: "remote-dispatch", result: remoteResult.route || "desktop", timestamp: new Date().toISOString() }]
+      : undefined,
+  };
 
   // 记录执行历史
   try {
