@@ -916,14 +916,15 @@ export function clearHermesDetectCache(): void {
 }
 
 /**
- * 安装 HermesAgent（Web 端通过 pip install）
+ * 安装 HermesAgent（Web 端一键安装）
  *
- * 实现说明：
- * - 通过 child_process 执行 pip install hermes-agent
- * - 依次尝试多个镜像源（清华 → 阿里 → 腾讯 → 官方），任一成功即返回
- * - 清除环境变量 PIP_INDEX_URL / PIP_EXTRA_INDEX_URL 干扰（避免继承错误 index）
- * - 安装成功后清除检测缓存，便于后续启动
- * - 安装失败时返回详细错误信息，便于排查
+ * 安装策略（依次尝试，任一成功即返回）：
+ * 1. `pip install git+https://github.com/NousResearch/hermes-agent.git`
+ *    —— 从 GitHub 源码安装（PyPI 上不存在 hermes-agent 包，必须从 GitHub 安装）
+ * 2. 官方安装脚本（curl 下载 install.sh/install.cmd 执行）
+ *    —— 适配不支持 pip git+ 安装的环境
+ *
+ * 验证：安装后执行 `hermes --version` 确认可执行文件就绪
  *
  * @returns { success, output?, error? }
  */
@@ -936,25 +937,28 @@ export async function installHermesAgent(): Promise<{
   const { promisify } = await import("util");
   const execAsync = promisify(exec);
 
-  logger.info("HermesAgent 安装请求：通过 pip install 安装");
+  logger.info("HermesAgent 安装请求：从 GitHub 源码安装");
 
   const pipCmd = process.platform === "win32" ? "pip" : "pip3";
 
-  // 清理可能继承的错误 index 环境变量，避免 "HTML index page is not a proper HTML 5" 警告
+  // 清理可能继承的错误 index 环境变量
   const cleanEnv: NodeJS.ProcessEnv = { ...process.env };
   delete cleanEnv.PIP_INDEX_URL;
   delete cleanEnv.PIP_EXTRA_INDEX_URL;
 
-  // 候选镜像源（依次尝试）
-  const mirrors = [
-    "https://pypi.tuna.tsinghua.edu.cn/simple",
-    "https://mirrors.aliyun.com/pypi/simple/",
-    "https://mirrors.cloud.tencent.com/pypi/simple",
-    "https://pypi.org/simple",
-  ];
-
-  // 验证安装是否成功
+  // 验证安装是否成功（hermes --version 或 pip show）
   const verifyInstall = async (): Promise<boolean> => {
+    // 1. 先检查 hermes 可执行文件
+    const hermesExe = await findHermesExe();
+    if (hermesExe) {
+      try {
+        await execAsync(`"${hermesExe}" --version`, { timeout: 10000, env: cleanEnv });
+        return true;
+      } catch {
+        // 可执行文件存在但 --version 失败，继续检查 pip
+      }
+    }
+    // 2. 回退到 pip show
     try {
       const verifyCmd = process.platform === "win32" ? "pip show hermes-agent" : "pip3 show hermes-agent";
       await execAsync(verifyCmd, { timeout: 15000, env: cleanEnv });
@@ -967,36 +971,74 @@ export async function installHermesAgent(): Promise<{
   let lastError = "";
   let lastOutput = "";
 
-  for (const mirror of mirrors) {
-    const installCmd = `${pipCmd} install --disable-pip-version-check -i ${mirror} hermes-agent`;
-    logger.info({ mirror }, "尝试安装 HermesAgent");
-    try {
-      const { stdout, stderr } = await execAsync(installCmd, {
-        timeout: 180000, // 3 分钟超时（首装可能拉取较多依赖）
-        maxBuffer: 10 * 1024 * 1024,
-        env: cleanEnv,
-      });
-      const output = (stdout || "") + (stderr ? `\n${stderr}` : "");
-      lastOutput = output;
+  // ===== 策略1：pip install git+https://github.com/NousResearch/hermes-agent.git =====
+  const githubUrl = "git+https://github.com/NousResearch/hermes-agent.git";
+  const installCmd = `${pipCmd} install --disable-pip-version-check "${githubUrl}"`;
+  logger.info({ strategy: "github-pip" }, "尝试从 GitHub 源码安装 HermesAgent");
+  try {
+    const { stdout, stderr } = await execAsync(installCmd, {
+      timeout: 300000, // 5 分钟超时（GitHub clone + 依赖安装）
+      maxBuffer: 10 * 1024 * 1024,
+      env: cleanEnv,
+    });
+    const output = (stdout || "") + (stderr ? `\n${stderr}` : "");
+    lastOutput = output;
 
-      if (await verifyInstall()) {
-        clearHermesDetectCache();
-        logger.info({ mirror }, "HermesAgent 安装成功");
-        return { success: true, output };
-      }
-      // 该源执行了但验证失败，继续下一个源
-      lastError = `镜像 ${mirror} 安装执行但验证失败`;
-    } catch (e) {
-      const err = e as { stderr?: string; message?: string };
-      lastError = `镜像 ${mirror} 失败：${err.stderr || err.message || "未知错误"}`;
-      logger.warn({ mirror, err: lastError }, "HermesAgent 安装失败，尝试下一个镜像");
+    if (await verifyInstall()) {
+      clearHermesDetectCache();
+      logger.info({ strategy: "github-pip" }, "HermesAgent 安装成功（GitHub pip）");
+      return { success: true, output };
     }
+    lastError = "GitHub pip 安装执行但验证失败";
+  } catch (e) {
+    const err = e as { stderr?: string; message?: string };
+    lastError = `GitHub pip 安装失败：${err.stderr || err.message || "未知错误"}`;
+    logger.warn({ strategy: "github-pip", err: lastError }, "GitHub pip 安装失败，尝试官方脚本");
+  }
+
+  // ===== 策略2：官方安装脚本 =====
+  const isWindows = process.platform === "win32";
+  const scriptUrl = isWindows
+    ? "https://raw.githubusercontent.com/NousResearch/hermes-agent/main/scripts/install.cmd"
+    : "https://raw.githubusercontent.com/NousResearch/hermes-agent/main/scripts/install.sh";
+
+  logger.info({ strategy: "official-script", scriptUrl }, "尝试官方安装脚本");
+  try {
+    let scriptCmd: string;
+    if (isWindows) {
+      // Windows: 下载 install.cmd 到临时目录，执行后删除
+      const tmpFile = require("path").join(require("os").tmpdir(), "hermes-install.cmd");
+      scriptCmd = `curl -fsSL "${scriptUrl}" -o "${tmpFile}" && "${tmpFile}" && del "${tmpFile}"`;
+    } else {
+      // Linux/Mac: 管道执行
+      scriptCmd = `curl -fsSL "${scriptUrl}" | bash`;
+    }
+
+    const { stdout, stderr } = await execAsync(scriptCmd, {
+      timeout: 300000, // 5 分钟超时
+      maxBuffer: 10 * 1024 * 1024,
+      env: cleanEnv,
+      shell: isWindows ? "cmd.exe" : "/bin/bash",
+    });
+    const output = (stdout || "") + (stderr ? `\n${stderr}` : "");
+    lastOutput = output;
+
+    if (await verifyInstall()) {
+      clearHermesDetectCache();
+      logger.info({ strategy: "official-script" }, "HermesAgent 安装成功（官方脚本）");
+      return { success: true, output };
+    }
+    lastError = "官方脚本安装执行但验证失败";
+  } catch (e) {
+    const err = e as { stderr?: string; message?: string };
+    lastError += `\n官方脚本安装失败：${err.stderr || err.message || "未知错误"}`;
+    logger.warn({ strategy: "official-script", err: lastError }, "官方脚本安装失败");
   }
 
   return {
     success: false,
     output: lastOutput,
-    error: lastError || "所有镜像源安装均失败，请检查 Python 版本（需 3.11+）或网络连接",
+    error: lastError || "所有安装策略均失败，请检查 Python 版本（需 3.11+）、git、curl 是否可用，或网络连接",
   };
 }
 
