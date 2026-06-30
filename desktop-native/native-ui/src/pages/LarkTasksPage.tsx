@@ -87,7 +87,7 @@ export function LarkTasksPage() {
   const { data: tasks = [], isLoading, isFetching, refetch, error } = useQuery<LarkTask[]>({
     queryKey: ["lark-tasks"],
     queryFn: async () => {
-      const res = await cloudApi.get<unknown>("/api/lark/tasks");
+      const res = await cloudApi.get<unknown>("/api/lark-tasks");
       // 防御性解析：API 可能返回数组、{tasks:[]}、{data:[]}、{items:[]} 等多种结构
       if (Array.isArray(res)) return res as LarkTask[];
       const obj = res as Record<string, unknown>;

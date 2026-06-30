@@ -1,9 +1,17 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import dynamic from "next/dynamic";
 import { usePathname } from "next/navigation";
 import { AssistantFloatingButton } from "./AssistantFloatingButton";
-import { AssistantDrawer } from "./AssistantDrawer";
+import { usePollWhenVisible } from "@/lib/use-poll-when-visible";
+
+// AssistantDrawer 含 AssistantChat（1577行）+ 语音模块，体积大
+// 改为 dynamic 懒加载 + ssr:false，仅在 open=true 时下载并挂载
+const AssistantDrawer = dynamic(
+  () => import("./AssistantDrawer").then((m) => m.AssistantDrawer),
+  { ssr: false, loading: () => null }
+);
 
 const LAST_READ_KEY = "lynnhub:assistant-last-read-count";
 
@@ -19,6 +27,9 @@ const LAST_READ_KEY = "lynnhub:assistant-last-read-count";
  */
 export function AssistantGlobalEntry() {
   const [open, setOpen] = useState(false);
+  // 首次打开后才挂载 AssistantDrawer，避免初始即拉取 AssistantChat + 语音模块的大 chunk
+  // 一旦挂载就保持挂载，保留 slide-out 动画与会话状态
+  const [hasOpened, setHasOpened] = useState(false);
   const [authChecked, setAuthChecked] = useState(false);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [showLoginModal, setShowLoginModal] = useState(false);
@@ -47,37 +58,32 @@ export function AssistantGlobalEntry() {
   }, []);
 
   // 未读消息数 = 当前会话总数 - 上次已读会话数
-  // 每 30 秒轮询一次会话列表，对比 localStorage 中保存的 lastReadCount
-  useEffect(() => {
+  // 使用 usePollWhenVisible：tab 不可见时暂停轮询，节省 CPU/网络
+  const fetchUnread = useCallback(async () => {
     if (!isLoggedIn) return;
+    try {
+      const res = await fetch("/api/ai/chat/sessions?limit=1");
+      if (!res.ok) return;
+      const data = await res.json();
+      // 兼容两种响应结构：{ sessions: [...] } 或 { items: [...] } 或 [...]
+      const sessions = data.sessions || data.items || data;
+      const total = Array.isArray(sessions) ? sessions.length : 0;
+      // 如果 API 返回了 total 字段，优先使用
+      const currentTotal = typeof data.total === "number" ? data.total : total;
 
-    const fetchUnread = async () => {
+      let lastRead = 0;
       try {
-        const res = await fetch("/api/ai/chat/sessions?limit=1");
-        if (!res.ok) return;
-        const data = await res.json();
-        // 兼容两种响应结构：{ sessions: [...] } 或 { items: [...] } 或 [...]
-        const sessions = data.sessions || data.items || data;
-        const total = Array.isArray(sessions) ? sessions.length : 0;
-        // 如果 API 返回了 total 字段，优先使用
-        const currentTotal = typeof data.total === "number" ? data.total : total;
-
-        let lastRead = 0;
-        try {
-          lastRead = parseInt(localStorage.getItem(LAST_READ_KEY) || "0", 10) || 0;
-        } catch {
-          // ignore
-        }
-        setUnreadCount(Math.max(0, currentTotal - lastRead));
+        lastRead = parseInt(localStorage.getItem(LAST_READ_KEY) || "0", 10) || 0;
       } catch {
-        // 静默失败
+        // ignore
       }
-    };
-
-    fetchUnread();
-    const timer = setInterval(fetchUnread, 30_000);
-    return () => clearInterval(timer);
+      setUnreadCount(Math.max(0, currentTotal - lastRead));
+    } catch {
+      // 静默失败
+    }
   }, [isLoggedIn]);
+
+  usePollWhenVisible(fetchUnread, 30_000, { immediate: true, enabled: isLoggedIn });
 
   const toggle = useCallback(() => {
     // 登录态尚未确认时，忽略点击（避免误弹登录窗）
@@ -90,6 +96,7 @@ export function AssistantGlobalEntry() {
       const next = !v;
       // 打开抽屉时，将 lastReadCount 重置为当前会话数（标记为已读）
       if (next) {
+        setHasOpened(true);
         setUnreadCount(0);
         // 异步获取当前会话数并保存
         fetch("/api/ai/chat/sessions?limit=1")
@@ -126,7 +133,10 @@ export function AssistantGlobalEntry() {
           setShowLoginModal(true);
           return;
         }
-        setOpen((v) => !v);
+        setOpen((v) => {
+          if (!v) setHasOpened(true);
+          return !v;
+        });
       }
     };
     window.addEventListener("keydown", handler);
@@ -139,7 +149,8 @@ export function AssistantGlobalEntry() {
   return (
     <>
       <AssistantFloatingButton open={open} onToggle={toggle} unreadCount={unreadCount} />
-      <AssistantDrawer open={open} onClose={close} />
+      {/* 首次打开后才挂载 AssistantDrawer，保留 slide-out 动画与会话状态；关闭时仅 translate-x 隐藏 */}
+      {hasOpened && <AssistantDrawer open={open} onClose={close} />}
 
       {/* 未登录引导弹窗 */}
       {showLoginModal && (

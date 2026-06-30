@@ -397,16 +397,17 @@ export async function testHermesConnection(
 }
 
 /**
- * 执行 Hermes 任务（通过 CLI，支持持久化 profile + 自动学习）
+ * 执行 Hermes 任务（优先 HTTP API，回退 CLI）
  *
- * 架构说明：
- * Hermes Dashboard 是管理界面（查看 sessions/config/skills），没有通用 prompt 执行 API。
- * 任务执行统一通过 CLI `hermes -z "prompt" --yolo --learn`，hermes 内部会自动调用工具完成任务。
+ * 架构说明（2026-06-30 修正）：
+ * Hermes Dashboard 提供 POST /api/execute 端点（dashboard.py:78-96），
+ * 可直接执行 prompt 任务并返回结果，复用 Dashboard 的会话状态和 LLM 配置。
+ * 优先调用 HTTP API（响应快、复用进程），失败时回退到 CLI 子进程。
  *
  * 执行流程：
- * 1. 预检 LLM 模型是否已配置（未配置时自动配置）
- * 2. 通过 CLI 执行任务（传入 userId 启用持久化 profile）
- * 3. 任务成功后，自动生成的 skill 会写入 profile/skills/ 目录，由 syncLearnedSkills 回写
+ * 1. 优先：HTTP POST {endpoint}/api/execute（本地 Dashboard 已启动时）
+ * 2. 回退：CLI `hermes -z "prompt" --yolo`（Dashboard 未启动时）
+ * 3. 预检 LLM 模型配置（CLI 路径需要，HTTP 路径由 Dashboard 自检）
  */
 export async function executeHermesTask(
   config: HermesConfig,
@@ -416,6 +417,40 @@ export async function executeHermesTask(
   const start = Date.now();
   const timeoutMs = (request.timeout ?? 120) * 1000;
 
+  // ===== 路径 A：优先调用本地 Dashboard HTTP API（复用已启动的 HermesAgent）=====
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), timeoutMs);
+    const res = await hermesFetch(config, "/api/execute", {
+      method: "POST",
+      body: JSON.stringify({
+        prompt: request.prompt,
+        timeout: request.timeout ?? 120,
+        mode: request.mode || "auto",
+        workDir: request.workDir,
+      }),
+      signal: controller.signal,
+    });
+    clearTimeout(timeout);
+
+    if (res.ok) {
+      const data = await res.json();
+      if (data.success !== false) {
+        return {
+          success: true,
+          output: data.output || data.result || JSON.stringify(data),
+          steps: data.steps,
+          durationMs: data.durationMs || Date.now() - start,
+        };
+      }
+      // HTTP 返回了业务错误，落入 CLI 回退
+    }
+    // HTTP 不可用（如 Dashboard 未启动），落入 CLI 回退
+  } catch {
+    // Dashboard 未启动或不可达，回退到 CLI
+  }
+
+  // ===== 路径 B：回退到 CLI 子进程执行 =====
   // 1. 预检：模型是否已配置（未配置会导致 "no final response was produced"）
   try {
     const check = await isHermesModelConfigured();
@@ -438,7 +473,6 @@ export async function executeHermesTask(
   }
 
   // 2. 通过 CLI 执行任务（传入 userId 启用持久化 profile）
-  // 注意：--learn 在部分 Hermes 版本中不支持，通过 syncLearnedSkills 扫描 skills 目录实现学习回写
   const args = ["-z", request.prompt, "--yolo"];
 
   const result = await execHermes(args, timeoutMs, userId);

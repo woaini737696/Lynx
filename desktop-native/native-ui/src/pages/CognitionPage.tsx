@@ -1,4 +1,5 @@
 import { useState, useMemo } from "react";
+import { useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   Brain,
@@ -9,6 +10,10 @@ import {
   Lightbulb,
   MessageSquare,
   Plus,
+  Edit3,
+  Copy,
+  X,
+  Save,
 } from "lucide-react";
 import { AnimatePresence, motion } from "framer-motion";
 import { cn, formatRelativeTime } from "@/lib/utils";
@@ -36,6 +41,7 @@ const SOURCE_ICON: Record<string, typeof Lightbulb> = {
 
 export function CognitionPage() {
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
   const [searchQuery, setSearchQuery] = useState("");
   const [filterType, setFilterType] = useState<"all" | CognitionType>("all");
 
@@ -48,6 +54,13 @@ export function CognitionPage() {
 
   // 详情查看
   const [selectedCognition, setSelectedCognition] = useState<Cognition | null>(null);
+
+  // 编辑模式
+  const [isEditing, setIsEditing] = useState(false);
+  const [editContent, setEditContent] = useState("");
+  const [editType, setEditType] = useState<CognitionType>("method");
+  const [editTags, setEditTags] = useState<string[]>([]);
+  const [editTagInput, setEditTagInput] = useState("");
 
   // 加载认知列表
   const { data: cognitions = [], isLoading } = useQuery<Cognition[]>({
@@ -104,6 +117,109 @@ export function CognitionPage() {
     },
     onError: (e: Error) => toast.error(e.message || "删除失败"),
   });
+
+  // 编辑 mutation
+  const editMutation = useMutation({
+    mutationFn: async (vars: { id: string; content: string; type: CognitionType; tags: string[] }) => {
+      return cloudApi.patch<{ success?: boolean; id?: string }>(`/api/cognitions/${vars.id}`, {
+        content: vars.content,
+        type: vars.type,
+        tags: vars.tags,
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["cognitions"] });
+      toast.success("认知已更新");
+      setIsEditing(false);
+      setSelectedCognition(null);
+    },
+    onError: (e: Error) => toast.error(e.message || "更新失败"),
+  });
+
+  // 转为技能 mutation
+  const toSkillMutation = useMutation({
+    mutationFn: async (content: string) => {
+      return cloudApi.post<{ id?: string; success?: boolean }>("/api/skills", {
+        name: content.slice(0, 20),
+        promptTemplate: content,
+        category: "general",
+        source: "from-cognition",
+      });
+    },
+    onSuccess: () => {
+      toast.success("已转为技能");
+    },
+    onError: (e: Error) => toast.error(e.message || "转为技能失败"),
+  });
+
+  // 进入编辑模式
+  const handleStartEdit = (c: Cognition) => {
+    setEditContent(c.content);
+    setEditType((c.type as CognitionType) || "method");
+    setEditTags(Array.isArray(c.tags) ? [...c.tags] : []);
+    setEditTagInput("");
+    setIsEditing(true);
+  };
+
+  // 取消编辑
+  const handleCancelEdit = () => {
+    setIsEditing(false);
+    setEditContent("");
+    setEditTags([]);
+    setEditTagInput("");
+  };
+
+  // 添加 / 移除标签
+  const handleAddEditTag = () => {
+    const v = editTagInput.trim();
+    if (!v) return;
+    if (!editTags.includes(v)) {
+      setEditTags((prev) => [...prev, v]);
+    }
+    setEditTagInput("");
+  };
+
+  const handleRemoveEditTag = (tag: string) => {
+    setEditTags((prev) => prev.filter((t) => t !== tag));
+  };
+
+  // 保存编辑
+  const handleSaveEdit = () => {
+    if (!selectedCognition) return;
+    const content = editContent.trim();
+    if (!content) {
+      toast.error("内容不能为空");
+      return;
+    }
+    editMutation.mutate({
+      id: selectedCognition.id,
+      content,
+      type: editType,
+      tags: editTags,
+    });
+  };
+
+  // 发送到 AI 助理
+  const handleSendToAssistant = (content: string) => {
+    navigate("/ai/assistant", {
+      state: { initialPrompt: `请基于以下认知帮我分析：\n\n${content}` },
+    });
+  };
+
+  // 复制内容
+  const handleCopyContent = async (content: string) => {
+    try {
+      await navigator.clipboard.writeText(content);
+      toast.success("已复制到剪贴板");
+    } catch {
+      toast.error("复制失败");
+    }
+  };
+
+  // 转为技能
+  const handleConvertToSkill = (content: string) => {
+    toSkillMutation.mutate(content);
+  };
 
   // 类型计数
   const typeCounts = useMemo(() => {
@@ -408,13 +524,114 @@ export function CognitionPage() {
       {/* 详情查看弹窗 */}
       <Modal
         open={!!selectedCognition}
-        onClose={() => setSelectedCognition(null)}
-        title="认知详情"
+        onClose={() => {
+          setSelectedCognition(null);
+          handleCancelEdit();
+        }}
+        title={isEditing ? "编辑认知" : "认知详情"}
         size="lg"
       >
         {selectedCognition && (() => {
           const meta = COGNITION_TYPE_META[selectedCognition.type] || COGNITION_TYPE_META.method;
           const SourceIcon = SOURCE_ICON[selectedCognition.source] || Sparkles;
+
+          // 编辑模式：表单
+          if (isEditing) {
+            return (
+              <div className="space-y-4">
+                {/* 类型 */}
+                <div>
+                  <label className="text-xs font-medium text-foreground">类型</label>
+                  <select
+                    value={editType}
+                    onChange={(e) => setEditType(e.target.value as CognitionType)}
+                    className="mt-1 h-9 w-full rounded-lg border border-border/60 bg-background/40 px-3 text-sm outline-none focus:ring-2 focus:ring-cognition/20"
+                  >
+                    {(Object.keys(COGNITION_TYPE_META) as CognitionType[]).map((key) => (
+                      <option key={key} value={key}>
+                        {COGNITION_TYPE_META[key].label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* 内容 */}
+                <div>
+                  <label className="text-xs font-medium text-foreground">内容</label>
+                  <textarea
+                    value={editContent}
+                    onChange={(e) => setEditContent(e.target.value)}
+                    rows={8}
+                    placeholder="编辑认知内容..."
+                    className="mt-1 w-full resize-none rounded-xl border border-border/60 bg-background/40 p-3 text-sm leading-relaxed outline-none transition-colors placeholder:text-muted-foreground/60 focus:border-cognition/40 focus:ring-2 focus:ring-cognition/20"
+                    autoFocus
+                  />
+                  <div className="mt-1 text-[11px] text-muted-foreground">
+                    {editContent.length} 字符
+                  </div>
+                </div>
+
+                {/* 标签 */}
+                <div>
+                  <label className="text-xs font-medium text-foreground">标签</label>
+                  <div className="mt-1 flex flex-wrap items-center gap-1.5">
+                    {editTags.map((tag) => (
+                      <span
+                        key={tag}
+                        className="flex items-center gap-1 rounded-md bg-cognition/10 px-2 py-0.5 text-[11px] text-cognition"
+                      >
+                        {tag}
+                        <button
+                          onClick={() => handleRemoveEditTag(tag)}
+                          className="hover:text-destructive"
+                        >
+                          <X className="h-2.5 w-2.5" />
+                        </button>
+                      </span>
+                    ))}
+                    <input
+                      type="text"
+                      value={editTagInput}
+                      onChange={(e) => setEditTagInput(e.target.value)}
+                      placeholder="输入标签后按 Enter"
+                      className="h-7 flex-1 min-w-[120px] rounded-md border border-border/60 bg-background/40 px-2 text-xs outline-none focus:ring-1 focus:ring-cognition/20"
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          e.preventDefault();
+                          handleAddEditTag();
+                        }
+                      }}
+                    />
+                  </div>
+                </div>
+
+                {/* 底部：取消 + 保存 */}
+                <div className="flex items-center justify-end gap-2 border-t border-border/60 pt-3">
+                  <button
+                    onClick={handleCancelEdit}
+                    disabled={editMutation.isPending}
+                    className="btn-glass flex h-8 items-center px-3 text-xs disabled:opacity-50"
+                  >
+                    取消
+                  </button>
+                  <button
+                    onClick={handleSaveEdit}
+                    disabled={editMutation.isPending || !editContent.trim()}
+                    className="btn-primary-glass flex h-8 items-center gap-1.5 px-3 text-xs disabled:opacity-50"
+                  >
+                    {editMutation.isPending ? (
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    ) : (
+                      <Save className="h-3.5 w-3.5" />
+                    )}
+                    保存
+                  </button>
+                </div>
+              </div>
+            );
+          }
+
+          // 查看模式
           return (
             <div className="space-y-4">
               {/* 头部：类型标签 + 来源 + 相对时间 */}
@@ -474,13 +691,53 @@ export function CognitionPage() {
                 </div>
               )}
 
-              {/* 底部：关闭 + 删除 */}
+              {/* 使用区：发送到 AI 助理 + 复制内容 + 转为技能 */}
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  onClick={() => handleSendToAssistant(selectedCognition.content)}
+                  className="btn-glass flex h-8 items-center gap-1.5 px-3 text-xs"
+                >
+                  <MessageSquare className="h-3.5 w-3.5" />
+                  发送到 AI 助理
+                </button>
+                <button
+                  onClick={() => handleCopyContent(selectedCognition.content)}
+                  className="btn-glass flex h-8 items-center gap-1.5 px-3 text-xs"
+                >
+                  <Copy className="h-3.5 w-3.5" />
+                  复制内容
+                </button>
+                <button
+                  onClick={() => handleConvertToSkill(selectedCognition.content)}
+                  disabled={toSkillMutation.isPending}
+                  className="btn-glass flex h-8 items-center gap-1.5 px-3 text-xs disabled:opacity-50"
+                >
+                  {toSkillMutation.isPending ? (
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  ) : (
+                    <Sparkles className="h-3.5 w-3.5" />
+                  )}
+                  转为技能
+                </button>
+              </div>
+
+              {/* 底部：关闭 + 编辑 + 删除 */}
               <div className="flex items-center justify-end gap-2 border-t border-border/60 pt-3">
                 <button
-                  onClick={() => setSelectedCognition(null)}
+                  onClick={() => {
+                    setSelectedCognition(null);
+                    handleCancelEdit();
+                  }}
                   className="btn-glass flex h-8 items-center px-3 text-xs"
                 >
                   关闭
+                </button>
+                <button
+                  onClick={() => handleStartEdit(selectedCognition)}
+                  className="btn-glass flex h-8 items-center gap-1.5 px-3 text-xs"
+                >
+                  <Edit3 className="h-3.5 w-3.5" />
+                  编辑
                 </button>
                 <button
                   onClick={() => {

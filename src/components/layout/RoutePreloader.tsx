@@ -1,72 +1,80 @@
 "use client";
 
 import { useEffect } from "react";
-import { useRouter } from "next/navigation";
-
-const PRELOAD_ROUTES = [
-  "/",
-  "/board",
-  "/inbox",
-  "/converge",
-  "/graveyard",
-  "/assets",
-  "/cognition",
-  "/memory",
-  "/settings",
-  "/ai/workspace",
-];
-
-// 预先 import 页面模块，触发 webpack/vite 编译并缓存 chunk，
-// 在 dev 模式下能显著降低首次点击的延迟。
-const PAGE_MODULES: Record<string, () => Promise<unknown>> = {
-  "/": () => import("@/app/page"),
-  "/board": () => import("@/app/board/page"),
-  "/inbox": () => import("@/app/inbox/page"),
-  "/converge": () => import("@/app/converge/page"),
-  "/graveyard": () => import("@/app/graveyard/page"),
-  "/assets": () => import("@/app/assets/page"),
-  "/cognition": () => import("@/app/cognition/page"),
-  "/memory": () => import("@/app/memory/page"),
-  "/settings": () => import("@/app/settings/page"),
-  "/ai/workspace": () => import("@/app/ai/workspace/page"),
-};
+import { usePathname, useRouter } from "next/navigation";
 
 /**
- * 全局路由预加载
- * 应用启动后空闲时预热核心页面，减少首次点击时的 chunk 加载/编译时间
+ * 全局路由预加载（轻量版）
+ *
+ * 改造目标：
+ * 1. 不再启动 300ms 后预热 10 个页面（首屏掉帧 + 浪费带宽）
+ * 2. 仅保留 top 3 高频路由的 router.prefetch（不强制 import 模块）
+ * 3. 真正的按需预热：导航链接 hover/visible 时由 Navigation 组件各自 prefetch
+ *
+ * 保留：路由切换后空闲时 prefetch 下一个最可能的页面（首页 → board/inbox）
  */
+const HIGH_PRIORITY_ROUTES = ["/", "/inbox", "/board"];
+
 export function RoutePreloader() {
   const router = useRouter();
+  const pathname = usePathname();
 
+  // 应用启动后空闲时 prefetch top 3 路由（仅 router.prefetch，不强制 import 模块）
   useEffect(() => {
     if (typeof window === "undefined") return;
 
-    let i = 0;
     const step = () => {
-      if (i >= PRELOAD_ROUTES.length) return;
-      const url = PRELOAD_ROUTES[i++];
-      try {
-        router.prefetch(url);
-      } catch {
-        // ignore
-      }
-      // 同时 import 页面模块，进一步降低 dev/生产首次跳转延迟
-      try {
-        PAGE_MODULES[url]?.().catch(() => {});
-      } catch {
-        // ignore
-      }
-      // 错开预加载，避免阻塞首屏渲染
-      if (typeof window.requestIdleCallback === "function") {
-        window.requestIdleCallback(step, { timeout: 500 });
-      } else {
-        setTimeout(step, 60);
+      for (const url of HIGH_PRIORITY_ROUTES) {
+        try {
+          router.prefetch(url);
+        } catch {
+          // ignore
+        }
       }
     };
 
-    const timer = setTimeout(step, 300);
-    return () => clearTimeout(timer);
+    // 使用 requestIdleCallback 在浏览器空闲时执行，不阻塞首屏
+    if (typeof window.requestIdleCallback === "function") {
+      window.requestIdleCallback(step, { timeout: 2000 });
+    } else {
+      const t = setTimeout(step, 1500);
+      return () => clearTimeout(t);
+    }
   }, [router]);
+
+  // 路由切换后，预取相邻候选页面（基于当前路径）
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const candidates: string[] = [];
+    if (pathname === "/") {
+      candidates.push("/inbox", "/board");
+    } else if (pathname === "/inbox") {
+      candidates.push("/", "/board");
+    } else if (pathname === "/board") {
+      candidates.push("/inbox", "/");
+    } else {
+      // 其他页面：仅预取首页（最高频返回路径）
+      candidates.push("/");
+    }
+
+    const idle = () => {
+      for (const url of candidates) {
+        try {
+          router.prefetch(url);
+        } catch {
+          // ignore
+        }
+      }
+    };
+
+    if (typeof window.requestIdleCallback === "function") {
+      window.requestIdleCallback(idle, { timeout: 2000 });
+    } else {
+      const t = setTimeout(idle, 800);
+      return () => clearTimeout(t);
+    }
+  }, [pathname, router]);
 
   return null;
 }

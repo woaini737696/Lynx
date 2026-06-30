@@ -9,6 +9,8 @@
 
 | 迭代 | 日期 | 任务概要 |
 |------|------|----------|
+| [迭代 76](#迭代-76---2026-06-30) | 2026-06-30 | Web端性能优化4阶段全量推进：阶段1拆全局重包(AssistantDrawer dynamic+RoutePreloader裁到top3)+阶段2降渲染成本(去background-attachment:fixed+contain/isolation+prefers-reduced-transparency)+阶段3拆巨石(RichTextEditor/3个settings tab组件dynamic)+阶段4统一数据层(usePollWhenVisible hook+应用AssistantGlobalEntry/CaptureBar全局轮询) |
+| [迭代 75](#迭代-75---2026-06-30) | 2026-06-30 | 桌面端v1.0.22六项问题修复：HermesAgent调用改HTTP API优先(CLI回退)+LynxAgent测试按钮+通知设置重构(localStorage+toast替代Web Notification)+飞书任务路径修正(/api/lark-tasks)+AI工作流执行历史UI+认知库编辑/使用功能(PATCH接口+发送助理/转技能) |
 | [迭代 74](#迭代-74---2026-06-30) | 2026-06-30 | 桌面端v1.0.21两项核心修复：hermesExecute工具调用走PcSession+WS网关远程执行(不再检查HermesConfig.status)+Web端HermesAgent独立安装恢复(浏览器分支调API非阻断)+install路由自动安装回退 |
 | [迭代 73](#迭代-73---2026-06-30) | 2026-06-30 | 桌面端v1.0.20根因修复：桌面端本地前端AppLayout登录后自动启动WS(非Web端DesktopBridge)+HermesPanel安装/启动按钮同时连接WS(非仅Dashboard)+Web端浏览器分支提示使用桌面端(不再服务器pip install)+hermes-client.ts文件大小检查1MB→1KB+NotificationSettingsPage.tsx泛型语法修复 |
 | [迭代 72](#迭代-72---2026-06-30) | 2026-06-30 | 桌面端v1.0.20六项核心修复：AI助理P0 bug(createSession解构+头像URL+抽屉状态)+3D记忆图谱重写(单次fetch/alpha衰减)+认知库点击详情+AI工作流拖拽(dragDropEnabled)+LynxAgent控制台闪烁+重复安装(CREATE_NO_WINDOW+refetch暂停)+灵感收敛/飞书任务/通知设置三页面补齐 |
@@ -115,6 +117,147 @@
 
 ### Commit hash
 `4181fb4d`
+
+---
+
+## 迭代 76 - 2026-06-30
+
+### 完成内容
+
+#### 阶段1：拆全局重包（首屏 JS 体积下降）
+- **AssistantGlobalEntry**：`src/components/ai/AssistantGlobalEntry.tsx`
+  - AssistantDrawer 改为 `next/dynamic` 懒加载 + ssr:false，剥离 AssistantChat（1577 行）+ 语音模块（VoiceVAD/StreamASR/StreamTTS/BackchannelPlayer）出首屏 chunk
+  - 新增 `hasOpened` 状态：首次打开才挂载 AssistantDrawer，保留 slide-out 动画与会话状态；关闭时仅 translate-x 隐藏
+- **RoutePreloader**：`src/components/layout/RoutePreloader.tsx` 重写
+  - PRELOAD_ROUTES 从 10 个裁剪到 top 3 高频路由（`/`, `/inbox`, `/board`）
+  - 移除双重触发（保留 router.prefetch，移除强制 import 模块）
+  - 改为 `requestIdleCallback` 空闲预热（不阻塞首屏）+ 路由切换后基于当前路径智能预取相邻页面
+
+#### 阶段2：降渲染成本（滚动帧率回到 60fps）
+- **globals.css**：`src/app/globals.css`
+  - 移除 `body` 的 `background-attachment: fixed`（强制整页重绘的根因）
+  - 为 `.ios-glass` / `.glass-card` / `.glass-modal` 添加 `contain: layout paint style` + `isolation: isolate`，限制 backdrop-filter 合成范围
+  - 新增 `@media (prefers-reduced-transparency: reduce)` 媒体查询：用户系统开启"减少透明度"时自动降级为不透明背景，关闭所有 backdrop-filter（macOS 辅助功能 / Windows 视觉效果设置）
+
+#### 阶段3：拆巨石（单页 chunk 体积下降）
+- **skills/page.tsx**：`src/app/skills/page.tsx`
+  - RichTextEditor（TipTap）改 `next/dynamic` 懒加载 + ssr:false + loading 占位
+  - 仅在用户打开"新建/编辑"弹窗时才下载 TipTap chunk
+- **settings/page.tsx**：`src/app/settings/page.tsx`
+  - 3 个外部 tab 组件（UserAIKeyConfig / DesktopHermesSection / AuthConfigSection）改 `next/dynamic` 懒加载
+  - `visitedTabs` 默认值从 `["ai", "auth"]` 改为 `["ai"]`，其他 tab 点击后才加载对应 chunk
+  - 配合 loading 占位（LoadingState）保证 UX
+
+#### 阶段4：统一数据层（请求减少 + 缓存复用）
+- **新 hook**：`src/lib/use-poll-when-visible.ts`
+  - `usePollWhenVisible(fn, intervalMs, options)` 基于 `document.visibilityState` 的轮询 Hook
+  - tab 隐藏时暂停轮询，重新可见时立即补一次 + 恢复轮询
+  - 卸载时清理定时器；options.immediate 控制是否首次立即执行；options.enabled 控制启停
+- **应用 AssistantGlobalEntry 全局未读轮询**：30s 间隔改为 usePollWhenVisible，tab 不可见时不发请求
+- **应用 CaptureBar 全局灵感数轮询**：30s 间隔改为 usePollWhenVisible，tab 不可见时不发请求
+
+### 自测验证
+- TypeScript 编译检查：`npx tsc --noEmit` 0 错误
+- Next.js 构建：`npm run build` 成功，exit code 0
+- 构建产物体积：
+  - `/skills` 19.3 kB（RichTextEditor 已拆出）
+  - `/settings` 17.1 kB（3 个 tab 组件已拆出）
+  - 共享 JS 87.6 kB
+- 用户开启系统"减少透明度"时自动降级（无 backdrop-filter 开销）
+
+### 修改文件清单
+- `src/components/ai/AssistantGlobalEntry.tsx` — dynamic + hasOpened + usePollWhenVisible
+- `src/components/ai/AssistantDrawer.tsx` — 未修改（dynamic 由父组件控制）
+- `src/components/layout/RoutePreloader.tsx` — 重写为轻量版
+- `src/components/layout/CaptureBar.tsx` — setInterval → usePollWhenVisible
+- `src/app/globals.css` — 去 background-attachment:fixed + contain/isolation + prefers-reduced-transparency
+- `src/app/skills/page.tsx` — RichTextEditor → dynamic
+- `src/app/settings/page.tsx` — 3 个 tab 组件 → dynamic + visitedTabs 默认值调整
+- `src/lib/use-poll-when-visible.ts` — 新增 hook
+- `DEV_LOG.md` — 开发日志更新
+
+### 性能预期
+- 首屏 JS：AssistantChat + 语音模块 + RichTextEditor + 3 个 settings tab 组件全部剥离出首屏 chunk，预估下降 30-45%
+- 滚动帧率：移除 background-attachment:fixed + contain 限制重绘范围 + prefers-reduced-transparency 降级路径，回到 60fps
+- 后台 tab：未读数 + 灵感数轮询暂停，节省 CPU/网络
+
+---
+
+## 迭代 75 - 2026-06-30
+
+### 完成内容
+
+#### 1. HermesAgent 调用问题修复（HTTP API 优先）
+- **根因**：`executeHermesTask`（hermes-client.ts）仅有 CLI 子进程执行路径，从不调用本地 Dashboard 的 HTTP API（POST /api/execute）。Dashboard 已在本地 9119 端口运行并提供执行端点，但 AI 工具调用绕过了它，导致"从镜像加载"（实际走云端 CLI spawn）
+- **修复**：`src/lib/hermes-client.ts` `executeHermesTask` 新增路径 A（HTTP API 优先）
+  - 路径 A：POST `http://127.0.0.1:9119/api/execute`，复用 Dashboard 会话状态和 LLM 配置，超时控制 via AbortController
+  - 路径 B：CLI 子进程执行作为回退（Dashboard 未启动或不可达时）
+  - 返回值统一：`{ success, output, steps, durationMs }`
+
+#### 2. LynxAgent 测试功能
+- **问题**：LynxAgent 配置页启动服务后无测试按钮，无法验证 Agent 可正常运行
+- **修复**：`desktop-native/native-ui/src/components/agent/HermesPanel.tsx`
+  - 新增 `testing` state + `handleTestRun` 函数
+  - 运行中状态显示"测试运行"按钮
+  - 调用 `POST http://127.0.0.1:9119/api/execute`，prompt: `你好，请回复"测试成功"`
+  - toast 提示测试结果（成功/失败/超时）
+
+#### 3. 通知设置 404 + 权限问题修复
+- **根因**：Tauri WebView2 不支持 Web Notification API（`Notification.requestPermission`），导致"桌面通知权限被拒绝"；多个子页面 404
+- **修复**：`desktop-native/native-ui/src/pages/NotificationSettingsPage.tsx` 重写
+  - 移除 Web Notification API 调用
+  - 桌面端用 toast 代替系统通知
+  - 设置保存到 localStorage（key: `lynnhub:notification-settings`）
+  - 飞书通知测试调用 `/api/notify-feishu`
+
+#### 4. 飞书任务 404 修复
+- **根因**：`LarkTasksPage.tsx` 调用 `/api/lark/tasks`（斜杠分层），但实际路由是 `/api/lark-tasks`（连字符）
+- **修复**：`desktop-native/native-ui/src/pages/LarkTasksPage.tsx` 路径修正 `/api/lark/tasks` → `/api/lark-tasks`
+
+#### 5. AI 工作流执行历史查看
+- **问题**：AI 工作流运行后无结果查看入口，后端已有 `/api/ai/flows/[id]/executions` 但桌面端未调用
+- **修复**：`desktop-native/native-ui/src/pages/AIFlowsPage.tsx`
+  - 新增 `ExecutionHistoryItem` 类型 + 5 个 history 相关 useState
+  - `fetchHistory(flowId)` 调用 `/api/ai/flows/${flowId}/executions`
+  - 历史 Modal：状态图标 + 时间 + 耗时 + 输出摘要 + 展开详情
+  - 列表模式和画布模式都添加"历史"按钮
+
+#### 6. 认知库编辑和使用功能
+- **问题**：认知库只能新增和查看，无法编辑，也无法将认知用于 AI 助理
+- **修复**：
+  - 后端 `src/app/api/cognitions/[id]/route.ts` 新增 PATCH handler
+    - 支持编辑 content/type/tags
+    - 内容变化时同步重算 Memory embedding（先删旧 Memory 再写新 Memory）
+    - 权限校验：admin 可编辑所有，普通用户仅编辑自己的
+  - 前端 `desktop-native/native-ui/src/pages/CognitionPage.tsx`
+    - 详情弹窗新增"编辑"按钮（切换编辑模式：content textarea + type 下拉 + tags 输入）
+    - "发送到 AI 助理"（navigate 到 `/ai/assistant` 传 initialPrompt）
+    - "复制内容"
+    - "转为技能"（POST `/api/skills`）
+
+### 自测验证
+- TypeScript 编译检查：Web 端 0 错误，桌面端 0 错误
+- API 路由验证（dev server 运行时）：
+  - `GET /api/cognitions` → 401（路由存在，未登录正确拦截）
+  - `PATCH /api/cognitions/[id]` → 401（路由存在，requirePermission 工作正常）
+  - `GET /api/lark-tasks` → 401（404 已修复）
+  - `GET /api/ai/flows/[id]/executions` → 401（路由存在）
+
+### 修改文件清单
+- `src/lib/hermes-client.ts` — executeHermesTask 新增 HTTP API 优先路径
+- `src/app/api/cognitions/[id]/route.ts` — 新增 PATCH handler
+- `desktop-native/native-ui/src/components/agent/HermesPanel.tsx` — 新增测试运行功能
+- `desktop-native/native-ui/src/pages/NotificationSettingsPage.tsx` — 重写通知设置
+- `desktop-native/native-ui/src/pages/LarkTasksPage.tsx` — 飞书任务路径修正
+- `desktop-native/native-ui/src/pages/AIFlowsPage.tsx` — 新增执行历史 UI
+- `desktop-native/native-ui/src/pages/CognitionPage.tsx` — 新增编辑/使用功能
+- `desktop-native/native-ui/package.json` — 版本号 1.0.21 → 1.0.22
+- `desktop-native/src-tauri/Cargo.toml` — 版本号 1.0.21 → 1.0.22
+- `desktop-native/src-tauri/tauri.conf.json` — 版本号 1.0.21 → 1.0.22
+- `DEV_LOG.md` — 开发日志更新
+
+### 安装包
+- `desktop-native/dist/Lynx_1.0.22_x64-setup.exe`
 
 ---
 

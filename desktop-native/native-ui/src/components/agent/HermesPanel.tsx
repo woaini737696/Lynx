@@ -63,6 +63,8 @@ export function HermesPanel() {
   const [isDashboardRunning, setIsDashboardRunning] = useState(false);
   // 安装进行中标志：用于暂停 refetch，避免与安装进程竞态导致重复触发安装或控制台闪烁
   const [isInstalling, setIsInstalling] = useState(false);
+  // 测试运行中标志：调用本地 HermesAgent HTTP API 验证可用性
+  const [testing, setTesting] = useState(false);
 
   // 本地检测 AI 环境（通过 Tauri 命令，不走云端 API）
   // 安装期间暂停 refetch + 禁用查询，避免 detect_ai_env 调用子进程导致控制台闪烁
@@ -250,6 +252,48 @@ export function HermesPanel() {
     await invoke("open_external", { url: endpoint });
   };
 
+  // 测试运行：调用本地 HermesAgent HTTP API 执行一个简单 prompt，验证 Agent 可用性
+  const handleTestRun = async () => {
+    setTesting(true);
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 35000);
+    try {
+      const res = await fetch(`http://127.0.0.1:${DASHBOARD_PORT}/api/execute`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ prompt: '你好，请回复"测试成功"', timeout: 30 }),
+        signal: ctrl.signal,
+      });
+      clearTimeout(timer);
+      if (!res.ok) {
+        toast.error(`测试失败：HTTP ${res.status}`);
+        return;
+      }
+      const data = (await res.json().catch(() => ({}))) as {
+        success?: boolean;
+        output?: string;
+        result?: string;
+        message?: string;
+        error?: string;
+      };
+      const output = (data.output || data.result || data.message || "").trim();
+      if (data.success === false || data.error) {
+        toast.error(`测试失败：${data.error || output || "未知错误"}`);
+      } else {
+        toast.success(`测试成功${output ? `：${output}` : ""}`);
+      }
+    } catch (e) {
+      clearTimeout(timer);
+      if (e instanceof DOMException && e.name === "AbortError") {
+        toast.error("测试失败：请求超时");
+      } else {
+        toast.error(e instanceof Error ? `测试失败：${e.message}` : "测试失败");
+      }
+    } finally {
+      setTesting(false);
+    }
+  };
+
   const getAgentState = (): AgentState => {
     if (isLoading || !status) return "unknown";
     if (!status.hermesAgent) return "not_installed";
@@ -344,6 +388,15 @@ export function HermesPanel() {
               >
                 {stopMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Power className="h-4 w-4" />}
                 停止
+              </button>
+              <button
+                onClick={handleTestRun}
+                disabled={testing}
+                className="flex h-10 items-center justify-center gap-1.5 rounded-xl border border-primary/30 bg-primary/10 px-4 text-sm font-medium text-primary transition-colors hover:bg-primary/20 disabled:opacity-50"
+                title="执行一个简单测试任务，验证 HermesAgent 是否正常工作"
+              >
+                {testing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Terminal className="h-4 w-4" />}
+                {testing ? "测试中..." : "测试运行"}
               </button>
               <button
                 onClick={handleOpenDashboard}
