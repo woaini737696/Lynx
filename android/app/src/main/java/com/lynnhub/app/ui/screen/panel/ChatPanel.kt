@@ -230,9 +230,8 @@ fun ChatPanel(
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .systemBarsPadding()
                 .imePadding()
-                .padding(start = 22.dp, end = 22.dp, top = 66.dp, bottom = 110.dp)
+                .padding(start = 22.dp, end = 22.dp, top = 16.dp, bottom = 24.dp)
         ) {
             PanelHeader(title = "Lynx", onBack = onBack, swipeHint = "← 右滑返回")
             Spacer(modifier = Modifier.height(0.dp))

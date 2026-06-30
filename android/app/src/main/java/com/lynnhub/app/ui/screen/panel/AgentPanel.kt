@@ -161,8 +161,7 @@ fun AgentPanel(
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .systemBarsPadding()
-                .padding(start = 22.dp, end = 22.dp, top = 66.dp, bottom = 110.dp)
+                .padding(start = 22.dp, end = 22.dp, top = 16.dp, bottom = 24.dp)
         ) {
             PanelHeader(title = "Agent", onBack = onBack, swipeHint = "→ 左滑返回")
             Spacer(modifier = Modifier.height(0.dp))

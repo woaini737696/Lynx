@@ -82,10 +82,9 @@ private fun SubPageScaffold(
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .systemBarsPadding()
                 .imePadding()
                 .verticalScroll(rememberScrollState())
-                .padding(start = 22.dp, end = 22.dp, top = 66.dp, bottom = 110.dp)
+                .padding(start = 22.dp, end = 22.dp, top = 16.dp, bottom = 24.dp)
         ) {
             // 标题栏（按视觉稿：panel-title 19px/700）
             Row(verticalAlignment = Alignment.CenterVertically) {

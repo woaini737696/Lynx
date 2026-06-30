@@ -101,7 +101,6 @@ fun HomeScreen(
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .systemBarsPadding()
                 .padding(horizontal = 22.dp)
         ) {
             Spacer(modifier = Modifier.height(16.dp))
@@ -137,12 +136,12 @@ fun HomeScreen(
             )
         }
 
-        // 右下角灵感 FAB（按视觉稿：right 22dp, bottom 132dp）
+        // 右下角灵感 FAB（吸附在导航栏上方，留 12dp 间距）
         IdeaFab(
             onClick = onOpenIdea,
             modifier = Modifier
                 .align(Alignment.BottomEnd)
-                .padding(end = 22.dp, bottom = 132.dp)
+                .padding(end = 22.dp, bottom = 12.dp)
         )
     }
 }

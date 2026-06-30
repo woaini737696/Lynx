@@ -86,7 +86,6 @@ fun SettingsScreen(
                 Column(
                     modifier = Modifier
                         .fillMaxSize()
-                        .systemBarsPadding()
                         .verticalScroll(rememberScrollState())
                         .padding(horizontal = 22.dp)
                 ) {

@@ -58,7 +58,6 @@ fun LoginScreen(
         modifier = Modifier
             .fillMaxSize()
             .background(Void)
-            .systemBarsPadding()
             .imePadding(),
         contentAlignment = Alignment.Center
     ) {
