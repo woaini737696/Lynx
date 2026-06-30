@@ -17,8 +17,8 @@
     --primary-soft: 217 90% 95%;
     --secondary: 220 18% 96%;
     --secondary-foreground: 222 47% 9%;
-    --muted: 222 18% 45%;             /* #5d6b87 */
-    --muted-foreground: 222 18% 45%;
+    --muted: 220 18% 95%;             /* #eef0f4 浅灰背景，与 --background 协调 */
+    --muted-foreground: 222 18% 45%;  /* #5d6b87 中等灰文字，与 --muted 形成对比 */
     /* 强调色：深青 #0088a3 */
     --accent: 190 100% 32%;
     --accent-foreground: 0 0% 100%;
@@ -57,8 +57,8 @@
     --primary-soft: 217 60% 16%;
     --secondary: 220 35% 13%;
     --secondary-foreground: 220 20% 96%;
-    --muted: 220 20% 60%;             /* #8b9ab8 */
-    --muted-foreground: 220 20% 65%;
+    --muted: 220 20% 18%;              /* 深色背景 #262b36 */
+    --muted-foreground: 220 20% 65%;  /* 浅灰文字，与 --muted 形成对比 */
     /* 强调色：霓虹青 #06b6d4 */
     --accent: 189 90% 43%;
     --accent-foreground: 220 70% 4%;

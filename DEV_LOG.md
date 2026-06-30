@@ -9,6 +9,7 @@
 
 | 迭代 | 日期 | 任务概要 |
 |------|------|----------|
+| [迭代 68](#迭代-68---2026-06-30) | 2026-06-30 | HermesAgent改回pip install+AI巡检页灰色块清理(--muted定义修正)+远程操控WS路由与认证修复+Trae Solo卡顿诊断 |
 | [迭代 67](#迭代-67---2026-06-30) | 2026-06-30 | 桌面端v1.0.16六项修复：SkillsPage防崩溃+闪电输入白色毛玻璃+灵感通知同步Web端+HermesAgent多镜像源安装+钱包会员设置防御性处理+去除Ultra档位 |
 | [迭代 66](#迭代-66---2026-06-30) | 2026-06-30 | 8项Web端功能崩溃修复：HermesAgent pip安装恢复+ASR/TTS配置显示+Inbox/记忆图谱/技能页面崩溃修复+disabled按钮样式优化+对话资产测试数据 |
 | [迭代 65](#迭代-65---2026-06-30) | 2026-06-30 | 部署失败紧急修复：cp -r改cp -a正确复制隐藏文件+PM2彻底重启+端到端验证全部功能恢复 |
@@ -108,6 +109,61 @@
 
 ### Commit hash
 `4181fb4d`
+
+---
+
+## 迭代 68 - 2026-06-30
+
+### 任务概要
+4 项问题修复：HermesAgent 安装方式纠正（PyPI 包确实存在）+ AI 巡检页灰色块彻底清理 + 远程操控 WS 路由与认证协议修复 + Trae Solo 卡顿诊断与清理脚本。
+
+### 修复内容
+
+#### 1. HermesAgent 安装方式纠正（pip install hermes-agent）
+- **问题**：迭代 67 末尾把安装方式改为 `pip install git+https://github.com/NousResearch/hermes-agent.git`，但 git clone + 编译失败（setuptools 太旧：`ModuleNotFoundError: No module named 'setuptools.command.build'`），官方 install.sh 也失败
+- **根因**：误判"PyPI 上不存在 hermes-agent 包"。实际上 Hermes v0.14+（2026-W21）已正式发布到 PyPI，纯 pip 安装本体几秒内完成
+- **旁证**：桌面端 Rust 安装器（`desktop-native/src-tauri/src/installer.rs:144-173`）一直用 `pip install hermes-agent -i 清华源`，从未改过；使用文档 `docs/hermes-usage-guide.md:39` 也一直写 `pip install hermes-agent`
+- **修复**：`src/lib/hermes-client.ts` 的 `installHermesAgent` 改回 4 镜像源依次回退（清华 → 阿里 → 腾讯 → 官方 PyPI），清除 `PIP_INDEX_URL`/`PIP_EXTRA_INDEX_URL` 环境变量，3 分钟超时
+
+#### 2. AI 巡检页灰色块彻底清理（iOS26 液态玻璃浅色风格）
+- **问题**：AI 巡检页存在大量灰色块，文字看不清
+- **根因**：`src/app/globals.css` 中 `--muted` 与 `--muted-foreground` 都设为 `222 18% 45%`（同一个值），导致所有 `bg-muted` + `text-muted-foreground` 组合变成"灰底灰字"
+- **修复 1**：`globals.css` `--muted` 改为 `220 18% 95%`（浅灰背景 #eef0f4），`--muted-foreground` 保持 `222 18% 45%`（中等灰文字），形成对比；`.dark` 块同步修正
+- **修复 2**：`src/app/settings/patrol/page.tsx` 14 处 `bg-muted*` 灰色块替换为液态玻璃组件：
+  - 3 处数量标签：`bg-muted text-muted-foreground` → `bg-primary/10 text-primary`（品牌色浅底）
+  - 5 处空状态：`bg-muted/30` → `bg-background/60 backdrop-blur-sm`（半透明背景）
+  - 2 处消息气泡：`bg-muted` → `ios-glass-sm`（现成的玻璃组件类）
+  - 2 处小标签：`bg-muted` → `ios-glass-sm border-border/40`
+  - 1 处模式切换栏：`bg-muted/20` → `bg-background/40`
+  - 1 处未命中结果：`bg-muted/20` → `bg-background/40`
+
+#### 3. 远程操控 WS 路由与认证协议修复
+- **问题**：桌面端明明在线，Web 端显示"没有在线的 PC 设备"
+- **根因（双重 bug）**：
+  1. **Nginx 路由不通**：`deploy/nginx/lynxdo.conf` 和 `lynxdo-8443.conf` 都把 `/api/ws/agent` 当作普通 HTTP 反代到 Next.js:5176，而 Next.js 不处理 WS Upgrade，ws-gateway:3001 从没收到过桌面端连接
+  2. **认证协议不匹配**：ws-gateway 在 `connection` 事件里立即从 URL query 读 token，但桌面端把 token 放在首条 `register` 消息体内发送；且网关 `authenticate()` 只认 `user:<userId>` 前缀，桌面端传的是 JWT 三段式
+- **修复 1**：`deploy/nginx/lynxdo.conf` 和 `lynxdo-8443.conf` 在 `location /` 之前新增 `location /api/ws/agent { proxy_pass http://127.0.0.1:3001; ... }`，3600 秒超时适配长连接
+- **修复 2**：`src/lib/ws-gateway.ts` `authenticate()` 支持 JWT 三段式（动态 import `verifyToken`，拿 `payload.id`）；`connection` 事件改为不在 URL 读 token，等收到 `register` 消息时再从消息体读 token 鉴权，10 秒超时
+- **服务器配置同步**：`inject_nginx_ws.py` 脚本通过 SSH 在服务器 `/etc/nginx/sites-available/lynxdo` 注入 WS 转发规则，`nginx -t` 测试通过并 reload
+
+### 构建与部署
+- TS 检查：`npx tsc --noEmit` 通过
+- 本地构建：`lynx-deploy-fast.tar.gz` (40.45 MB)
+- 服务器部署：`cp -a /tmp/lynx-deploy-fast/standalone /opt/lynx/app`
+- Nginx 配置：服务器 `/etc/nginx/sites-available/lynxdo` 注入 WS 转发规则 + `nginx -t` + `systemctl reload nginx`
+- PM2 重启：lynx-app (online, 107MB) + lynx-ws-gateway (online, 62.8MB)
+- 健康检查：`http://localhost:5176/api/health` → `{"ok":true}`
+- 端口确认：5176（Next.js）+ 3001（ws-gateway）都在监听
+
+### Trae Solo 卡顿诊断（问题5，非代码修复）
+- **根因**：`C:\Users\lynnd\AppData\Roaming\TRAE SOLO CN\` 占用 6.6 GB
+  - `ModularData\ai-agent\vm\` 3.4 GB（70286 个沙箱文件）
+  - `ModularData\ai-agent\database.db` 1.4 GB（对话历史 SQLite，可能 SQLCipher 加密）
+  - 14 个进程总内存 3.5 GB
+- **清理脚本**：`d:\Lynn工作空间\clean-trae.ps1`（A+B 方案合一）
+- **执行结果**：AI 已成功清理缓存类 1.3 GB（Crashpad/CachedData/Cache/logs/GPUCache）+ 进程内存降 530 MB
+- **手动清理**：vm.bak 备份目录（3.4 GB）和 database.db 压缩需用户在外部 PowerShell 执行（Trae 沙箱保护 ai-agent 目录，AI 无法操作）
+- **database.db 压缩失败**：`Error: stepping, file is not a database (26)` —— 文件可能是 SQLCipher 加密或非标准 SQLite 格式，sqlite3 命令无法直接压缩，需用 Trae Solo 自带的维护工具或 DB Browser for SQLite
 
 ---
 
