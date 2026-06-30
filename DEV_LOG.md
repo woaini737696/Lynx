@@ -9,6 +9,7 @@
 
 | 迭代 | 日期 | 任务概要 |
 |------|------|----------|
+| [迭代 80](#迭代-80---2026-07-01) | 2026-07-01 | 桌面端v1.0.25两项关键修复：hermesExecute移除服务器端CLI路径(改为仅WS远程执行,无在线PC直接报错不再在服务器跑/usr/local/bin/hermes)+签名自动信任(NSIS installer-hooks.nsh安装后自动导入.cer证书到LocalMachine\Root根存储+resources打包.cer文件) |
 | [迭代 79](#迭代-79---2026-06-30) | 2026-06-30 | 桌面端v1.0.24深度优化：monorepo共享类型包(packages/shared-types+npm workspaces+6页面迁移)+离线缓存层(cloud-api GET缓存+内存/localStorage+后台静默刷新+断网回退)+UI性能优化(20页面React.lazy+Suspense懒加载)+安全加固(navigate_to_url协议白名单+location.replace)+endpoint配置化(SettingsPage UI入口)+代码清理(2处console.log+3处any类型+7个重复interface移除) |
 | [迭代 77](#迭代-77---2026-06-30) | 2026-06-30 | 桌面端v1.0.23六项问题修复：自签名代码签名证书(NSIS签名+timestampUrl)+Lynx助理远程指令走HermesAgent Dashboard HTTP API(POST /api/execute真正AI执行)+AI工作流执行结果弹窗(节点详情+最终输出)+通知渠道扩展(Web端/移动端+飞书404修复路径/api/ai/notify-feishu)+技能执行API新建(/api/skills/[id]/execute调用executeTool+执行结果弹窗)+飞书任务字段映射(NormalizedTask归一化+db_only参数+同步状态提示) |
 | [迭代 78](#迭代-78---2026-07-01) | 2026-07-01 | 修复HermesAgent"虚假成功"严重bug：executor.py只调LLM生成文本从不真正执行RPA→重写为<action>标签+execute_rpa_action真实执行(webbrowser/subprocess); 升级hermes-agent 0.17.0→0.18.0; hermes-client.ts加RPA关键词识别+executed真实性校验; 服务器升级验证通过 |
@@ -120,6 +121,42 @@
 
 ### Commit hash
 `4181fb4d`
+
+---
+
+## 迭代 80 - 2026-07-01
+
+### 完成内容
+
+#### 1. hermesExecute 移除服务器端 CLI 路径（修复"打不开浏览器"）
+- **根因**：`executeHermesExecute`（tool-executor.ts）当 `getOnlinePcSession` 返回 null 时，回退到路径2（服务器端 CLI 执行），在服务器上执行 `/usr/local/bin/hermes -z "打开默认浏览器" --yolo`。服务器没有桌面环境，无法操作用户电脑。
+- **修复**：`src/app/api/ai/assistant/tool-executor.ts`
+  - 移除路径2（服务器端 `executeHermesTask` CLI 执行）
+  - 改为唯一路径：WS 网关远程下发到桌面端
+  - 无在线 PC 时直接返回明确错误："未检测到在线的桌面端，请在电脑上启动 Lynx 桌面端并登录"
+  - 桌面端 ws_client.rs 收到后优先调 HermesAgent Dashboard HTTP API（真正 AI 执行）
+
+#### 2. 签名自动信任（NSIS 安装时导入证书到根存储）
+- **根因**：自签名证书不在 Windows"受信任的根证书颁发机构"中，UAC 仍提示"未知开发者"
+- **修复**：
+  - 导出 `lynnhub-code-sign.cer` 证书文件
+  - 新建 `desktop-native/src-tauri/nsis/installer-hooks.nsh`（NSIS POSTINSTALL hook）
+  - 安装完成后自动执行 PowerShell `Import-Certificate` 导入到 `Cert:\LocalMachine\Root`
+  - `tauri.conf.json` 添加 `resources: ["lynnhub-code-sign.cer"]` 将证书打包到安装目录
+  - 添加 `installerHooks: "nsis/installer-hooks.nsh"` 启用 hook
+
+### 自测验证
+- Web 端 `npx tsc --noEmit` 0 错误
+- 版本号升级：1.0.24 → 1.0.25
+
+### 修改文件清单
+- `src/app/api/ai/assistant/tool-executor.ts` — executeHermesExecute 移除路径2
+- `desktop-native/src-tauri/nsis/installer-hooks.nsh` — 新建（NSIS POSTINSTALL 导入证书）
+- `desktop-native/src-tauri/lynnhub-code-sign.cer` — 新建（导出的证书文件）
+- `desktop-native/src-tauri/tauri.conf.json` — 版本 1.0.25 + resources + installerHooks
+- `desktop-native/native-ui/package.json` — 版本 1.0.25
+- `desktop-native/src-tauri/Cargo.toml` — 版本 1.0.25
+- `DEV_LOG.md` — 开发日志更新
 
 ---
 
