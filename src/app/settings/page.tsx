@@ -40,6 +40,7 @@ import { toast } from "@/components/ui/toast";
 import { UserAIKeyConfig } from "@/components/settings/UserAIKeyConfig";
 import { DesktopHermesSection } from "@/components/settings/DesktopHermesSection";
 import { AuthConfigSection } from "@/components/settings/AuthConfigSection";
+import { isDesktop, installAiEnv, startHermesAgent } from "@/lib/desktop-client";
 
 /** 设置页 Tab */
 type SettingsTab = "ai" | "agent" | "auth" | "system" | "files";
@@ -1292,17 +1293,29 @@ function HermesConfigSection() {
   const handleInstall = async () => {
     setInstalling(true);
     try {
-      const res = await fetch("/api/hermes/install", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "install" }),
-      });
-      const data = await res.json();
-      if (res.ok && data.success) {
-        toast("Lynx Agent 安装成功", "success");
-        await loadStatus();
+      if (isDesktop()) {
+        // 桌面端：调用 Tauri command 在用户本地执行安装（从服务器下载 .whl + 本地 pip install）
+        const result = await installAiEnv();
+        if (result.success) {
+          toast(result.message || "Lynx Agent 安装成功", "success");
+          await loadStatus();
+        } else {
+          toast(result.message || "安装失败", "error");
+        }
       } else {
-        toast(data.error || "安装失败", "error");
+        // 浏览器：调用 Web API（仅本地开发环境有效，云服务器上无法安装到用户本地）
+        const res = await fetch("/api/hermes/install", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action: "install" }),
+        });
+        const data = await res.json();
+        if (res.ok && data.success) {
+          toast("Lynx Agent 安装成功", "success");
+          await loadStatus();
+        } else {
+          toast(data.error || "安装失败，建议使用桌面端客户端一键安装", "error");
+        }
       }
     } catch (e: any) {
       toast("安装请求失败：" + e.message, "error");
@@ -1314,18 +1327,25 @@ function HermesConfigSection() {
   const handleStart = async () => {
     setStarting(true);
     try {
-      const port = endpoint.match(/:(\d+)$/)?.[1] || "9119";
-      const res = await fetch("/api/hermes/install", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "start", port: parseInt(port, 10) }),
-      });
-      const data = await res.json();
-      if (res.ok && data.success) {
-        toast(data.message || "Lynx Agent 已启动", "success");
+      if (isDesktop()) {
+        // 桌面端：调用 Tauri command 启动 WS 连接（连接云端状态中心，注册 PC 上线）
+        await startHermesAgent();
+        toast("Lynx Agent 已启动，PC 已上线", "success");
         await loadStatus();
       } else {
-        toast(data.error || "启动失败", "error");
+        const port = endpoint.match(/:(\d+)$/)?.[1] || "9119";
+        const res = await fetch("/api/hermes/install", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action: "start", port: parseInt(port, 10) }),
+        });
+        const data = await res.json();
+        if (res.ok && data.success) {
+          toast(data.message || "Lynx Agent 已启动", "success");
+          await loadStatus();
+        } else {
+          toast(data.error || "启动失败", "error");
+        }
       }
     } catch (e: any) {
       toast("启动请求失败：" + e.message, "error");

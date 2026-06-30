@@ -61,12 +61,16 @@ export function HermesPanel() {
   const queryClient = useQueryClient();
   const [installProgress, setInstallProgress] = useState<InstallProgress | null>(null);
   const [isDashboardRunning, setIsDashboardRunning] = useState(false);
+  // 安装进行中标志：用于暂停 refetch，避免与安装进程竞态导致重复触发安装或控制台闪烁
+  const [isInstalling, setIsInstalling] = useState(false);
 
   // 本地检测 AI 环境（通过 Tauri 命令，不走云端 API）
+  // 安装期间暂停 refetch + 禁用查询，避免 detect_ai_env 调用子进程导致控制台闪烁
   const { data: status, isLoading } = useQuery<LocalDetectStatus>({
     queryKey: ["local-ai-env"],
     queryFn: async () => invoke<LocalDetectStatus>("detect_ai_env"),
-    refetchInterval: 15000,
+    refetchInterval: isInstalling ? false : 15000,
+    enabled: !isInstalling,
   });
 
   // 检测 Dashboard 是否在运行（HTTP 探测本地端口）
@@ -120,8 +124,13 @@ export function HermesPanel() {
         unlisten();
       }
     },
+    onMutate: () => {
+      // 安装开始：立即暂停 detect_ai_env 轮询，避免子进程弹窗 + 竞态重复安装
+      setIsInstalling(true);
+    },
     onSuccess: (data) => {
       setInstallProgress(null);
+      setIsInstalling(false);
       if (data.success) {
         queryClient.invalidateQueries({ queryKey: ["local-ai-env"] });
         toast.success("Lynx Agent 安装成功");
@@ -131,6 +140,7 @@ export function HermesPanel() {
     },
     onError: (e: unknown) => {
       setInstallProgress(null);
+      setIsInstalling(false);
       toast.error(e instanceof Error ? e.message : "安装失败");
     },
   });

@@ -30,7 +30,14 @@ import { cn } from "@/lib/utils";
 import { toast } from "@/lib/toast";
 import { HelpButton } from "@/components/ui/HelpButton";
 import { Modal } from "@/components/ui/Modal";
-import { cloudApi } from "@/lib/cloud-api";
+import { cloudApi, getCloudEndpoint } from "@/lib/cloud-api";
+
+// 将相对路径头像 URL 拼接为云端绝对路径（WebView2 origin 是 tauri.localhost，相对路径会 404）
+function resolveAvatarUrl(url: string | null | undefined): string {
+  if (!url) return `${getCloudEndpoint()}/lynx-icon-256.png`;
+  if (url.startsWith("http://") || url.startsWith("https://") || url.startsWith("data:")) return url;
+  return `${getCloudEndpoint().replace(/\/+$/, "")}/${url.replace(/^\/+/, "")}`;
+}
 import {
   type Message,
   type ChatSession,
@@ -124,8 +131,8 @@ export function AIAssistantPage({ inDrawer = false }: AIAssistantPageProps) {
 
   // 助理显示名称（默认 "Lynn"，可被设置覆盖）
   const assistantName = aiSettings?.assistantName?.trim() || "Lynn";
-  // 助理头像 URL（默认使用 Lynx PNG 图标，对齐 Web 端 avatarUrl: "/lynx-icon-256.png"）
-  const assistantAvatarUrl = aiSettings?.avatarUrl || "/lynx-icon-256.png";
+  // 助理头像 URL（拼接云端 endpoint，避免 WebView2 相对路径 404）
+  const assistantAvatarUrl = resolveAvatarUrl(aiSettings?.avatarUrl);
 
   // 当助理名称变化时，更新欢迎消息（仅当当前是欢迎消息时）
   useEffect(() => {
@@ -950,11 +957,11 @@ function AISettingsModal({
         {/* 头像预览 */}
         <div className="flex items-center gap-4">
           <img
-            src={form.avatarUrl || avatarUrl}
+            src={resolveAvatarUrl(form.avatarUrl) || avatarUrl}
             alt="助理头像"
             className="h-16 w-16 rounded-2xl object-cover shadow-md"
             onError={(e) => {
-              (e.currentTarget as HTMLImageElement).src = "/lynx-icon-256.png";
+              (e.currentTarget as HTMLImageElement).src = `${getCloudEndpoint()}/lynx-icon-256.png`;
             }}
           />
           <div className="flex-1">

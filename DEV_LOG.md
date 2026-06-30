@@ -9,6 +9,7 @@
 
 | 迭代 | 日期 | 任务概要 |
 |------|------|----------|
+| [迭代 71](#迭代-71---2026-06-30) | 2026-06-30 | 桌面端v1.0.18三项核心修复：HermesAgent安装走Tauri本地安装(非PyPI)+DesktopBridge登录后自动启动WS+TTS环境变量通过start-with-env.js加载+Nginx /downloads/重复location修复 |
 | [迭代 70](#迭代-70---2026-06-30) | 2026-06-30 | 桌面端v1.0.17五项同步：HermesAgent真实Python包+本地Tauri安装+灵感通知已读机制+AI工作流可视化编排+对话资产/记忆图谱页面补齐 |
 | [迭代 69](#迭代-69---2026-06-30) | 2026-06-30 | HermesAgent服务器预置.whl+一键下载安装+ws-gateway修复DATABASE_URL加载+middleware放行downloads路径 |
 | [迭代 68](#迭代-68---2026-06-30) | 2026-06-30 | HermesAgent改回pip install+AI巡检页灰色块清理(--muted定义修正)+远程操控WS路由与认证修复+Trae Solo卡顿诊断 |
@@ -111,6 +112,59 @@
 
 ### Commit hash
 `4181fb4d`
+
+---
+
+## 迭代 71 - 2026-06-30
+
+### 完成内容
+
+#### 1. HermesAgent 一键安装修复（核心架构问题）
+- **根因**：部署到云服务器后，Web端 `/api/hermes/install` 在**服务器上**执行 pip install，装到服务器而非用户本地
+- **修复**：`src/app/settings/page.tsx` 的 `handleInstall` / `handleStart` 添加 `isDesktop()` 路由分发
+  - 桌面端：调用 Tauri command `install_ai_env` → 从服务器下载 `.whl` → 本地 `pip install --force-reinstall --no-deps`
+  - 浏览器：走 Web API（仅本地开发环境有效）
+- **安装源**：服务器 `https://ai.lynxdo.com/downloads/hermes_agent-0.17.0-py3-none-any.whl`（15KB 纯 Python 包，零依赖）
+
+#### 2. 远程操控 PC 在线识别修复
+- **根因**：`DesktopBridge.tsx` 登录后只同步 token，不自动启动 WS 连接；需用户手动点"启动 Lynx Agent"
+- **修复**：
+  - `src/components/layout/DesktopBridge.tsx`：登录后自动调用 `startHermesAgent()`，添加 `wsStartedRef` 防重复
+  - `desktop-native/src-tauri/src/lib.rs`：AppState 新增 `ws_started: AtomicBool`，`start_hermes_agent` 命令添加防重复检查
+  - 桌面端登录后自动连接云端 WS → 发送 register 消息 → ws-gateway 创建 PcSession → PC 上线
+
+#### 3. TTS 语音合成修复
+- **根因**：Next.js standalone 模式的 `server.js` 不自动加载 `.env`，PM2 启动时 `process.env.TTS_API_KEY` 为 NOT SET
+- **修复**：创建 `start-with-env.js` 包装器，在启动 `server.js` 前加载 `.env` 文件中的 33 个环境变量
+  - PM2 改为 `pm2 start start-with-env.js --name lynx-app`
+  - 创建 `ecosystem.config.cjs` 持久化 PM2 配置
+
+#### 4. Nginx /downloads/ 路径修复
+- **根因**：之前 sed 命令执行两次，导致 `duplicate location "/downloads/"` 错误，Nginx 配置测试失败
+- **修复**：重新生成 `lynxdo_nginx.conf`，每个 server 块只保留一个 `location /downloads/`，上传后 `nginx -t` 通过并 reload
+
+### 修改文件清单
+- `src/app/settings/page.tsx` - isDesktop() 路由分发（桌面端走 Tauri command）
+- `src/components/layout/DesktopBridge.tsx` - 登录后自动启动 WS 连接
+- `desktop-native/src-tauri/src/lib.rs` - ws_started AtomicBool 防重复 spawn
+- `desktop-native/package.json` - 版本号 1.0.17 → 1.0.18
+- `desktop-native/native-ui/package.json` - 版本号 1.0.17 → 1.0.18
+- `desktop-native/src-tauri/Cargo.toml` - 版本号 1.0.17 → 1.0.18
+- `desktop-native/src-tauri/tauri.conf.json` - 版本号 1.0.17 → 1.0.18
+- `scripts/deploy/start-with-env.js` - .env 环境变量加载包装器（新增）
+- `scripts/deploy/ecosystem.config.cjs` - PM2 配置持久化（新增）
+- `scripts/deploy/lynxdo_nginx.conf` - Nginx 配置修复（新增）
+- `scripts/deploy/deploy_standalone.py` - standalone 部署脚本（新增）
+- `DEV_LOG.md` - 开发日志更新
+
+### 服务器变更
+- Nginx 配置：删除重复的 `location /downloads/` 块，reload 成功
+- PM2 lynx-app：改用 `start-with-env.js` 启动，加载 33 个环境变量
+- PM2 ecosystem.config.cjs：持久化 lynx-app + lynx-ws-gateway 配置
+- Next.js standalone：重新部署，含 isDesktop() 分发 + DesktopBridge 自动 WS
+
+### 安装包
+- `desktop-native/dist/Lynx_1.0.18_x64-setup.exe`（6.75MB）
 
 ---
 
