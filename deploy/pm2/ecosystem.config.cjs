@@ -25,7 +25,7 @@ module.exports = {
     },
     {
       name: 'lynx-ws-gateway',
-      script: 'scripts/ws-gateway.compiled.js',  // 直接运行预编译 JS，零依赖（不需要 tsx）
+      script: 'scripts/start-ws-gateway.js',  // 用 start 脚本（会先 require dotenv 加载 .env，再加载 compiled.js）
       cwd: '/opt/lynx/app',
       instances: 1,
       exec_mode: 'fork',
