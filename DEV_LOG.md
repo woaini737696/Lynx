@@ -9,6 +9,7 @@
 
 | 迭代 | 日期 | 任务概要 |
 |------|------|----------|
+| [迭代 81](#迭代-81---2026-07-01) | 2026-07-01 | 桌面端v1.0.26多设备共享HermesAgent：Web端WS设备注册hook(use-device-ws.ts,与桌面端相同协议注册到WS网关)+hermesExecute多设备支持(getOnlineDevices返回所有在线设备,优先选桌面端)+AppShell引入WS hook(Web端打开=PC在线)+跨设备操控(电脑A Web端+电脑B桌面端=两在线设备,AI助理可指定下发) |
 | [迭代 80](#迭代-80---2026-07-01) | 2026-07-01 | 桌面端v1.0.25两项关键修复：hermesExecute移除服务器端CLI路径(改为仅WS远程执行,无在线PC直接报错不再在服务器跑/usr/local/bin/hermes)+签名自动信任(NSIS installer-hooks.nsh安装后自动导入.cer证书到LocalMachine\Root根存储+resources打包.cer文件) |
 | [迭代 79](#迭代-79---2026-06-30) | 2026-06-30 | 桌面端v1.0.24深度优化：monorepo共享类型包(packages/shared-types+npm workspaces+6页面迁移)+离线缓存层(cloud-api GET缓存+内存/localStorage+后台静默刷新+断网回退)+UI性能优化(20页面React.lazy+Suspense懒加载)+安全加固(navigate_to_url协议白名单+location.replace)+endpoint配置化(SettingsPage UI入口)+代码清理(2处console.log+3处any类型+7个重复interface移除) |
 | [迭代 77](#迭代-77---2026-06-30) | 2026-06-30 | 桌面端v1.0.23六项问题修复：自签名代码签名证书(NSIS签名+timestampUrl)+Lynx助理远程指令走HermesAgent Dashboard HTTP API(POST /api/execute真正AI执行)+AI工作流执行结果弹窗(节点详情+最终输出)+通知渠道扩展(Web端/移动端+飞书404修复路径/api/ai/notify-feishu)+技能执行API新建(/api/skills/[id]/execute调用executeTool+执行结果弹窗)+飞书任务字段映射(NormalizedTask归一化+db_only参数+同步状态提示) |
@@ -121,6 +122,47 @@
 
 ### Commit hash
 `4181fb4d`
+
+---
+
+## 迭代 81 - 2026-07-01
+
+### 完成内容
+
+#### 多设备共享 HermesAgent（Web 端 + 桌面端共用）
+
+**核心变更**：Web 端也作为"在线设备"注册到 WS 网关，与桌面端走完全相同的流程。实现"共用一个 HermesAgent"和"跨设备操控"。
+
+**1. Web 端 WS 设备注册 Hook**
+- **新建** `src/hooks/use-device-ws.ts`
+- 注册流程与桌面端 DesktopBridge.tsx 完全一致：fetch `/api/auth/session` 获取 userId → 用 `user:<userId>` 作为 token 注册 WS
+- 30 秒心跳 + 断线 10 秒重连
+- 收到 `remote-command` 时调用本地 `http://127.0.0.1:9119/api/execute`（HermesAgent Dashboard）
+- CORS 容错：区分 CORS 错误和未安装错误，给出明确提示
+
+**2. hermesExecute 多设备支持**
+- **修改** `src/app/api/ai/assistant/tool-executor.ts`
+- 新增 `getOnlineDevices(userId)` 返回所有在线设备数组（PcSession 心跳 60 秒内）
+- 多设备策略：优先选桌面端（非 `Web-` 开头），其次选最近心跳的设备
+- 无在线设备时返回明确错误
+
+**3. AppShell 引入 WS Hook**
+- **修改** `src/components/layout/AppShell.tsx`
+- 调用 `useDeviceWs()`，Web 端打开即注册为在线设备
+- 实现用户需求："Web 端或者桌面端打开状态，都是 PC 在线"
+
+### 自测验证
+- Web 端 `npx tsc --noEmit` 0 错误
+- 版本号升级：1.0.25 → 1.0.26
+
+### 修改文件清单
+- `src/hooks/use-device-ws.ts` — 新建（Web 端 WS 设备注册 + 远程指令执行）
+- `src/components/layout/AppShell.tsx` — 引入 useDeviceWs
+- `src/app/api/ai/assistant/tool-executor.ts` — getOnlineDevices + 多设备选择
+- `desktop-native/src-tauri/tauri.conf.json` — 版本 1.0.26
+- `desktop-native/native-ui/package.json` — 版本 1.0.26
+- `desktop-native/src-tauri/Cargo.toml` — 版本 1.0.26
+- `DEV_LOG.md` — 开发日志更新
 
 ---
 
