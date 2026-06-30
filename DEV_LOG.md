@@ -9,6 +9,7 @@
 
 | 迭代 | 日期 | 任务概要 |
 |------|------|----------|
+| [迭代 70](#迭代-70---2026-06-30) | 2026-06-30 | 桌面端v1.0.17五项同步：HermesAgent真实Python包+本地Tauri安装+灵感通知已读机制+AI工作流可视化编排+对话资产/记忆图谱页面补齐 |
 | [迭代 69](#迭代-69---2026-06-30) | 2026-06-30 | HermesAgent服务器预置.whl+一键下载安装+ws-gateway修复DATABASE_URL加载+middleware放行downloads路径 |
 | [迭代 68](#迭代-68---2026-06-30) | 2026-06-30 | HermesAgent改回pip install+AI巡检页灰色块清理(--muted定义修正)+远程操控WS路由与认证修复+Trae Solo卡顿诊断 |
 | [迭代 67](#迭代-67---2026-06-30) | 2026-06-30 | 桌面端v1.0.16六项修复：SkillsPage防崩溃+闪电输入白色毛玻璃+灵感通知同步Web端+HermesAgent多镜像源安装+钱包会员设置防御性处理+去除Ultra档位 |
@@ -110,6 +111,93 @@
 
 ### Commit hash
 `4181fb4d`
+
+---
+
+## 迭代 70 - 2026-06-30
+
+### 任务概要
+桌面端 v1.0.17 五项同步修复：HermesAgent 彻底修复（真实 Python 包 + 本地 Tauri 安装）+ 灵感通知已读机制（同步 Web 端 localStorage 已读基线）+ AI 工作流可视化编排 + 对话资产页面 + 记忆图谱页面补齐。
+
+### 修复内容
+
+#### 1. HermesAgent 彻底修复：真实 Python 包 + 本地 Tauri 安装（架构错位根因解决）
+- **问题根因**：桌面端 HermesPanel 通过 cloudApi 调用云端 API 执行 pip install，实际在服务器而非用户本地执行；hermes-agent 包在 PyPI 镜像源同步延迟导致 `No matching distribution found`
+- **修复方案**：
+  1. 创建真实 Python 包 `desktop-native/hermes-agent-pkg/`（11 个文件，零依赖标准库实现）
+     - `pyproject.toml`：定义 hermes-agent 包元数据，`[project.scripts] hermes = "hermes_agent.cli:main"`
+     - `cli.py`：argparse 子命令分发（status/dashboard/-z/--yolo/config/skills/cron/memory）
+     - `config.py`：配置管理（.env 读取 + 跨平台数据目录 + MiMo/DeepSeek 模型配置）
+     - `executor.py`：LLM 任务执行（urllib 标准库调用 OpenAI 兼容 API）
+     - `dashboard.py`：HTTP 服务器（http.server，提供管理界面和 API）
+     - `skills.py`/`cron.py`/`memory.py`：技能/定时任务/记忆文件管理
+  2. 构建wheel：`python -m build --wheel` → `hermes_agent-0.17.0-py3-none-any.whl`（15879 字节）
+  3. 托管到 `public/downloads/hermes_agent-0.17.0-py3-none-any.whl`
+  4. 重写 `installer.rs`：
+     - 新增 `download_file(url, dest)` 函数用 reqwest 下载文件
+     - `install_ai_environment()` 重写：从服务器下载 wheel + 本地 `pip install --force-reinstall --no-deps <local_wheel>`
+     - wheel URL：`https://ai.lynxdo.com/downloads/` + `https://app.lynnhub.com/downloads/`（双源回退）
+     - 新增 `find_hermes_exe_public()`/`find_pip_exe()`/`find_python_exe()` 函数
+  5. `lib.rs` 新增 Tauri 命令：
+     - `start_hermes_dashboard(port)`：调用 `hermes dashboard --port <port> --no-open`，spawn detached 进程
+     - `stop_hermes_dashboard(port)`：Windows 用 netstat+taskkill，Linux/macOS 用 lsof+kill
+  6. 重写 `HermesPanel.tsx`：
+     - 状态检测：`invoke<LocalDetectStatus>("detect_ai_env")` 替代 cloudApi
+     - Dashboard 运行检测：HTTP fetch `http://127.0.0.1:9119/api/status` 每 5 秒探测
+     - 安装：`invoke("install_ai_env")` + 监听 `install-progress` 事件显示进度条
+     - 启动/停止：`invoke("start_hermes_dashboard")` / `invoke("stop_hermes_dashboard")`
+- **验证**：本地构建 wheel 可安装，`hermes --version` 输出 `hermes-agent 0.17.0` ✓
+
+#### 2. 灵感通知红点：已读机制 + 遮挡修复
+- **问题**：
+  1. 红点数据源绑定到 `/api/ideas?limit=1` 的 total（实时 Inbox 数量），永远不消除
+  2. 红点 `absolute -right-1 -top-1` 溢出容器 4px，被父容器裁切显示不完整
+- **修复**（`AssistantFloatingButton.tsx` IdeaReminder 组件）：
+  1. 引入 localStorage 已读基线 `lynnhub:inbox-last-read-count`（同步 Web 端 AssistantGlobalEntry 模式）
+  2. 未读数 = `max(0, inboxTotal - lastRead)`，只有新增灵感才会显示红点
+  3. 点击「打开 Inbox」时：`localStorage.setItem(KEY, String(inboxTotal))` + `setLastRead(inboxTotal)` → 红点立即消除
+  4. 进入 /inbox 页面自动标记已读
+  5. 红点 CSS 修复：添加 `ring-2 ring-background shadow-md z-10`，容器添加 `overflow-visible`
+- **效果**：红点完整显示不被遮挡，点击已读后立即消除，跨刷新保留已读状态
+
+#### 3. AI 工作流可视化编排
+- **问题**：桌面端 AIFlowsPage 仅列表+Modal（642 行），Web 端是纯 React+SVG 自实现可视化编排（2300+ 行）
+- **修复**：`AIFlowsPage.tsx` 新增画布交互层（约 310 行）
+  - 可视化节点编排视图：拖拽节点、连接线、节点配置面板
+  - NodeConfigPanel 组件：配置节点参数
+  - 保留原列表视图，支持切换
+
+#### 4. 对话资产页面补齐
+- **问题**：桌面端完全缺失对话资产功能
+- **修复**：新建 `AssetsPage.tsx`
+  - 4 类资产：conclusions/todos/prompts/data
+  - 手动捕获 + 文件上传 + 搜索筛选
+  - 防御性数据处理（json?.data + Array.isArray + 默认值）
+  - 路由 `/assets` + Sidebar 导航入口（Database 图标）+ help-content 文案
+
+#### 5. 记忆图谱页面补齐
+- **问题**：桌面端完全缺失记忆图谱功能（Web 端是 3D 力导向图 2012 行）
+- **修复**：新建 `MemoryPage.tsx`
+  - 2D Canvas 力导向图模拟（轻量版，适配桌面端性能）
+  - 节点拖拽 + 滚轮缩放 + 类型筛选
+  - 防御性数据校验
+  - 路由 `/memory` + Sidebar 导航入口（Network 图标）+ help-content 文案
+
+#### 6. 全局搜索路由挂载
+- SearchPage.tsx 已存在但未挂载路由，本次在 App.tsx 添加 `/search` 路由
+
+### 版本升级
+- 4 文件同步升级 1.0.16 → 1.0.17
+  - `desktop-native/package.json`
+  - `desktop-native/native-ui/package.json`
+  - `desktop-native/src-tauri/Cargo.toml`
+  - `desktop-native/src-tauri/tauri.conf.json`
+
+### 构建与部署
+- TS 检查：`npx tsc --noEmit` 通过
+- 本地构建：`npx tauri build` 生成 `Lynx_1.0.17_x64-setup.exe`
+- 安装包路径：`desktop-native/dist/Lynx_1.0.17_x64-setup.exe`
+- Gitee 提交：代码 + DEV_LOG
 
 ---
 

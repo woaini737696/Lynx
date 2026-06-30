@@ -16,6 +16,9 @@ import { AIAssistantPage } from "./pages/AIAssistantPage";
 import { AIFlowsPage } from "./pages/AIFlowsPage";
 import { SkillsPage } from "./pages/SkillsPage";
 import { AgentPage } from "./pages/AgentPage";
+import { AssetsPage } from "./pages/AssetsPage";
+import { MemoryPage } from "./pages/MemoryPage";
+import { SearchPage } from "./pages/SearchPage";
 import { WalletPage } from "./pages/WalletPage";
 import { MembershipPage } from "./pages/MembershipPage";
 import { SettingsPage } from "./pages/SettingsPage";
@@ -132,6 +135,9 @@ export function App() {
             <Route path="ai/workspace" element={<ErrorBoundary><AIWorkspacePage /></ErrorBoundary>} />
             <Route path="ai/flows" element={<ErrorBoundary><AIFlowsPage /></ErrorBoundary>} />
             <Route path="ai/assistant" element={<ErrorBoundary><AIAssistantPage /></ErrorBoundary>} />
+            <Route path="assets" element={<ErrorBoundary><AssetsPage /></ErrorBoundary>} />
+            <Route path="memory" element={<ErrorBoundary><MemoryPage /></ErrorBoundary>} />
+            <Route path="search" element={<ErrorBoundary><SearchPage /></ErrorBoundary>} />
             <Route path="skills" element={<ErrorBoundary><SkillsPage /></ErrorBoundary>} />
             <Route path="agent" element={<ErrorBoundary><AgentPage /></ErrorBoundary>} />
             <Route path="wallet" element={<ErrorBoundary><WalletPage /></ErrorBoundary>} />

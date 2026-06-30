@@ -78,34 +78,43 @@ export function AssistantFloatingButton() {
 }
 
 /**
- * 灵感通知 - 同步 Web 端 ReminderManager（轻量版）
- * 位于 AI 悬浮按钮正上方，显示 Inbox 未处理灵感数量
+ * 灵感通知 - 同步 Web 端 ReminderManager + AssistantGlobalEntry 已读机制
+ * 位于 AI 悬浮按钮正上方，显示 Inbox 未读灵感数量（相对已读基线）
  * 三态展示：icon（默认）→ hint（自动展开 2.5s）→ list（点击展开列表）
- * 点击列表项跳转 /inbox
+ * 点击「打开 Inbox」会标记当前数量为已读，红点消除
  */
+const INBOX_LAST_READ_KEY = "lynnhub:inbox-last-read-count";
+
 export function IdeaReminder() {
   const navigate = useNavigate();
   const location = useLocation();
   const [mode, setMode] = useState<"icon" | "hint" | "list">("icon");
   const [entering, setEntering] = useState(false);
-  const prevCountRef = useRef(0);
+  const prevUnreadRef = useRef(0);
   const hintTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  // 已读基线（localStorage 持久化，跨刷新保留）
+  const [lastRead, setLastRead] = useState<number>(() => {
+    if (typeof localStorage === "undefined") return 0;
+    return parseInt(localStorage.getItem(INBOX_LAST_READ_KEY) || "0", 10) || 0;
+  });
 
-  // 查询 Inbox 未处理数量（30s 刷新）
-  const { data: count = 0 } = useQuery<number>({
-    queryKey: ["inbox-unread-count"],
+  // 查询 Inbox 总数（30s 刷新）
+  const { data: inboxTotal = 0 } = useQuery<number>({
+    queryKey: ["inbox-total-count"],
     queryFn: async () => {
       const res = await cloudApi.get<{ data?: Idea[]; total?: number }>("/api/ideas?limit=1");
-      // total 是 inbox 中所有未处理灵感数量；data 只取 1 条用于判断存在
       return typeof res.total === "number" ? res.total : (res.data?.length || 0);
     },
     refetchInterval: 30000,
   });
 
+  // 未读数 = max(0, 当前总数 - 已读基线)
+  const count = Math.max(0, inboxTotal - lastRead);
+
   // 数量从 0 → N 时自动展开 hint 态（2.5s 后收回 icon）
   useEffect(() => {
-    if (count > 0 && prevCountRef.current === 0 && mode === "icon") {
+    if (count > 0 && prevUnreadRef.current === 0 && mode === "icon") {
       setMode("hint");
       setEntering(true);
       setTimeout(() => setEntering(false), 450);
@@ -114,7 +123,7 @@ export function IdeaReminder() {
         setMode("icon");
       }, 2500);
     }
-    prevCountRef.current = count;
+    prevUnreadRef.current = count;
     return () => {
       if (hintTimerRef.current) clearTimeout(hintTimerRef.current);
     };
@@ -132,7 +141,18 @@ export function IdeaReminder() {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, [mode]);
 
-  // 在 Inbox 页面不显示
+  // 在 Inbox 页面不显示（在 Inbox 页面内会自动标记已读）
+  useEffect(() => {
+    if (location.pathname.startsWith("/inbox") && inboxTotal > 0) {
+      try {
+        localStorage.setItem(INBOX_LAST_READ_KEY, String(inboxTotal));
+        setLastRead(inboxTotal);
+      } catch {
+        // ignore
+      }
+    }
+  }, [location.pathname, inboxTotal]);
+
   if (location.pathname.startsWith("/inbox")) return null;
   if (count === 0) return null;
 
@@ -148,6 +168,13 @@ export function IdeaReminder() {
   };
 
   const gotoInbox = () => {
+    // 标记当前总数为已读，消除红点
+    try {
+      localStorage.setItem(INBOX_LAST_READ_KEY, String(inboxTotal));
+    } catch {
+      // ignore
+    }
+    setLastRead(inboxTotal);
     collapseToIcon();
     navigate("/inbox");
   };
@@ -162,7 +189,7 @@ export function IdeaReminder() {
         }
       }}
       className={cn(
-        "ios-glass fixed bottom-28 right-[39px] z-50 flex items-center rounded-full",
+        "ios-glass fixed bottom-28 right-[39px] z-50 flex items-center rounded-full overflow-visible",
         mode === "icon" && "h-8 w-8 justify-center p-0",
         mode === "hint" && "px-3 py-1.5",
         mode === "list" && "flex-col items-stretch p-2",
@@ -185,7 +212,11 @@ export function IdeaReminder() {
             >
               <path d="M13 10V3L4 14h7v7l9-11h-7z" />
             </svg>
-            <span className="absolute -right-1 -top-1 flex h-4 min-w-[16px] items-center justify-center rounded-full bg-destructive px-1 text-[10px] font-bold text-destructive-foreground">
+            {/* 红点：使用 ring + shadow 确保不被父容器裁切，z-index 提升避免被遮挡 */}
+            <span
+              className="absolute -right-1 -top-1 z-10 flex h-4 min-w-[16px] items-center justify-center rounded-full bg-destructive px-1 text-[10px] font-bold text-destructive-foreground ring-2 ring-background shadow-md"
+              style={{ boxSizing: "border-box" }}
+            >
               {count > 9 ? "9+" : count}
             </span>
           </div>
@@ -221,7 +252,7 @@ export function IdeaReminder() {
             </div>
             <div className="min-w-0 flex-1">
               <div className="text-xs font-semibold text-foreground">
-                未处理灵感 <span>{count}</span> 条
+                未读灵感 <span>{count}</span> 条
               </div>
               <div className="mt-0.5 text-[11px] text-muted-foreground">
                 点击下方按钮去处理

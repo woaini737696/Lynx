@@ -13,6 +13,8 @@ import {
   Workflow,
   BookMarked,
   MessageSquare,
+  Database,
+  Network,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
@@ -36,6 +38,8 @@ const NAV_GROUPS: Record<TabKey, { label: string; icon: React.ElementType; items
       { to: "/board", label: "决策看板", icon: LayoutDashboard },
       { to: "/graveyard", label: "灵感墓地", icon: Skull },
       { to: "/cognition", label: "认知库", icon: Brain },
+      { to: "/assets", label: "对话资产", icon: Database },
+      { to: "/memory", label: "记忆图谱", icon: Network },
     ],
   },
   ai: {

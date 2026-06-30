@@ -1,0 +1,16 @@
+README.md
+pyproject.toml
+hermes_agent/__init__.py
+hermes_agent/__main__.py
+hermes_agent/cli.py
+hermes_agent/config.py
+hermes_agent/cron.py
+hermes_agent/dashboard.py
+hermes_agent/executor.py
+hermes_agent/memory.py
+hermes_agent/skills.py
+hermes_agent.egg-info/PKG-INFO
+hermes_agent.egg-info/SOURCES.txt
+hermes_agent.egg-info/dependency_links.txt
+hermes_agent.egg-info/entry_points.txt
+hermes_agent.egg-info/top_level.txt
