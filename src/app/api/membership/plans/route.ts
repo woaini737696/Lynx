@@ -9,24 +9,27 @@ export async function GET(_req: NextRequest) {
     const { error } = await requireAuth();
     if (error) return error;
 
-    const plans = Object.values(MEMBERSHIP_PLANS).map((p) => ({
-      tier: p.tier,
-      name: p.name,
-      price: p.price,
-      credits: p.credits.toString(),
-      sCoins: p.sCoins,
-      features: p.features,
-      modelAccess: p.modelAccess,
-      apiCallsPerDay: p.apiCallsPerDay,
-      memoryLimit: p.memoryLimit,
-      cognitionLimit: p.cognitionLimit,
-      flowLimit: p.flowLimit,
-      skillLimit: p.skillLimit,
-      hermesAgent: p.hermesAgent,
-      adFree: p.adFree,
-      prioritySupport: p.prioritySupport,
-      monthlyReport: p.monthlyReport,
-    }));
+    // 过滤掉 ULTRA 档位（已下架，保留现有 ULTRA 会员权益但不再展示/售卖）
+    const plans = Object.values(MEMBERSHIP_PLANS)
+      .filter((p) => p.tier !== "ULTRA")
+      .map((p) => ({
+        tier: p.tier,
+        name: p.name,
+        price: p.price,
+        credits: p.credits.toString(),
+        sCoins: p.sCoins,
+        features: p.features,
+        modelAccess: p.modelAccess,
+        apiCallsPerDay: p.apiCallsPerDay,
+        memoryLimit: p.memoryLimit,
+        cognitionLimit: p.cognitionLimit,
+        flowLimit: p.flowLimit,
+        skillLimit: p.skillLimit,
+        hermesAgent: p.hermesAgent,
+        adFree: p.adFree,
+        prioritySupport: p.prioritySupport,
+        monthlyReport: p.monthlyReport,
+      }));
 
     return successResponse({
       plans,

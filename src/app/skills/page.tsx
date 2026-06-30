@@ -352,7 +352,13 @@ export default function SkillsPage() {
       const data = await res.json();
       if (res.ok) {
         // 后端 /api/skills 使用 paginatedResponse 返回 { success, data: [...], total, hasMore, cursor }
-        const list = Array.isArray(data?.data) ? data.data : (Array.isArray(data?.skills) ? data.skills : []);
+        const rawList = Array.isArray(data?.data) ? data.data : (Array.isArray(data?.skills) ? data.skills : []);
+        // 防御：tags/parameters 是 Prisma Json 字段，可能为 null/对象/字符串等非数组值
+        const list = rawList.map((s: Record<string, unknown>) => ({
+          ...s,
+          tags: Array.isArray(s.tags) ? s.tags : [],
+          parameters: Array.isArray(s.parameters) ? s.parameters : [],
+        })) as Skill[];
         setSkills(list);
       } else {
         toast(data.error || "加载失败", "error");

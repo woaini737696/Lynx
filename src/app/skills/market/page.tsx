@@ -191,7 +191,13 @@ function SkillMarketContent() {
       const res = await fetch(`/api/skills/marketplace?${params.toString()}`);
       const data = await res.json();
       if (res.ok) {
-        setSkills(Array.isArray(data?.skills) ? data.skills : []);
+        // 防御：tags 是 Prisma Json 字段，可能为 null/对象/字符串等非数组值
+        const rawSkills = Array.isArray(data?.skills) ? data.skills : [];
+        const safeSkills = rawSkills.map((s: Record<string, unknown>) => ({
+          ...s,
+          tags: Array.isArray(s.tags) ? s.tags : [],
+        }));
+        setSkills(safeSkills);
         setTotal(typeof data?.total === "number" ? data.total : 0);
       } else {
         toast(data.error || "加载失败", "error");

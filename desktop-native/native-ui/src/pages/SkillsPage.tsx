@@ -88,8 +88,13 @@ export function SkillsPage() {
         `/api/skills${params}`
       );
       // 兼容两种响应格式
-      if (Array.isArray(resp)) return resp;
-      return resp.data || resp.items || [];
+      const list = Array.isArray(resp) ? resp : (resp.data || resp.items || []);
+      // 防御性规范化：确保 tags / parameters 均为数组，避免后端返回 null/字符串导致 .slice 崩溃
+      return list.map((s) => ({
+        ...s,
+        tags: Array.isArray(s.tags) ? s.tags : [],
+        parameters: Array.isArray(s.parameters) ? s.parameters : [],
+      }));
     },
   });
 
@@ -97,10 +102,11 @@ export function SkillsPage() {
   const filteredSkills = skills.filter((s) => {
     if (!search.trim()) return true;
     const q = search.toLowerCase();
+    const tags = Array.isArray(s.tags) ? s.tags : [];
     return (
       s.name.toLowerCase().includes(q) ||
       s.description.toLowerCase().includes(q) ||
-      s.tags.some((t) => t.toLowerCase().includes(q))
+      tags.some((t) => t.toLowerCase().includes(q))
     );
   });
 

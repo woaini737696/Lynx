@@ -40,8 +40,8 @@ export async function GET(
         name: skill.name,
         description: skill.description,
         category: skill.category,
-        tags: (skill.tags as string[]) || [],
-        parameters: (skill.parameters as unknown as SkillParameter[]) || [],
+        tags: Array.isArray(skill.tags) ? (skill.tags as string[]) : [],
+        parameters: Array.isArray(skill.parameters) ? (skill.parameters as unknown as SkillParameter[]) : [],
         content: skill.content,
         promptTemplate: skill.promptTemplate,
         source: skill.source,
@@ -57,7 +57,14 @@ export async function GET(
       });
     }
 
-    return NextResponse.json({ skill });
+    // 防御：tags/parameters 是 Prisma Json 字段，可能为 null/对象/字符串等非数组值
+    return NextResponse.json({
+      skill: {
+        ...skill,
+        tags: Array.isArray(skill.tags) ? skill.tags : [],
+        parameters: Array.isArray(skill.parameters) ? skill.parameters : [],
+      },
+    });
   } catch (e) {
     console.error("获取 Skill 失败:", e);
     return NextResponse.json({ error: "服务器错误" }, { status: 500 });

@@ -32,7 +32,7 @@ const PRIMARY_HSL = "hsl(217 86% 33%)";
 // ============ 类型定义 ============
 
 interface MembershipPlan {
-  tier: "FREE" | "LITE" | "PRO" | "MAX" | "ULTRA";
+  tier: "FREE" | "LITE" | "PRO" | "MAX";
   name: string;
   price: number;
   credits: string; // BigInt 序列化为字符串
@@ -76,7 +76,7 @@ interface CurrentMembership {
 
 // YI / formatCredits 已抽取到 @/lib/credits
 
-/** 5 档套餐的视觉配置 */
+/** 4 档套餐的视觉配置 */
 const TIER_THEME: Record<
   string,
   {
@@ -114,13 +114,6 @@ const TIER_THEME: Record<
     badgeClass: "bg-northstar/10 text-northstar",
     iconColor: "text-northstar",
     glow: "bg-northstar/20",
-  },
-  ULTRA: {
-    gradient: "from-amber-500 to-yellow-500",
-    ring: "ring-amber-400/50",
-    badgeClass: "bg-task/10 text-task",
-    iconColor: "text-amber-500",
-    glow: "bg-amber-500/20",
   },
 };
 
@@ -223,7 +216,10 @@ export function MembershipPage() {
       const json = await cloudApi.get<{ success: boolean; data: CurrentMembership }>(
         "/api/membership"
       );
-      setMembership(json.data);
+      const data = json?.data;
+      if (data && data.plan && data.tier) {
+        setMembership(data);
+      }
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "加载会员状态失败");
     }
@@ -235,7 +231,13 @@ export function MembershipPage() {
       const json = await cloudApi.get<{ success: boolean; data: PlansData }>(
         "/api/membership/plans"
       );
-      setPlansData(json.data);
+      const data = json?.data;
+      // 防御性处理：确保 plans/billingCycles 为数组，过滤已下架的 ULTRA 档位
+      const plans = Array.isArray(data?.plans)
+        ? data.plans.filter((p) => p && (p as { tier: string }).tier !== "ULTRA")
+        : [];
+      const billingCycles = Array.isArray(data?.billingCycles) ? data.billingCycles : [];
+      setPlansData({ plans, billingCycles });
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "加载套餐失败");
     }
@@ -369,10 +371,10 @@ export function MembershipPage() {
       <div className="mb-4 flex items-center gap-2">
         <Crown className="h-4 w-4 text-campaign" />
         <h2 className="text-sm font-semibold text-foreground">套餐对比</h2>
-        <span className="text-xs text-muted-foreground">5 档套餐 · 选择适合你的方案</span>
+        <span className="text-xs text-muted-foreground">4 档套餐 · 选择适合你的方案</span>
       </div>
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
         {plansData.plans.map((plan) => {
           const theme = TIER_THEME[plan.tier] || TIER_THEME.FREE;
           const isCurrent = plan.tier === currentTier;

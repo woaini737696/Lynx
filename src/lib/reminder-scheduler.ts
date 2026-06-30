@@ -254,12 +254,16 @@ export interface ReminderCheckResult {
 // 检查 Inbox 未处理灵感数量
 async function checkInboxReminder(): Promise<ReminderCheckResult> {
   try {
-    const res = await fetch("/api/ideas");
+    const res = await fetch("/api/ideas?limit=1");
     if (!res.ok) {
       return { ruleId: "inbox-reminder", triggered: false, message: "" };
     }
     const data = await res.json();
-    const count = data.ideas?.length || 0;
+    // 兼容分页响应 { data, total } 与旧格式 { ideas }
+    const count =
+      (typeof data.total === "number" ? data.total : 0) ||
+      (Array.isArray(data.data) ? data.data.length : 0) ||
+      (Array.isArray(data.ideas) ? data.ideas.length : 0);
     if (count > 0) {
       return {
         ruleId: "inbox-reminder",

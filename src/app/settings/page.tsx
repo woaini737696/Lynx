@@ -663,8 +663,21 @@ function AIConfigSection({
           {categoryModels.map((model) => {
             const configured = isConfigured(model);
             const isDefault = model.canBeDefault && defaultProvider === model.id;
-            const dbKey = !model.isCustom ? dbSettings[`${model.id}ApiKey`] : undefined;
-            const envConfigured = !model.isCustom ? (envSettings[`${model.id}ApiKey`] || false) : false;
+            // mimo-tts/mimo-asr 共用 MIMO_API_KEY，需查 tts/asr 字段而非 mimo-ttsApiKey
+            const dbKey = !model.isCustom
+              ? (model.id === "mimo-tts"
+                  ? dbSettings.ttsApiKey
+                  : model.id === "mimo-asr"
+                    ? dbSettings.asrApiKey
+                    : dbSettings[`${model.id}ApiKey`])
+              : undefined;
+            const envConfigured = !model.isCustom
+              ? (model.id === "mimo-tts"
+                  ? (envSettings.ttsApiKey || envSettings.mimoApiKey || false)
+                  : model.id === "mimo-asr"
+                    ? (envSettings.asrApiKey || envSettings.mimoApiKey || false)
+                    : (envSettings[`${model.id}ApiKey`] || false))
+              : false;
 
             return (
               <div
@@ -747,18 +760,29 @@ function AIConfigSection({
                             <span>Key: {dbKey.value}</span>
                           </div>
                         )}
-                        {(dbSettings[`${model.id}BaseUrl`]?.configured || envSettings[`${model.id}BaseUrl`]) && (
-                          <div className="flex items-center gap-1.5">
-                            <span className="text-muted-foreground/60">URL:</span>
-                            <span className="truncate">{dbSettings[`${model.id}BaseUrl`]?.value || model.defaultBaseUrl}</span>
-                          </div>
-                        )}
-                        {(dbSettings[`${model.id}Model`]?.configured || envSettings[`${model.id}Model`]) && (
-                          <div className="flex items-center gap-1.5">
-                            <span className="text-muted-foreground/60">模型:</span>
-                            <span>{dbSettings[`${model.id}Model`]?.value || model.defaultModel}</span>
-                          </div>
-                        )}
+                        {(() => {
+                          // mimo-tts/mimo-asr 共用 MIMO 的 BaseUrl/Model
+                          const baseUrlKey = model.id === "mimo-tts" ? "ttsBaseUrl" : model.id === "mimo-asr" ? "asrBaseUrl" : `${model.id}BaseUrl`;
+                          const modelKey = model.id === "mimo-tts" ? "ttsModel" : model.id === "mimo-asr" ? "asrModel" : `${model.id}Model`;
+                          const baseUrlConfigured = dbSettings[baseUrlKey]?.configured || envSettings[baseUrlKey] || envSettings.mimoBaseUrl || false;
+                          const modelConfigured = dbSettings[modelKey]?.configured || envSettings[modelKey] || false;
+                          return (
+                            <>
+                              {baseUrlConfigured && (
+                                <div className="flex items-center gap-1.5">
+                                  <span className="text-muted-foreground/60">URL:</span>
+                                  <span className="truncate">{dbSettings[baseUrlKey]?.value || model.defaultBaseUrl}</span>
+                                </div>
+                              )}
+                              {modelConfigured && (
+                                <div className="flex items-center gap-1.5">
+                                  <span className="text-muted-foreground/60">模型:</span>
+                                  <span>{dbSettings[modelKey]?.value || model.defaultModel}</span>
+                                </div>
+                              )}
+                            </>
+                          );
+                        })()}
                       </>
                     )}
                   </div>
