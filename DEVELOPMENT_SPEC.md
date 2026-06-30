@@ -499,4 +499,101 @@ location / {
 
 ---
 
+## 十七、Trae Solo 性能维护规范（2026-06-30 新增）
+
+> **此章节为 Trae Solo 长期流畅使用的强制规范。** 2026-06-30 曾因连续开发一周未清理，导致 70GB+ 缓存堆积（Trae snapshot 16.7GB + Rust编译缓存 10GB + 临时构建副本 21GB + Windows系统垃圾 11GB），Trae Solo 主进程占用 1.6GB 内存，越用越卡。
+
+### 17.1 每次迭代完成后必须执行的清理（强制）
+
+每次完成迭代并提交 Gitee 后，**必须**运行清理脚本：
+
+```powershell
+# 方法1：一键清理（推荐，关闭 Trae Solo 后运行效果最佳）
+powershell -ExecutionPolicy Bypass -File d:\Lynn工作空间\LynnHub\scripts\clean-trae-cache.ps1
+
+# 方法2：预览模式（只看不删，先确认）
+powershell -ExecutionPolicy Bypass -File d:\Lynn工作空间\LynnHub\scripts\clean-trae-cache.ps1 -DryRun
+```
+
+清理脚本会安全清理以下内容（均为可再生缓存，不触碰代码/数据库/配置）：
+
+| 清理项 | 说明 | 重新生成方式 |
+|---|---|---|
+| Trae `ai-agent\snapshot` | AI对话代码快照（最大元凶） | 下次AI对话自动生成 |
+| Trae `ai-agent\vm\tools` | 虚拟机工具 | 重新下载 |
+| Trae `logs` / `Partitions` / `Cache` | 日志和WebView缓存 | 自动重建 |
+| `.next` | Next.js构建缓存 | `npm run build` 重新生成 |
+| `cargo-target*`（5个目录） | Rust编译缓存 | `npx tauri build` 重新生成 |
+| `.lynnhub` / `Temp` / `tmp` | 运行时临时文件 | 自动重建 |
+| Windows 回收站 / Temp | 系统垃圾 | 不需要 |
+| `~\.cargo\registry` | Rust包缓存 | `cargo build` 重新下载 |
+
+### 17.2 桌面端构建后的必须清理
+
+每次 `npx tauri build` 完成后，Rust 编译缓存会膨胀到 7-9GB。**必须**执行：
+
+```powershell
+# 清理 Rust 编译缓存（不影响已生成的安装包）
+cd d:\Lynn工作空间\LynnHub\desktop-native\src-tauri
+$env:CARGO_TARGET_DIR = 'D:\cargo-target-native'; cargo clean
+```
+
+### 17.3 禁止在项目内创建临时副本（强制）
+
+| 禁止操作 | 原因 | 正确做法 |
+|---|---|---|
+| 复制整个项目到 `temp-*` 目录 | 产生 20GB+ 重复文件 | 直接在原目录构建 |
+| 在 D 盘根目录创建 `cargo-target-*` 多份 | 每份 2-7GB 冗余 | 统一用 `CARGO_TARGET_DIR` 环境变量 |
+| 手动 `cp -r` 项目做备份 | git 已有完整历史 | 用 `git branch` 或 `git stash` |
+
+### 17.4 Trae Solo 文件监视排除配置（必须手动设置）
+
+由于 Trae 安全策略限制，`.vscode/settings.json` 需要手动配置。打开 Trae Solo → `Ctrl+Shift+P` → "Preferences: Open Settings (JSON)"，添加：
+
+```json
+{
+  "files.watcherExclude": {
+    "**/node_modules/**": true,
+    "**/.next/**": true,
+    "**/target/**": true,
+    "**/cargo-target*/**": true,
+    "**/desktop-native/src-tauri/target/**": true,
+    "**/deploy/dist/**": true,
+    "**/.lynnhub/**": true,
+    "**/hermes-agent-pkg/**": true,
+    "**/__pycache__/**": true
+  },
+  "search.exclude": {
+    "**/node_modules": true,
+    "**/.next": true,
+    "**/target": true,
+    "**/cargo-target*": true,
+    "**/deploy/dist": true,
+    "**/.lynnhub": true
+  },
+  "typescript.tsserver.maxTsServerMemory": 4096
+}
+```
+
+### 17.5 每周深度清理（建议）
+
+每周五下班前或感觉卡顿时：
+1. 关闭 Trae Solo
+2. 运行 `scripts\clean-trae-cache.ps1`
+3. 用 Windows 磁盘清理工具清理 `$WINDOWS.~TMP`（Trae 安全策略限制脚本无法删除）
+4. 重启电脑或重新打开 Trae Solo
+
+### 17.6 Trae Solo 卡顿排查清单
+
+| 现象 | 排查方向 |
+|---|---|
+| Trae Solo 主进程 >1GB 内存 | 运行清理脚本，重启 Trae |
+| 文件搜索/替换很慢 | 检查 watcherExclude 配置是否生效 |
+| TypeScript 智能提示卡顿 | tsserver 内存不足，检查 maxTsServerMemory |
+| 磁盘空间不足 | 运行 `clean-trae-cache.ps1 -DryRun` 预览可清理空间 |
+| git 操作很慢 | `.git` 目录过大，运行 `git gc --aggressive` |
+| Trae 启动很慢 | snapshot 目录过大（可达 16GB+），关闭 Trae 后清理 |
+
+---
+
 **本规范自 2026-06-29 起执行，所有后续迭代必须严格遵守。**
