@@ -1303,19 +1303,8 @@ function HermesConfigSection() {
           toast(result.message || "安装失败", "error");
         }
       } else {
-        // 浏览器：调用 Web API（仅本地开发环境有效，云服务器上无法安装到用户本地）
-        const res = await fetch("/api/hermes/install", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ action: "install" }),
-        });
-        const data = await res.json();
-        if (res.ok && data.success) {
-          toast("Lynx Agent 安装成功", "success");
-          await loadStatus();
-        } else {
-          toast(data.error || "安装失败，建议使用桌面端客户端一键安装", "error");
-        }
+        // 浏览器：Web 端无法在用户本地执行 pip install，必须使用桌面端客户端
+        toast("Web 端无法直接安装 HermesAgent，请下载并使用 Lynx 桌面端客户端，点击「一键安装」即可在本地自动安装", "error");
       }
     } catch (e: any) {
       toast("安装请求失败：" + e.message, "error");
@@ -1333,19 +1322,8 @@ function HermesConfigSection() {
         toast("Lynx Agent 已启动，PC 已上线", "success");
         await loadStatus();
       } else {
-        const port = endpoint.match(/:(\d+)$/)?.[1] || "9119";
-        const res = await fetch("/api/hermes/install", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ action: "start", port: parseInt(port, 10) }),
-        });
-        const data = await res.json();
-        if (res.ok && data.success) {
-          toast(data.message || "Lynx Agent 已启动", "success");
-          await loadStatus();
-        } else {
-          toast(data.error || "启动失败", "error");
-        }
+        // 浏览器：Web 端无法启动本地 HermesAgent，必须使用桌面端客户端
+        toast("Web 端无法直接启动 HermesAgent，请使用 Lynx 桌面端客户端", "error");
       }
     } catch (e: any) {
       toast("启动请求失败：" + e.message, "error");

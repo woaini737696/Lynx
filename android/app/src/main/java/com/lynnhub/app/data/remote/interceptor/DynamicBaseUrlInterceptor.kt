@@ -10,8 +10,7 @@ import java.util.concurrent.atomic.AtomicReference
  * 动态 BaseUrl 拦截器
  *
  * 解决 Retrofit Singleton 无法运行时切换 baseUrl 的问题。
- * 在 Application 启动时从 DataStore 异步加载真实 baseUrl 并调用 [setBaseUrl]，
- * 后续每次请求都会替换 host 为当前持有的 baseUrl。
+ * 当使用 IP 直连时（绕过阿里云 WAF 备案拦截），自动添加 Host header。
  */
 class DynamicBaseUrlInterceptor : Interceptor {
 
@@ -36,11 +35,14 @@ class DynamicBaseUrlInterceptor : Interceptor {
             .port(baseUrl.port)
             .build()
 
-        val newRequest = originalRequest.newBuilder()
-            .url(newUrl)
-            .build()
+        val builder = originalRequest.newBuilder().url(newUrl)
 
-        return chain.proceed(newRequest)
+        // IP 直连时添加 Host header（让 Nginx 正确路由到 ai.lynxdo.com）
+        if (baseUrl.host != Constants.API_HOST) {
+            builder.header("Host", Constants.API_HOST)
+        }
+
+        return chain.proceed(builder.build())
     }
 
     private fun normalizeUrl(url: String): String {

@@ -1,5 +1,5 @@
 import { Outlet } from "react-router-dom";
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { TitleBar } from "./TitleBar";
 import { Sidebar } from "./Sidebar";
 import { QuickSearch } from "./QuickSearch";
@@ -9,11 +9,16 @@ import { AssistantDrawer } from "@/components/ai/AssistantDrawer";
 import { useAssistantDrawer } from "@/lib/assistant-drawer";
 import { LoginModal } from "@/components/auth/LoginModal";
 import { useLoginModal, openLoginModal } from "@/lib/login-modal";
-import { LOGIN_REQUIRED_EVENT } from "@/lib/cloud-api";
+import { LOGIN_REQUIRED_EVENT, getCloudEndpoint } from "@/lib/cloud-api";
+import { useAuthStore } from "@/stores/authStore";
+import { invoke } from "@/lib/tauri";
 
 export function AppLayout() {
   const { open: drawerOpen, closeDrawer } = useAssistantDrawer();
   const loginModal = useLoginModal();
+  const user = useAuthStore((s) => s.user);
+  const token = useAuthStore((s) => s.token);
+  const wsStartedRef = useRef(false);
 
   // 全局禁用右键（空白区域），带 data-context-menu 的元素和输入框除外
   useEffect(() => {
@@ -35,6 +40,26 @@ export function AppLayout() {
     window.addEventListener(LOGIN_REQUIRED_EVENT, handler);
     return () => window.removeEventListener(LOGIN_REQUIRED_EVENT, handler);
   }, []);
+
+  // 登录后自动启动 WS 连接（PC 上线，远程操控无需手动点"启动"）
+  // Rust 端有 ws_started AtomicBool 防重复，这里用 ref 再加一层防护
+  useEffect(() => {
+    if (!user?.id || !token || wsStartedRef.current) return;
+    wsStartedRef.current = true;
+
+    const startWs = async () => {
+      try {
+        await invoke("set_user_token", { token: `user:${user.id}` });
+        await invoke("set_cloud_endpoint", { endpoint: getCloudEndpoint() });
+        await invoke("start_hermes_agent");
+        console.log("[AppLayout] WS 连接已自动启动，PC 已上线");
+      } catch (e) {
+        console.warn("[AppLayout] WS 自动启动失败:", e);
+        wsStartedRef.current = false; // 允许重试
+      }
+    };
+    startWs();
+  }, [user?.id, token]);
 
   return (
     <div className="flex h-screen w-screen flex-col overflow-hidden bg-background text-foreground">

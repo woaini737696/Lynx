@@ -53,8 +53,8 @@ class MainActivity : ComponentActivity() {
         // 异步加载已保存的 baseUrl 到拦截器（不在主线程阻塞）
         lifecycleScope.launch {
             var savedUrl = userPreferences.getBaseUrl()
-            // 迁移旧地址：模拟器本地地址和旧的 lynnhub 域名统一替换为云服务器新域名
-            if (savedUrl.contains("10.0.2.2") || savedUrl.contains("app.lynnhub.com")) {
+            // 迁移旧地址：模拟器本地地址和域名（被备案拦截）统一替换为 IP 直连
+            if (savedUrl.contains("10.0.2.2") || savedUrl.contains("lynnhub.com") || savedUrl.contains("lynxdo.com")) {
                 savedUrl = com.lynnhub.app.util.Constants.DEFAULT_BASE_URL
                 userPreferences.setBaseUrl(savedUrl)
             }
