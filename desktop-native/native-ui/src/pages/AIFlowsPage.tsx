@@ -27,6 +27,9 @@ import {
   Database,
   Shuffle,
   Timer,
+  History,
+  XCircle,
+  RefreshCw,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
@@ -121,6 +124,24 @@ interface ExecutionResult {
   error: string | null;
 }
 
+/** 执行历史条目（GET /api/ai/flows/{id}/executions 返回的单条记录） */
+interface ExecutionHistoryItem {
+  id: string;
+  success: boolean;
+  startedAt: string;
+  finishedAt: string | null;
+  totalDurationMs: number | null;
+  finalOutput: string | null;
+  nodeResults: Array<{
+    nodeId: string;
+    nodeName: string;
+    success: boolean;
+    output: string;
+    durationMs: number;
+  }> | null;
+  error: string | null;
+}
+
 // 节点样式映射（对齐 Web 端配色 + iOS26 液态玻璃质感）
 const NODE_STYLES: Record<NodeType, { color: string; bg: string; icon: typeof Zap }> = {
   trigger: { color: "text-northstar", bg: "bg-northstar/10", icon: Zap },
@@ -172,6 +193,13 @@ export function AIFlowsPage() {
   const [executing, setExecuting] = useState<string | null>(null);
   const [lastResult, setLastResult] = useState<ExecutionResult | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Flow | null>(null);
+
+  // ===== 执行历史 Modal 状态 =====
+  const [historyFlowId, setHistoryFlowId] = useState<string | null>(null);
+  const [historyFlowName, setHistoryFlowName] = useState<string>("");
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [historyList, setHistoryList] = useState<ExecutionHistoryItem[]>([]);
+  const [expandedHistoryId, setExpandedHistoryId] = useState<string | null>(null);
 
   // ===== 可视化编排状态 =====
   const [nodes, setNodes] = useState<CanvasNode[]>([]);
@@ -424,6 +452,48 @@ export function AIFlowsPage() {
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "操作失败");
     }
+  };
+
+  // ===== 执行历史 =====
+
+  // 拉取指定工作流的执行历史（响应防御性解析：可能是 { executions: [...] } 或直接为数组）
+  const fetchHistory = async (flowId: string) => {
+    setHistoryLoading(true);
+    try {
+      const resp = await cloudApi.get<
+        { executions?: ExecutionHistoryItem[] } | ExecutionHistoryItem[]
+      >(`/api/ai/flows/${flowId}/executions?page=1&pageSize=20`);
+      const list: ExecutionHistoryItem[] = Array.isArray(resp)
+        ? resp
+        : Array.isArray((resp as { executions?: ExecutionHistoryItem[] })?.executions)
+          ? (resp as { executions: ExecutionHistoryItem[] }).executions
+          : [];
+      setHistoryList(list);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "获取执行历史失败");
+      setHistoryList([]);
+    } finally {
+      setHistoryLoading(false);
+    }
+  };
+
+  // 打开历史 Modal
+  const openHistory = (flow: Flow) => {
+    if (!flow.id) {
+      toast.info("请先保存工作流后再查看历史");
+      return;
+    }
+    setHistoryFlowId(flow.id);
+    setHistoryFlowName(flow.name);
+    setExpandedHistoryId(null);
+    fetchHistory(flow.id);
+  };
+
+  const closeHistory = () => {
+    setHistoryFlowId(null);
+    setHistoryFlowName("");
+    setHistoryList([]);
+    setExpandedHistoryId(null);
   };
 
   // ===== 画布交互处理 =====
@@ -738,6 +808,170 @@ export function AIFlowsPage() {
     );
   };
 
+  // ===== 执行历史 Modal（在列表视图与画布视图中复用） =====
+  const historyModal = (
+    <Modal
+      open={historyFlowId !== null}
+      onClose={closeHistory}
+      title={`执行历史${historyFlowName ? " · " + historyFlowName : ""}`}
+      size="lg"
+    >
+      <div className="space-y-3">
+        {/* 头部操作：记录数 + 刷新 */}
+        <div className="flex items-center justify-between">
+          <span className="text-[11px] text-muted-foreground">
+            共 {historyList.length} 条记录
+          </span>
+          <button
+            onClick={() => historyFlowId && fetchHistory(historyFlowId)}
+            disabled={historyLoading}
+            className="flex h-7 items-center gap-1.5 rounded-lg border border-border/60 px-2.5 text-[11px] text-muted-foreground transition-colors hover:bg-muted/50 disabled:opacity-50"
+          >
+            <RefreshCw className={cn("h-3 w-3", historyLoading && "animate-spin")} />
+            刷新
+          </button>
+        </div>
+
+        {/* 历史列表 */}
+        {historyLoading ? (
+          <div className="flex items-center justify-center gap-2 py-10 text-muted-foreground">
+            <Loader2 className="h-4 w-4 animate-spin" />
+            加载中...
+          </div>
+        ) : historyList.length === 0 ? (
+          <div className="flex flex-col items-center justify-center gap-2 py-10 text-center">
+            <History className="h-8 w-8 text-muted-foreground/30" />
+            <p className="text-xs text-muted-foreground">暂无执行历史</p>
+            <p className="text-[10px] text-muted-foreground/60">运行工作流后会在此处显示执行记录</p>
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {historyList.map((item) => {
+              const isExpanded = expandedHistoryId === item.id;
+              const outputSummary = item.finalOutput ? item.finalOutput.slice(0, 100) : "";
+              const hasMore = !!item.finalOutput && item.finalOutput.length > 100;
+              const durationSec =
+                item.totalDurationMs != null ? (item.totalDurationMs / 1000).toFixed(2) + "s" : "-";
+              const nodeResults = Array.isArray(item.nodeResults) ? item.nodeResults : [];
+              return (
+                <div
+                  key={item.id}
+                  className="overflow-hidden rounded-xl border border-border/40 bg-background/40"
+                >
+                  {/* 概要行 */}
+                  <button
+                    onClick={() => setExpandedHistoryId(isExpanded ? null : item.id)}
+                    className="flex w-full items-center gap-2.5 px-3 py-2.5 text-left transition-colors hover:bg-primary/5"
+                  >
+                    {item.success ? (
+                      <CheckCircle2 className="h-4 w-4 shrink-0 text-task" />
+                    ) : (
+                      <XCircle className="h-4 w-4 shrink-0 text-destructive" />
+                    )}
+                    <span className="shrink-0 text-[11px] tabular-nums text-muted-foreground">
+                      {new Date(item.startedAt).toLocaleString("zh-CN")}
+                    </span>
+                    <span className="shrink-0 text-[11px] text-muted-foreground">
+                      {durationSec}
+                    </span>
+                    <span
+                      className={cn(
+                        "shrink-0 rounded-full px-1.5 py-0.5 text-[10px] font-medium",
+                        item.success
+                          ? "bg-task/10 text-task"
+                          : "bg-destructive/10 text-destructive"
+                      )}
+                    >
+                      {item.success ? "成功" : "失败"}
+                    </span>
+                    {outputSummary ? (
+                      <span className="min-w-0 flex-1 truncate text-[11px] text-muted-foreground">
+                        {outputSummary}
+                        {hasMore ? "..." : ""}
+                      </span>
+                    ) : (
+                      <span className="flex-1" />
+                    )}
+                  </button>
+
+                  {/* 展开详情 */}
+                  {isExpanded && (
+                    <div className="space-y-2.5 border-t border-border/40 bg-muted/20 px-3 py-2.5">
+                      {/* 完整输出 */}
+                      {item.finalOutput && (
+                        <div>
+                          <div className="mb-1 text-[10px] font-medium text-muted-foreground">
+                            完整输出
+                          </div>
+                          <pre className="max-h-40 overflow-auto whitespace-pre-wrap rounded-lg bg-background/60 p-2 text-[11px] leading-relaxed text-foreground/80">
+                            {item.finalOutput}
+                          </pre>
+                        </div>
+                      )}
+
+                      {/* 错误信息 */}
+                      {item.error && (
+                        <div>
+                          <div className="mb-1 text-[10px] font-medium text-destructive">
+                            错误信息
+                          </div>
+                          <pre className="whitespace-pre-wrap rounded-lg bg-destructive/5 p-2 text-[11px] text-destructive">
+                            {item.error}
+                          </pre>
+                        </div>
+                      )}
+
+                      {/* 节点执行结果 */}
+                      {nodeResults.length > 0 && (
+                        <div>
+                          <div className="mb-1.5 text-[10px] font-medium text-muted-foreground">
+                            节点执行结果（{nodeResults.length}）
+                          </div>
+                          <div className="space-y-1.5">
+                            {nodeResults.map((nr, i) => (
+                              <div
+                                key={i}
+                                className={cn(
+                                  "flex items-start gap-2 rounded-lg px-2.5 py-1.5 text-[11px]",
+                                  nr.success ? "bg-task/5" : "bg-destructive/5"
+                                )}
+                              >
+                                {nr.success ? (
+                                  <CheckCircle2 className="mt-0.5 h-3 w-3 shrink-0 text-task" />
+                                ) : (
+                                  <XCircle className="mt-0.5 h-3 w-3 shrink-0 text-destructive" />
+                                )}
+                                <div className="min-w-0 flex-1">
+                                  <div className="flex items-center gap-2">
+                                    <span className="font-medium text-foreground">
+                                      {nr.nodeName || nr.nodeId}
+                                    </span>
+                                    <span className="text-[10px] text-muted-foreground">
+                                      {nr.durationMs}ms
+                                    </span>
+                                  </div>
+                                  {nr.output && (
+                                    <pre className="mt-1 max-h-24 overflow-auto whitespace-pre-wrap rounded bg-background/60 p-1.5 text-[10px] text-muted-foreground/80">
+                                      {nr.output}
+                                    </pre>
+                                  )}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    </Modal>
+  );
+
   // 可视化编排视图
   if (canvasMode && editingFlow) {
     const selectedNode = nodes.find((n) => n.id === selectedNodeId) || null;
@@ -806,6 +1040,13 @@ export function AIFlowsPage() {
               <Network className="h-4 w-4" />
             </button>
             <div className="h-5 w-px bg-border/50" />
+            <button
+              onClick={() => editingFlow && openHistory(editingFlow)}
+              title="执行历史"
+              className="flex h-8 items-center gap-1.5 rounded-lg px-3 text-xs font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+            >
+              <History className="h-3.5 w-3.5" /> 历史
+            </button>
             <button
               onClick={handleRunFromCanvas}
               disabled={!!executing}
@@ -1147,6 +1388,9 @@ export function AIFlowsPage() {
             </motion.div>
           )}
         </AnimatePresence>
+
+        {/* 执行历史 Modal */}
+        {historyModal}
       </div>
     );
   }
@@ -1267,6 +1511,13 @@ export function AIFlowsPage() {
                   <Edit3 className="h-3.5 w-3.5" />
                 </button>
                 <button
+                  onClick={() => openHistory(flow)}
+                  title="执行历史"
+                  className="flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-cognition/10 hover:text-cognition"
+                >
+                  <History className="h-3.5 w-3.5" />
+                </button>
+                <button
                   onClick={() => handleToggleEnabled(flow)}
                   title={flow.enabled ? "禁用" : "启用"}
                   className={cn(
@@ -1371,6 +1622,9 @@ export function AIFlowsPage() {
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* 执行历史 Modal */}
+      {historyModal}
 
       {/* 删除确认弹窗 */}
       <Modal

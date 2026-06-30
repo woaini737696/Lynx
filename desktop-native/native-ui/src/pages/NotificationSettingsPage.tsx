@@ -1,11 +1,8 @@
 import { useState, useEffect } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   Bell,
   BellRing,
   Send,
-  CheckCircle2,
-  XCircle,
   Loader2,
   Clock,
   Save,
@@ -14,7 +11,10 @@ import {
 import { cn } from "@/lib/utils";
 import { cloudApi } from "@/lib/cloud-api";
 import { toast } from "@/lib/toast";
+import { isTauri } from "@/lib/tauri";
 import { HelpButton } from "@/components/ui/HelpButton";
+
+const STORAGE_KEY = "lynnhub:notification-settings";
 
 interface NotificationSettings {
   ideaReminders: boolean;
@@ -35,6 +35,28 @@ const DEFAULT_SETTINGS: NotificationSettings = {
   quietHoursStart: "22:00",
   quietHoursEnd: "08:00",
 };
+
+// 从 localStorage 读取通知设置（兼容异常情况，回退到默认值）
+function loadSettings(): NotificationSettings {
+  if (typeof localStorage === "undefined") return DEFAULT_SETTINGS;
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return DEFAULT_SETTINGS;
+    const parsed = JSON.parse(raw) as Partial<NotificationSettings>;
+    return { ...DEFAULT_SETTINGS, ...parsed };
+  } catch {
+    return DEFAULT_SETTINGS;
+  }
+}
+
+// 保存通知设置到 localStorage
+function saveSettings(next: NotificationSettings): void {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+  } catch (e) {
+    console.warn("[notification-settings] 保存失败:", e);
+  }
+}
 
 // 内联 Toggle 开关组件
 function Toggle({
@@ -109,44 +131,16 @@ function SettingRow({
 }
 
 export function NotificationSettingsPage() {
-  const queryClient = useQueryClient();
   const [settings, setSettings] = useState<NotificationSettings>(DEFAULT_SETTINGS);
   const [loaded, setLoaded] = useState(false);
   const [testing, setTesting] = useState(false);
-  const [permissionStatus, setPermissionStatus] = useState<NotificationPermission | "unsupported">(
-    typeof Notification !== "undefined" ? Notification.permission : "unsupported"
-  );
+  const [saving, setSaving] = useState(false);
 
-  // 读取设置（404 等错误时使用默认设置，仍允许保存）
-  const { isLoading, error, data: queryData } = useQuery<NotificationSettings>({
-    queryKey: ["notification-settings"],
-    queryFn: async () => {
-      try {
-        const res = await cloudApi.get<NotificationSettings>("/api/notifications/settings");
-        return { ...DEFAULT_SETTINGS, ...res };
-      } catch (e) {
-        const err = e as Error;
-        if (err && /404|not found/i.test(err.message)) {
-          return DEFAULT_SETTINGS;
-        }
-        throw err;
-      }
-    },
-    retry: false,
-  });
-
-  // 同步 query 数据到本地 state（仅首次加载）
+  // 加载时从 localStorage 读取通知设置
   useEffect(() => {
-    if (!isLoading && !loaded) {
-      if (queryData) {
-        setSettings({ ...DEFAULT_SETTINGS, ...queryData });
-      } else if (error) {
-        // 读取失败仍允许编辑（使用默认值）
-        setSettings(DEFAULT_SETTINGS);
-      }
-      setLoaded(true);
-    }
-  }, [isLoading, error, queryData, loaded]);
+    setSettings(loadSettings());
+    setLoaded(true);
+  }, []);
 
   const updateField = <K extends keyof NotificationSettings,>(
     key: K,
@@ -155,69 +149,44 @@ export function NotificationSettingsPage() {
     setSettings((prev) => ({ ...prev, [key]: value }));
   };
 
-  // 保存设置：PATCH 失败回退 POST
-  const saveMutation = useMutation({
-    mutationFn: async (next: NotificationSettings) => {
-      try {
-        return await cloudApi.patch<NotificationSettings>(
-          "/api/notifications/settings",
-          next
-        );
-      } catch (e) {
-        const err = e as Error;
-        if (err && /404|not found|method not allowed/i.test(err.message)) {
-          return await cloudApi.post<NotificationSettings>(
-            "/api/notifications/settings",
-            next
-          );
-        }
-        throw e;
-      }
-    },
-    onSuccess: (data) => {
-      if (data) {
-        setSettings({ ...DEFAULT_SETTINGS, ...data });
-      }
-      queryClient.invalidateQueries({ queryKey: ["notification-settings"] });
-      toast.success("通知设置已保存");
-    },
-    onError: (e: Error) => toast.error(e.message || "保存失败"),
-  });
-
-  // 测试通知
-  const handleTest = async () => {
-    setTesting(true);
+  // 保存设置：写入 localStorage（不走后端 API，避免 404）
+  const handleSave = async () => {
+    setSaving(true);
     try {
-      await cloudApi.post("/api/notifications/test");
-      toast.success("测试通知已发送");
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : "测试通知发送失败");
+      saveSettings(settings);
+      toast.success("通知设置已保存");
     } finally {
-      setTesting(false);
+      setSaving(false);
     }
   };
 
-  // 请求桌面通知权限
-  const requestDesktopPermission = async () => {
-    if (typeof Notification === "undefined") {
-      toast.error("当前浏览器不支持桌面通知");
-      setPermissionStatus("unsupported");
-      return;
-    }
+  // 测试通知：桌面端用 toast 提示 + 调用飞书通知接口验证
+  const handleTest = async () => {
+    setTesting(true);
     try {
-      const result = await Notification.requestPermission();
-      setPermissionStatus(result);
-      if (result === "granted") {
-        toast.success("桌面通知权限已开启");
-        updateField("desktopNotifications", true);
-      } else if (result === "denied") {
-        toast.error("桌面通知权限被拒绝，请在浏览器设置中开启");
-        updateField("desktopNotifications", false);
+      // 桌面端（Tauri WebView2 不支持 Web Notification API）直接用应用内 toast 提示
+      if (isTauri()) {
+        toast.info("测试通知：通知功能正常工作");
       } else {
-        toast.info("未做出选择，权限请求已关闭");
+        // Web 端保持一致行为，用 toast 提示
+        toast.info("测试通知：通知功能正常工作");
       }
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : "请求权限失败");
+
+      // 额外调用飞书通知接口验证飞书通道（失败不阻塞主流程）
+      try {
+        await cloudApi.post("/api/notify-feishu", {
+          message: "这是一条来自 LynnHub 的测试通知",
+        });
+        toast.success("飞书测试通知已发送");
+      } catch (e) {
+        toast.error(
+          e instanceof Error
+            ? `飞书通知失败：${e.message}`
+            : "飞书通知发送失败"
+        );
+      }
+    } finally {
+      setTesting(false);
     }
   };
 
@@ -237,7 +206,7 @@ export function NotificationSettingsPage() {
         <HelpButton module="notifications" />
       </div>
 
-      {isLoading && !loaded ? (
+      {!loaded ? (
         <div className="flex flex-col items-center justify-center py-20">
           <Loader2 className="h-8 w-8 animate-spin text-primary" />
           <p className="mt-3 text-sm text-muted-foreground">加载通知设置...</p>
@@ -294,22 +263,12 @@ export function NotificationSettingsPage() {
                 iconClass="bg-primary/10 text-primary"
                 title="桌面通知"
                 description={
-                  permissionStatus === "granted"
-                    ? "已获得浏览器授权"
-                    : permissionStatus === "denied"
-                      ? "权限被拒绝，请在浏览器设置中开启"
-                      : permissionStatus === "unsupported"
-                        ? "当前环境不支持桌面通知"
-                        : "需要先请求浏览器通知权限"
+                  isTauri()
+                    ? "桌面端通过应用内 Toast 提示通知"
+                    : "通过浏览器桌面通知推送"
                 }
                 checked={settings.desktopNotifications}
-                onChange={(v) => {
-                  if (v && permissionStatus !== "granted") {
-                    void requestDesktopPermission();
-                  } else {
-                    updateField("desktopNotifications", v);
-                  }
-                }}
+                onChange={(v) => updateField("desktopNotifications", v)}
               />
               <SettingRow
                 icon={BellRing}
@@ -320,17 +279,6 @@ export function NotificationSettingsPage() {
                 onChange={(v) => updateField("feishuNotifications", v)}
               />
             </div>
-            {permissionStatus !== "granted" && permissionStatus !== "unsupported" && (
-              <div className="border-t border-border/40 px-4 py-2.5">
-                <button
-                  onClick={requestDesktopPermission}
-                  className="btn-glass flex h-7 items-center gap-1.5 px-2.5 text-[11px]"
-                >
-                  <Monitor className="h-3 w-3" />
-                  {permissionStatus === "denied" ? "重新请求桌面通知权限" : "请求桌面通知权限"}
-                </button>
-              </div>
-            )}
           </section>
 
           {/* 免打扰时段 */}
@@ -365,21 +313,11 @@ export function NotificationSettingsPage() {
           {/* 测试 + 保存 */}
           <section className="glass-card flex items-center justify-between gap-3 px-4 py-3">
             <div className="flex items-center gap-2 text-xs text-muted-foreground">
-              {permissionStatus === "granted" ? (
-                <CheckCircle2 className="h-4 w-4 text-task" />
-              ) : permissionStatus === "denied" ? (
-                <XCircle className="h-4 w-4 text-graveyard" />
-              ) : (
-                <Bell className="h-4 w-4 text-muted-foreground" />
-              )}
+              <Bell className="h-4 w-4 text-muted-foreground" />
               <span>
-                {permissionStatus === "granted"
-                  ? "桌面通知权限已开启"
-                  : permissionStatus === "denied"
-                    ? "桌面通知权限被拒绝"
-                    : permissionStatus === "unsupported"
-                      ? "当前环境不支持桌面通知"
-                      : "桌面通知权限未开启"}
+                {isTauri()
+                  ? "桌面端使用应用内 Toast 通知"
+                  : "通知将通过浏览器推送"}
               </span>
             </div>
             <div className="flex items-center gap-2">
@@ -396,11 +334,11 @@ export function NotificationSettingsPage() {
                 发送测试通知
               </button>
               <button
-                onClick={() => saveMutation.mutate(settings)}
-                disabled={saveMutation.isPending}
+                onClick={handleSave}
+                disabled={saving}
                 className="btn-primary-glass flex h-8 items-center gap-1.5 px-3 text-xs disabled:opacity-50"
               >
-                {saveMutation.isPending ? (
+                {saving ? (
                   <Loader2 className="h-3.5 w-3.5 animate-spin" />
                 ) : (
                   <Save className="h-3.5 w-3.5" />

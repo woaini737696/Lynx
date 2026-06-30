@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useMemo } from "react";
+import dynamic from "next/dynamic";
 import {
   Database,
   KeyRound,
@@ -37,10 +38,22 @@ import { PageHeader, Card, Button, LoadingState } from "@/components/layout/Page
 import { HelpButton } from "@/components/layout/HelpButton";
 import { Modal } from "@/components/ui/Modal";
 import { toast } from "@/components/ui/toast";
-import { UserAIKeyConfig } from "@/components/settings/UserAIKeyConfig";
-import { DesktopHermesSection } from "@/components/settings/DesktopHermesSection";
-import { AuthConfigSection } from "@/components/settings/AuthConfigSection";
 import { isDesktop, installAiEnv, startHermesAgent } from "@/lib/desktop-client";
+
+// 三个 tab 内容组件改为 dynamic 懒加载：仅在用户首次访问对应 tab 时才下载
+// 配合下方 visitedTabs 机制，未访问的 tab 不会触发 chunk 请求
+const UserAIKeyConfig = dynamic(
+  () => import("@/components/settings/UserAIKeyConfig").then((m) => m.UserAIKeyConfig),
+  { ssr: false, loading: () => <LoadingState title="AI 模型 Key 配置" /> }
+);
+const DesktopHermesSection = dynamic(
+  () => import("@/components/settings/DesktopHermesSection").then((m) => m.DesktopHermesSection),
+  { ssr: false, loading: () => <LoadingState title="桌面端 Lynx Agent" /> }
+);
+const AuthConfigSection = dynamic(
+  () => import("@/components/settings/AuthConfigSection").then((m) => m.AuthConfigSection),
+  { ssr: false, loading: () => <LoadingState title="认证配置" /> }
+);
 
 /** 设置页 Tab */
 type SettingsTab = "ai" | "agent" | "auth" | "system" | "files";
@@ -81,7 +94,8 @@ export default function SettingsPage() {
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<SettingsTab>("ai");
   // 已访问过的 tab，避免重复 mount/unmount 造成频繁请求
-  const [visitedTabs, setVisitedTabs] = useState<Set<SettingsTab>>(new Set(["ai", "auth"]));
+  // 默认仅含首屏可见的 ai，其他 tab 点击后才加载对应 dynamic chunk
+  const [visitedTabs, setVisitedTabs] = useState<Set<SettingsTab>>(new Set(["ai"]));
 
   useEffect(() => {
     let mounted = true;

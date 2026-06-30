@@ -1,12 +1,13 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { useLightningStore } from "@/store/lightning";
 import { ThemeToggle } from "@/components/theme/ThemeToggle";
 import { Search, Download, Monitor, X, Check } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { FastLink } from "./FastLink";
+import { usePollWhenVisible } from "@/lib/use-poll-when-visible";
 
 /** 桌面版下载引导弹窗（Portal 渲染到 body，避免被 sticky header 的堆叠上下文遮挡） */
 function DesktopDownloadModal({ open, onClose }: { open: boolean; onClose: () => void }) {
@@ -84,27 +85,20 @@ export function CaptureBar() {
   const [count, setCount] = useState(0);
   const [showDownload, setShowDownload] = useState(false);
 
-  useEffect(() => {
-    let mounted = true;
-    const fetchCount = async () => {
-      try {
-        const res = await fetch("/api/ideas");
-        if (!mounted) return;
-        if (res.ok) {
-          const data = await res.json();
-          setCount(data.ideas?.length || 0);
-        }
-      } catch {
-        // ignore
+  // 灵感数量轮询：tab 不可见时暂停，节省网络
+  const fetchCount = useCallback(async () => {
+    try {
+      const res = await fetch("/api/ideas");
+      if (res.ok) {
+        const data = await res.json();
+        setCount(data.ideas?.length || 0);
       }
-    };
-    fetchCount();
-    const id = setInterval(fetchCount, 30000);
-    return () => {
-      mounted = false;
-      clearInterval(id);
-    };
+    } catch {
+      // ignore
+    }
   }, []);
+
+  usePollWhenVisible(fetchCount, 30_000, { immediate: true });
 
   return (
     <header className="glass-topbar sticky top-0 z-20 flex h-14 shrink-0 items-center justify-between px-4 lg:px-6">

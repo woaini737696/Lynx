@@ -52,7 +52,21 @@ import { toast } from "@/components/ui/toast";
 import { cn } from "@/lib/utils";
 import { SearchInput, Pagination, useClientPagination } from "@/components/ui/ListControls";
 import { openContextMenu } from "@/components/ui/ContextMenu";
-import { RichTextEditor } from "@/components/editor/RichTextEditor";
+import dynamic from "next/dynamic";
+
+// RichTextEditor（TipTap）体积大，仅在 SkillEditModal 弹窗内使用
+// 改为 dynamic 懒加载 + ssr:false，只在用户打开"新建/编辑"弹窗时才下载
+const RichTextEditor = dynamic(
+  () => import("@/components/editor/RichTextEditor").then((m) => m.RichTextEditor),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="flex min-h-[160px] items-center justify-center rounded-lg border border-dashed border-border/40 text-xs text-muted-foreground">
+        正在加载编辑器…
+      </div>
+    ),
+  }
+);
 import type {
   SkillParameter,
   SkillParamType,

@@ -95,7 +95,7 @@
     background-image:
       radial-gradient(ellipse at 0% 0%, rgba(15, 98, 254, 0.06) 0%, transparent 45%),
       radial-gradient(ellipse at 100% 100%, rgba(0, 184, 212, 0.04) 0%, transparent 40%);
-    background-attachment: fixed;
+    /* 性能优化：移除 background-attachment: fixed，避免滚动时整页重绘 */
     font-feature-settings: "rlig" 1, "calt" 1;
     font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei",
       "Helvetica Neue", "Segoe UI", system-ui, sans-serif;
@@ -146,6 +146,9 @@
     border-radius: 1.1rem;
     transition: all 0.3s cubic-bezier(0.22, 1, 0.36, 1);
     overflow: hidden;
+    /* 性能：限制重绘范围，已有 overflow:hidden 所以 contain:paint 安全 */
+    contain: layout paint style;
+    isolation: isolate;
   }
   .ios-glass::before {
     content: "";
@@ -492,6 +495,9 @@
       0 8px 32px -8px rgba(5, 12, 32, 0.12);
     overflow: hidden;
     transition: all 0.3s cubic-bezier(0.22, 1, 0.36, 1);
+    /* 性能：限制重绘范围 */
+    contain: layout paint style;
+    isolation: isolate;
   }
   .glass-card::before {
     content: "";
@@ -600,6 +606,9 @@
       0 0 0 1px rgba(255, 255, 255, 0.5) inset,
       0 1px 0 0 rgba(255, 255, 255, 0.8) inset;
     overflow: hidden;
+    /* 性能：模态框内容独立合成层 */
+    contain: layout paint style;
+    isolation: isolate;
   }
   .glass-modal::before {
     content: "";
@@ -1035,3 +1044,36 @@ html.theme-transition * {
     transform: none !important;
   }
 }
+
+/* ============ 性能降级：用户偏好减少透明度时关闭所有 backdrop-filter ============ */
+/* W3C 标准媒体查询：用户系统设置开启"减少透明度"时自动降级为不透明背景 */
+/* macOS: 系统设置 → 辅助功能 → 显示 → 减少透明度；Windows: 设置 → 辅助功能 → 视觉效果 → 透明度效果 */
+@media (prefers-reduced-transparency: reduce) {
+  .ios-glass,
+  .ios-glass-sm,
+  .glass-card,
+  .glass-bar,
+  .glass-btn,
+  .glass-sidebar,
+  .glass-user,
+  .user-card,
+  .user-menu,
+  .glass-modal,
+  .glass-topbar,
+  .chat-bubble-ai,
+  .skeleton-shimmer,
+  html[data-desktop="1"] .glass-card {
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+    /* 用更高不透明度的背景补偿视觉一致性 */
+    background-color: hsl(var(--background)) !important;
+  }
+  /* 保留渐变高光但去掉滤镜开销 */
+  .ios-glass::before,
+  .glass-card::before,
+  .glass-modal::before,
+  .glass-btn::before {
+    content: none !important;
+  }
+}
+
