@@ -9,6 +9,7 @@
 
 | 迭代 | 日期 | 任务概要 |
 |------|------|----------|
+| [迭代 85](#迭代-85---2026-07-01) | 2026-07-01 | 用户管理手机号支持+权限管理全量同步：用户管理API+UI全链路支持phone字段(settings/profile个人资料页显示手机号只读+admin/users手机号搜索+列表显示)+权限目录从35项扩充到75项覆盖全部功能模块(补全conversation:read/cognition:read两个P0缺失key+新增Hermes/Lark/会员/钱包/推送/搜索等25个未覆盖模块)+DEFAULT_ROLES同步(admin 75项/editor 57项/viewer 33项对齐C端应用)+admin创建用户支持免密(密码可选自动生成)+username可选(不填自动生成phone_xxx)+register接口限流(IP5次/小时+手机号3次/天)+token登录限流(IP10次/分钟)+服务器端角色权限seed同步 |
 | [迭代 84](#迭代-84---2026-07-01) | 2026-07-01 | 安卓端v0.1.3四项任务收尾：主题全面替换MaterialTheme.colorScheme(13文件19处硬编码Void/Deep替换)+毛玻璃弹窗(FrostedGlassDialog辅助组件+ThemePickerDialog/ConfirmDialog重写)+全双工语音通话CallViewModel完整实现(LISTENING→THINKING→SPEAKING状态机+CompletableDeferred+VAD端点检测+流式TTS+MediaPlayer临时文件播放+对话历史20条限制)+CallScreen接入ViewModel+PC联调AgentPanel.approveOrReject stub修复(dispatchRemoteCommand下发approve/reject指令)+MemoryScreen.kt编译错误修复(Inject导入/LocalDensity移除/Float-Double类型修正) |
 | [迭代 83](#迭代-83---2026-07-01) | 2026-07-01 | 桌面端v1.0.27 HermesAgent架构彻底修正：服务器禁止任何CLI/agent/pip install(findHermesExe/execHermes/installHermesAgent/startHermesAgent/stopHermesAgent全部改为返回错误不执行子进程)+抽取dispatchRemoteCommand共享函数到hermes-client.ts(tool-executor与flow-engine共用)+executeHermesTask重写为WS远程执行+executeHermesListSkills移除CLI回退+settings页Web端handleOpenDashboard探测本地127.0.0.1:9119在线直接打开(不再强制提示下载桌面端)+handleInstall/handleStart/handleStop Web端提示命令行方式+desktop-client installAiEnv/startHermesAgent加isDesktop检查+飞书任务警告改为中性提示(不强制桌面端) |
 | [迭代 82](#迭代-82---2026-07-01) | 2026-07-01 | 安卓端v0.1.2六项功能优化：主题切换面板(深色/浅色/跟随系统,ThemePickerDialog主题感知背景)+LynxAgent语音消息发送(ChatPanel接入AudioRecorder+VoiceApiClient,3态麦克风按钮idle/recording/transcribing)+飞书任务卡片展示(TasksScreen完全重写+独立TasksViewModel+SyncStateBar+AddLarkTaskDialog 4字段主题感知背景)+记忆搜索icon样式修复(圆形按钮容器+点击空白收起输入法detectTapGestures)+首页重新设计(时间流→今日工作台,3统计胶囊+3快捷入口+最近飞书任务Top3)+HomeViewModel并行加载Quad四元组 |
@@ -125,6 +126,69 @@
 
 ### Commit hash
 `4181fb4d`
+
+---
+
+## 迭代 85 - 2026-07-01
+
+### 任务概要
+用户管理手机号支持 + 权限管理全量同步 + C 端用户管理轻量改进。修复登录注册已切换到手机号但用户管理不支持手机号设置导致无法使用的缺陷，同时修复权限管理与功能不同步的问题。
+
+### 背景问题
+1. **用户管理不支持手机号**：登录注册已切换到手机号登录，但用户管理 UI 和 API 全链路不支持 phone 字段，导致 admin 无法正确管理用户。
+2. **权限管理严重滞后**：
+   - P0：`conversation:read`、`cognition:read` 两个权限 key 在代码中实际调用但未在 PERMISSION_CATALOG 定义，导致非管理员用户调用对应端点必然 403。
+   - P1：权限目录仅 35 项，25 个功能模块（Hermes/Lark/会员/钱包/推送/搜索/PC会话/Agent审计/上传等）完全没有权限定义。
+   - P1：viewer 角色仅 2 项权限（idea:create + skill:execute），C 端用户基本无法使用任何功能。
+3. **C 端用户管理不友好**：admin 创建用户必须设密码，不支持 C 端免密注册场景；注册/登录接口无速率限制，可被刷。
+
+### 完成内容
+
+#### 1. 用户管理手机号支持（API + UI 全链路）
+- `src/app/api/users/route.ts` — GET select 加 phone；POST 加 phone 校验（必填 + `^1[3-9]\d{9}$` 正则 + 唯一性检查）+ username 改为可选（不填自动生成 `phone_${phone}`）
+- `src/app/api/users/[id]/route.ts` — GET select 加 phone；PATCH 加 phone 修改逻辑（校验格式 + 唯一性）
+- `src/app/api/user/profile/route.ts` — GET + PUT 的 select 都加 phone（不允许用户自行修改 phone，只能 admin 改）
+- `src/app/admin/users/page.tsx` — User 类型加 phone；FormData 加 phone；表单手机号输入框置顶（必填）；列表显示手机号；搜索支持手机号
+- `src/app/settings/profile/page.tsx` — UserProfile 类型加 phone；个人资料页显示手机号（只读，提示"请联系管理员修改手机号"）
+
+#### 2. 权限管理全量同步（P0 + P1 全量修复）
+- `src/lib/permissions.ts` — PERMISSION_CATALOG 从 35 项扩充到 **75 项**，覆盖系统全部功能模块：
+  - **P0 缺失 key 补全**：`conversation:read`、`cognition:read`
+  - **新增模块权限**：Hermes（9 项）、飞书（2 项）、会员/钱包（4 项）、推送（2 项）、搜索（1 项）、PC会话（1 项）、Agent审计（1 项）、上传（1 项）、用户自助（2 项）、系统诊断/职业管理（2 项）
+  - **既有模块补充**：idea:revive、skill:manage、flow:read、ai:tool:use、ai:distill:*、ai:workspace:*、patrol:read、backup:verify、dev-log:read、graveyard:manage、focus:manage
+- DEFAULT_ROLES 同步更新：
+  - **admin**：75 项（全部权限）
+  - **editor**：57 项（除 18 项 ADMIN_ONLY_PERMISSIONS 外全部）
+  - **viewer**：33 项（新增 VIEWER_PERMISSIONS，对齐 C 端应用豆包/Kimi 默认体验——可对话/搜索/上传/管理自己资料/读取记忆认知/执行工作流/Hermes/巡检/查看会员钱包）
+- ADMIN_ONLY_PERMISSIONS 从 6 项扩充到 18 项，将系统级危险权限（远程命令、安装 Agent、管理模式、管理会员/钱包、管理墓场等）锁定为仅 admin
+
+#### 3. C 端用户管理轻量改进
+- `src/app/api/users/route.ts` — admin 创建用户密码改为可选（不填自动生成随机密码，与 /api/auth/register 一致，C 端用户可凭手机号+验证码登录）
+- `src/app/admin/users/page.tsx` — 创建表单密码字段改为可选（提示"留空自动生成，C 端用户可免密"）；搜索 placeholder 改为"搜索手机号/用户名/显示名..."
+- `src/app/api/auth/register/route.ts` — 注册接口加速率限制（IP 维度 5 次/小时 + 手机号维度 3 次/天）
+- `src/app/api/auth/token/route.ts` — token 登录接口加速率限制（IP 维度 10 次/分钟）
+
+#### 4. 服务器端角色权限同步
+- `scripts/deploy/seed-roles-server.js` — 纯 JS 版 seed 脚本（无需 tsx），通过 SSH 上传到服务器 /opt/lynx/app 目录运行，成功同步 admin(75)/editor(57)/viewer(33) 三个角色权限到数据库
+- 服务器端 Role 表已更新，所有现有用户（包括 viewer 角色 C 端用户）即刻获得新权限
+
+### 修改文件清单
+- `src/app/api/users/route.ts` — 创建用户 API（phone 必填 + username 可选 + 密码可选自动生成）
+- `src/app/api/users/[id]/route.ts` — 编辑用户 API（phone 修改逻辑）
+- `src/app/api/user/profile/route.ts` — 个人资料 API（返回 phone）
+- `src/app/api/auth/register/route.ts` — 注册接口限流
+- `src/app/api/auth/token/route.ts` — token 登录限流
+- `src/app/admin/users/page.tsx` — 用户管理 UI（手机号表单 + 搜索 + 密码可选）
+- `src/app/settings/profile/page.tsx` — 个人资料页（手机号只读显示）
+- `src/lib/permissions.ts` — 权限目录 75 项 + DEFAULT_ROLES 同步
+- `scripts/deploy/seed-roles-server.js` — 服务器端 seed 工具脚本（新增）
+- `scripts/deploy/uninstall_server_hermes.py` — 临时脚本清理（删除）
+- `DEV_LOG.md` — 开发日志
+
+### 验证结果
+- TypeScript 类型检查通过（`npx tsc --noEmit` 无错误）
+- 服务器端角色权限 seed 成功（admin 75 项 / editor 57 项 / viewer 33 项）
+- 服务器临时脚本已清理
 
 ---
 
