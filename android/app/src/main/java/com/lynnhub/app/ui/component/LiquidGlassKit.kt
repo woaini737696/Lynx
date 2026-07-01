@@ -266,25 +266,25 @@ fun GlassTopBar(
             .background(
                 Brush.verticalGradient(
                     colors = listOf(
-                        TopBarDeep,        // 80% Void 顶部
-                        TopBarDeepBlur     // 60% Deep 底部，渐变模糊
+                        TopBarDeep,
+                        TopBarDeepBlur
                     )
                 )
             )
-            .statusBarsPadding()
             .drawBehind {
-                // 底部分隔线（iOS26 App Store 顶部栏标志性元素）
-                drawLine(
-                    color = GlassBorderSubtle,
-                    start = Offset(0f, size.height),
-                    end = Offset(size.width, size.height),
-                    strokeWidth = 1f
-                )
-                // 顶部高光
                 drawLine(
                     color = GlassHighlightDeep.copy(alpha = 0.3f),
                     start = Offset(0f, 0f),
                     end = Offset(size.width, 0f),
+                    strokeWidth = 1f
+                )
+            }
+            .statusBarsPadding()
+            .drawBehind {
+                drawLine(
+                    color = GlassBorderSubtle,
+                    start = Offset(0f, size.height),
+                    end = Offset(size.width, size.height),
                     strokeWidth = 1f
                 )
             }

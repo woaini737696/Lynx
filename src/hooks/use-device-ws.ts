@@ -61,6 +61,8 @@ export function useDeviceWs() {
               deviceName: getWebDeviceName(),
               capabilities: ["browser", "desktop", "file", "shell"],
               authMode: "approve",
+              // 标记为 Web 端：网关据此把 __LYNN_CMD__: 系统命令只派给桌面端
+              deviceType: "web",
             })
           );
           setConnected(true);
@@ -153,6 +155,25 @@ async function handleRemoteCommand(
   msg: { commandId: string; command: string; timestamp: number }
 ) {
   const { commandId, command } = msg;
+
+  // 系统命令（__LYNN_CMD__:）只能由桌面端执行（安装/启动/停止 HermesAgent 等）
+  // Web 端即使被误派也不应去 fetch 127.0.0.1:9119（跨机器场景必然失败），
+  // 直接回传清晰错误，避免误导性的"无法连接 Dashboard"
+  if (command.startsWith("__LYNN_CMD__:")) {
+    sendJson(ws, {
+      type: "command-update",
+      commandId,
+      status: "failed",
+      error: "Web 端无法执行系统命令（安装/启动/停止），请在桌面端操作",
+      result: {
+        success: false,
+        output: "",
+        route: "web-rejected",
+        durationMs: 0,
+      },
+    });
+    return;
+  }
 
   // 回传 executing
   sendJson(ws, {

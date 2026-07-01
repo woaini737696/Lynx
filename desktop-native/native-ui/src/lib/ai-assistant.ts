@@ -1,4 +1,5 @@
-import { cloudApi } from "./cloud-api";
+import { cloudApi, getCloudEndpoint } from "./cloud-api";
+import { useAuthStore } from "@/stores/authStore";
 
 // ============ 类型定义（对齐 Web 端） ============
 
@@ -29,6 +30,13 @@ export interface Message {
   feedback?: "good" | "bad" | null;
   feedbackReason?: string | null;
   error?: boolean;
+  /** 流式工具调用进度（tool_start/tool_done 期间设置） */
+  toolProgress?: {
+    tool: string;
+    status: "running" | "done";
+    args?: Record<string, unknown>;
+    result?: unknown;
+  } | null;
 }
 
 export interface ChatSession {
@@ -137,7 +145,7 @@ export async function feedbackMessage(
   await cloudApi.patch(`/api/ai/chat/messages/${messageId}/feedback`, { feedback, reason });
 }
 
-// ============ AI 对话调用（非流式 + 逐字模拟） ============
+// ============ AI 对话调用（流式 SSE，WebView2 完全支持） ============
 
 export interface ChatResponse {
   content: string;
@@ -150,21 +158,207 @@ export interface ChatResponse {
   messageId?: string;
 }
 
-export async function chatCompletion(params: {
-  messages: { role: string; content: string }[];
-  sessionId?: string;
-}): Promise<ChatResponse> {
-  return cloudApi.post<ChatResponse>("/api/ai/chat", {
-    messages: params.messages,
-    stream: false, // 桌面端 Tauri cloud_request 不支持流式
-    assistantMode: true, // 启用 Function Calling + 22 工具
-    sessionId: params.sessionId,
+/** 流式回调：用于实时更新 UI（delta 增量、工具进度、思考状态等） */
+export interface ChatStreamCallbacks {
+  /** 收到 meta 事件：provider/model/hermes 标记 */
+  onMeta?: (meta: {
+    provider?: string;
+    model?: string;
+    hermesMode?: boolean;
+    hermesFallback?: boolean;
+  }) => void;
+  /** 收到 thinking 事件：第一轮 LLM 思考中 */
+  onThinking?: (content?: string) => void;
+  /** 收到 tool_start 事件：工具开始执行 */
+  onToolStart?: (tool: string, args?: Record<string, unknown>) => void;
+  /** 收到 tool_done 事件：工具执行完成 */
+  onToolDone?: (
+    tool: string,
+    result: unknown,
+    toolCalled?: ToolCalled | null
+  ) => void;
+  /** 收到 delta 事件：增量内容 + 累积内容 */
+  onDelta?: (chunk: string, fullContent: string) => void;
+  /** 流结束：最终结果（含 usage/toolCalled/模型信息） */
+  onDone?: (meta: {
+    content: string;
+    provider?: string;
+    model?: string;
+    usage?: TokenUsage;
+    toolCalled?: ToolCalled | null;
+    hermesMode?: boolean;
+    hermesFallback?: boolean;
+    messageId?: string;
+  }) => void;
+  /** 流式错误 */
+  onError?: (err: Error) => void;
+}
+
+export async function chatCompletion(
+  params: {
+    messages: { role: string; content: string }[];
+    sessionId?: string;
+    signal?: AbortSignal;
+  },
+  callbacks?: ChatStreamCallbacks
+): Promise<ChatResponse> {
+  const base = getCloudEndpoint().replace(/\/+$/, "");
+  const url = `${base}/api/ai/chat`;
+  const token = useAuthStore.getState().token;
+
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+  };
+  if (token) {
+    headers["Authorization"] = `Bearer ${token}`;
+  }
+
+  let res: Response;
+  try {
+    res = await fetch(url, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        messages: params.messages,
+        stream: true, // 流式 SSE（WebView2 完全支持）
+        assistantMode: true, // 启用 Function Calling + 22 工具
+        sessionId: params.sessionId,
+      }),
+      signal: params.signal,
+    });
+  } catch (err) {
+    const e = err instanceof Error
+      ? new Error(`网络请求失败: ${err.message}`)
+      : new Error("网络请求失败，请检查网络连接");
+    callbacks?.onError?.(e);
+    throw e;
+  }
+
+  if (!res.ok || !res.body) {
+    let errMsg = `请求失败（${res.status}）`;
+    try {
+      const errData = await res.json();
+      errMsg = errData?.error || errData?.message || errMsg;
+    } catch {
+      // 非 JSON 错误响应
+    }
+    const e = new Error(errMsg);
+    callbacks?.onError?.(e);
+    throw e;
+  }
+
+  // 解析 SSE 流：meta / thinking / tool_start / tool_done / delta / done / error
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder("utf-8");
+  let buffer = "";
+  let aiContent = "";
+  let provider: string | undefined;
+  let model: string | undefined;
+  let usage: TokenUsage | undefined;
+  let toolCalled: ToolCalled | null = null;
+  let hermesMode: boolean | undefined;
+  let hermesFallback: boolean | undefined;
+  let serverMessageId: string | undefined;
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    const lines = buffer.split("\n");
+    buffer = lines.pop() || "";
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (!trimmed || !trimmed.startsWith("data:")) continue;
+      const data = trimmed.slice(5).trim();
+      if (!data || data === "[DONE]") continue;
+      try {
+        const evt = JSON.parse(data) as {
+          type: string;
+          content?: string;
+          tool?: string;
+          args?: Record<string, unknown>;
+          result?: unknown;
+          toolCalled?: ToolCalled | null;
+          provider?: string;
+          model?: string;
+          usage?: TokenUsage;
+          hermesMode?: boolean;
+          hermesFallback?: boolean;
+          message?: string;
+          messageId?: string;
+        };
+
+        if (evt.type === "meta") {
+          provider = evt.provider;
+          model = evt.model;
+          if (evt.hermesMode) hermesMode = true;
+          if (evt.hermesFallback) hermesFallback = true;
+          callbacks?.onMeta?.({ provider, model, hermesMode, hermesFallback });
+        } else if (evt.type === "thinking") {
+          callbacks?.onThinking?.(evt.content);
+        } else if (evt.type === "tool_start") {
+          callbacks?.onToolStart?.(evt.tool || "工具", evt.args);
+        } else if (evt.type === "tool_done") {
+          if (evt.toolCalled) toolCalled = evt.toolCalled;
+          callbacks?.onToolDone?.(
+            evt.tool || "工具",
+            evt.result,
+            evt.toolCalled
+          );
+        } else if (evt.type === "delta" && typeof evt.content === "string") {
+          aiContent += evt.content;
+          callbacks?.onDelta?.(evt.content, aiContent);
+        } else if (evt.type === "done") {
+          if (evt.usage) usage = evt.usage;
+          if (evt.provider) provider = evt.provider;
+          if (evt.model) model = evt.model;
+          if (evt.toolCalled) toolCalled = evt.toolCalled;
+          if (evt.hermesMode) hermesMode = true;
+          if (evt.hermesFallback) hermesFallback = true;
+          if (evt.messageId) serverMessageId = evt.messageId;
+        } else if (evt.type === "error") {
+          const errMsg = evt.message || "流式响应异常";
+          const e = new Error(errMsg);
+          callbacks?.onError?.(e);
+          throw e;
+        }
+      } catch {
+        // 忽略 SSE 行解析错误（非 JSON）
+      }
+    }
+  }
+
+  const response: ChatResponse = {
+    content: aiContent,
+    provider,
+    model,
+    usage,
+    toolCalled,
+    hermesMode,
+    hermesFallback,
+    messageId: serverMessageId,
+  };
+
+  callbacks?.onDone?.({
+    content: aiContent,
+    provider,
+    model,
+    usage,
+    toolCalled,
+    hermesMode,
+    hermesFallback,
+    messageId: serverMessageId,
   });
+
+  return response;
 }
 
 /**
- * 逐字显示模拟流式效果（复用 InboxPage 方案）
+ * 逐字显示模拟流式效果（用于不支持 SSE 的端点，如 /api/ai/idea-chat）
  * chunkSize=4, 16ms/块
+ *
+ * 注意：AI 助理主聊天已切换到真实 SSE 流式（chatCompletion），不再使用此函数。
+ * 此函数保留供 InboxPage 的 idea-chat 端点使用。
  */
 export async function streamSimulate(
   fullText: string,

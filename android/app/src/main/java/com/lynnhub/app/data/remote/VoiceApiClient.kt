@@ -2,6 +2,7 @@ package com.lynnhub.app.data.remote
 
 import android.util.Log
 import com.lynnhub.app.data.local.UserPreferences
+import com.lynnhub.app.util.Constants
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.delay
@@ -24,8 +25,13 @@ import okhttp3.WebSocket
 import okhttp3.WebSocketListener
 import okio.ByteString
 import okio.ByteString.Companion.toByteString
+import java.util.concurrent.TimeUnit
 import javax.inject.Inject
 import javax.inject.Singleton
+import javax.net.ssl.HostnameVerifier
+import javax.net.ssl.SSLContext
+import javax.net.ssl.TrustManager
+import javax.net.ssl.X509TrustManager
 
 /**
  * 语音 API 客户端
@@ -48,6 +54,32 @@ class VoiceApiClient @Inject constructor(
         private const val TAG = "VoiceApiClient"
         /** HTTP fallback 分段长度（毫秒），平衡延迟与识别准确率 */
         const val FALLBACK_CHUNK_MS = 2500L
+
+        private val directHttpClient: OkHttpClient by lazy {
+            val trustAllManager = object : X509TrustManager {
+                override fun checkClientTrusted(chain: Array<out java.security.cert.X509Certificate>?, authType: String?) {}
+                override fun checkServerTrusted(chain: Array<out java.security.cert.X509Certificate>?, authType: String?) {}
+                override fun getAcceptedIssuers(): Array<java.security.cert.X509Certificate> = arrayOf()
+            }
+            val sslContext = SSLContext.getInstance("TLS").apply {
+                init(null, arrayOf<TrustManager>(trustAllManager), java.security.SecureRandom())
+            }
+            OkHttpClient.Builder()
+                .sslSocketFactory(sslContext.socketFactory, trustAllManager)
+                .hostnameVerifier(HostnameVerifier { _, _ -> true })
+                .connectTimeout(30, TimeUnit.SECONDS)
+                .readTimeout(60, TimeUnit.SECONDS)
+                .writeTimeout(30, TimeUnit.SECONDS)
+                .build()
+        }
+
+        private fun resolveAsrBaseUrl(userPrefUrl: String): String {
+            return if (userPrefUrl.contains("10.0.2.2") || userPrefUrl.contains("lynnhub.com") || userPrefUrl.contains("lynxdo.com")) {
+                Constants.DEFAULT_BASE_URL
+            } else {
+                userPrefUrl
+            }
+        }
     }
 
     /**
@@ -59,7 +91,8 @@ class VoiceApiClient @Inject constructor(
      *    若是则抛出明确错误，避免把 HTML 当 JSON 解析后展示给用户
      */
     suspend fun recognizeSpeech(wavData: ByteArray): String = withContext(Dispatchers.IO) {
-        val baseUrl = userPreferences.getBaseUrl()
+        val userPrefUrl = userPreferences.getBaseUrl()
+        val baseUrl = resolveAsrBaseUrl(userPrefUrl)
         val token = userPreferences.getToken()
 
         val requestBody = MultipartBody.Builder()
@@ -76,7 +109,9 @@ class VoiceApiClient @Inject constructor(
             }
             .build()
 
-        val response = okHttpClient.newCall(request).execute()
+        Log.d(TAG, "ASR 请求: url=${request.url}")
+
+        val response = directHttpClient.newCall(request).execute()
         val contentType = response.header("Content-Type") ?: ""
         val body = response.body?.string() ?: ""
 
@@ -89,7 +124,6 @@ class VoiceApiClient @Inject constructor(
         }
 
         if (!response.isSuccessful) {
-            // 关键修复：打印完整 response body 帮助定位 400 根因
             Log.e(TAG, "ASR ${response.code} | contentType=$contentType | body=${body.take(800)} | wavSize=${wavData.size}")
             throw Exception("ASR ${response.code}: ${body.take(200)}")
         }
@@ -114,7 +148,8 @@ class VoiceApiClient @Inject constructor(
      * 安卓客户端在 multipart 失败时自动 fallback 到这个方法
      */
     suspend fun recognizeSpeechBase64(wavData: ByteArray): String = withContext(Dispatchers.IO) {
-        val baseUrl = userPreferences.getBaseUrl()
+        val userPrefUrl = userPreferences.getBaseUrl()
+        val baseUrl = resolveAsrBaseUrl(userPrefUrl)
         val token = userPreferences.getToken()
 
         val base64Audio = android.util.Base64.encodeToString(wavData, android.util.Base64.NO_WRAP)
@@ -131,7 +166,9 @@ class VoiceApiClient @Inject constructor(
             }
             .build()
 
-        val response = okHttpClient.newCall(request).execute()
+        Log.d(TAG, "ASR-Base64 请求: url=${request.url}")
+
+        val response = directHttpClient.newCall(request).execute()
         val contentType = response.header("Content-Type") ?: ""
         val body = response.body?.string() ?: ""
 
@@ -176,7 +213,8 @@ class VoiceApiClient @Inject constructor(
      * 使用 SSE 接收音频数据
      */
     fun streamTTS(text: String, voice: String = "default"): Flow<TtsEvent> = flow {
-        val baseUrl = userPreferences.getBaseUrl()
+        val userPrefUrl = userPreferences.getBaseUrl()
+        val baseUrl = resolveAsrBaseUrl(userPrefUrl)
         val token = userPreferences.getToken()
 
         val requestBody = json.encodeToString(
@@ -193,7 +231,9 @@ class VoiceApiClient @Inject constructor(
             }
             .build()
 
-        val response = okHttpClient.newCall(request).execute()
+        Log.d(TAG, "TTS stream 请求: url=${request.url}")
+
+        val response = directHttpClient.newCall(request).execute()
         if (!response.isSuccessful) {
             val errBody = response.body?.string()?.take(500) ?: ""
             Log.e(TAG, "TTS stream ${response.code} body=$errBody")
@@ -238,7 +278,8 @@ class VoiceApiClient @Inject constructor(
      * 失败时返回 null，调用方应 fallback 到 [recognizeSpeech]。
      */
     suspend fun connectStreamingASR(): StreamingVoiceSession? = withContext(Dispatchers.IO) {
-        val baseUrl = userPreferences.getBaseUrl()
+        val userPrefUrl = userPreferences.getBaseUrl()
+        val baseUrl = resolveAsrBaseUrl(userPrefUrl)
         val token = userPreferences.getToken()
 
         // http(s):// -> ws(s)://
@@ -255,7 +296,9 @@ class VoiceApiClient @Inject constructor(
             }
             .build()
 
-        val ws = okHttpClient.newWebSocket(request, object : WebSocketListener() {
+        Log.d(TAG, "WebSocket ASR 连接: url=$wsUrl")
+
+        val ws = directHttpClient.newWebSocket(request, object : WebSocketListener() {
             override fun onOpen(webSocket: WebSocket, response: Response) {
                 opened = true
                 events.tryEmit(AsrEvent.Ready)

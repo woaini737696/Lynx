@@ -18,6 +18,9 @@ const publicPatterns = [
   /^\/api\/skills\/marketplace(?:\/|$)/,
   // 公共技能评论查询（GET 公开，POST 内部 requireAuth）
   /^\/api\/skills\/[^/]+\/reviews$/,
+  // HermesAgent 版本检查/下载：公开接口（桌面端 installer.rs 无需登录即可检查更新）
+  /^\/api\/hermes\/latest-json$/,
+  /^\/api\/hermes\/download-wheel$/,
 ];
 
 // 首页作为公开落地页：未登录用户可访问首页，由前端弹窗处理登录

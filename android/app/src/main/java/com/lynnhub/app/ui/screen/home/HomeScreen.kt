@@ -155,7 +155,7 @@ fun HomeScreen(
             onClick = onOpenIdea,
             modifier = Modifier
                 .align(Alignment.BottomEnd)
-                .padding(end = 22.dp, bottom = 12.dp)
+                .padding(end = 22.dp, bottom = 24.dp)
         )
     }
 }

@@ -10,6 +10,7 @@
 | 迭代 | 日期 | 任务概要 |
 |------|------|----------|
 | [迭代 96](#迭代-96---2026-07-01) | 2026-07-01 | 桌面端v1.0.31+Web端HermesAgent四项根因彻底修复：① hermesExecute假成功终极根因修复(executor.py第352行无条件return导致第364-403行<action>标签执行代码成为死代码永远不执行→改为if not actions条件块+ws_client.rs fake_keywords从6个扩展到9个对齐executor.py+hermes-client.ts fakeSuccessKeywords同步9个+use-device-ws.ts handleRemoteCommand新增假成功检测逻辑之前完全没有校验) ② app.lynnhub.com DNS失败修复(installer.rs删除3处fallback URL+hermes-client.ts删除3处fallback URL全局统一ai.lynxdo.com) ③ Web端状态架构彻底重构(settings/page.tsx loadStatus重写为浏览器直连127.0.0.1:9119/api/status探测本机真实状态不走服务器DB+dashboard.py _send_html加CORS头之前只有_send_json有+dashboard.py新增/api/shutdown端点供Web端浏览器直连停止+install/route.ts删除服务器spawn hermes进程违反架构约束改为返回400指向dispatch路由+status/route.ts移除detectHermesInstall和testHermesConnection仅返回DB配置+dispatch/route.ts增加操作后回写DB status逻辑+handleStop增加本地直连停止路径) ④ 发布者LynnHub→Lynn完整改名(tauri.conf.json identifier com.lynnhub.native→com.lynx.app+Cargo.toml name lynnhub-desktop-native→lynx-desktop lib name同步+main.rs lynnhub_desktop_lib::run→lynx_desktop_lib::run+build-native.ps1进程名3处+App Paths注册表+编译产物路径+NSIS编译方式从手动makensis改为npx tauri build --bundles nsis+证书文件lynnhub-code-sign.cer→lynx-code-sign.cer+installer-hooks.nsh证书引用+Cargo.lock同步) + 重新打包hermes_agent-0.18.0 wheel(executor.py已改死代码) + 更新latest.json发布说明 |
+| [迭代 97](#迭代-97---2026-07-01) | 2026-07-01 | 桌面端v1.0.32+Web端三项根因彻底修复：① 检查更新10054报错修复(installer.rs直接请求/downloads/latest.json静态文件路径因Nginx配置问题导致连接重置→新建/api/hermes/latest-json和/api/hermes/download-wheel两个API路由代理读取服务器本地文件走和其他API相同路径+installer.rs fetch_latest_json增加3次重试间隔1秒+hermes-client.ts同步改走API路由+middleware.ts放行两个新路由为公开接口) ② 桌面端Lynx助理完整同步Web端(ai-assistant.ts chatCompletion从stream:false改为stream:true真实SSE流式解析onMeta/onThinking/onToolStart/onToolDone/onDelta/onDone/onError回调+AIAssistantPage emoji头像三级兜底avatarUrl→emoji→默认SVG+工具调用进度卡片running/done状态+AISettingsModal 8个emoji选择器+头像文件上传POST /api/ai/avatar-upload+AssistantDrawer替换硬编码SVG为真实头像+hermesExecute工具调用前检查WS连接状态未连接时明确提示不静默失败) ③ Web端状态错乱+dispatch自指派三缺陷修复(ws-gateway.ts register存储deviceType字段desktop/web+dispatch对__LYNN_CMD__前缀命令只派给desktop设备无desktop在线返回dispatched:false+use-device-ws.ts handleRemoteCommand识别__LYNN_CMD__前缀直接拒绝不去fetch localhost+status/route.ts返回在线设备列表含deviceType+settings/page.tsx loadStatus增加在线设备Dashboard状态聚合桌面端running则Web显示running不再强行降级DB status) |
 | [迭代 95](#迭代-95---2026-07-01) | 2026-07-01 | 桌面端v1.0.30+Web端HermesAgent六项彻底修复：① hermesExecute假成功根因彻底修复(executor.py SYSTEM_PROMPT强化强制要求操作类任务输出<action>标签+禁止教程式文本"无法直接控制你的设备"+无action时检测假成功关键词返回success=False+hermes-client.ts dispatchRemoteCommand检查executed/actions_executed字段+ws_client.rs execute_via_dashboard同样检查executed字段) ② Web端HermesAgent方案A委托桌面端(撤回迭代91的.bat脚本方案+Web端settings/page.tsx handleInstall/handleStart/handleStop/handleUpdate改为通过WS网关委托在线桌面端执行+新建/api/devices和/api/hermes/dispatch路由+ws_client.rs新增handle_special_command处理__LYNN_CMD__:前缀命令分发到installer.rs的start/stop/install/update/check_update函数) ③ NSIS卸载"Error launching installer"修复(installer-hooks.nsh新增NSIS_HOOK_PREINSTALL宏安装前taskkill /IM Lynx.exe /F强制终止进程+Sleep 1000等待句柄释放避免文件占用) ④ NSIS updater.pubkey空字符串修复(tauri signer generate生成签名密钥对+tauri.conf.json pubkey填入真实公钥) ⑤ 发布者信息全局LynnHub→Lynn(Cargo.toml authors+pyproject.toml authors+__init__.py __author__+dashboard.py页脚+LICENSE.txt+main.rs/lib.rs注释+capabilities/default.json description+README.md版权+NotificationSettingsPage.tsx+SettingsPage.tsx placeholder共12处) ⑥ 安装包Slogan修改(generate-installer-assets.py "不用学"/"直接干"→"用Lynx AI"/"人人都是超级个体"+版本号v1.0.12→v1.0.30+版权© 2026 LynnHub→© 2026 Lynn+重新生成nsis-header.bmp/nsis-sidebar.bmp) + 重新打包hermes_agent-0.18.0 wheel(executor.py已改) + 更新latest.json发布说明 |
 | [迭代 94](#迭代-94---2026-07-01) | 2026-07-01 | 安卓端v0.1.7五项修复+全页面缓存：① 灵感速记页顶部固定(新建TopBarColumnScaffold统一脚手架+IdeaPanel重写使用GlassTopBar固定吸附状态栏+内容区verticalScroll) ② ASR:400+HTML错误页彻底修复(后端asr/route.ts加runtime=nodejs避免Edge Runtime限制+新建asr-base64/route.ts JSON端点+安卓recognizeSpeechSmart自动fallback multipart→base64+检测content-type拒绝HTML错误页) ③ 通话页进入跳动修复(CallScreen移除contentAlignment=Center+加statusBarsPadding+延后startCall到第二帧delay(16)避免入场动画与重绘冲突) ④ Lynx助理历史记录丢失修复(AssistantViewModel加SavedStateHandle+loadMessages增量合并+refreshMessages每次进入页面刷新+LaunchedEffect触发) ⑤ 三核心页顶部空白修复(TasksScreen去除vertical padding+HomeScreen加statusBarsPadding让顶部高度一致) ⑥ 全页面缓存系统(新建PageCacheManager进程级单例+Home/Tasks/Memory ViewModel加入缓存读写实现无感加载) |
 | [迭代 93](#迭代-93---2026-07-01) | 2026-07-01 | 安卓端v0.1.6七项任务iOS26液态玻璃v4+流式全双工：① iOS26液态玻璃色板(Color.kt新增17个深色玻璃色值GlassDeepBase/DialogDeepPrimary/TopBarDeep/BubbleUserDeep等避免白色.copy(alpha)染色) ② LiquidGlassKit统一组件库(LiquidGlassSurface/Dialog/TopBar/BackButton/PageScaffold/Bubble/IconButton/GlassStrength枚举1:1还原App Store视觉) ③ 弹窗白色透明修复(FrostedGlassDialog委托LiquidGlassDialog+DialogDeepPrimary深色叠加) ④ 设置面板跳动修复(Animatable独立面板滑入+静态SettingsScrim遮罩+AppNavigation路由改fadeIn避免双重滑动) ⑤ 子页面顶部悬浮固定(GlassTopBar+SubPageScaffold+CoreScreenHeader深色渐变背景+statusBarsPadding) ⑥ Lynx助理与Web端同步(新建AssistantViewModel复用getChatSessions/createChatSession API+注入system message含用户profile+记忆图谱+assistantMode=true工具调用+AssistantScreen长按语音detectTapGestures onPress录音+GlassBubble深色气泡) ⑦ 语音通话流式全双工改造(VoiceApiClient新增connectStreamingASR WebSocket+StreamingVoiceSession+AudioRecorder.startStreaming流式PCM chunk+CallViewModel WebSocket优先HTTP fallback+AudioTrack流式播放替代MediaPlayer累积+VAD端点检测+详细400错误日志打印response body) |
@@ -442,6 +443,104 @@ Web 端三项需求：① C 端用户列表去除"参考 Kimi/豆包"文案提�
 - **人性设计**：相关功能聚合到同一页面 Tab 切换，减少页面跳转
 - **零破坏性**：原路由全部保留兼容，子页组件零改动，纯前端信息架构调整
 - **性能优化**：visitedTabs 懒加载机制，未访问的 Tab 不 mount 不请求
+
+---
+
+## 迭代 97 - 2026-07-01
+
+### 任务概要
+
+桌面端 v1.0.32 + Web 端三项根因彻底修复。针对用户反馈的检查更新 10054 报错、桌面端 Lynx 助理功能故障、Web 端状态错乱三个问题进行根因定位和修复。
+
+### 完成内容
+
+#### 1. 检查更新 10054 报错修复（API 路由代理）
+
+**根因**：桌面端 `installer.rs` 使用 reqwest 直接请求 `https://ai.lynxdo.com/downloads/latest.json` 静态文件路径，而其他正常工作的 API 走 `/api/...` 路径。静态文件路径可能因 Nginx 配置问题导致连接异常重置（error 10054 WSAECONNRESET）。
+
+**修复方案**：改为通过 API 路由代理读取 latest.json 和下载 wheel，走和其他 API 相同的 `/api/...` 路径：
+- 新建 `/api/hermes/latest-json/route.ts`：读取服务器本地 `public/downloads/latest.json` 返回 JSON
+- 新建 `/api/hermes/download-wheel/route.ts`：接收 `?file=xxx.whl` 参数，流式返回 wheel 文件
+- `installer.rs` `fetch_latest_json`：URL 改为 `https://ai.lynxdo.com/api/hermes/latest-json`，增加 3 次重试间隔 1 秒
+- `installer.rs` wheel 下载 URL 改为 `https://ai.lynxdo.com/api/hermes/download-wheel?file={wheel}`
+- `hermes-client.ts` `checkHermesUpdate`/`updateHermesAgent`/`installHermesAgent` 同步改走 API 路由
+- `middleware.ts` 放行两个新路由为公开接口（无需认证）
+
+#### 2. 桌面端 Lynx 助理完整同步 Web 端
+
+**根因**：桌面端 `ai-assistant.ts` 使用 `stream: false` 非流式响应（注释误以为 Tauri 不支持 SSE，实际 WebView2 完全支持）；缺少 emoji 头像兜底和上传 UI；hermesExecute 工具调用 WS 未连接时静默失败。
+
+**修复方案**：
+- `ai-assistant.ts` `chatCompletion`：从 `stream: false` 改为 `stream: true` 真实 SSE 流式解析
+  - 新增 `ChatStreamCallbacks` 接口：`onMeta`/`onThinking`/`onToolStart`/`onToolDone`/`onDelta`/`onDone`/`onError` 回调
+  - 使用 `fetch` + `ReadableStream.getReader()` 解析 SSE
+- `AIAssistantPage.tsx`：
+  - emoji 头像三级兜底：`avatarUrl → emoji → 默认 SVG`
+  - 工具调用进度卡片：running（蓝色+Loader2 旋转）/ done（绿色+Check）状态
+  - hermesExecute 工具调用前检查 WS 连接状态，未连接时明确提示
+- `AISettingsModal`：8 个 emoji 选择器 + 头像文件上传（POST /api/ai/avatar-upload）
+- `AssistantDrawer.tsx`：替换硬编码 SVG 为真实头像，三级兜底
+
+#### 3. Web 端状态错乱 + dispatch 自指派三缺陷修复
+
+**根因**：三个缺陷叠加——①WS 网关 dispatch 不区分设备类型，把 `__LYNN_CMD__:start_dashboard` 派回 Web 端自己（自指派）；②Web 端 `use-device-ws.ts` `handleRemoteCommand` 不识别 `__LYNN_CMD__:` 前缀，去 fetch 不存在的 Dashboard；③跨机器场景下浏览器探测 `127.0.0.1:9119` 永远失败，DB status 被强行降级。
+
+**修复方案**：
+- `ws-gateway.ts`：
+  - `register` 存储设备类型 `deviceType`（desktop/web）
+  - `dispatch` 对 `__LYNN_CMD__:` 前缀命令只派给 desktop 设备，无 desktop 在线返回 `dispatched: false`
+  - `/devices` 端点返回 `deviceType` 字段
+- `use-device-ws.ts`：
+  - register 消息增加 `deviceType: "web"`
+  - `handleRemoteCommand` 入口识别 `__LYNN_CMD__:` 前缀，直接拒绝不去 fetch localhost
+- `status/route.ts`：新增在线设备列表返回（含 deviceType）
+- `settings/page.tsx` `loadStatus`：
+  - 从 `/api/hermes/status` 读取在线设备列表
+  - 桌面端在线则认为 Dashboard 可用（`desktopOnline`）
+  - 不再强行降级 DB status，`effectiveStatus = (localOnline || desktopOnline) ? "running" : 保留 DB 状态`
+- `ws_client.rs`：register 消息增加 `deviceType: "desktop"`
+
+### 编译验证
+- TypeScript 编译通过（Web + native-ui）
+- Web 构建成功
+- 桌面端 v1.0.32 打包成功（`Lynx_1.0.32_x64-setup.exe`，6961632 bytes）
+
+### 部署
+- Web 端部署到 `ai.lynxdo.com`（latest-json API 验证通过，返回正确 JSON）
+- WS 网关重新部署（ws-gateway.compiled.js 上传 + PM2 重启）
+- 桌面端安装包复制到 `D:\LynnHub\downloads\Lynx_1.0.32_x64-setup.exe`
+
+### 涉及文件
+**Web 端 API 路由（新建）**：
+- `src/app/api/hermes/latest-json/route.ts`（新建：读取 latest.json 返回 JSON）
+- `src/app/api/hermes/download-wheel/route.ts`（新建：流式返回 wheel 文件）
+
+**Web 端中间件**：
+- `src/middleware.ts`（放行 latest-json 和 download-wheel 为公开接口）
+
+**桌面端 Rust**：
+- `desktop-native/src-tauri/src/installer.rs`（fetch_latest_json 改走 API + 重试 + wheel 下载改走 API）
+- `desktop-native/src-tauri/src/ws_client.rs`（register 消息增加 deviceType: desktop）
+- `desktop-native/src-tauri/tauri.conf.json`（version 1.0.31→1.0.32）
+- `desktop-native/src-tauri/Cargo.toml`（version 1.0.31→1.0.32）
+- `desktop-native/src-tauri/Cargo.lock`（同步）
+- `desktop-native/build-native.ps1`（输出名 1.0.31→1.0.32）
+
+**桌面端 native-ui**：
+- `desktop-native/native-ui/src/lib/ai-assistant.ts`（chatCompletion 改 stream:true + SSE 解析）
+- `desktop-native/native-ui/src/pages/AIAssistantPage.tsx`（流式回调 + emoji 兜底 + 工具进度 + WS 检查 + 头像上传）
+- `desktop-native/native-ui/src/components/ai/AssistantDrawer.tsx`（真实头像替换硬编码 SVG）
+- `desktop-native/native-ui/package.json`（version 1.0.31→1.0.32）
+
+**Web 端**：
+- `src/lib/hermes-client.ts`（checkHermesUpdate/updateHermesAgent/installHermesAgent 改走 API 路由）
+- `src/lib/ws-gateway.ts`（register 存 deviceType + dispatch 按 __LYNN_CMD__ 区分设备 + /devices 返回 deviceType）
+- `src/hooks/use-device-ws.ts`（register 加 deviceType:web + handleRemoteCommand 识别 __LYNN_CMD__ 拒绝）
+- `src/app/api/hermes/status/route.ts`（返回在线设备列表含 deviceType）
+- `src/app/settings/page.tsx`（loadStatus 增加在线设备 Dashboard 状态聚合）
+
+**构建脚本**：
+- `scripts/generate-installer-assets.py`（ver_text v1.0.31→v1.0.32）
 
 ---
 

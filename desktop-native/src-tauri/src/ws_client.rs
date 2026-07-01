@@ -74,6 +74,8 @@ async fn connect_and_serve(ws_url: &str, token: &str, app: &AppHandle) -> Result
     use futures_util::StreamExt;
 
     // 1. 发送认证+注册消息（token 通过消息体传递，不暴露在 URL 中）
+    //    deviceType: "desktop" 标记为桌面端，网关据此把 __LYNN_CMD__: 系统命令
+    //    （安装/启动/停止 HermesAgent 等）只派给桌面端执行
     let register_msg = json!({
         "type": "register",
         "token": token,
@@ -81,6 +83,7 @@ async fn connect_and_serve(ws_url: &str, token: &str, app: &AppHandle) -> Result
         "deviceName": get_device_name(),
         "capabilities": ["browser", "desktop", "file", "shell"],
         "authMode": state.auth_mode.lock().map_err(|e| e.to_string())?.clone(),
+        "deviceType": "desktop",
     });
     write.send(Message::Text(register_msg.to_string()))
         .await
