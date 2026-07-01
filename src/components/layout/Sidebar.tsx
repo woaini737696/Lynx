@@ -34,6 +34,7 @@ import {
   ScrollText,
   Monitor,
   Users,
+  UserCircle,
   Shield,
   Briefcase,
   Coins,
@@ -147,6 +148,7 @@ const NAV_GROUPS: NavGroup[] = [
     requiredRole: "admin",
     items: [
       { href: "/admin/users", label: "用户管理", icon: Users, color: "text-muted-foreground" },
+      { href: "/admin/c-users", label: "C 端用户", icon: UserCircle, color: "text-muted-foreground" },
       { href: "/admin/roles", label: "角色管理", icon: Shield, color: "text-muted-foreground" },
       { href: "/admin/profession-workspaces", label: "职业空间", icon: Briefcase, color: "text-muted-foreground" },
       { href: "/admin/token-stats", label: "词元统计", icon: Coins, color: "text-muted-foreground" },

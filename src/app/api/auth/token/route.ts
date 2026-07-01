@@ -94,6 +94,21 @@ export async function POST(req: NextRequest) {
       permissionVersion: user.permissionVersion,
     });
 
+    // 异步更新最后登录时间 + 写登录日志（不阻塞返回）
+    const loginIp = getClientKey(req);
+    const userAgent = req.headers.get("user-agent") || null;
+    prisma
+      .$transaction([
+        prisma.user.update({
+          where: { id: user.id },
+          data: { lastLoginAt: new Date() },
+        }),
+        prisma.loginLog.create({
+          data: { userId: user.id, ip: loginIp, userAgent },
+        }),
+      ])
+      .catch((err) => logger.error({ err }, "写入登录日志失败（不影响登录）"));
+
     return NextResponse.json({
       token,
       user: {

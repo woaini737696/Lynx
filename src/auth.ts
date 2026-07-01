@@ -72,6 +72,10 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           if (!user || !user.active) {
             return null;
           }
+          // 更新最后登录时间（不阻塞登录流程，NextAuth authorize 无法获取 req 头部）
+          prisma.user
+            .update({ where: { id: user.id }, data: { lastLoginAt: new Date() } })
+            .catch(() => {});
           return {
             id: user.id,
             name: user.displayName || user.username,
@@ -95,6 +99,10 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           if (!valid) {
             return null;
           }
+          // 更新最后登录时间
+          prisma.user
+            .update({ where: { id: user.id }, data: { lastLoginAt: new Date() } })
+            .catch(() => {});
           return {
             id: user.id,
             name: user.displayName || user.username,
