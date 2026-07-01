@@ -210,8 +210,8 @@ async function handleRemoteCommand(
       error: isAbort
         ? "本地执行超时（120秒）"
         : isCorsError
-          ? "无法连接本地 HermesAgent Dashboard（127.0.0.1:9119）。可能原因：1) 未安装 HermesAgent；2) Dashboard 未启动；3) CORS 限制。请在桌面端安装 HermesAgent，或确保 Dashboard 在 127.0.0.1:9119 运行并允许跨域。"
-          : "此设备未安装 HermesAgent 或 Dashboard 未启动。请在桌面端安装 HermesAgent，或确保 Dashboard 在 127.0.0.1:9119 运行。",
+          ? "无法连接本地 HermesAgent Dashboard（127.0.0.1:9119）。请在「设置 → Lynx Agent」中点击「一键启动」启动 Dashboard，或点击「检查更新」确保已安装最新版本。"
+          : "此设备未安装 HermesAgent 或 Dashboard 未启动。请在「设置 → Lynx Agent」中点击「一键安装」和「一键启动」。",
       route: "no-agent",
     };
   }
