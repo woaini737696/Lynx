@@ -38,7 +38,7 @@ class VoiceApiClient @Inject constructor(
 
         val requestBody = MultipartBody.Builder()
             .setType(MultipartBody.FORM)
-            .addFormDataPart("audio", "audio.wav",
+            .addFormDataPart("file", "audio.wav",
                 wavData.toRequestBody("audio/wav".toMediaType()))
             .build()
 

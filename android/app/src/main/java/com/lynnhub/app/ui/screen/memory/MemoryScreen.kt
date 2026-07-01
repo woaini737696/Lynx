@@ -30,6 +30,7 @@ import com.lynnhub.app.data.remote.ApiService
 import com.lynnhub.app.data.remote.dto.MemoryEdgeDto
 import com.lynnhub.app.data.remote.dto.MemoryNodeDto
 import com.lynnhub.app.ui.component.CoreScreenHeader
+import com.lynnhub.app.ui.component.FrostedGlassDialog
 import com.lynnhub.app.ui.component.LynxIcons
 import com.lynnhub.app.ui.component.Pressable
 import com.lynnhub.app.ui.theme.*
@@ -389,19 +390,15 @@ private fun MemorySearchDialog(
     onSearch: () -> Unit,
     onDismiss: () -> Unit
 ) {
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        containerColor = MaterialTheme.colorScheme.surface,
-        titleContentColor = MaterialTheme.colorScheme.onSurface,
-        title = {
+    FrostedGlassDialog(onDismiss = onDismiss) {
+        Column(modifier = Modifier.padding(24.dp)) {
             Text(
                 text = "搜索记忆",
                 color = MaterialTheme.colorScheme.onSurface,
                 fontWeight = FontWeight.Bold,
                 fontSize = 16.sp
             )
-        },
-        text = {
+            Spacer(modifier = Modifier.height(16.dp))
             OutlinedTextField(
                 value = query,
                 onValueChange = onQueryChange,
@@ -428,27 +425,30 @@ private fun MemorySearchDialog(
                     }
                 }
             )
-        },
-        confirmButton = {
-            Text(
-                text = if (isSearching) "搜索中..." else "搜索",
-                color = if (!isSearching && query.isNotBlank()) Primary else TextMuted,
-                fontWeight = FontWeight.SemiBold,
-                modifier = Modifier
-                    .clickable(enabled = !isSearching && query.isNotBlank()) { onSearch() }
-                    .padding(vertical = 8.dp, horizontal = 12.dp)
-            )
-        },
-        dismissButton = {
-            Text(
-                text = "取消",
-                color = TextMuted,
-                modifier = Modifier
-                    .clickable { onDismiss() }
-                    .padding(vertical = 8.dp, horizontal = 12.dp)
-            )
+            Spacer(modifier = Modifier.height(16.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.End
+            ) {
+                Text(
+                    text = "取消",
+                    color = TextMuted,
+                    modifier = Modifier
+                        .clickable { onDismiss() }
+                        .padding(vertical = 8.dp, horizontal = 12.dp)
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = if (isSearching) "搜索中..." else "搜索",
+                    color = if (!isSearching && query.isNotBlank()) Primary else TextMuted,
+                    fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier
+                        .clickable(enabled = !isSearching && query.isNotBlank()) { onSearch() }
+                        .padding(vertical = 8.dp, horizontal = 12.dp)
+                )
+            }
         }
-    )
+    }
 }
 
 // ============ 工具函数 ============

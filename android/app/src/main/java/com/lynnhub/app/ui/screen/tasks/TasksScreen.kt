@@ -40,6 +40,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import com.lynnhub.app.data.local.UserPreferences
 import com.lynnhub.app.data.remote.dto.LarkTaskDto
 import com.lynnhub.app.ui.component.CoreScreenHeader
+import com.lynnhub.app.ui.component.FrostedGlassDialog
 import com.lynnhub.app.ui.component.LynxIcons
 import com.lynnhub.app.ui.theme.*
 import kotlinx.coroutines.delay
@@ -411,162 +412,163 @@ private fun AddLarkTaskDialog(
     var description by remember { mutableStateOf("") }
     val keyboardController = LocalSoftwareKeyboardController.current
 
-    AlertDialog(
-        onDismissRequest = { if (!isSubmitting) onDismiss() },
-        containerColor = MaterialTheme.colorScheme.surface,
-        titleContentColor = TextPrimary,
-        title = {
+    FrostedGlassDialog(onDismiss = { if (!isSubmitting) onDismiss() }) {
+        Column(modifier = Modifier.padding(24.dp)) {
             Text(
                 text = "新增飞书任务",
                 color = TextPrimary,
                 fontWeight = FontWeight.Bold,
                 fontSize = 16.sp
             )
-        },
-        text = {
-            Column(modifier = Modifier.fillMaxWidth()) {
-                // 任务标题（必填）
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // 任务标题（必填）
+            Text(
+                text = "任务标题 *",
+                color = TextMuted,
+                fontSize = 11.sp,
+                modifier = Modifier.padding(bottom = 4.dp)
+            )
+            OutlinedTextField(
+                value = summary,
+                onValueChange = { summary = it },
+                placeholder = { Text("输入任务标题...", color = TextMuted, fontSize = 14.sp) },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(12.dp)),
+                shape = RoundedCornerShape(12.dp),
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedBorderColor = Primary,
+                    unfocusedBorderColor = BorderHover,
+                    cursorColor = Primary,
+                    focusedTextColor = TextPrimary,
+                    unfocusedTextColor = TextPrimary,
+                    focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
+                    unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant
+                ),
+                singleLine = true,
+                enabled = !isSubmitting
+            )
+
+            Spacer(modifier = Modifier.height(10.dp))
+
+            // 负责人（姓名用逗号分隔，后端解析）
+            Text(
+                text = "负责人（姓名逗号分隔，可下发多人）",
+                color = TextMuted,
+                fontSize = 11.sp,
+                modifier = Modifier.padding(bottom = 4.dp)
+            )
+            OutlinedTextField(
+                value = assigneesText,
+                onValueChange = { assigneesText = it },
+                placeholder = { Text("如：张三,李四", color = TextMuted, fontSize = 14.sp) },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(12.dp)),
+                shape = RoundedCornerShape(12.dp),
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedBorderColor = Primary,
+                    unfocusedBorderColor = BorderHover,
+                    cursorColor = Primary,
+                    focusedTextColor = TextPrimary,
+                    unfocusedTextColor = TextPrimary,
+                    focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
+                    unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant
+                ),
+                singleLine = true,
+                enabled = !isSubmitting
+            )
+
+            Spacer(modifier = Modifier.height(10.dp))
+
+            // 截止时间（可选，格式 YYYY-MM-DD）
+            Text(
+                text = "截止时间（可选，格式 2026-07-30）",
+                color = TextMuted,
+                fontSize = 11.sp,
+                modifier = Modifier.padding(bottom = 4.dp)
+            )
+            OutlinedTextField(
+                value = dueDate,
+                onValueChange = { dueDate = it },
+                placeholder = { Text("2026-07-30", color = TextMuted, fontSize = 14.sp) },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(12.dp)),
+                shape = RoundedCornerShape(12.dp),
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedBorderColor = Primary,
+                    unfocusedBorderColor = BorderHover,
+                    cursorColor = Primary,
+                    focusedTextColor = TextPrimary,
+                    unfocusedTextColor = TextPrimary,
+                    focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
+                    unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant
+                ),
+                singleLine = true,
+                enabled = !isSubmitting
+            )
+
+            Spacer(modifier = Modifier.height(10.dp))
+
+            // 描述（可选）
+            Text(
+                text = "任务描述（可选）",
+                color = TextMuted,
+                fontSize = 11.sp,
+                modifier = Modifier.padding(bottom = 4.dp)
+            )
+            OutlinedTextField(
+                value = description,
+                onValueChange = { description = it },
+                placeholder = { Text("补充说明...", color = TextMuted, fontSize = 14.sp) },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(12.dp)),
+                shape = RoundedCornerShape(12.dp),
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedBorderColor = Primary,
+                    unfocusedBorderColor = BorderHover,
+                    cursorColor = Primary,
+                    focusedTextColor = TextPrimary,
+                    unfocusedTextColor = TextPrimary,
+                    focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
+                    unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant
+                ),
+                maxLines = 3,
+                enabled = !isSubmitting
+            )
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // 按钮区
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.End
+            ) {
                 Text(
-                    text = "任务标题 *",
+                    text = "取消",
                     color = TextMuted,
-                    fontSize = 11.sp,
-                    modifier = Modifier.padding(bottom = 4.dp)
-                )
-                OutlinedTextField(
-                    value = summary,
-                    onValueChange = { summary = it },
-                    placeholder = { Text("输入任务标题...", color = TextMuted, fontSize = 14.sp) },
                     modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(12.dp)),
-                    shape = RoundedCornerShape(12.dp),
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = Primary,
-                        unfocusedBorderColor = BorderHover,
-                        cursorColor = Primary,
-                        focusedTextColor = TextPrimary,
-                        unfocusedTextColor = TextPrimary,
-                        focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
-                        unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant
-                    ),
-                    singleLine = true,
-                    enabled = !isSubmitting
+                        .clickable(enabled = !isSubmitting) { onDismiss() }
+                        .padding(vertical = 8.dp, horizontal = 12.dp)
                 )
-
-                Spacer(modifier = Modifier.height(10.dp))
-
-                // 负责人（姓名用逗号分隔，后端解析）
+                Spacer(modifier = Modifier.width(8.dp))
                 Text(
-                    text = "负责人（姓名逗号分隔，可下发多人）",
-                    color = TextMuted,
-                    fontSize = 11.sp,
-                    modifier = Modifier.padding(bottom = 4.dp)
-                )
-                OutlinedTextField(
-                    value = assigneesText,
-                    onValueChange = { assigneesText = it },
-                    placeholder = { Text("如：张三,李四", color = TextMuted, fontSize = 14.sp) },
+                    text = if (isSubmitting) "创建中..." else "创建",
+                    color = if (!isSubmitting && summary.isNotBlank()) Primary else TextMuted,
+                    fontWeight = FontWeight.SemiBold,
                     modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(12.dp)),
-                    shape = RoundedCornerShape(12.dp),
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = Primary,
-                        unfocusedBorderColor = BorderHover,
-                        cursorColor = Primary,
-                        focusedTextColor = TextPrimary,
-                        unfocusedTextColor = TextPrimary,
-                        focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
-                        unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant
-                    ),
-                    singleLine = true,
-                    enabled = !isSubmitting
-                )
-
-                Spacer(modifier = Modifier.height(10.dp))
-
-                // 截止时间（可选，格式 YYYY-MM-DD）
-                Text(
-                    text = "截止时间（可选，格式 2026-07-30）",
-                    color = TextMuted,
-                    fontSize = 11.sp,
-                    modifier = Modifier.padding(bottom = 4.dp)
-                )
-                OutlinedTextField(
-                    value = dueDate,
-                    onValueChange = { dueDate = it },
-                    placeholder = { Text("2026-07-30", color = TextMuted, fontSize = 14.sp) },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(12.dp)),
-                    shape = RoundedCornerShape(12.dp),
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = Primary,
-                        unfocusedBorderColor = BorderHover,
-                        cursorColor = Primary,
-                        focusedTextColor = TextPrimary,
-                        unfocusedTextColor = TextPrimary,
-                        focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
-                        unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant
-                    ),
-                    singleLine = true,
-                    enabled = !isSubmitting
-                )
-
-                Spacer(modifier = Modifier.height(10.dp))
-
-                // 描述（可选）
-                Text(
-                    text = "任务描述（可选）",
-                    color = TextMuted,
-                    fontSize = 11.sp,
-                    modifier = Modifier.padding(bottom = 4.dp)
-                )
-                OutlinedTextField(
-                    value = description,
-                    onValueChange = { description = it },
-                    placeholder = { Text("补充说明...", color = TextMuted, fontSize = 14.sp) },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(12.dp)),
-                    shape = RoundedCornerShape(12.dp),
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = Primary,
-                        unfocusedBorderColor = BorderHover,
-                        cursorColor = Primary,
-                        focusedTextColor = TextPrimary,
-                        unfocusedTextColor = TextPrimary,
-                        focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
-                        unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant
-                    ),
-                    maxLines = 3,
-                    enabled = !isSubmitting
+                        .clickable(enabled = !isSubmitting && summary.isNotBlank()) {
+                            val assignees = assigneesText.split(",", "，").map { it.trim() }.filter { it.isNotBlank() }
+                            val due = dueDate.trim().ifBlank { null }?.let { "${it}T23:59:59+08:00" }
+                            onSubmit(summary.trim(), assignees, due, description.trim().ifBlank { null })
+                            keyboardController?.hide()
+                        }
+                        .padding(vertical = 8.dp, horizontal = 12.dp)
                 )
             }
-        },
-        confirmButton = {
-            Text(
-                text = if (isSubmitting) "创建中..." else "创建",
-                color = if (!isSubmitting && summary.isNotBlank()) Primary else TextMuted,
-                fontWeight = FontWeight.SemiBold,
-                modifier = Modifier
-                    .clickable(enabled = !isSubmitting && summary.isNotBlank()) {
-                        val assignees = assigneesText.split(",", "，").map { it.trim() }.filter { it.isNotBlank() }
-                        val due = dueDate.trim().ifBlank { null }?.let { "${it}T23:59:59+08:00" }
-                        onSubmit(summary.trim(), assignees, due, description.trim().ifBlank { null })
-                        keyboardController?.hide()
-                    }
-                    .padding(vertical = 8.dp, horizontal = 12.dp)
-            )
-        },
-        dismissButton = {
-            Text(
-                text = "取消",
-                color = TextMuted,
-                modifier = Modifier
-                    .clickable(enabled = !isSubmitting) { onDismiss() }
-                    .padding(vertical = 8.dp, horizontal = 12.dp)
-            )
         }
-    )
+    }
 }

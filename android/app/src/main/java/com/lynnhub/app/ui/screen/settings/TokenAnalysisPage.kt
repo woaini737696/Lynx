@@ -55,6 +55,7 @@ import com.lynnhub.app.data.remote.ApiService
 import com.lynnhub.app.data.remote.dto.TokenAnalysisRequest
 import com.lynnhub.app.data.remote.dto.TokenAnalysisResponse
 import com.lynnhub.app.data.remote.dto.TokenPieceDto
+import com.lynnhub.app.ui.component.FrostedGlassDialog
 import com.lynnhub.app.ui.screen.panel.BackButton
 import com.lynnhub.app.ui.screen.panel.ReturnSwipeDetector
 import com.lynnhub.app.ui.screen.panel.SwipeHint
@@ -360,34 +361,38 @@ fun TokenAnalysisPage(
 
     // 使用说明弹窗
     if (showHelp) {
-        AlertDialog(
-            onDismissRequest = { showHelp = false },
-            containerColor = MaterialTheme.colorScheme.surface,
-            titleContentColor = TextPrimary,
-            title = {
-                Text(text = "词元分析使用说明", fontWeight = FontWeight.SemiBold, fontSize = 15.sp)
-            },
-            text = {
-                Column {
-                    Text(
-                        text = "1. 在输入框中输入要分析的文本（支持中英文混合）\n" +
-                               "2. 点击「分析」按钮，系统将估算文本的 Token 数量\n" +
-                               "3. 结果包含：Token 数、字符数、词数、句子数等统计\n" +
-                               "4. 字符分布展示中英文、数字、标点的比例\n" +
-                               "5. 预估费用基于 DeepSeek 定价计算\n" +
-                               "6. 分词可视化用不同颜色标注各类 Token",
-                        color = TextMuted,
-                        fontSize = 12.sp,
-                        lineHeight = 18.sp
-                    )
-                }
-            },
-            confirmButton = {
-                TextButton(onClick = { showHelp = false }) {
-                    Text("知道了", color = Primary, fontWeight = FontWeight.SemiBold)
-                }
+        FrostedGlassDialog(onDismiss = { showHelp = false }) {
+            Column(modifier = Modifier.padding(24.dp)) {
+                Text(
+                    text = "词元分析使用说明",
+                    color = TextPrimary,
+                    fontWeight = FontWeight.SemiBold,
+                    fontSize = 15.sp
+                )
+                Spacer(modifier = Modifier.height(16.dp))
+                Text(
+                    text = "1. 在输入框中输入要分析的文本（支持中英文混合）\n" +
+                           "2. 点击「分析」按钮，系统将估算文本的 Token 数量\n" +
+                           "3. 结果包含：Token 数、字符数、词数、句子数等统计\n" +
+                           "4. 字符分布展示中英文、数字、标点的比例\n" +
+                           "5. 预估费用基于 DeepSeek 定价计算\n" +
+                           "6. 分词可视化用不同颜色标注各类 Token",
+                    color = TextMuted,
+                    fontSize = 12.sp,
+                    lineHeight = 18.sp
+                )
+                Spacer(modifier = Modifier.height(16.dp))
+                Text(
+                    text = "知道了",
+                    color = Primary,
+                    fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier
+                        .align(Alignment.End)
+                        .clickable { showHelp = false }
+                        .padding(vertical = 8.dp, horizontal = 12.dp)
+                )
             }
-        )
+        }
     }
 }
 

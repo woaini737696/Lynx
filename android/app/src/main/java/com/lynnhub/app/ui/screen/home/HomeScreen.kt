@@ -139,15 +139,6 @@ fun HomeScreen(
 
             Spacer(modifier = Modifier.height(14.dp))
 
-            // 快捷入口
-            QuickEntries(
-                onIdea = onOpenIdea,
-                onCall = onOpenCall,
-                modifier = Modifier.fillMaxWidth()
-            )
-
-            Spacer(modifier = Modifier.height(14.dp))
-
             // 最近飞书任务
             RecentTasksSection(
                 tasks = uiState.recentTasks,
@@ -226,63 +217,6 @@ private fun StatChip(
             text = label,
             fontSize = 10.sp,
             color = TextMuted
-        )
-    }
-}
-
-// ============ 快捷入口 ============
-@Composable
-private fun QuickEntries(
-    onIdea: () -> Unit,
-    onCall: () -> Unit,
-    modifier: Modifier = Modifier
-) {
-    Row(
-        modifier = modifier,
-        horizontalArrangement = Arrangement.spacedBy(8.dp)
-    ) {
-        QuickEntryCard(
-            label = "灵感速记",
-            color = Primary,
-            modifier = Modifier.weight(1f),
-            onClick = onIdea
-        )
-        QuickEntryCard(
-            label = "语音通话",
-            color = Agent,
-            modifier = Modifier.weight(1f),
-            onClick = onCall
-        )
-        QuickEntryCard(
-            label = "Lynx 助理",
-            color = Think,
-            modifier = Modifier.weight(1f),
-            onClick = onCall // 复用通话入口（助理面板可从通话进入）
-        )
-    }
-}
-
-@Composable
-private fun QuickEntryCard(
-    label: String,
-    color: Color,
-    modifier: Modifier = Modifier,
-    onClick: () -> Unit
-) {
-    Box(
-        modifier = modifier
-            .height(54.dp)
-            .clip(RoundedCornerShape(14.dp))
-            .background(Liquid2)
-            .border(1.dp, color.copy(alpha = 0.18f), RoundedCornerShape(14.dp))
-            .clickable(onClick = onClick),
-        contentAlignment = Alignment.Center
-    ) {
-        Text(
-            text = label,
-            fontSize = 12.sp,
-            color = TextPrimary,
-            fontWeight = FontWeight.Medium
         )
     }
 }
