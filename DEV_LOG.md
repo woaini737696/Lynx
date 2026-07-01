@@ -169,13 +169,34 @@
 #### 5. 飞书任务警告修正（`src/app/api/lark-tasks/route.ts`）
 - `warning` 从"请使用桌面端客户端访问飞书任务"改为中性提示"请在您的电脑上打开 Lynx 桌面端或 Web 端并登录"（不强制桌面端）。
 
+#### 6. Web 端一键安装改为完整安装引导弹窗（`src/app/settings/page.tsx`）
+- **不再只弹 toast 提示**，改为打开安装引导 Modal 弹窗（size="lg"）。
+- **自动检测本地 Dashboard**（127.0.0.1:9119）：打开弹窗时自动 fetch 探测，显示在线/未运行状态。
+- **Dashboard 在线时**：显示"通过 Dashboard 一键安装/升级"按钮，直接调用 `http://127.0.0.1:9119/api/install` POST 执行真正安装（pip install），不在线时显示命令行步骤。
+- **命令行安装步骤**：3 步引导，每步带一键复制命令按钮（`pip install hermes-agent` / `hermes dashboard --port 9119`），复制后显示"已复制"2秒。
+- **"重新检测"按钮**：安装完成后点击重新探测 Dashboard 是否上线，上线后自动 loadStatus 刷新状态。
+- **`copyToClipboard` 工具函数**：支持 `navigator.clipboard` + `document.execCommand` 降级方案。
+
+#### 7. /api/hermes/install 路由修复（`src/app/api/hermes/install/route.ts`）
+- GET：移除 `requiresDesktop: true` 字段（不再强制桌面端）。
+- POST：移除"请下载并安装 Lynx 桌面端客户端"提示，改为中性提示"两端共用同一个 HermesAgent，只需在一端安装"，并列出桌面端和 Web 端两种安装方式。
+
+#### 8. 桌面端 NSIS 安装包打包
+- `npm run build`（tauri build）构建成功，Rust 编译 6 分 02 秒。
+- 产物：`D:\cargo-target-native\release\bundle\nsis\Lynx_1.0.27_x64-setup.exe`（6.62 MB）。
+- 已复制到 `d:\Lynn工作空间\LynnHub\desktop-native\dist\Lynx_1.0.27_x64-setup.exe`。
+- 代码签名成功（identity 7BCF15A9E0867DADA9F97DAC69297EAF2672F748）。
+- `cargo clean` 清理 2.0 GB Rust 编译缓存。
+
 ### 自测结果
 - `npx tsc --noEmit --skipLibCheck`：通过，0 错误。
+- `npm run build`：Web 端构建成功，ESLint 0 错误。
+- 桌面端 `tauri build`：成功，NSIS 安装包已生成并签名。
 - 全代码库扫描"请使用桌面端|请下载桌面端"残留：仅 lark-tasks 一处已修复，无其他残留。
 - 版本号 1.0.26 → 1.0.27（`desktop-native/src-tauri/tauri.conf.json`）。
 
 ### Commit
-`1a372424`
+`1a372424` + `2121ce41`（安装引导弹窗） + `b72466b3`（ESLint 修复）
 
 ---
 
