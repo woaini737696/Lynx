@@ -142,7 +142,7 @@ class IdeaPanelViewModel @Inject constructor(
         _uiState.update { it.copy(isRecording = false, isTranscribing = true) }
         viewModelScope.launch {
             try {
-                val text = voiceApiClient.recognizeSpeech(wavData)
+                val text = voiceApiClient.recognizeSpeechSmart(wavData)
                 _uiState.update {
                     it.copy(
                         isTranscribing = false,
@@ -263,26 +263,11 @@ fun IdeaPanel(
             modifier = Modifier.fillMaxSize()
         )
 
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .imePadding()
-                .verticalScroll(rememberScrollState())
-                .padding(start = 22.dp, end = 22.dp, top = 16.dp, bottom = 24.dp)
+        // 使用统一 TopBarColumnScaffold：顶部 GlassTopBar 固定吸附状态栏，内容区 verticalScroll
+        com.lynnhub.app.ui.component.TopBarColumnScaffold(
+            title = "灵感速记",
+            onBack = onBack
         ) {
-            // 标题栏（按视觉稿：panel-header）
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                BackButton(onClick = onBack)
-                Spacer(modifier = Modifier.width(10.dp))
-                Text(
-                    text = "灵感速记",
-                    fontSize = 19.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = TextPrimary,
-                    modifier = Modifier.weight(1f)
-                )
-            }
-
             // 滑动提示（按视觉稿：panel-hint 独立一行，左缩进 50dp）
             SwipeHint(text = "← 右滑返回", modifier = Modifier.padding(start = 50.dp, top = 4.dp, bottom = 22.dp))
 

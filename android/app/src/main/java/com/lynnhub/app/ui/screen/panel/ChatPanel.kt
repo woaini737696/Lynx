@@ -238,7 +238,7 @@ class ChatPanelViewModel @Inject constructor(
         _uiState.update { it.copy(isRecording = false, isTranscribing = true) }
         viewModelScope.launch {
             try {
-                val text = voiceApiClient.recognizeSpeech(wavData)
+                val text = voiceApiClient.recognizeSpeechSmart(wavData)
                 _uiState.update { it.copy(isTranscribing = false) }
                 if (text.isNotBlank()) {
                     // 语音转文字成功，自动发送

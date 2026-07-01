@@ -39,17 +39,34 @@ class TasksViewModel @Inject constructor(
     val uiState: StateFlow<TasksUiState> = _uiState.asStateFlow()
 
     init {
+        // 先从缓存读取（无感加载）
+        viewModelScope.launch {
+            val cached: Pair<TasksUiState, Boolean>? =
+                com.lynnhub.app.util.PageCacheManager.get(
+                    com.lynnhub.app.util.CacheKeys.TASKS
+                )
+            if (cached != null) {
+                _uiState.value = cached.first.copy(isLoading = false)
+            }
+        }
         loadAll()
     }
 
     fun loadAll() {
-        _uiState.update { it.copy(isLoading = true) }
+        if (_uiState.value.tasks.isEmpty()) {
+            _uiState.update { it.copy(isLoading = true) }
+        }
         viewModelScope.launch {
             try {
                 val resp = apiService.getLarkTasks(view = "my", dbOnly = true)
                 _uiState.update {
                     it.copy(tasks = resp.tasks, isLoading = false)
                 }
+                // 存入缓存
+                com.lynnhub.app.util.PageCacheManager.put(
+                    com.lynnhub.app.util.CacheKeys.TASKS,
+                    _uiState.value
+                )
             } catch (e: Exception) {
                 _uiState.update {
                     it.copy(isLoading = false, toast = "加载失败: ${e.message ?: "网络错误"}")

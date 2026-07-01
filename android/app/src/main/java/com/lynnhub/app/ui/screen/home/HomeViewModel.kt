@@ -54,7 +54,19 @@ class HomeViewModel @Inject constructor(
     private val _uiState = MutableStateFlow(HomeUiState(isLoading = true))
     val uiState: StateFlow<HomeUiState> = _uiState.asStateFlow()
 
-    init { loadHome() }
+    init {
+        // 先从缓存读取（无感加载）
+        viewModelScope.launch {
+            val cached: Pair<HomeUiState, Boolean>? =
+                com.lynnhub.app.util.PageCacheManager.get(
+                    com.lynnhub.app.util.CacheKeys.HOME
+                )
+            if (cached != null) {
+                _uiState.value = cached.first.copy(isLoading = false)
+            }
+        }
+        loadHome()
+    }
 
     fun loadHome() {
         viewModelScope.launch {
@@ -103,6 +115,11 @@ class HomeViewModel @Inject constructor(
                 todayDoneCount = larkTasks.count { it.completed },
                 recentTasks = larkTasks.take(3),
                 isLoading = false
+            )
+            // 存入缓存
+            com.lynnhub.app.util.PageCacheManager.put(
+                com.lynnhub.app.util.CacheKeys.HOME,
+                _uiState.value
             )
         }
     }

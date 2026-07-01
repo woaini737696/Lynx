@@ -80,7 +80,7 @@ fun TasksScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .imePadding()
-                .padding(horizontal = 16.dp, vertical = 16.dp)
+                .padding(horizontal = 16.dp)
         ) {
             CoreScreenHeader(
                 title = "任务",

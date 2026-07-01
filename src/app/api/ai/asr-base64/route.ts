@@ -1,88 +1,68 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/auth-utils";
 
-// 强制使用 Node.js Runtime（非 Edge Runtime）
-// Edge Runtime 不支持 req.formData() 的完整 multipart 解析，
-// 会返回 HTML 错误页导致客户端解析失败
+// 强制使用 Node.js Runtime
 export const runtime = "nodejs";
-// 禁用静态优化，确保动态请求体被正确处理
 export const dynamic = "force-dynamic";
 
-// POST /api/ai/asr
-// 接收音频文件（multipart/form-data，字段名 file）
-// 调用小米 MiMo ASR API（/chat/completions 端点，非 OpenAI /audio/transcriptions）
-// 模型名 mimo-v2.5-asr，通过 messages + input_audio 参数识别语音，
-// 返回 { text: "识别结果" }。
-// 文档：https://mimo.mi.com/docs/zh-CN/quick-start/usage-guide/audio/Speech-Recognition
+// POST /api/ai/asr-base64
+// 接收 JSON body: { audio: "base64编码的音频数据", mimeType: "audio/wav" }
+// 调用小米 MiMo ASR API，返回 { text: "识别结果" }
+//
+// 这个端点是为了替代 multipart/form-data 方案，避免以下问题：
+// 1. Next.js Edge Runtime 的 formData() 解析限制
+// 2. multipart 边界问题导致的 400 错误
+// 3. 某些代理/CDN 对 multipart 的处理不一致
+//
+// 安卓客户端在 multipart 失败时自动 fallback 到这个端点
 
 export async function POST(req: NextRequest) {
   const auth = await requireAuth();
   if (auth.error) return auth.error;
+
   try {
-    const formData = await req.formData().catch(() => null);
-    if (!formData) {
+    const body = await req.json().catch(() => null);
+    if (!body || !body.audio) {
       return NextResponse.json(
-        { error: "请求体需为 multipart/form-data" },
+        { error: "请求体需为 JSON，包含 audio 字段（base64 编码）" },
         { status: 400 }
       );
     }
 
-    const file = formData.get("file");
-    if (!(file instanceof File)) {
+    const base64Audio: string = body.audio;
+    const mimeType: string = body.mimeType || "audio/wav";
+
+    // 验证 base64 数据
+    if (base64Audio.length < 100) {
       return NextResponse.json(
-        { error: "未找到音频文件（字段名需为 file）" },
+        { error: "音频数据过短，可能未正确编码" },
         { status: 400 }
       );
     }
 
-    // 读取 MiMo 配置：优先 ASR 专用 Key，回退 MIMO_API_KEY
+    // 读取 MiMo 配置
     const apiKey = process.env.ASR_API_KEY || process.env.MIMO_API_KEY || "";
     const baseUrl =
       process.env.ASR_BASE_URL || process.env.MIMO_BASE_URL || "";
     if (!apiKey) {
       return NextResponse.json(
-        { error: "MiMo ASR 未配置 API Key（环境变量 ASR_API_KEY 或 MIMO_API_KEY）" },
+        { error: "MiMo ASR 未配置 API Key" },
         { status: 500 }
       );
     }
     if (!baseUrl) {
       return NextResponse.json(
-        { error: "MiMo ASR 未配置 Base URL（环境变量 ASR_BASE_URL 或 MIMO_BASE_URL）" },
+        { error: "MiMo ASR 未配置 Base URL" },
         { status: 500 }
       );
     }
 
-    // ASR 模型名：优先 ASR_MODEL / MIMO_ASR_MODEL，回退默认
     const asrModel =
       process.env.ASR_MODEL || process.env.MIMO_ASR_MODEL || "mimo-v2.5-asr";
     const url = `${baseUrl.replace(/\/$/, "")}/chat/completions`;
 
-    // 读取音频文件并转为 base64 data URL
-    const arrayBuffer = await file.arrayBuffer();
-    const buffer = Buffer.from(arrayBuffer);
-    const base64Audio = buffer.toString("base64");
-
-    // 根据文件名推断 MIME 类型（前端已将 webm 转为 wav，这里仅做兜底推断）
-    const fileName = file.name || "audio.wav";
-    let mimeType = "audio/wav";
-    if (fileName.endsWith(".wav")) {
-      mimeType = "audio/wav";
-    } else if (fileName.endsWith(".mp3")) {
-      mimeType = "audio/mpeg";
-    } else if (fileName.endsWith(".mp4") || fileName.endsWith(".m4a")) {
-      mimeType = "audio/mp4";
-    } else if (fileName.endsWith(".flac")) {
-      mimeType = "audio/flac";
-    } else if (fileName.endsWith(".ogg")) {
-      mimeType = "audio/ogg";
-    }
-
     const dataUrl = `data:${mimeType};base64,${base64Audio}`;
 
-    // MiMo ASR 请求体格式：
-    // - model: mimo-v2.5-asr
-    // - messages: [{ role: "user", content: [{ type: "input_audio", input_audio: { data: "data:audio/wav;base64,..." } }] }]
-    // - asr_options: { language: "zh" }
     const asrBody: Record<string, unknown> = {
       model: asrModel,
       messages: [
@@ -103,21 +83,17 @@ export async function POST(req: NextRequest) {
       },
     };
 
-    const callAsr = async (body: Record<string, unknown>) => {
-      return await fetch(url, {
+    let res: Response;
+    try {
+      res = await fetch(url, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           "api-key": apiKey,
           Authorization: `Bearer ${apiKey}`,
         },
-        body: JSON.stringify(body),
+        body: JSON.stringify(asrBody),
       });
-    };
-
-    let res: Response;
-    try {
-      res = await callAsr(asrBody);
     } catch (e) {
       return NextResponse.json(
         { error: `调用 MiMo ASR 网络错误：${(e as Error).message}` },
@@ -135,7 +111,6 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // 解析响应：choices[0].message.content 包含识别文本
     const data = await res.json().catch(() => null);
     if (!data) {
       return NextResponse.json(
@@ -144,14 +119,12 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // 提取识别文本：content 可能是字符串或数组
     const message = data?.choices?.[0]?.message;
     let text: string | null = null;
 
     if (typeof message?.content === "string") {
       text = message.content;
     } else if (Array.isArray(message?.content)) {
-      // 数组形式：取第一个 text 类型的内容
       const textPart = message.content.find(
         (p: { type?: string; text?: string }) =>
           p.type === "text" && typeof p.text === "string"

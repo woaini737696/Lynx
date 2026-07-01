@@ -53,7 +53,10 @@ class VoiceApiClient @Inject constructor(
     /**
      * ASR 语音识别（单次 multipart，保留作为 fallback）
      *
-     * 关键修复：打印完整 response body 帮助定位 400 根因（MiMo 服务端错误）
+     * 关键修复：
+     * 1. 打印完整 response body 帮助定位 400 根因（MiMo 服务端错误）
+     * 2. 检测 content-type 是否为 text/html（Next.js Edge Runtime 错误页），
+     *    若是则抛出明确错误，避免把 HTML 当 JSON 解析后展示给用户
      */
     suspend fun recognizeSpeech(wavData: ByteArray): String = withContext(Dispatchers.IO) {
         val baseUrl = userPreferences.getBaseUrl()
@@ -74,10 +77,20 @@ class VoiceApiClient @Inject constructor(
             .build()
 
         val response = okHttpClient.newCall(request).execute()
+        val contentType = response.header("Content-Type") ?: ""
         val body = response.body?.string() ?: ""
+
+        // 关键修复：检测 HTML 错误页（Next.js Edge Runtime / 404 / 500 页面）
+        if (contentType.contains("text/html", ignoreCase = true) ||
+            body.trimStart().startsWith("<!DOCTYPE") ||
+            body.trimStart().startsWith("<html")) {
+            Log.e(TAG, "ASR 返回 HTML 错误页 | code=${response.code} | contentType=$contentType | body=${body.take(500)}")
+            throw Exception("服务端返回 HTML 错误页而非 ASR 结果（请检查后端 ASR 路由配置）")
+        }
+
         if (!response.isSuccessful) {
             // 关键修复：打印完整 response body 帮助定位 400 根因
-            Log.e(TAG, "ASR ${response.code} | body=${body.take(800)} | wavSize=${wavData.size}")
+            Log.e(TAG, "ASR ${response.code} | contentType=$contentType | body=${body.take(800)} | wavSize=${wavData.size}")
             throw Exception("ASR ${response.code}: ${body.take(200)}")
         }
 
@@ -87,6 +100,74 @@ class VoiceApiClient @Inject constructor(
         } catch (e: Exception) {
             Log.w(TAG, "ASR 响应解析失败，返回原文: ${e.message}")
             body
+        }
+    }
+
+    /**
+     * ASR 语音识别（Base64 JSON 版本）
+     *
+     * 替代 multipart 方案，避免：
+     * 1. Next.js Edge Runtime formData() 解析限制
+     * 2. multipart 边界问题导致的 400 错误
+     * 3. HTML 错误页问题
+     *
+     * 安卓客户端在 multipart 失败时自动 fallback 到这个方法
+     */
+    suspend fun recognizeSpeechBase64(wavData: ByteArray): String = withContext(Dispatchers.IO) {
+        val baseUrl = userPreferences.getBaseUrl()
+        val token = userPreferences.getToken()
+
+        val base64Audio = android.util.Base64.encodeToString(wavData, android.util.Base64.NO_WRAP)
+        val requestBody = json.encodeToString(
+            kotlinx.serialization.serializer<Base64AsrRequest>(),
+            Base64AsrRequest(audio = base64Audio, mimeType = "audio/wav")
+        )
+
+        val request = Request.Builder()
+            .url("${baseUrl}api/ai/asr-base64")
+            .post(requestBody.toRequestBody("application/json".toMediaType()))
+            .apply {
+                if (token != null) addHeader("Authorization", "Bearer $token")
+            }
+            .build()
+
+        val response = okHttpClient.newCall(request).execute()
+        val contentType = response.header("Content-Type") ?: ""
+        val body = response.body?.string() ?: ""
+
+        // 检测 HTML 错误页
+        if (contentType.contains("text/html", ignoreCase = true) ||
+            body.trimStart().startsWith("<!DOCTYPE") ||
+            body.trimStart().startsWith("<html")) {
+            Log.e(TAG, "ASR-Base64 返回 HTML 错误页 | code=${response.code} | body=${body.take(500)}")
+            throw Exception("服务端返回 HTML 错误页（请检查后端 asr-base64 路由）")
+        }
+
+        if (!response.isSuccessful) {
+            Log.e(TAG, "ASR-Base64 ${response.code} | body=${body.take(800)} | wavSize=${wavData.size}")
+            throw Exception("ASR-Base64 ${response.code}: ${body.take(200)}")
+        }
+
+        return@withContext try {
+            val obj = json.parseToJsonElement(body).jsonObject
+            obj["text"]?.jsonPrimitive?.contentOrNull ?: ""
+        } catch (e: Exception) {
+            Log.w(TAG, "ASR-Base64 响应解析失败: ${e.message}")
+            body
+        }
+    }
+
+    /**
+     * 智能ASR：先尝试multipart，失败自动fallback到base64
+     *
+     * 确保最大兼容性，避免HTML错误页和400问题
+     */
+    suspend fun recognizeSpeechSmart(wavData: ByteArray): String {
+        return try {
+            recognizeSpeech(wavData)
+        } catch (e: Exception) {
+            Log.w(TAG, "multipart ASR 失败，fallback 到 base64: ${e.message}")
+            recognizeSpeechBase64(wavData)
         }
     }
 
@@ -288,6 +369,12 @@ data class TtsRequest(
     val text: String,
     val voice: String = "default",
     val stream: Boolean = true
+)
+
+@kotlinx.serialization.Serializable
+data class Base64AsrRequest(
+    val audio: String,
+    val mimeType: String = "audio/wav"
 )
 
 /**
