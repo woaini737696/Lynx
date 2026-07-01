@@ -949,7 +949,7 @@ export function clearHermesDetectCache(): void {
   _detectCache = null;
 }
 
-export async function installHermesAgent(): Promise<{
+export async function installHermesAgent(wheelFileName?: string): Promise<{
   success: boolean;
   output?: string;
   error?: string;
@@ -970,16 +970,17 @@ export async function installHermesAgent(): Promise<{
 
   // hermes-agent 不在 PyPI 上，从自建服务器下载 wheel 文件安装
   // 与桌面端 installer.rs 逻辑完全一致
-  const wheelFileName = "hermes_agent-0.18.0-py3-none-any.whl";
+  // wheelFileName 可由 updateHermesAgent 传入（来自 latest.json），未传时默认 0.18.0
+  const finalWheelFileName = wheelFileName || "hermes_agent-0.18.0-py3-none-any.whl";
   const downloadUrls = [
-    `https://ai.lynxdo.com/downloads/${wheelFileName}`,
-    `https://app.lynnhub.com/downloads/${wheelFileName}`,
+    `https://ai.lynxdo.com/downloads/${finalWheelFileName}`,
+    `https://app.lynnhub.com/downloads/${finalWheelFileName}`,
   ];
 
   // 临时目录
   const tempDir = path.join(os.tmpdir(), "lynnhub-hermes-install");
   await fs.mkdir(tempDir, { recursive: true }).catch(() => {});
-  const localWheelPath = path.join(tempDir, wheelFileName);
+  const localWheelPath = path.join(tempDir, finalWheelFileName);
 
   // 1. 下载 wheel 文件（依次尝试两个服务器）
   let downloadOk = false;
@@ -2977,4 +2978,140 @@ export async function executePatternAutomatically(
       durationMs: Date.now() - start,
     };
   }
+}
+
+// ============ 检查更新 ============
+
+export interface HermesUpdateInfo {
+  currentVersion: string | null;
+  latestVersion: string;
+  hasUpdate: boolean;
+  wheelFile: string;
+  releaseNotes?: string;
+  publishedAt?: string;
+  error?: string;
+}
+
+/**
+ * 检查 HermesAgent 是否有新版本
+ * 对比本机安装版本和服务器最新版本
+ */
+export async function checkHermesUpdate(): Promise<HermesUpdateInfo> {
+  // 1. 获取本机安装版本
+  let currentVersion: string | null = null;
+  try {
+    const installInfo = await detectHermesInstall();
+    currentVersion = installInfo.version || null;
+  } catch (e) {
+    logger.warn({ err: e }, "检测本机 HermesAgent 版本失败");
+  }
+
+  // 2. 获取服务器最新版本（从自建服务器拉取 latest.json）
+  const latestUrls = [
+    "https://ai.lynxdo.com/downloads/latest.json",
+    "https://app.lynnhub.com/downloads/latest.json",
+  ];
+
+  let latest: { version: string; wheel?: string; releaseNotes?: string; publishedAt?: string } | null = null;
+  let fetchErr = "";
+  for (const url of latestUrls) {
+    try {
+      const resp = await fetch(url, { signal: AbortSignal.timeout(8000) });
+      if (!resp.ok) {
+        fetchErr = `HTTP ${resp.status}`;
+        continue;
+      }
+      latest = await resp.json();
+      break;
+    } catch (e) {
+      fetchErr = (e as Error).message;
+    }
+  }
+
+  if (!latest || !latest.version) {
+    return {
+      currentVersion,
+      latestVersion: "unknown",
+      hasUpdate: false,
+      wheelFile: "",
+      error: `获取服务器版本失败：${fetchErr}`,
+    };
+  }
+
+  // 3. 对比版本
+  const hasUpdate = !currentVersion || compareVersions(latest.version, currentVersion) > 0;
+
+  return {
+    currentVersion,
+    latestVersion: latest.version,
+    hasUpdate,
+    wheelFile: latest.wheel || `hermes_agent-${latest.version}-py3-none-any.whl`,
+    releaseNotes: latest.releaseNotes,
+    publishedAt: latest.publishedAt,
+  };
+}
+
+/**
+ * 版本号比较：返回 1 if a > b, -1 if a < b, 0 if equal
+ */
+function compareVersions(a: string, b: string): number {
+  const pa = a.split(".").map((n) => parseInt(n, 10) || 0);
+  const pb = b.split(".").map((n) => parseInt(n, 10) || 0);
+  const len = Math.max(pa.length, pb.length);
+  for (let i = 0; i < len; i++) {
+    const va = pa[i] || 0;
+    const vb = pb[i] || 0;
+    if (va > vb) return 1;
+    if (va < vb) return -1;
+  }
+  return 0;
+}
+
+/**
+ * 更新 HermesAgent 到最新版本
+ * 先从 latest.json 获取最新 wheel 文件名，再调用 installHermesAgent 真正安装
+ */
+export async function updateHermesAgent(): Promise<{
+  success: boolean;
+  output?: string;
+  error?: string;
+  newVersion?: string;
+}> {
+  logger.info("HermesAgent 更新请求");
+
+  // 1. 先从服务器拉取 latest.json，拿到真实最新的 wheel 文件名
+  //    避免硬编码 0.18.0 导致未来发新版本时更新不生效
+  const latestUrls = [
+    "https://ai.lynxdo.com/downloads/latest.json",
+    "https://app.lynnhub.com/downloads/latest.json",
+  ];
+  let wheelFileName: string | undefined;
+  let latestVersion = "unknown";
+  for (const url of latestUrls) {
+    try {
+      const resp = await fetch(url, { signal: AbortSignal.timeout(8000) });
+      if (!resp.ok) continue;
+      const data = await resp.json();
+      if (data.wheel) {
+        wheelFileName = data.wheel;
+        latestVersion = data.version || latestVersion;
+        break;
+      }
+    } catch {
+      // 继续尝试下一个 URL
+    }
+  }
+
+  // 2. 调用 installHermesAgent（传入最新 wheel 文件名，未拿到则回退默认 0.18.0）
+  const result = await installHermesAgent(wheelFileName);
+  if (result.success) {
+    clearHermesDetectCache();
+    const installInfo = await detectHermesInstall();
+    return {
+      success: true,
+      output: result.output,
+      newVersion: installInfo.version || latestVersion,
+    };
+  }
+  return result;
 }

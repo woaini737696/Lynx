@@ -33,6 +33,7 @@ import {
   Power,
   Plus,
   ShieldCheck,
+  DownloadCloud,
 } from "lucide-react";
 import { PageHeader, Card, Button, LoadingState } from "@/components/layout/PageHeader";
 import { HelpButton } from "@/components/layout/HelpButton";
@@ -1132,6 +1133,15 @@ function HermesConfigSection() {
   const [saving, setSaving] = useState(false);
   const [showHermesHelp, setShowHermesHelp] = useState(false);
   const [openingDashboard, setOpeningDashboard] = useState(false);
+  // 检查更新相关状态
+  const [checkingUpdate, setCheckingUpdate] = useState(false);
+  const [updating, setUpdating] = useState(false);
+  const [updateInfo, setUpdateInfo] = useState<{
+    currentVersion: string | null;
+    latestVersion: string;
+    hasUpdate: boolean;
+    releaseNotes?: string;
+  } | null>(null);
 
   // 编辑态
   const [endpoint, setEndpoint] = useState("http://localhost:9119");
@@ -1372,6 +1382,58 @@ function HermesConfigSection() {
     }
   };
 
+  // 检查 HermesAgent 是否有新版本
+  const handleCheckUpdate = async () => {
+    setCheckingUpdate(true);
+    setUpdateInfo(null);
+    try {
+      const res = await fetch("/api/hermes/update");
+      const data = await res.json();
+      if (data.error) {
+        toast("检查更新失败：" + data.error, "error");
+      } else if (data.hasUpdate) {
+        toast(`发现新版本 v${data.latestVersion}（当前 v${data.currentVersion || "未知"}）`, "success");
+        setUpdateInfo({
+          currentVersion: data.currentVersion,
+          latestVersion: data.latestVersion,
+          hasUpdate: true,
+          releaseNotes: data.releaseNotes,
+        });
+      } else {
+        toast(`当前已是最新版本 v${data.currentVersion || data.latestVersion}`, "success");
+        setUpdateInfo({
+          currentVersion: data.currentVersion,
+          latestVersion: data.latestVersion,
+          hasUpdate: false,
+        });
+      }
+    } catch (e: any) {
+      toast("检查更新请求失败：" + e.message, "error");
+    } finally {
+      setCheckingUpdate(false);
+    }
+  };
+
+  // 执行更新：下载最新 wheel 并安装
+  const handleUpdate = async () => {
+    setUpdating(true);
+    try {
+      const res = await fetch("/api/hermes/update", { method: "POST" });
+      const data = await res.json();
+      if (data.success) {
+        toast(`HermesAgent 已更新到 v${data.newVersion || "最新"}`, "success");
+        setUpdateInfo(null);
+        await loadStatus();
+      } else {
+        toast(data.error || "更新失败", "error");
+      }
+    } catch (e: any) {
+      toast("更新请求失败：" + e.message, "error");
+    } finally {
+      setUpdating(false);
+    }
+  };
+
   // 打开 Dashboard
   // - 桌面端：通过 Tauri 启动 Dashboard + 打开 endpoint
   // - Web 端：直接探测本地 127.0.0.1:9119，在线则打开，不在线则提示启动方式
@@ -1587,8 +1649,53 @@ function HermesConfigSection() {
                 <Square className="h-3.5 w-3.5" /> 停止
               </Button>
             )}
+            {isInstalled && (
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={handleCheckUpdate}
+                disabled={checkingUpdate || updating}
+                className="gap-1.5"
+                title="检查 HermesAgent 是否有新版本"
+              >
+                {checkingUpdate ? (
+                  <><Loader2 className="h-3.5 w-3.5 animate-spin" /> 检查中...</>
+                ) : (
+                  <><RefreshCw className="h-3.5 w-3.5" /> 检查更新</>
+                )}
+              </Button>
+            )}
           </div>
         </div>
+
+        {/* 更新提示 */}
+        {updateInfo && updateInfo.hasUpdate && (
+          <div className="ios-glass-sm mb-4 rounded-xl border border-northstar/30 p-4">
+            <div className="mb-1.5 flex items-center gap-2 text-sm font-medium text-northstar">
+              <DownloadCloud className="h-4 w-4" />
+              发现新版本 v{updateInfo.latestVersion}
+              <span className="text-xs text-muted-foreground">
+                （当前 v{updateInfo.currentVersion || "未知"}）
+              </span>
+            </div>
+            {updateInfo.releaseNotes && (
+              <p className="mb-3 text-xs text-foreground/70">{updateInfo.releaseNotes}</p>
+            )}
+            <Button size="sm" onClick={handleUpdate} disabled={updating} className="gap-1.5">
+              {updating ? (
+                <><Loader2 className="h-3.5 w-3.5 animate-spin" /> 更新中（1-3分钟）...</>
+              ) : (
+                <><DownloadCloud className="h-3.5 w-3.5" /> 立即更新</>
+              )}
+            </Button>
+          </div>
+        )}
+        {updateInfo && !updateInfo.hasUpdate && (
+          <div className="ios-glass-sm mb-4 flex items-center gap-2 rounded-xl p-3 text-sm text-task">
+            <CheckCircle2 className="h-4 w-4" />
+            当前已是最新版本 v{updateInfo.currentVersion || updateInfo.latestVersion}
+          </div>
+        )}
 
         {status?.config?.lastError && (
           <div className="rounded-lg border border-red-300/30 bg-red-50/50 p-2.5 text-xs text-red-600">
