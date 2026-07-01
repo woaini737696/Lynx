@@ -134,8 +134,8 @@ export const AI_ASSISTANT_TOOLS: ToolDef[] = [
   },
   {
     name: "hermesExecute",
-    description: "通过 Hermes Agent 执行本地任务（操控电脑桌面、运行 Shell 命令、调用 Skills Hub 技能）。需先在设置中启用 Hermes Agent。",
-    params: '{"prompt": "任务描述（如：打开记事本并输入Hello）", "mode": "computer_use|shell|auto（可选，默认auto）", "workDir": "工作目录（可选）", "timeout": 120}',
+    description: "操控用户本地电脑：打开浏览器/应用、运行 Shell 命令、操作文件、截图、键盘输入、鼠标点击、调用 Skills Hub 技能。当用户要求打开/启动/运行/操控本地任何应用、浏览器、文件或命令时，必须调用此工具，不要回复教程或操作步骤。",
+    params: '{"prompt": "任务描述（如：打开浏览器、打开记事本、运行dir命令）", "mode": "computer_use|shell|auto（可选，默认auto）", "workDir": "工作目录（可选）", "timeout": 120}',
   },
   {
     name: "hermesListSkills",
@@ -162,6 +162,20 @@ ${AI_ASSISTANT_TOOLS.map(
 ## 工具调用规则（必须严格遵守！）
 
 当用户请求涉及"查看/创建/搜索/执行/完成/发送/列出/跑一下"等操作时，你**必须**调用对应工具。
+
+### 本地电脑操作（hermesExecute）专属规则（最高优先级！）
+
+当用户请求涉及"打开浏览器/打开应用/启动XX/操控电脑/桌面操作/运行命令/执行脚本/操作文件/新建文件夹/截图/键盘输入/鼠标点击"等**任何本地电脑操作**时，你**必须**调用 hermesExecute 工具，**绝对不要**回复教程、操作步骤或引导文案！
+
+示例（必须严格遵守）：
+- 用户："打开浏览器" → 必须调用 hermesExecute({"prompt": "打开默认浏览器"})
+- 用户："打开浏览器搜索小红书" → 必须调用 hermesExecute({"prompt": "打开浏览器并搜索小红书"})
+- 用户："打开记事本" → 必须调用 hermesExecute({"prompt": "打开记事本"})
+- 用户："运行 dir 命令" → 必须调用 hermesExecute({"prompt": "运行 dir 命令", "mode": "shell"})
+- 用户："帮我截个屏" → 必须调用 hermesExecute({"prompt": "截取当前屏幕"})
+- 用户："打开文件管理器" → 必须调用 hermesExecute({"prompt": "打开文件管理器"})
+
+**再次强调：遇到本地操作类请求，直接调用 hermesExecute，不要回复"你可以按照以下步骤..."这类教程！**
 
 **调用方法**：在回复末尾添加 action 代码块：
 

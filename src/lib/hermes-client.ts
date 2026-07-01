@@ -425,12 +425,35 @@ async function execHermes(
   stderr: string;
   error?: string;
 }> {
-  return {
-    success: false,
-    stdout: "",
-    stderr: "",
-    error: "服务器禁止执行 hermes CLI（安全架构）。请通过 WS 远程下发到用户本地设备执行。",
-  };
+  const { execFile } = await import("child_process");
+  const { promisify } = await import("util");
+  const execFileAsync = promisify(execFile);
+
+  const hermesExe = await findHermesExe();
+  if (!hermesExe) {
+    return { success: false, stdout: "", stderr: "", error: "未找到 hermes 可执行文件" };
+  }
+
+  try {
+    const { stdout, stderr } = await execFileAsync(hermesExe, args, {
+      timeout: timeoutMs,
+      maxBuffer: 1024 * 1024 * 10,
+      env: buildHermesEnv(userId),
+      cwd: process.env.HOME || process.env.USERPROFILE || undefined,
+    });
+    return { success: true, stdout, stderr };
+  } catch (e) {
+    const err = e as Error & { stdout?: string; stderr?: string; code?: string };
+    if (err.code === "ETIMEDOUT") {
+      return { success: false, stdout: "", stderr: "", error: `命令执行超时（${timeoutMs / 1000}秒）` };
+    }
+    return {
+      success: false,
+      stdout: err.stdout || "",
+      stderr: err.stderr || "",
+      error: err.message,
+    };
+  }
 }
 
 // ============ Hermes Agent 操作 ============
@@ -831,87 +854,308 @@ export async function isHermesModelConfigured(): Promise<{
  * 返回 null，服务器不执行任何 CLI
  */
 export async function findHermesExe(): Promise<string | null> {
+  const { exec } = await import("child_process");
+  const { promisify } = await import("util");
+  const execAsync = promisify(exec);
+
+  // 1. 先尝试直接调用 hermes（如果在 PATH 中）
+  try {
+    const testCmd = process.platform === "win32" ? "where hermes" : "which hermes";
+    const { stdout } = await execAsync(testCmd, { timeout: 5000 });
+    const firstLine = stdout.trim().split("\n")[0].trim();
+    if (firstLine) return firstLine;
+  } catch {
+    // 不在 PATH 中，继续查找
+  }
+
+  // 2. Windows: 检查常见 Scripts 目录
+  if (process.platform === "win32") {
+    const path = require("path");
+    const fs = require("fs").promises;
+    const candidates = [
+      path.join(process.env.APPDATA || "", "Python", "Python313", "Scripts", "hermes.exe"),
+      path.join(process.env.APPDATA || "", "Python", "Python312", "Scripts", "hermes.exe"),
+      path.join(process.env.APPDATA || "", "Python", "Python311", "Scripts", "hermes.exe"),
+      path.join(process.env.LOCALAPPDATA || "", "Programs", "Python", "Python313", "Scripts", "hermes.exe"),
+      path.join(process.env.LOCALAPPDATA || "", "Programs", "Python", "Python312", "Scripts", "hermes.exe"),
+    ];
+    for (const candidate of candidates) {
+      try {
+        await fs.access(candidate);
+        return candidate;
+      } catch {
+        // 继续检查下一个
+      }
+    }
+  }
+
   return null;
 }
 
-/**
- * detectHermesInstall — 服务器不检测本地安装
- * 服务器无法知道用户电脑是否安装了 HermesAgent
- * 真实安装状态由桌面端通过 WS 上报，或 Web 端通过 127.0.0.1:9119 探测
- */
+let _detectCache: { result: { installed: boolean; version?: string; path?: string }; ts: number } | null = null;
+const DETECT_CACHE_MS = 5 * 60 * 1000;
+
 export async function detectHermesInstall(): Promise<{
   installed: boolean;
   version?: string;
   path?: string;
 }> {
-  return { installed: false };
+  if (_detectCache && Date.now() - _detectCache.ts < DETECT_CACHE_MS) {
+    return _detectCache.result;
+  }
+
+  const { exec } = await import("child_process");
+  const { promisify } = await import("util");
+  const execAsync = promisify(exec);
+
+  try {
+    const hermesExe = await findHermesExe();
+    if (hermesExe) {
+      const { stdout } = await execAsync(`"${hermesExe}" --version`, { timeout: 10000 });
+      const versionMatch = stdout.match(/(\d+\.\d+\.\d+)/);
+      const result = {
+        installed: true,
+        version: versionMatch?.[1]?.trim() || "unknown",
+        path: hermesExe,
+      };
+      _detectCache = { result, ts: Date.now() };
+      return result;
+    }
+  } catch {
+    // hermes --version 失败，继续尝试 pip show
+  }
+
+  try {
+    const cmd = process.platform === "win32" ? "pip show hermes-agent" : "pip3 show hermes-agent";
+    const { stdout } = await execAsync(cmd, { timeout: 15000 });
+    const versionMatch = stdout.match(/Version:\s*(.+)/);
+    const locationMatch = stdout.match(/Location:\s*(.+)/);
+    const result = {
+      installed: true,
+      version: versionMatch?.[1]?.trim(),
+      path: locationMatch?.[1]?.trim(),
+    };
+    _detectCache = { result, ts: Date.now() };
+    return result;
+  } catch {
+    const result = { installed: false };
+    _detectCache = { result, ts: Date.now() };
+    return result;
+  }
 }
 
-/** 清除安装检测缓存（保留空实现，兼容调用方） */
 export function clearHermesDetectCache(): void {
-  // 服务器不缓存，无操作
+  _detectCache = null;
 }
 
-/**
- * installHermesAgent — 服务器禁止安装（安全架构）
- *
- * HermesAgent 只能安装在用户本地电脑：
- * - 桌面端：设置页 → 一键安装 AI 环境（Tauri 调用本地 pip）
- * - Web 端：用户需在命令行运行 `pip install hermes-agent` 安装
- *           或安装桌面端客户端自动安装
- */
 export async function installHermesAgent(): Promise<{
   success: boolean;
   output?: string;
   error?: string;
 }> {
+  const { exec } = await import("child_process");
+  const { promisify } = await import("util");
+  const execAsync = promisify(exec);
+
+  logger.info("HermesAgent 安装请求：pip install hermes-agent");
+
+  const pipCmd = process.platform === "win32" ? "pip" : "pip3";
+
+  const cleanEnv: NodeJS.ProcessEnv = { ...process.env };
+  delete cleanEnv.PIP_INDEX_URL;
+  delete cleanEnv.PIP_EXTRA_INDEX_URL;
+
+  const mirrors = [
+    "https://pypi.tuna.tsinghua.edu.cn/simple",
+    "https://mirrors.aliyun.com/pypi/simple/",
+    "https://mirrors.cloud.tencent.com/pypi/simple",
+    "https://pypi.org/simple",
+  ];
+
+  const verifyInstall = async (): Promise<boolean> => {
+    const hermesExe = await findHermesExe();
+    if (hermesExe) {
+      try {
+        await execAsync(`"${hermesExe}" --version`, { timeout: 10000, env: cleanEnv });
+        return true;
+      } catch {
+        // 可执行文件存在但 --version 失败，继续检查 pip
+      }
+    }
+    try {
+      const verifyCmd = process.platform === "win32" ? "pip show hermes-agent" : "pip3 show hermes-agent";
+      await execAsync(verifyCmd, { timeout: 15000, env: cleanEnv });
+      return true;
+    } catch {
+      return false;
+    }
+  };
+
+  let lastError = "";
+  let lastOutput = "";
+
+  for (const mirror of mirrors) {
+    const installCmd = `${pipCmd} install --disable-pip-version-check -i ${mirror} hermes-agent`;
+    logger.info({ mirror }, "尝试安装 HermesAgent");
+    try {
+      const { stdout, stderr } = await execAsync(installCmd, {
+        timeout: 180000,
+        maxBuffer: 10 * 1024 * 1024,
+        env: cleanEnv,
+      });
+      const output = (stdout || "") + (stderr ? `\n${stderr}` : "");
+      lastOutput = output;
+
+      if (await verifyInstall()) {
+        clearHermesDetectCache();
+        logger.info({ mirror }, "HermesAgent 安装成功");
+        return { success: true, output };
+      }
+      lastError = `镜像 ${mirror} 安装执行但验证失败`;
+    } catch (e) {
+      const err = e as { stderr?: string; message?: string };
+      lastError = `镜像 ${mirror} 失败：${err.stderr || err.message || "未知错误"}`;
+      logger.warn({ mirror, err: lastError }, "HermesAgent 安装失败，尝试下一个镜像");
+    }
+  }
+
   return {
     success: false,
-    error:
-      "服务器禁止执行 pip install（安全架构）。\n\n" +
-      "HermesAgent 只能安装在您的本地电脑：\n" +
-      "1. 桌面端：打开「设置 → Lynx Agent」点击「一键安装 AI 环境」\n" +
-      "2. Web 端：在命令行运行 `pip install hermes-agent` 安装\n" +
-      "   安装后运行 `hermes dashboard --port 9119` 启动 Dashboard\n" +
-      "   Web 端会自动探测到本地 Dashboard（127.0.0.1:9119）并使用",
+    output: lastOutput,
+    error: lastError || "所有镜像源安装均失败，请检查 Python 版本（需 3.11+）或网络连接",
   };
 }
 
-/**
- * startHermesAgent — 服务器禁止启动 Dashboard 进程（安全架构）
- *
- * Dashboard 必须在用户本地电脑运行：
- * - 桌面端：通过 Tauri command 在本地 spawn hermes dashboard
- * - Web 端：用户需在命令行运行 `hermes dashboard --port 9119`
- *           Web 端打开时会自动探测本地 Dashboard 是否在线
- */
 export async function startHermesAgent(port: number = 9119): Promise<{
   success: boolean;
   pid?: number;
   error?: string;
 }> {
-  return {
-    success: false,
-    error:
-      `服务器禁止启动 Hermes Dashboard 进程（安全架构）。\n\n` +
-      `Dashboard 必须在您的本地电脑运行（端口 ${port}）：\n` +
-      `1. 桌面端：打开「设置 → Lynx Agent」点击「启动 Lynx Agent」\n` +
-      `2. Web 端：在命令行运行 \`hermes dashboard --port ${port}\`\n` +
-      `   Web 端会自动探测本地 Dashboard 并通过 WS 注册为在线设备`,
-  };
+  const { spawn } = await import("child_process");
+
+  try {
+    const hermesExe = await findHermesExe();
+    if (!hermesExe) {
+      return { success: false, error: "未找到 hermes 可执行文件，请确认已安装 hermes-agent" };
+    }
+
+    logger.info({ hermesExe, port }, "启动 Hermes Agent Dashboard...");
+
+    let stderrBuf = "";
+    const child = spawn(hermesExe, [
+      "dashboard",
+      "--port", String(port),
+      "--no-open",
+    ], {
+      detached: true,
+      stdio: ["ignore", "ignore", "pipe"],
+      windowsHide: false,
+      cwd: process.env.HOME || process.env.USERPROFILE || undefined,
+      env: buildHermesEnv(),
+    });
+
+    child.stderr?.on("data", (chunk: Buffer) => {
+      const text = chunk.toString("utf8");
+      stderrBuf += text;
+      if (stderrBuf.length > 8192) {
+        stderrBuf = stderrBuf.slice(-8192);
+      }
+    });
+
+    if (child.exitCode !== null) {
+      return {
+        success: false,
+        error: `Hermes 进程立即退出（exit code ${child.exitCode}）。stderr: ${stderrBuf.slice(-500)}`,
+      };
+    }
+    if (!child.pid) {
+      return { success: false, error: "无法获取进程 PID，Hermes 可能未正确启动" };
+    }
+
+    const endpoint = `http://localhost:${port}`;
+    const startedAt = Date.now();
+    const timeoutMs = 30_000;
+    let ready = false;
+    while (Date.now() - startedAt < timeoutMs) {
+      if (child.exitCode !== null) {
+        return {
+          success: false,
+          error: `Hermes 进程在启动过程中退出（exit code ${child.exitCode}）。stderr: ${stderrBuf.slice(-500)}`,
+        };
+      }
+      try {
+        const ctrl = new AbortController();
+        const timer = setTimeout(() => ctrl.abort(), 1500);
+        const res = await fetch(endpoint, { signal: ctrl.signal });
+        clearTimeout(timer);
+        if (res.ok || res.status === 404) {
+          ready = true;
+          break;
+        }
+      } catch {
+        // 还没就绪，继续等
+      }
+      await new Promise((r) => setTimeout(r, 1000));
+    }
+
+    if (!ready) {
+      logger.warn({ pid: child.pid, port, stderr: stderrBuf.slice(-500) }, "Hermes Dashboard 30s 内未就绪");
+      child.unref();
+      return {
+        success: false,
+        pid: child.pid,
+        error: `Hermes Dashboard 在 30 秒内未就绪（端口 ${port}）。进程仍在运行（PID ${child.pid}），可能需要更长启动时间。stderr: ${stderrBuf.slice(-300)}`,
+      };
+    }
+
+    logger.info({ pid: child.pid, port, readyMs: Date.now() - startedAt }, "Hermes Agent Dashboard 已就绪");
+    child.unref();
+    return { success: true, pid: child.pid };
+  } catch (e) {
+    return { success: false, error: (e as Error).message };
+  }
 }
 
-/**
- * stopHermesAgent — 服务器禁止终止进程（安全架构）
- */
 export async function stopHermesAgent(port: number = 9119): Promise<{
   success: boolean;
   error?: string;
 }> {
-  return {
-    success: false,
-    error: `服务器禁止终止本地进程（安全架构）。请在桌面端或命令行停止 Dashboard（端口 ${port}）。`,
-  };
+  const { exec } = await import("child_process");
+  const { promisify } = await import("util");
+  const execAsync = promisify(exec);
+
+  try {
+    if (process.platform === "win32") {
+      const { stdout } = await execAsync(
+        `netstat -ano | findstr :${port}`,
+        { timeout: 5000 }
+      );
+      const pids = new Set<string>();
+      for (const line of stdout.trim().split("\n")) {
+        const parts = line.trim().split(/\s+/);
+        if (parts.length >= 5 && parts[1].endsWith(`:${port}`) && parts[3] === "LISTENING") {
+          pids.add(parts[4]);
+        }
+      }
+      for (const pid of pids) {
+        await execAsync(`taskkill /PID ${pid} /F`, { timeout: 5000 });
+      }
+      return { success: true };
+    } else {
+      try {
+        const { stdout } = await execAsync(`lsof -ti :${port}`, { timeout: 5000 });
+        const pids = stdout.trim().split("\n").filter(Boolean);
+        for (const pid of pids) {
+          await execAsync(`kill -9 ${pid}`, { timeout: 5000 });
+        }
+      } catch {
+        // 没有进程占用端口
+      }
+      return { success: true };
+    }
+  } catch (e) {
+    return { success: false, error: (e as Error).message };
+  }
 }
 
 // ============ /learn 回写：Hermes 自动学习成果同步到 Lynx ============

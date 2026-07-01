@@ -38,7 +38,7 @@ import { PageHeader, Card, Button, LoadingState } from "@/components/layout/Page
 import { HelpButton } from "@/components/layout/HelpButton";
 import { Modal } from "@/components/ui/Modal";
 import { toast } from "@/components/ui/toast";
-import { isDesktop, installAiEnv, startHermesAgent } from "@/lib/desktop-client";
+import { isDesktop } from "@/lib/desktop-client";
 
 // 三个 tab 内容组件改为 dynamic 懒加载：仅在用户首次访问对应 tab 时才下载
 // 配合下方 visitedTabs 机制，未访问的 tab 不会触发 chunk 请求
@@ -1132,13 +1132,6 @@ function HermesConfigSection() {
   const [saving, setSaving] = useState(false);
   const [showHermesHelp, setShowHermesHelp] = useState(false);
   const [openingDashboard, setOpeningDashboard] = useState(false);
-  // 安装引导弹窗
-  const [showInstallGuide, setShowInstallGuide] = useState(false);
-  const [dashboardOnline, setDashboardOnline] = useState<boolean | null>(null);
-  const [checkingDashboard, setCheckingDashboard] = useState(false);
-  const [installCmdCopied, setInstallCmdCopied] = useState(false);
-  const [startCmdCopied, setStartCmdCopied] = useState(false);
-  const [installViaDashboardLoading, setInstallViaDashboardLoading] = useState(false);
 
   // 编辑态
   const [endpoint, setEndpoint] = useState("http://localhost:9119");
@@ -1311,101 +1304,23 @@ function HermesConfigSection() {
     "查询今天北京天气",
   ];
 
-  // 检测本地 Dashboard (127.0.0.1:9119) 是否在线
-  const checkLocalDashboard = async (): Promise<boolean> => {
-    try {
-      const ctrl = new AbortController();
-      const timer = setTimeout(() => ctrl.abort(), 2500);
-      const resp = await fetch("http://127.0.0.1:9119/", { signal: ctrl.signal });
-      clearTimeout(timer);
-      return resp.ok || resp.status === 200 || resp.status === 404;
-    } catch {
-      return false;
-    }
-  };
-
-  // 通过 Dashboard HTTP API 安装/升级 HermesAgent（Dashboard 已在线时）
-  const installViaDashboard = async () => {
-    setInstallViaDashboardLoading(true);
-    try {
-      const resp = await fetch("http://127.0.0.1:9119/api/install", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "install" }),
-        signal: AbortSignal.timeout(180_000),
-      });
-      const data = await resp.json().catch(() => ({}));
-      if (resp.ok && data.success !== false) {
-        toast(data.message || "HermesAgent 安装/升级成功", "success");
-        await loadStatus();
-        setShowInstallGuide(false);
-      } else {
-        toast(data.error || data.message || "Dashboard 安装失败", "error");
-      }
-    } catch (e: any) {
-      toast("通过 Dashboard 安装失败：" + e.message + "。请改用命令行 pip install hermes-agent", "error");
-    } finally {
-      setInstallViaDashboardLoading(false);
-    }
-  };
-
-  // 打开安装引导弹窗时自动检测本地 Dashboard
-  const openInstallGuide = async () => {
-    setShowInstallGuide(true);
-    setDashboardOnline(null);
-    setCheckingDashboard(true);
-    const online = await checkLocalDashboard();
-    setDashboardOnline(online);
-    setCheckingDashboard(false);
-  };
-
-  // 在弹窗内点击"重新检测"
-  const recheckDashboard = async () => {
-    setCheckingDashboard(true);
-    setDashboardOnline(null);
-    const online = await checkLocalDashboard();
-    setDashboardOnline(online);
-    setCheckingDashboard(false);
-    if (online) {
-      toast("检测到本地 Dashboard 已在线，可直接安装/升级", "success");
-      await loadStatus();
-    }
-  };
-
-  const copyToClipboard = async (text: string, setter: (v: boolean) => void) => {
-    try {
-      await navigator.clipboard.writeText(text);
-      setter(true);
-      setTimeout(() => setter(false), 2000);
-    } catch {
-      // 降级方案
-      const ta = document.createElement("textarea");
-      ta.value = text;
-      document.body.appendChild(ta);
-      ta.select();
-      document.execCommand("copy");
-      document.body.removeChild(ta);
-      setter(true);
-      setTimeout(() => setter(false), 2000);
-    }
-  };
-
+  // 一键安装 HermesAgent（Web 端和桌面端统一调用 POST /api/hermes/install）
+  // 在本地开发环境：服务器=本机，pip install 直接装到本机
+  // 在生产环境：服务器执行 pip install 装到服务器（用户需在本地开发环境或桌面端安装）
   const handleInstall = async () => {
     setInstalling(true);
     try {
-      if (isDesktop()) {
-        // 桌面端：调用 Tauri command 在用户本地执行 pip install
-        const result = await installAiEnv();
-        if (result.success) {
-          toast(result.message || "Lynx Agent 安装成功", "success");
-          await loadStatus();
-        } else {
-          toast(result.message || "安装失败", "error");
-        }
+      const res = await fetch("/api/hermes/install", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "install" }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok && data.success) {
+        toast(data.message || "HermesAgent 安装成功", "success");
+        await loadStatus();
       } else {
-        // Web 端：打开安装引导弹窗（不是只弹个提示）
-        // 弹窗会自动检测本地 Dashboard，在线则调用 Dashboard 安装 API，不在线则显示命令行步骤
-        await openInstallGuide();
+        toast(data.error || "安装失败", "error");
       }
     } catch (e: any) {
       toast("安装请求失败：" + e.message, "error");
@@ -1414,23 +1329,21 @@ function HermesConfigSection() {
     }
   };
 
+  // 一键启动 HermesAgent Dashboard（Web 端和桌面端统一调用 POST /api/hermes/install）
   const handleStart = async () => {
     setStarting(true);
     try {
-      if (isDesktop()) {
-        // 桌面端：调用 Tauri command 启动 Dashboard + WS 注册
-        await startHermesAgent();
-        toast("Lynx Agent 已启动，PC 已上线", "success");
+      const res = await fetch("/api/hermes/install", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "start" }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok && data.success) {
+        toast(data.message || "HermesAgent Dashboard 已启动", "success");
         await loadStatus();
       } else {
-        // Web 端：浏览器无法 spawn 进程，提示命令行启动方式
-        // Web 端打开后会自动探测本地 Dashboard 并通过 WS 注册为在线设备
-        toast(
-          "浏览器无法直接启动 HermesAgent。\n" +
-          "请在命令行运行 `hermes dashboard --port 9119` 启动 Dashboard，\n" +
-          "Web 端会自动探测到本地 Dashboard 并注册为在线设备。",
-          "error"
-        );
+        toast(data.error || "启动失败", "error");
       }
     } catch (e: any) {
       toast("启动请求失败：" + e.message, "error");
@@ -1439,24 +1352,23 @@ function HermesConfigSection() {
     }
   };
 
+  // 一键停止 HermesAgent Dashboard
   const handleStop = async () => {
-    if (isDesktop()) {
-      // 桌面端：调用 Tauri command 停止本地 hermes
-      try {
-        await startHermesAgent(); // TODO: 桌面端应提供 stop_hermes_agent command
-        toast("Lynx Agent 已停止", "success");
+    try {
+      const res = await fetch("/api/hermes/install", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "stop" }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok && data.success) {
+        toast(data.message || "HermesAgent Dashboard 已停止", "success");
         await loadStatus();
-      } catch (e: any) {
-        toast("停止失败：" + e.message, "error");
+      } else {
+        toast(data.error || "停止失败", "error");
       }
-    } else {
-      // Web 端：浏览器无法停止本地进程，提示命令行停止方式
-      toast(
-        "浏览器无法直接停止 HermesAgent。\n" +
-        "请在运行 Dashboard 的命令行按 Ctrl+C 停止，" +
-        "或在桌面端「设置 → Lynx Agent」点击「停止 Lynx Agent」。",
-        "error"
-      );
+    } catch (e: any) {
+      toast("停止请求失败：" + e.message, "error");
     }
   };
 
@@ -1471,8 +1383,19 @@ function HermesConfigSection() {
         // 桌面端：通过 Tauri 启动 Dashboard（如果未运行）+ 打开 endpoint
         const running = status?.config?.status === "running";
         if (!running) {
-          await startHermesAgent();
-          toast("Lynx Agent 已启动，正在打开 Dashboard...", "success");
+          // 桌面端通过 API 启动 Dashboard
+          const res = await fetch("/api/hermes/install", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ action: "start" }),
+          });
+          const data = await res.json().catch(() => ({}));
+          if (data.success) {
+            toast("Lynx Agent 已启动，正在打开 Dashboard...", "success");
+          } else {
+            toast(data.error || "启动失败", "error");
+            return;
+          }
           await loadStatus();
           // 等待 1.5 秒让 HTTP 服务完全就绪
           await new Promise((r) => setTimeout(r, 1500));
@@ -1924,135 +1847,6 @@ function HermesConfigSection() {
           </Button>
         </div>
       </div>
-
-      {/* 安装引导弹窗（Web 端独立安装 HermesAgent） */}
-      <Modal
-        open={showInstallGuide}
-        onClose={() => setShowInstallGuide(false)}
-        title="安装 Lynx Agent（HermesAgent）"
-        size="lg"
-      >
-        <div className="space-y-4 text-sm">
-          {/* 状态检测 */}
-          <div className="ios-glass-sm rounded-xl p-4">
-            <div className="mb-2 flex items-center gap-2 font-medium text-foreground">
-              <Cpu className="h-4 w-4 text-northstar" />
-              本地 Dashboard 状态检测
-            </div>
-            {checkingDashboard ? (
-              <div className="flex items-center gap-2 text-muted-foreground">
-                <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                正在检测 127.0.0.1:9119 ...
-              </div>
-            ) : dashboardOnline === null ? (
-              <div className="text-muted-foreground">未检测</div>
-            ) : dashboardOnline ? (
-              <div className="space-y-2">
-                <div className="flex items-center gap-2 text-green-600">
-                  <CheckCircle2 className="h-4 w-4" />
-                  Dashboard 在线（127.0.0.1:9119）
-                </div>
-                <p className="text-xs text-foreground/70">
-                  检测到本地 Dashboard 已运行，可直接通过 Dashboard 安装/升级 HermesAgent。
-                </p>
-                <Button
-                  onClick={installViaDashboard}
-                  disabled={installViaDashboardLoading}
-                  className="gap-1.5"
-                >
-                  {installViaDashboardLoading ? (
-                    <><Loader2 className="h-3.5 w-3.5 animate-spin" /> 安装中（pip install 可能需要 1-3 分钟）...</>
-                  ) : (
-                    <><Rocket className="h-3.5 w-3.5" /> 通过 Dashboard 一键安装/升级</>
-                  )}
-                </Button>
-              </div>
-            ) : (
-              <div className="space-y-1">
-                <div className="flex items-center gap-2 text-orange-600">
-                  <XCircle className="h-4 w-4" />
-                  Dashboard 未运行
-                </div>
-                <p className="text-xs text-foreground/70">
-                  本地未检测到 HermesAgent Dashboard。请按下方步骤安装并启动。
-                </p>
-              </div>
-            )}
-            <button
-              onClick={recheckDashboard}
-              disabled={checkingDashboard}
-              className="mt-2 inline-flex items-center gap-1 text-xs text-campaign hover:underline disabled:opacity-50"
-            >
-              <RefreshCw className="h-3 w-3" />
-              重新检测
-            </button>
-          </div>
-
-          {/* 命令行安装步骤 */}
-          <div className="space-y-3">
-            <div className="font-medium text-foreground">命令行安装步骤</div>
-
-            {/* 步骤1 */}
-            <div className="ios-glass-sm rounded-xl p-3">
-              <div className="mb-1.5 flex items-center justify-between">
-                <span className="font-medium text-foreground">① 安装 HermesAgent</span>
-                <button
-                  onClick={() => copyToClipboard("pip install hermes-agent", setInstallCmdCopied)}
-                  className="inline-flex items-center gap-1 rounded-md bg-primary/10 px-2 py-1 text-xs text-primary hover:bg-primary/20"
-                >
-                  {installCmdCopied ? <CheckCircle2 className="h-3 w-3" /> : <Terminal className="h-3 w-3" />}
-                  {installCmdCopied ? "已复制" : "复制"}
-                </button>
-              </div>
-              <code className="block rounded-md bg-black/5 px-3 py-2 text-xs text-foreground">
-                pip install hermes-agent
-              </code>
-              <p className="mt-1 text-xs text-muted-foreground">
-                在命令行（CMD / PowerShell / Terminal）中执行。需要已安装 Python 3.9+ 和 pip。
-              </p>
-            </div>
-
-            {/* 步骤2 */}
-            <div className="ios-glass-sm rounded-xl p-3">
-              <div className="mb-1.5 flex items-center justify-between">
-                <span className="font-medium text-foreground">② 启动 Dashboard 服务</span>
-                <button
-                  onClick={() => copyToClipboard("hermes dashboard --port 9119", setStartCmdCopied)}
-                  className="inline-flex items-center gap-1 rounded-md bg-primary/10 px-2 py-1 text-xs text-primary hover:bg-primary/20"
-                >
-                  {startCmdCopied ? <CheckCircle2 className="h-3 w-3" /> : <Terminal className="h-3 w-3" />}
-                  {startCmdCopied ? "已复制" : "复制"}
-                </button>
-              </div>
-              <code className="block rounded-md bg-black/5 px-3 py-2 text-xs text-foreground">
-                hermes dashboard --port 9119
-              </code>
-              <p className="mt-1 text-xs text-muted-foreground">
-                启动后保持命令行窗口不关闭。Web 端会自动探测到本地 Dashboard 并注册为在线设备。
-              </p>
-            </div>
-
-            {/* 步骤3 */}
-            <div className="ios-glass-sm rounded-xl p-3">
-              <div className="mb-1.5 font-medium text-foreground">③ 安装完成后回到这里</div>
-              <p className="text-xs text-muted-foreground">
-                启动 Dashboard 后，点击上方「重新检测」按钮，确认 Dashboard 在线后即可使用。
-                Web 端和桌面端共享同一个 HermesAgent，无需重复安装。
-              </p>
-            </div>
-          </div>
-
-          {/* 底部操作 */}
-          <div className="flex items-center justify-between border-t border-border/40 pt-3">
-            <span className="text-xs text-muted-foreground">
-              Web 端和桌面端共用一个 HermesAgent，只需在一端安装。
-            </span>
-            <Button variant="outline" size="sm" onClick={() => setShowInstallGuide(false)}>
-              关闭
-            </Button>
-          </div>
-        </div>
-      </Modal>
     </Section>
   );
 }
