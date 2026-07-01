@@ -137,7 +137,7 @@ def make_nsis_sidebar():
     # 底部装饰线 + 版本信息
     draw.line([(30, 270), (W - 30, 270)], fill=(43, 127, 255, 100), width=1)
     font_ver = find_font(9)
-    ver_text = "v1.0.30"
+    ver_text = "v1.0.31"
     bbox = draw.textbbox((0, 0), ver_text, font=font_ver)
     tw = bbox[2] - bbox[0]
     draw.text(((W - tw) // 2, 280), ver_text, fill=LIGHT_GRAY, font=font_ver)

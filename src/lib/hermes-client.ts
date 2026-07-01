@@ -168,7 +168,8 @@ export async function dispatchRemoteCommand(
       // 如果 executed=false 且 actions_executed 为空，检查 output 是否包含教程式文本
       const fakeSuccessKeywords = [
         "无法直接控制", "无法控制你的设备", "你可以按以下步骤",
-        "请手动", "手动打开", "手动操作",
+        "请手动", "手动打开", "手动操作", "请按以下步骤",
+        "你可以通过以下方式", "步骤如下",
       ];
       const isFakeSuccess = !hasExecutedFlag && !hasActions &&
         typeof output === "string" &&
@@ -1001,7 +1002,6 @@ export async function installHermesAgent(wheelFileName?: string): Promise<{
   const finalWheelFileName = wheelFileName || "hermes_agent-0.18.0-py3-none-any.whl";
   const downloadUrls = [
     `https://ai.lynxdo.com/downloads/${finalWheelFileName}`,
-    `https://app.lynnhub.com/downloads/${finalWheelFileName}`,
   ];
 
   // 临时目录
@@ -3036,7 +3036,6 @@ export async function checkHermesUpdate(): Promise<HermesUpdateInfo> {
   // 2. 获取服务器最新版本（从自建服务器拉取 latest.json）
   const latestUrls = [
     "https://ai.lynxdo.com/downloads/latest.json",
-    "https://app.lynnhub.com/downloads/latest.json",
   ];
 
   let latest: { version: string; wheel?: string; releaseNotes?: string; publishedAt?: string } | null = null;
@@ -3110,7 +3109,6 @@ export async function updateHermesAgent(): Promise<{
   //    避免硬编码 0.18.0 导致未来发新版本时更新不生效
   const latestUrls = [
     "https://ai.lynxdo.com/downloads/latest.json",
-    "https://app.lynnhub.com/downloads/latest.json",
   ];
   let wheelFileName: string | undefined;
   let latestVersion = "unknown";

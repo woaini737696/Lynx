@@ -1166,15 +1166,54 @@ function HermesConfigSection() {
 
   const loadStatus = async () => {
     try {
-      const res = await fetch("/api/hermes/status");
-      if (!res.ok) throw new Error("加载失败");
-      const data = await res.json();
-      setStatus(data);
-      if (data.config) {
-        setEndpoint(data.config.endpoint || "http://localhost:9119");
-        setEnabled(data.config.enabled);
-        setAutoStart(data.config.autoStart);
-        setCapabilities(data.config.capabilities || ["computer_use", "shell", "skills_hub"]);
+      // 1. 先浏览器直连本机 Dashboard 探测真实状态（不走服务器DB）
+      let localOnline = false;
+      let localVersion: string | undefined;
+      try {
+        const ctrl = new AbortController();
+        const timer = setTimeout(() => ctrl.abort(), 3000);
+        const res = await fetch("http://127.0.0.1:9119/api/status", { signal: ctrl.signal });
+        clearTimeout(timer);
+        if (res.ok) {
+          const data = await res.json();
+          localOnline = true;
+          localVersion = data.version;
+        }
+      } catch {
+        // Dashboard 未运行或 CORS 拦截
+      }
+
+      // 2. 同时加载服务器DB的配置信息（enabled/autoStart/endpoint 等配置项仍存DB）
+      let dbConfig: any = null;
+      try {
+        const res = await fetch("/api/hermes/status");
+        if (res.ok) {
+          const data = await res.json();
+          dbConfig = data.config;
+        }
+      } catch {
+        // DB 加载失败不影响本地状态展示
+      }
+
+      // 3. 组合状态：本地探测优先，DB 配置补充
+      const merged = {
+        installed: localOnline || (dbConfig?.status && dbConfig.status !== "not_installed"),
+        installVersion: localVersion,           // 本机真实版本
+        connected: localOnline,                  // 本机真实在线状态
+        version: localVersion,                   // 本机真实版本
+        capabilities: dbConfig?.capabilities || ["computer_use", "shell", "skills_hub"],
+        config: dbConfig ? {
+          ...dbConfig,
+          status: localOnline ? "running" : (dbConfig.status === "not_installed" ? "not_installed" : "installed"),
+        } : null,
+      };
+      setStatus(merged);
+
+      if (dbConfig) {
+        setEndpoint(dbConfig.endpoint || "http://localhost:9119");
+        setEnabled(dbConfig.enabled);
+        setAutoStart(dbConfig.autoStart);
+        setCapabilities(dbConfig.capabilities || ["computer_use", "shell", "skills_hub"]);
       }
     } catch (e: any) {
       toast("加载 Hermes 状态失败", "error");
@@ -1443,11 +1482,27 @@ function HermesConfigSection() {
     setStarting(false);
   };
 
-  // 一键停止 HermesAgent Dashboard — 委托桌面端执行
+  // 一键停止 HermesAgent Dashboard — 先尝试本地直连，再委托桌面端
   const handleStop = async () => {
+    // 1. 先尝试浏览器直连本机 Dashboard 停止（如果本地在线）
+    const local = await checkLocalDashboard();
+    if (local.online) {
+      try {
+        const res = await fetch("http://127.0.0.1:9119/api/shutdown", { method: "POST" });
+        if (res.ok) {
+          toast("Dashboard 已停止", "success");
+          loadStatus();
+          return;
+        }
+      } catch {
+        // 本地停止失败，降级到委托桌面端
+      }
+    }
+
+    // 2. 委托桌面端停止
     const { hasDevice } = await checkOnlineDevices();
     if (!hasDevice) {
-      toast("未检测到在线的桌面端", "error");
+      toast("未检测到在线的桌面端，且本地 Dashboard 无法直连停止", "error");
       return;
     }
     const result = await dispatchToDevice("__LYNN_CMD__:stop_dashboard");

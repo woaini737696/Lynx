@@ -53,6 +53,7 @@ fun CoreScreenHeader(
                     )
                 )
             )
+            .statusBarsPadding()
             .drawBehind {
                 // 顶部高光（绘制在状态栏顶部位置）
                 drawLine(
@@ -73,7 +74,6 @@ fun CoreScreenHeader(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .statusBarsPadding()
                 .padding(horizontal = 22.dp, vertical = 12.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically

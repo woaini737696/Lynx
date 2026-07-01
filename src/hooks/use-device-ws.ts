@@ -192,13 +192,38 @@ async function handleRemoteCommand(
       };
     } else {
       const data = await res.json();
-      result = {
-        success: data.success !== false,
-        output: data.output || data.result || "",
-        error: data.error,
-        route: "dashboard",
-        durationMs: data.durationMs,
-      };
+      const output: string = data.output || data.result || "";
+      const executed = data.executed;
+      const actionsExecuted = data.actions_executed;
+      const hasExecutedFlag = executed === true;
+      const hasActions = Array.isArray(actionsExecuted) && actionsExecuted.length > 0;
+
+      // 真实性校验：与 ws_client.rs / hermes-client.ts 保持一致
+      const fakeSuccessKeywords = [
+        "无法直接控制", "无法控制你的设备", "你可以按以下步骤",
+        "请手动", "手动打开", "手动操作", "请按以下步骤",
+        "你可以通过以下方式", "步骤如下",
+      ];
+      const isFakeSuccess = !hasExecutedFlag && !hasActions &&
+        typeof output === "string" &&
+        fakeSuccessKeywords.some(kw => output.includes(kw));
+
+      if (isFakeSuccess) {
+        result = {
+          success: false,
+          output: "",
+          error: "HermesAgent 未能真正执行操作（LLM 返回了教程式文本而非实际执行动作）。请确保 HermesAgent 已更新到最新版本。",
+          route: "dashboard-fake-detected",
+        };
+      } else {
+        result = {
+          success: data.success !== false,
+          output,
+          error: data.error,
+          route: "dashboard",
+          durationMs: data.durationMs,
+        };
+      }
     }
   } catch (err) {
     // CORS 或连接失败的细分处理

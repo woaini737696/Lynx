@@ -1,6 +1,7 @@
 """Dashboard HTTP 服务器：提供管理界面和状态 API"""
 
 import json
+import os
 import threading
 import time
 from http.server import HTTPServer, BaseHTTPRequestHandler
@@ -31,6 +32,7 @@ class DashboardHandler(BaseHTTPRequestHandler):
         self.send_response(200)
         self.send_header("Content-Type", "text/html; charset=utf-8")
         self.send_header("Content-Length", str(len(body)))
+        self.send_header("Access-Control-Allow-Origin", "*")
         self.end_headers()
         self.wfile.write(body)
 
@@ -93,6 +95,13 @@ class DashboardHandler(BaseHTTPRequestHandler):
             timeout = data.get("timeout", 120)
             result = execute_task(prompt, yolo=True, timeout=timeout)
             self._send_json(result)
+            return
+
+        # 优雅关闭 Dashboard（供 Web 端浏览器直连停止）
+        if path == "/api/shutdown" or path == "/shutdown":
+            self._send_json({"success": True, "message": "Dashboard 正在关闭..."})
+            # 异步关闭，避免响应未发出
+            threading.Thread(target=lambda: (time.sleep(0.3), os._exit(0)), daemon=True).start()
             return
 
         self._send_json({"error": "Not Found", "path": path}, 404)

@@ -1,41 +1,29 @@
 import { NextResponse } from "next/server";
 import { requireAuth } from "@/lib/auth-utils";
-import {
-  getHermesConfig,
-  testHermesConnection,
-  detectHermesInstall,
-} from "@/lib/hermes-client";
+import { getHermesConfig } from "@/lib/hermes-client";
 import { getLogger } from "@/lib/logger";
 
 const logger = getLogger("hermes-api");
 
-// GET /api/hermes/status - 获取 Hermes Agent 完整状态
+// GET /api/hermes/status - 获取 Hermes Agent 配置（状态由前端浏览器直连本机探测，不在服务器端探测）
 export async function GET() {
   const auth = await requireAuth();
   if (auth.user === null) return auth.error;
 
   try {
     const config = await getHermesConfig(auth.user.id);
-    const detect = await detectHermesInstall();
-
-    let connected = false;
-    let version: string | undefined;
-    let capabilities: string[] = [];
-    let connectionError: string | undefined;
-
-    // 如果有配置且状态为 running，测试连接
-    if (config && config.status === "running") {
-      const testResult = await testHermesConnection(config);
-      connected = testResult.connected;
-      version = testResult.version;
-      capabilities = testResult.capabilities || [];
-      connectionError = testResult.error;
-    }
 
     return NextResponse.json({
-      installed: detect.installed,
-      installVersion: detect.version,
-      installPath: detect.path,
+      // installed/version/connected 由前端浏览器直连本机 Dashboard (127.0.0.1:9119) 探测
+      // 服务器端不返回服务器本机的安装信息（会误导用户）
+      installed: false,
+      installVersion: undefined,
+      installPath: undefined,
+      connected: false,
+      version: undefined,
+      capabilities: [],
+      connectionError: undefined,
+      // 仅返回 DB 中的配置项（enabled/autoStart/endpoint/status 等持久化配置）
       config: config ? {
         enabled: config.enabled,
         endpoint: config.endpoint,
@@ -46,10 +34,6 @@ export async function GET() {
         lastCheckedAt: config.lastCheckedAt,
         lastError: config.lastError,
       } : null,
-      connected,
-      version,
-      capabilities,
-      connectionError,
     });
   } catch (e) {
     logger.error({ err: e }, "获取 Hermes 状态失败");
