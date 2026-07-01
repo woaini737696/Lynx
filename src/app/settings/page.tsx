@@ -2036,7 +2036,7 @@ function HermesConfigSection() {
             <div className="ios-glass-sm rounded-xl p-3">
               <div className="mb-1.5 font-medium text-foreground">③ 安装完成后回到这里</div>
               <p className="text-xs text-muted-foreground">
-                启动 Dashboard 后，点击上方"重新检测"按钮，确认 Dashboard 在线后即可使用。
+                启动 Dashboard 后，点击上方「重新检测」按钮，确认 Dashboard 在线后即可使用。
                 Web 端和桌面端共享同一个 HermesAgent，无需重复安装。
               </p>
             </div>
