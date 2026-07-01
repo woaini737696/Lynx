@@ -67,6 +67,8 @@ Lynx 是一个会自主学习、成长、进化的超级 AI 助理平台。它�
 
 ## 快速开始
 
+> **新设备首次搭建环境？请阅读 [新设备环境部署指南](./NEW_DEVICE_SETUP.md)**，按步骤操作即可完成环境搭建并开始开发。
+
 ### 环境要求
 - Node.js 20+
 - MySQL 8.0+（推荐 8.4）
@@ -248,6 +250,7 @@ Lynx Agent 是产品端显示名称，其底层引擎基于自研的 **HermesAge
 
 ## 相关文档
 
+- [新设备环境部署指南](./NEW_DEVICE_SETUP.md)
 - [开发规范](./DEVELOPMENT_SPEC.md)
 - [官网设计系统与主题配色](./DESIGN_SYSTEM.md)
 - [安卓端 PRD 方案](./ANDROID_PRD.md)
