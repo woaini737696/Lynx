@@ -31,6 +31,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -132,7 +133,7 @@ fun TokenAnalysisPage(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(Void)
+            .background(MaterialTheme.colorScheme.background)
             .pointerInput(Unit) {
                 detectTapGestures(onTap = { keyboardController?.hide() })
             }
@@ -361,7 +362,7 @@ fun TokenAnalysisPage(
     if (showHelp) {
         AlertDialog(
             onDismissRequest = { showHelp = false },
-            containerColor = Deep,
+            containerColor = MaterialTheme.colorScheme.surface,
             titleContentColor = TextPrimary,
             title = {
                 Text(text = "词元分析使用说明", fontWeight = FontWeight.SemiBold, fontSize = 15.sp)

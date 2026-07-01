@@ -9,6 +9,7 @@
 
 | 迭代 | 日期 | 任务概要 |
 |------|------|----------|
+| [迭代 84](#迭代-84---2026-07-01) | 2026-07-01 | 安卓端v0.1.3四项任务收尾：主题全面替换MaterialTheme.colorScheme(13文件19处硬编码Void/Deep替换)+毛玻璃弹窗(FrostedGlassDialog辅助组件+ThemePickerDialog/ConfirmDialog重写)+全双工语音通话CallViewModel完整实现(LISTENING→THINKING→SPEAKING状态机+CompletableDeferred+VAD端点检测+流式TTS+MediaPlayer临时文件播放+对话历史20条限制)+CallScreen接入ViewModel+PC联调AgentPanel.approveOrReject stub修复(dispatchRemoteCommand下发approve/reject指令)+MemoryScreen.kt编译错误修复(Inject导入/LocalDensity移除/Float-Double类型修正) |
 | [迭代 83](#迭代-83---2026-07-01) | 2026-07-01 | 桌面端v1.0.27 HermesAgent架构彻底修正：服务器禁止任何CLI/agent/pip install(findHermesExe/execHermes/installHermesAgent/startHermesAgent/stopHermesAgent全部改为返回错误不执行子进程)+抽取dispatchRemoteCommand共享函数到hermes-client.ts(tool-executor与flow-engine共用)+executeHermesTask重写为WS远程执行+executeHermesListSkills移除CLI回退+settings页Web端handleOpenDashboard探测本地127.0.0.1:9119在线直接打开(不再强制提示下载桌面端)+handleInstall/handleStart/handleStop Web端提示命令行方式+desktop-client installAiEnv/startHermesAgent加isDesktop检查+飞书任务警告改为中性提示(不强制桌面端) |
 | [迭代 82](#迭代-82---2026-07-01) | 2026-07-01 | 安卓端v0.1.2六项功能优化：主题切换面板(深色/浅色/跟随系统,ThemePickerDialog主题感知背景)+LynxAgent语音消息发送(ChatPanel接入AudioRecorder+VoiceApiClient,3态麦克风按钮idle/recording/transcribing)+飞书任务卡片展示(TasksScreen完全重写+独立TasksViewModel+SyncStateBar+AddLarkTaskDialog 4字段主题感知背景)+记忆搜索icon样式修复(圆形按钮容器+点击空白收起输入法detectTapGestures)+首页重新设计(时间流→今日工作台,3统计胶囊+3快捷入口+最近飞书任务Top3)+HomeViewModel并行加载Quad四元组 |
 | [迭代 81](#迭代-81---2026-07-01) | 2026-07-01 | 桌面端v1.0.26多设备共享HermesAgent：Web端WS设备注册hook(use-device-ws.ts,与桌面端相同协议注册到WS网关)+hermesExecute多设备支持(getOnlineDevices返回所有在线设备,优先选桌面端)+AppShell引入WS hook(Web端打开=PC在线)+跨设备操控(电脑A Web端+电脑B桌面端=两在线设备,AI助理可指定下发) |
@@ -124,6 +125,81 @@
 
 ### Commit hash
 `4181fb4d`
+
+---
+
+## 迭代 84 - 2026-07-01
+
+### 任务概要
+安卓端 v0.1.3 四项任务收尾：① 主题切换完整实现（全面替换硬编码颜色为 `MaterialTheme.colorScheme` + 毛玻璃弹窗替换透明 AlertDialog）；② 全双工语音通话 `CallViewModel` 完整实现（ASR + LLM + TTS + VAD 全流程）；③ CallScreen 接入 ViewModel；④ PC 联调 `AgentPanel` onApprove/onReject stub 修复。
+
+### 背景问题
+1. 主题切换"根本没实现"：弹窗透明度太高，全 App 仍存在大量 `.background(Void)` / `containerColor = Deep` 等硬编码颜色，切换到浅色主题时背景仍是深色。
+2. 语音通话仅有占位 UI（`CallPlaceholder`），未实现真正的全双工对话流程。
+3. AgentPanel 的审批卡片 onApprove/onReject 仅 `toast("已处理")`，未真正下发指令到 PC。
+4. 用户重申规范：**未完成所有任务前，不允许擅自完成任务；每个设计方案必须通过弹窗与用户确认后才能开始实现**。已写入 `DEVELOPMENT_SPEC.md` 第 132 行。
+
+### 方案确认（AskUserQuestion 弹窗）
+- 任务3 主题切换完整实现方案 → **全面替换+毛玻璃弹窗（推荐）**
+- 任务4 语音通话实现范围 → **完整流程（ASR+LLM+TTS+VAD）（推荐）**
+- 任务4 PC联调 AgentPanel onApprove/onReject stub 是否一并修复 → **一并修复（推荐）**
+
+### 完成内容
+
+#### 1. 主题切换完整实现（13 文件 19 处硬编码替换）
+- **MainActivity.kt**：`containerColor = Void` → `containerColor = MaterialTheme.colorScheme.background`
+- **Panels.kt**（3 处）、**TaskPanel.kt**（1）、**IdeaPanel.kt**（1）、**AgentPanel.kt**（1）、**ChatPanel.kt**（1）、**LoginScreen.kt**（2）、**AssistantScreen.kt**（1）、**SettingsSubPages.kt**（1）、**HomeScreen.kt**（1）、**TasksScreen.kt**（1）、**TokenAnalysisPage.kt**（2：background + containerColor=Deep）、**SettingsScreen.kt**（3：background.copy(alpha) + background + containerColor=Deep）
+- 全局搜索验证：`.background(Void` 与 `containerColor = (Deep|Void)` 均为 0 匹配
+- 9 个文件新增 `import androidx.compose.material3.MaterialTheme`
+
+#### 2. 毛玻璃弹窗 FrostedGlassDialog（`SettingsScreen.kt`）
+- 新增 `import androidx.compose.ui.window.Dialog`
+- 新增 `FrostedGlassDialog` 辅助组件：`Dialog` + `Brush.linearGradient` 半透明渐变（surface 0.82f → surfaceVariant 0.72f）+ 1dp `outline` 0.18f 描边 + 24dp 圆角，兼容所有 Android 版本
+- `ThemePickerDialog` 完全重写：从 `AlertDialog` 改为 `FrostedGlassDialog`，颜色全部改为 `onSurface` / `onSurfaceVariant` / `outline`
+- `ConfirmDialog` 完全重写：同样改为 `FrostedGlassDialog`，按钮用 `Text + clickable` 替代 `TextButton`
+
+#### 3. 全双工语音通话 CallViewModel（`panel/CallViewModel.kt` 新建）
+- **状态机**：`IDLE → LISTENING → THINKING → SPEAKING → LISTENING`（循环），`ERROR` 态 2 秒后自动回 `LISTENING`
+- **`runCallLoop` + `runSingleTurn`**：主循环不断执行单轮对话直到挂断；单轮 = 聆听 → 思考 → 播报
+- **`recordWithVad`**：`AudioRecorder.start()` 录音 + `VadDetector.processAmplitude` 端点检测；用 `CompletableDeferred<Boolean>` + `withTimeoutOrNull(30_000L)` 等待端点（替代 `coroutineContext.isActive` 轮询，解决协程上下文问题）；返回 `audioRecorder.pcmToWav(pcmData)`
+- **`THINKING`**：`voiceApiClient.recognizeSpeech(wavData)` ASR → `apiService.sendChat(req)` LLM 推理（`assistantMode = true, stream = false, provider = "deepseek"`）
+- **`SPEAKING`**：`voiceApiClient.streamTTS(text)` 流式 TTS 收集 `TtsEvent.AudioChunk` → 合并字节 → `playAudioBytes` 用 `MediaPlayer` + cacheDir 临时文件播放（`USAGE_VOICE_COMMUNICATION` + `CONTENT_TYPE_SPEECH`）
+- **对话历史**：`conversationHistory` 保留上下文，超过 20 条（10 轮）则移除最早消息
+- **Hilt 注入**：`@HiltViewModel` + `@Inject constructor(ApiService, VoiceApiClient, @ApplicationContext Context)`
+- **`TtsEvent` 顶层 sealed class 引用**：`import com.lynnhub.app.data.remote.TtsEvent`（非 `VoiceApiClient.TtsEvent` 嵌套类）
+
+#### 4. CallScreen 接入 ViewModel（`Panels.kt`）
+- 签名改为 `CallScreen(onBack: () -> Unit, viewModel: CallViewModel = hiltViewModel())`
+- `LaunchedEffect(Unit) { viewModel.startCall() }` 进入页面自动启动通话
+- 状态文字 / 通话时长 / AI 摘要全部接入 `uiState`
+- 打断按钮：`viewModel.endCall(); viewModel.startCall()` 重启通话
+- 颜色从 `TextMuted` / `TextPrimary` 改为 `MaterialTheme.colorScheme.onSurfaceVariant` / `onSurface`
+- 控制按钮 3 秒自动隐藏 + 轻触唤起 + 上滑挂断手势保留
+
+#### 5. PC 联调 AgentPanel onApprove/onReject stub 修复（`AgentPanel.kt`）
+- **`AgentPanelViewModel.approveOrReject(action: String, reportId: String?)`** 新增方法：
+  - 通过 `apiService.dispatchRemoteCommand(DispatchRequest)` 下发 `approve` / `reject` 指令到 PC
+  - 复用 `executeCommand` 的 userId 获取 + WS 进度订阅模式
+- **`ApprovalCard` 回调**：从 `viewModel.toast("已处理")` 改为真正下发指令：
+  ```kotlin
+  onApprove = { viewModel.approveOrReject("approve", state.reports.firstOrNull()?.id) }
+  onReject  = { viewModel.approveOrReject("reject",  state.reports.firstOrNull()?.id) }
+  ```
+
+#### 6. MemoryScreen.kt 编译错误修复
+- 新增 `import javax.inject.Inject`（Hilt 要求）
+- 清理重复的 `StateFlow` / `asStateFlow` / `launch` 导入
+- 移除未使用的 `val density = LocalDensity.current`
+- 修复 Float/Double 类型不匹配：`(8 + p.node.strength * 1.5f)` → `(8f + p.node.strength.toFloat() * 1.5f)`（2 处）
+
+### 自测结果
+- `.\gradlew.bat :app:compileDebugKotlin`：**BUILD SUCCESSFUL in 45s**，0 错误
+- `.\gradlew.bat :app:assembleDebug`：**BUILD SUCCESSFUL in 55s**
+- `adb install -r app-debug.apk`：**Success**（设备 13e37082）
+- 版本号 0.1.2 → 0.1.3（`versionCode 3 → 4`）
+
+### Commit
+（待提交后填入）
 
 ---
 

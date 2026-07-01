@@ -17,9 +17,11 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.CallEnd
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -43,6 +45,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.lynnhub.app.R
 import com.lynnhub.app.ui.theme.*
+import androidx.hilt.navigation.compose.hiltViewModel
 import kotlinx.coroutines.delay
 import kotlin.math.abs
 
@@ -175,7 +178,7 @@ fun CallPlaceholder(onBack: () -> Unit) {
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(Void),
+            .background(MaterialTheme.colorScheme.background),
         contentAlignment = Alignment.Center
     ) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -201,25 +204,17 @@ fun CallPlaceholder(onBack: () -> Unit) {
 // ====================================================================
 
 @Composable
-fun CallScreen(onBack: () -> Unit) {
-    // 通话状态：listening（聆听）/ thinking（思考）
-    var callState by remember { mutableStateOf("listening") }
-    // 通话时长（秒）
-    var elapsedSeconds by remember { mutableIntStateOf(0) }
+fun CallScreen(
+    onBack: () -> Unit,
+    viewModel: CallViewModel = hiltViewModel()
+) {
+    val uiState by viewModel.uiState.collectAsState()
     // 控制按钮可见性
     var controlsVisible by remember { mutableStateOf(true) }
-    // AI 摘要文案
-    val aiSummary = when (callState) {
-        "thinking" -> "正在思考你刚才说的话..."
-        else -> "你可以对我说：整理灵感、跑巡检、生成日报..."
-    }
 
-    // 计时器：每秒 +1
+    // 进入通话页面即启动通话
     LaunchedEffect(Unit) {
-        while (true) {
-            delay(1000)
-            elapsedSeconds += 1
-        }
+        viewModel.startCall()
     }
 
     // 控制按钮 3 秒自动隐藏
@@ -230,14 +225,27 @@ fun CallScreen(onBack: () -> Unit) {
         }
     }
 
-    // 状态切换：listening ↔ thinking（保留 stub 行为，但移除自动循环，等待真实语音通话集成）
-    // 真实通话流程见 CallViewModel（待实现）：
-    //   listening → VAD 端点检测 → thinking → ASR+LLM → speaking → 流式 TTS → listening
+    // 通话状态文字
+    val stateText = when (uiState.state) {
+        CallState.LISTENING -> "Lynx 正在聆听"
+        CallState.THINKING -> "Lynx 正在思考"
+        CallState.SPEAKING -> "Lynx 正在回复"
+        CallState.ERROR -> "出错了，重试中..."
+        CallState.IDLE -> "通话结束"
+    }
+
+    // AI 摘要文案：优先显示用户说的话 / AI 回复
+    val aiSummary = when {
+        uiState.state == CallState.SPEAKING && uiState.aiResponse.isNotBlank() -> uiState.aiResponse
+        uiState.state == CallState.THINKING && uiState.transcript.isNotBlank() -> "你刚说：${uiState.transcript}"
+        uiState.error != null -> uiState.error!!
+        else -> "你可以对我说：整理灵感、跑巡检、生成日报..."
+    }
 
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(Void)
+            .background(MaterialTheme.colorScheme.background)
             // 上滑手势结束通话 + 轻触唤起控制按钮
             .pointerInput(Unit) {
                 awaitPointerEventScope {
@@ -266,6 +274,7 @@ fun CallScreen(onBack: () -> Unit) {
                             // 上滑超过 80dp → 结束通话
                             if (!triggered && dy < -80.dp.toPx()) {
                                 triggered = true
+                                viewModel.endCall()
                                 onBack()
                             }
                         }
@@ -308,19 +317,16 @@ fun CallScreen(onBack: () -> Unit) {
 
             // ====== 通话状态文字 ======
             Text(
-                text = when (callState) {
-                    "thinking" -> "Lynx 正在思考"
-                    else -> "Lynx 正在聆听"
-                },
-                color = TextMuted,
+                text = stateText,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
                 fontSize = 13.sp,
                 modifier = Modifier.padding(bottom = 8.dp)
             )
 
             // ====== 通话时长 ======
             Text(
-                text = formatTimer(elapsedSeconds),
-                color = TextPrimary,
+                text = formatTimer(uiState.elapsedSeconds),
+                color = MaterialTheme.colorScheme.onSurface,
                 fontSize = 20.sp,
                 fontWeight = FontWeight.SemiBold
             )
@@ -330,7 +336,7 @@ fun CallScreen(onBack: () -> Unit) {
             // ====== AI 摘要 ======
             Text(
                 text = aiSummary,
-                color = TextMuted,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
                 fontSize = 12.sp,
                 textAlign = TextAlign.Center,
                 lineHeight = 18.sp,
@@ -345,14 +351,18 @@ fun CallScreen(onBack: () -> Unit) {
                     horizontalArrangement = Arrangement.spacedBy(32.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    // 打断
+                    // 打断（强制回到聆听）
                     CallButton(
                         icon = Icons.Filled.Pause,
                         bgColor = Primary.copy(alpha = 0.15f),
                         iconTint = Primary,
                         borderColor = Primary.copy(alpha = 0.25f),
                         onClick = {
-                            callState = if (callState == "thinking") "listening" else "thinking"
+                            // 打断当前播报/思考，回到聆听
+                            if (uiState.state == CallState.SPEAKING || uiState.state == CallState.THINKING) {
+                                viewModel.endCall()
+                                viewModel.startCall()
+                            }
                         }
                     )
                     // 挂断
@@ -361,14 +371,17 @@ fun CallScreen(onBack: () -> Unit) {
                         bgColor = Danger.copy(alpha = 0.15f),
                         iconTint = Danger,
                         borderColor = Danger.copy(alpha = 0.25f),
-                        onClick = onBack
+                        onClick = {
+                            viewModel.endCall()
+                            onBack()
+                        }
                     )
                 }
             } else {
                 // 占位提示
                 Text(
                     text = "轻触屏幕唤起控制",
-                    color = TextMuted.copy(alpha = 0.5f),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
                     fontSize = 10.sp
                 )
             }
@@ -453,7 +466,7 @@ private fun PlaceholderPanel(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(Void)
+            .background(MaterialTheme.colorScheme.background)
     ) {
         // 反向滑动手势检测层（Initial 阶段，不消费事件）
         ReturnSwipeDetector(

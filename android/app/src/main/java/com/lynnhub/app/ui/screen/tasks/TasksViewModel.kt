@@ -59,21 +59,31 @@ class TasksViewModel @Inject constructor(
         refreshSyncState()
     }
 
-    /** 触发一次飞书任务同步（后台异步） */
+    /**
+     * 触发一次飞书任务同步。
+     *
+     * 移动端不直接调用 lark-cli（服务器无飞书凭证）。
+     * 飞书任务通过 Web 端/桌面端同步到服务器数据库，移动端仅读取数据库。
+     * 此方法刷新数据库读取 + 同步状态，并提示用户在 Web 端/桌面端同步。
+     */
     fun triggerSync() {
         _uiState.update { it.copy(isSyncing = true) }
         viewModelScope.launch {
             try {
-                val resp = apiService.triggerSync()
+                // 仅刷新数据库读取 + 同步状态
+                val resp = apiService.getLarkTasks(view = "my", dbOnly = true)
+                val syncResp = apiService.getSyncState()
                 _uiState.update {
-                    it.copy(isSyncing = false, syncState = resp.state, toast = "同步已触发")
+                    it.copy(
+                        isSyncing = false,
+                        tasks = resp.tasks,
+                        syncState = syncResp.state,
+                        toast = "已刷新数据库。飞书任务请在 Web 端/桌面端同步"
+                    )
                 }
-                // 同步触发后延迟刷新列表
-                kotlinx.coroutines.delay(1500)
-                loadAll()
             } catch (e: Exception) {
                 _uiState.update {
-                    it.copy(isSyncing = false, toast = "同步失败: ${e.message ?: "网络错误"}")
+                    it.copy(isSyncing = false, toast = "刷新失败: ${e.message ?: "网络错误"}")
                 }
             }
         }

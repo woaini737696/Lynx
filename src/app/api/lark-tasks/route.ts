@@ -71,11 +71,28 @@ export async function GET(req: NextRequest) {
   // ===== 纯数据库模式（移动端）：完全不依赖 lark-cli，只读数据库 =====
   if (dbOnly) {
     const me = await getCurrentUser();
-    const myOpenId = (me as { openId?: string } | null)?.openId || "";
+    // User 表无 openId 字段，通过 username 匹配 assignee 名称作为 myOpenId
+    const myUsername = me?.username || "";
     const dbAllTasks = await getTasksFromDb({ complete: null });
-    const filtered = applyClientFilters(dbAllTasks, {
-      complete, q, assignee, tasklist, myOpenId, view,
-    });
+    // 在 dbOnly 模式下，view="my" 时通过 username 匹配 assignee
+    let filtered = dbAllTasks;
+    if (view === "my" && myUsername) {
+      filtered = dbAllTasks.filter((t) => {
+        const assigneeNames = (t.assignees || []).map((a: any) =>
+          (a.name || a.displayName || "").toLowerCase()
+        );
+        return assigneeNames.includes(myUsername.toLowerCase());
+      });
+    } else if (view === "my") {
+      // 无 username 时返回全部（不过滤）
+      filtered = applyClientFilters(dbAllTasks, {
+        complete, q, assignee, tasklist, myOpenId: "", view: "all",
+      });
+    } else {
+      filtered = applyClientFilters(dbAllTasks, {
+        complete, q, assignee, tasklist, myOpenId: "", view,
+      });
+    }
     const assignees = extractAssignees(dbAllTasks);
     const tasklists = extractTasklists(dbAllTasks);
     const subtaskMap = buildSubtaskMap(dbAllTasks);
@@ -84,7 +101,7 @@ export async function GET(req: NextRequest) {
       assignees,
       tasklists,
       subtaskMap,
-      myOpenId,
+      myOpenId: "",
       source: "db-only",
     });
   }
@@ -150,14 +167,24 @@ export async function GET(req: NextRequest) {
     // ===== 快速模式：优先返回 DB 缓存，后台触发 lark-cli 刷新 =====
     if (fast && !refresh) {
       const me = await getCurrentUser();
-      const myOpenId = (me as { openId?: string } | null)?.openId || "";
+      const myUsername = me?.username || "";
       // 从 DB 读取全量任务（不含视图过滤，用于构建 subtaskMap）
       const dbAllTasks = await getTasksFromDb({ complete: null });
       if (dbAllTasks.length > 0) {
-        // 按视图+筛选条件过滤
-        const filtered = applyClientFilters(dbAllTasks, {
-          complete, q, assignee, tasklist, myOpenId, view,
-        });
+        // 按视图+筛选条件过滤（dbOnly 模式下通过 username 匹配）
+        let filtered = dbAllTasks;
+        if (view === "my" && myUsername) {
+          filtered = dbAllTasks.filter((t) => {
+            const assigneeNames = (t.assignees || []).map((a: any) =>
+              (a.name || a.displayName || "").toLowerCase()
+            );
+            return assigneeNames.includes(myUsername.toLowerCase());
+          });
+        } else {
+          filtered = applyClientFilters(dbAllTasks, {
+            complete, q, assignee, tasklist, myOpenId: "", view,
+          });
+        }
         const assignees = extractAssignees(dbAllTasks);
         const tasklists = extractTasklists(dbAllTasks);
         const subtaskMap = buildSubtaskMap(dbAllTasks);
@@ -168,7 +195,7 @@ export async function GET(req: NextRequest) {
           assignees,
           tasklists,
           subtaskMap,
-          myOpenId,
+          myOpenId: "",
           source: "db-cache",
           refreshing: true,
         });
