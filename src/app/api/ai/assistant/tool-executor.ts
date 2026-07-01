@@ -1309,96 +1309,8 @@ async function getOnlineDevices(userId: string) {
   return sessions;
 }
 
-/** 通过 WS 网关下发远程指令到桌面端并轮询等待结果 */
-async function dispatchRemoteCommand(
-  userId: string,
-  command: string,
-  timeoutSec: number = 120
-): Promise<{ success: boolean; output: string; error?: string; durationMs?: number; route?: string }> {
-  const { randomUUID } = await import("crypto");
-  const { getLogger } = await import("@/lib/logger");
-  const logger = getLogger("hermes-tool");
-
-  const WS_GATEWAY_URL = process.env.WS_GATEWAY_URL || "http://localhost:3001";
-  const commandId = randomUUID();
-
-  // 1. 写入 RemoteCommand 记录
-  const record = await prisma.remoteCommand.create({
-    data: {
-      commandId,
-      userId,
-      command,
-      source: "assistant",
-      status: "pending",
-      route: "pending",
-    },
-  });
-
-  // 2. 通过 WS 网关下发到桌面端
-  let dispatched = false;
-  let dispatchReason = "";
-  try {
-    const resp = await fetch(`${WS_GATEWAY_URL}/dispatch`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ userId, command, commandId }),
-      signal: AbortSignal.timeout(8000),
-    });
-    const data = await resp.json().catch(() => ({}));
-    dispatched = !!data.dispatched;
-    dispatchReason = data.reason || "";
-  } catch (e) {
-    dispatchReason = "WS 网关不可达：" + (e as Error).message;
-  }
-
-  if (!dispatched) {
-    await prisma.remoteCommand.update({
-      where: { id: record.id },
-      data: { status: "failed", error: dispatchReason || "无在线 PC" },
-    });
-    return { success: false, output: "", error: dispatchReason || "没有在线的 PC，请先在电脑上启动桌面端" };
-  }
-
-  // 3. 轮询等待桌面端回传结果
-  const deadline = Date.now() + timeoutSec * 1000;
-  const pollInterval = 1500;
-  while (Date.now() < deadline) {
-    await new Promise((r) => setTimeout(r, pollInterval));
-    const cmd = await prisma.remoteCommand.findUnique({ where: { commandId } });
-    if (!cmd) break;
-    if (cmd.status === "completed") {
-      const resultData = (cmd.result as Record<string, unknown> | null) || {};
-      const output = typeof resultData.output === "string"
-        ? resultData.output
-        : (typeof cmd.result === "string" ? cmd.result : JSON.stringify(resultData));
-      return {
-        success: true,
-        output,
-        durationMs: cmd.durationMs || 0,
-        route: cmd.route || undefined,
-      };
-    }
-    if (cmd.status === "failed" || cmd.status === "timeout") {
-      return {
-        success: false,
-        output: "",
-        error: cmd.error || "远程执行失败",
-        durationMs: cmd.durationMs || 0,
-        route: cmd.route || undefined,
-      };
-    }
-  }
-
-  // 超时
-  try {
-    await prisma.remoteCommand.update({
-      where: { id: record.id },
-      data: { status: "timeout", error: `执行超时（${timeoutSec}秒）`, completedAt: new Date() },
-    });
-  } catch {}
-  logger.warn({ commandId }, "远程指令轮询超时");
-  return { success: false, output: "", error: `远程执行超时（${timeoutSec}秒），指令已下发但未收到结果` };
-}
+// dispatchRemoteCommand 已移至 @/lib/hermes-client.ts（共享函数）
+// 服务器禁止执行 CLI，所有 HermesAgent 任务通过 WS 网关远程下发到用户本地设备
 
 /** 通过 Hermes Agent 执行任务（桌面控制/Shell/Skills Hub） */
 async function executeHermesExecute(
@@ -1409,6 +1321,9 @@ async function executeHermesExecute(
   if (!prompt) {
     return { error: "prompt 不能为空" };
   }
+
+  // 动态 import 共享的 dispatchRemoteCommand（移至 hermes-client.ts）
+  const { dispatchRemoteCommand } = await import("@/lib/hermes-client");
 
   const timeoutSec = args.timeout || 120;
   let result: { success: boolean; output: string; error?: string; durationMs?: number; steps?: unknown[] };
@@ -1473,36 +1388,34 @@ async function executeHermesListSkills(
   args: { category?: string },
   user: AuthUser
 ) {
-  const { getHermesConfig, listHermesSkills } = await import("@/lib/hermes-client");
+  const { getHermesConfig, dispatchRemoteCommand } = await import("@/lib/hermes-client");
   const config = await getHermesConfig(user.id);
   if (!config || !config.enabled) {
     return { error: "Hermes Agent 未启用" };
   }
 
-  // 优先走桌面端远程执行
-  const onlinePc = await getOnlinePcSession(user.id);
-  if (onlinePc) {
-    const remoteResult = await dispatchRemoteCommand(user.id, "hermes skills list --json", 30);
-    if (remoteResult.success && remoteResult.output) {
-      try {
-        const parsed = JSON.parse(remoteResult.output);
-        const skills = Array.isArray(parsed) ? parsed : (parsed.skills || []);
-        return { skills, total: skills.length };
-      } catch {
-        // 解析失败，回退到本地
-      }
+  // 通过 WS 网关远程下发到用户在线设备（桌面端或 Web 端）
+  // 接收端调用本地 HermesAgent Dashboard 获取技能列表
+  const remoteResult = await dispatchRemoteCommand(user.id, "hermes skills list --json", 30);
+  if (remoteResult.success && remoteResult.output) {
+    try {
+      const parsed = JSON.parse(remoteResult.output);
+      const skills = Array.isArray(parsed) ? parsed : (parsed.skills || []);
+      return { skills, total: skills.length };
+    } catch {
+      return {
+        skills: [],
+        total: 0,
+        error: "技能列表解析失败",
+        rawOutput: remoteResult.output.slice(0, 500),
+      };
     }
   }
 
-  // 回退：本地 CLI
-  if (config.status !== "running") {
-    return { error: `Hermes Agent 当前状态为 ${config.status}，请先启动服务或连接桌面端` };
-  }
-  const result = await listHermesSkills(config, args.category);
   return {
-    skills: result.skills,
-    total: result.skills.length,
-    error: result.error,
+    skills: [],
+    total: 0,
+    error: remoteResult.error || "无法获取技能列表，请确认用户电脑上 HermesAgent Dashboard 已启动",
   };
 }
 

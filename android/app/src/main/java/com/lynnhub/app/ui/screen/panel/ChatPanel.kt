@@ -1,5 +1,9 @@
 package com.lynnhub.app.ui.screen.panel
 
+import android.Manifest
+import android.content.pm.PackageManager
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -46,25 +50,30 @@ import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.content.ContextCompat
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.lynnhub.app.data.remote.ApiService
+import com.lynnhub.app.data.remote.VoiceApiClient
 import com.lynnhub.app.data.remote.dto.ChatCreateSessionRequest
 import com.lynnhub.app.data.remote.dto.ChatMessageDto
 import com.lynnhub.app.data.remote.dto.ChatMessageRequest
 import com.lynnhub.app.data.remote.dto.ChatSendRequest
 import com.lynnhub.app.ui.theme.Agent
+import com.lynnhub.app.ui.theme.BorderHover
 import com.lynnhub.app.ui.theme.Danger
 import com.lynnhub.app.ui.theme.Primary
 import com.lynnhub.app.ui.theme.Surface
 import com.lynnhub.app.ui.theme.TextMuted
 import com.lynnhub.app.ui.theme.TextPrimary
 import com.lynnhub.app.ui.theme.Void
+import com.lynnhub.app.util.AudioRecorder
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -86,6 +95,8 @@ data class ChatPanelUiState(
     val messages: List<ChatMessageDto> = emptyList(),
     val text: String = "",
     val isSending: Boolean = false,
+    val isRecording: Boolean = false,
+    val isTranscribing: Boolean = false,
     val sessionId: String? = null,
     val sessionReady: Boolean = false,
     val toast: String? = null
@@ -93,11 +104,14 @@ data class ChatPanelUiState(
 
 @HiltViewModel
 class ChatPanelViewModel @Inject constructor(
-    private val apiService: ApiService
+    private val apiService: ApiService,
+    private val voiceApiClient: VoiceApiClient
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(ChatPanelUiState())
     val uiState: StateFlow<ChatPanelUiState> = _uiState.asStateFlow()
+
+    private val audioRecorder = AudioRecorder()
 
     init {
         initSession()
@@ -193,8 +207,49 @@ class ChatPanelViewModel @Inject constructor(
         send(cmd)
     }
 
+    /** 开始录音 */
+    fun startRecording(): Boolean {
+        val started = audioRecorder.start()
+        if (started) {
+            _uiState.update { it.copy(isRecording = true) }
+        }
+        return started
+    }
+
+    /** 停止录音并 ASR 转文字，自动发送 */
+    fun stopRecording() {
+        if (!_uiState.value.isRecording) return
+        val pcmData = audioRecorder.stop()
+        val wavData = audioRecorder.pcmToWav(pcmData)
+        _uiState.update { it.copy(isRecording = false, isTranscribing = true) }
+        viewModelScope.launch {
+            try {
+                val text = voiceApiClient.recognizeSpeech(wavData)
+                _uiState.update { it.copy(isTranscribing = false) }
+                if (text.isNotBlank()) {
+                    // 语音转文字成功，自动发送
+                    send(text)
+                } else {
+                    _uiState.update { it.copy(toast = "未识别到语音") }
+                }
+            } catch (e: Exception) {
+                _uiState.update {
+                    it.copy(isTranscribing = false, toast = "语音识别失败: ${e.message}")
+                }
+            }
+        }
+    }
+
     fun clearToast() {
         _uiState.update { it.copy(toast = null) }
+    }
+
+    override fun onCleared() {
+        super.onCleared()
+        // 退出页面时若仍在录音，停止并释放 AudioRecord 系统资源
+        if (audioRecorder.isRecording()) {
+            audioRecorder.stop()
+        }
     }
 }
 
@@ -205,7 +260,17 @@ fun ChatPanel(
 ) {
     val state by viewModel.uiState.collectAsState()
     val keyboardController = LocalSoftwareKeyboardController.current
+    val context = LocalContext.current
     var isInputFocused by remember { mutableStateOf(false) }
+
+    // 录音权限请求
+    val recordPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        if (granted) {
+            viewModel.startRecording()
+        }
+    }
 
     Box(
         modifier = Modifier
@@ -340,21 +405,67 @@ fun ChatPanel(
 
                 Spacer(modifier = Modifier.width(8.dp))
 
-                // 麦克风按钮（长按球说话 - 阶段5完善）
+                // 麦克风按钮：点击切换录音/停止，转文字后自动发送
                 Box(
                     modifier = Modifier
                         .size(40.dp)
                         .clip(CircleShape)
-                        .background(Surface)
-                        .clickable { /* 长按说话 - 阶段5实现 */ },
+                        .background(
+                            when {
+                                state.isRecording -> Danger.copy(alpha = 0.15f)
+                                state.isTranscribing -> Primary.copy(alpha = 0.10f)
+                                else -> Surface
+                            }
+                        )
+                        .border(
+                            1.dp,
+                            if (state.isRecording) Danger else BorderHover,
+                            CircleShape
+                        )
+                        .clickable {
+                            when {
+                                state.isTranscribing -> { /* 转写中，忽略 */ }
+                                state.isRecording -> viewModel.stopRecording()
+                                else -> {
+                                    val hasPermission = ContextCompat.checkSelfPermission(
+                                        context,
+                                        Manifest.permission.RECORD_AUDIO
+                                    ) == PackageManager.PERMISSION_GRANTED
+                                    if (hasPermission) {
+                                        viewModel.startRecording()
+                                    } else {
+                                        recordPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+                                    }
+                                }
+                            }
+                        },
                     contentAlignment = Alignment.Center
                 ) {
-                    Icon(
-                        imageVector = LynxIcons.Mic,
-                        contentDescription = "语音",
-                        tint = Primary,
-                        modifier = Modifier.size(18.dp)
-                    )
+                    when {
+                        state.isTranscribing -> {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(18.dp),
+                                strokeWidth = 2.dp,
+                                color = Primary
+                            )
+                        }
+                        state.isRecording -> {
+                            Icon(
+                                imageVector = LynxIcons.Mic,
+                                contentDescription = "停止录音",
+                                tint = Danger,
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
+                        else -> {
+                            Icon(
+                                imageVector = LynxIcons.Mic,
+                                contentDescription = "语音输入",
+                                tint = Primary,
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
+                    }
                 }
             }
         }

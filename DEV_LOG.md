@@ -9,6 +9,7 @@
 
 | 迭代 | 日期 | 任务概要 |
 |------|------|----------|
+| [迭代 82](#迭代-82---2026-07-01) | 2026-07-01 | 安卓端v0.1.2六项功能优化：主题切换面板(深色/浅色/跟随系统,ThemePickerDialog主题感知背景)+LynxAgent语音消息发送(ChatPanel接入AudioRecorder+VoiceApiClient,3态麦克风按钮idle/recording/transcribing)+飞书任务卡片展示(TasksScreen完全重写+独立TasksViewModel+SyncStateBar+AddLarkTaskDialog 4字段主题感知背景)+记忆搜索icon样式修复(圆形按钮容器+点击空白收起输入法detectTapGestures)+首页重新设计(时间流→今日工作台,3统计胶囊+3快捷入口+最近飞书任务Top3)+HomeViewModel并行加载Quad四元组 |
 | [迭代 81](#迭代-81---2026-07-01) | 2026-07-01 | 桌面端v1.0.26多设备共享HermesAgent：Web端WS设备注册hook(use-device-ws.ts,与桌面端相同协议注册到WS网关)+hermesExecute多设备支持(getOnlineDevices返回所有在线设备,优先选桌面端)+AppShell引入WS hook(Web端打开=PC在线)+跨设备操控(电脑A Web端+电脑B桌面端=两在线设备,AI助理可指定下发) |
 | [迭代 80](#迭代-80---2026-07-01) | 2026-07-01 | 桌面端v1.0.25两项关键修复：hermesExecute移除服务器端CLI路径(改为仅WS远程执行,无在线PC直接报错不再在服务器跑/usr/local/bin/hermes)+签名自动信任(NSIS installer-hooks.nsh安装后自动导入.cer证书到LocalMachine\Root根存储+resources打包.cer文件) |
 | [迭代 79](#迭代-79---2026-06-30) | 2026-06-30 | 桌面端v1.0.24深度优化：monorepo共享类型包(packages/shared-types+npm workspaces+6页面迁移)+离线缓存层(cloud-api GET缓存+内存/localStorage+后台静默刷新+断网回退)+UI性能优化(20页面React.lazy+Suspense懒加载)+安全加固(navigate_to_url协议白名单+location.replace)+endpoint配置化(SettingsPage UI入口)+代码清理(2处console.log+3处any类型+7个重复interface移除) |
@@ -122,6 +123,81 @@
 
 ### Commit hash
 `4181fb4d`
+
+---
+
+## 迭代 82 - 2026-07-01
+
+### 任务概要
+安卓端 v0.1.2 六项功能优化：主题切换、LynxAgent 语音消息、飞书任务卡片、记忆搜索 icon、首页重新设计、新增任务弹窗优化。
+
+### 完成内容
+
+#### 1. 任务7：主题切换面板（深色/浅色/跟随系统）
+- **修改** `SettingsScreen.kt`：新增"外观"分组入口
+- **新增** `ThemePickerDialog` Composable：3 选项列表（浅色/深色/跟随系统），圆形复选框样式，`containerColor = MaterialTheme.colorScheme.surface` 主题感知不透明背景
+- **新增** `themeLabel(theme: String)`：dark→深色 / light→浅色 / else→跟随系统
+- 复用 MainActivity 已有的 `themeFlow` 监听，setTheme 后自动 recomposition
+- `Theme.kt` 已就绪的 LynxLightColorScheme 完整浅色配色自动应用
+
+#### 2. 任务2：LynxAgent 语音消息发送修复
+- **修改** `ChatPanel.kt`：
+  - 新增 imports：Manifest/PackageManager/rememberLauncherForActivityResult/ActivityResultContracts/LocalContext/ContextCompat/VoiceApiClient/AudioRecorder/BorderHover
+  - `ChatPanelUiState` 新增 `isRecording: Boolean` 和 `isTranscribing: Boolean`
+  - `ChatPanelViewModel` 注入 `voiceApiClient: VoiceApiClient`，新增 `audioRecorder = AudioRecorder()`
+  - 新增 `startRecording(): Boolean`、`stopRecording()`（ASR 转文字后自动 send(text)）、`onCleared()` 释放资源
+  - UI 新增 `recordPermissionLauncher`，麦克风按钮 3 态（idle/recording/transcribing），点击切换录音/停止，权限不足时请求 RECORD_AUDIO
+
+#### 3. 任务3+4：飞书任务卡片展示 + 新增弹窗优化
+- **新建** `TasksViewModel.kt`：独立 HiltViewModel，与 TaskPanelViewModel 解耦
+  - `loadAll()`: getLarkTasks(view="my", dbOnly=true) + refreshSyncState()
+  - `triggerSync()`: apiService.triggerSync() + delay(1500) + loadAll()
+  - `createLarkTask(summary, assignees, due, description)`: 调用 `/api/lark-tasks/create`
+  - `toggleTask(task)`: 乐观更新 + 失败回滚
+- **修改** `ApiService.kt`：新增 `createLarkTask(@Body body: LarkTaskCreateRequest): LarkTaskCreateResponse`
+- **修改** `Dtos.kt`：新增 `LarkTaskCreateRequest` 和 `LarkTaskCreateResponse` DTO
+- **重写** `TasksScreen.kt`：
+  - **SyncStateBar**：显示最后同步时间/任务总数/异常，点击触发同步
+  - **LarkTaskCard**：标题 + 📋任务列表名 + 👤负责人 + ⏰截止时间
+  - **AddLarkTaskDialog**：4 字段（标题/负责人逗号分隔/截止时间/描述），`containerColor = MaterialTheme.colorScheme.surface`、`focusedContainerColor = surfaceVariant` 解决透明问题
+  - 负责人用 `split(",", "，")` 解析中英文逗号
+
+#### 4. 任务5：记忆搜索 icon 修复 + 收起输入法
+- **修改** `MemoryScreen.kt`：
+  - 新增 imports：detectTapGestures/pointerInput/LocalSoftwareKeyboardController
+  - 新增 `keyboardController = LocalSoftwareKeyboardController.current`
+  - Box modifier 加 `.pointerInput(Unit) { detectTapGestures(onTap = { keyboardController?.hide() }) }`
+  - trailingIcon 搜索按钮改为 32dp 圆形 Box 容器（Primary 0.12 背景 + Primary 0.22 边框 + 16dp Search icon），clickable 先 hide keyboard 再 search
+
+#### 5. 任务6：首页重新设计（时间流 → 今日工作台）
+- **修改** `HomeViewModel.kt`：
+  - 删除 TimelineItem data class
+  - `HomeUiState` 改为：activeTaskCount/todayDoneCount/pendingLarkTaskCount/recentTasks(LarkTaskDto 列表)
+  - `loadHome` 改为并行拉取：safeHermesStatus + safeTaskStats + safeLarkTasks
+  - 新增 `Quad<A, B, C, D>` 四元组辅助
+- **修改** `HomeScreen.kt`：
+  - 主体替换 Timeline 调用为 TodayOverview + QuickEntries + RecentTasksSection
+  - **TodayOverview**：3 个 StatChip（进行中/已完成/飞书待办）
+  - **QuickEntries**：3 个 QuickEntryCard（灵感速记/语音通话/Lynx 助理）
+  - **RecentTasksSection**：LazyColumn 展示 Top 3 飞书任务
+  - **HomeTaskCard**：GlassCard 包裹，状态点 + 标题 + 任务列表名 + 负责人
+  - 删除文件末尾残留的 `Timeline`/`TimelineCard`/`typeLabel` 三个旧函数
+  - 新增 imports：Liquid2、TextOverflow
+
+### 自测结果
+- `.\gradlew.bat :app:compileDebugKotlin`：BUILD SUCCESSFUL（仅 warnings）
+- `.\gradlew.bat :app:assembleDebug`：BUILD SUCCESSFUL
+- APK 安装至真机 13e37082 成功（61.3MB）
+- APK 归档至 `deploy/dist/android/lynx_android_v0.1.2.apk`
+- versionCode 2→3，versionName 0.1.1→0.1.2
+
+### 遗留项
+- 任务1（P0-P2 任务实现：语音通话 CallViewModel / PC 联调真机验证）未在本轮实现，待后续迭代
+- 记忆模块与"记忆图谱功能打通保持一致"：本轮仅修复搜索 icon 和键盘收起，未深度对齐图谱展示
+- 主题切换面板已就绪，但浅色配色在所有页面未深度打磨（部分自定义颜色未区分深浅色）
+
+### Commit
+`<待提交>` — feat(android): iter 82 - Android v0.1.2 主题切换/语音消息/飞书任务/记忆搜索/首页重设计
 
 ---
 
