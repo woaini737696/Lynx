@@ -273,7 +273,7 @@ export function LoginModal({ open, mode, expired, onModeChange, onClose }: Login
                 {panel === "login" ? "欢迎来到 LYNX" : "注册新账号"}
               </h1>
               <p className="mt-0.5 text-xs text-muted-foreground">
-                {panel === "login" ? "不用学，直接干" : "手机号 + 验证码 + 邀请码"}
+                {panel === "login" ? "用Lynx AI，人人都是超级个体" : "手机号 + 验证码 + 邀请码"}
               </p>
             </div>
 

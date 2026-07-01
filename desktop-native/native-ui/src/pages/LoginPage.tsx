@@ -317,7 +317,7 @@ export function LoginPage() {
           />
         </div>
         <h1 className="text-2xl font-semibold tracking-wide text-foreground">Lynx</h1>
-        <p className="mt-1 text-sm text-muted-foreground">超级AI工作台，不用学，直接干</p>
+        <p className="mt-1 text-sm text-muted-foreground">用Lynx AI，人人都是超级个体</p>
       </motion.div>
 
       {/* 登录/注册弹窗：固定宽高，标题+按钮固定，内容区滚动，一屏显示完 */}

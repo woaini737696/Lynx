@@ -65,6 +65,19 @@ export function LoginModal({
   const [masterCodeHint, setMasterCodeHint] = useState<string | null>(null);
 
   const firstInputRef = useRef<HTMLInputElement | null>(null);
+  // 跟踪 mousedown 目标，防止鼠标在弹窗内按下拖到遮罩层松开时误关闭
+  const mouseDownTargetRef = useRef<EventTarget | null>(null);
+
+  const handleOverlayMouseDown = (e: React.MouseEvent) => {
+    mouseDownTargetRef.current = e.target;
+  };
+
+  const handleOverlayMouseUp = (e: React.MouseEvent) => {
+    if (mouseDownTargetRef.current === e.currentTarget && e.target === e.currentTarget) {
+      onClose();
+    }
+    mouseDownTargetRef.current = null;
+  };
 
   // 切换标签页时清空错误并聚焦
   useEffect(() => {
@@ -241,11 +254,11 @@ export function LoginModal({
   return (
     <div
       className="fixed inset-0 z-[100] flex items-center justify-center bg-black/30 p-4 backdrop-blur-xl"
-      onClick={onClose}
+      onMouseDown={handleOverlayMouseDown}
+      onMouseUp={handleOverlayMouseUp}
     >
       <div
-        className="glass-modal relative max-h-[90vh] w-[90vw] max-w-[420px] overflow-y-auto rounded-3xl p-6 sm:p-8"
-        onClick={(e) => e.stopPropagation()}
+        className="glass-modal relative max-h-[90vh] w-[90vw] max-w-[420px] overflow-y-auto rounded-3xl p-5 sm:p-6"
       >
         {/* 关闭按钮 */}
         <button
@@ -257,20 +270,20 @@ export function LoginModal({
         </button>
 
         {/* Logo 和标题 */}
-        <div className="mb-6 flex flex-col items-center gap-2">
+        <div className="mb-4 flex flex-col items-center gap-1.5">
           <Image
             src="/lynx-icon-128.png"
             alt="Lynx"
-            width={48}
-            height={48}
-            className="h-12 w-12 rounded-2xl shadow-lg"
+            width={40}
+            height={40}
+            className="h-10 w-10 rounded-2xl shadow-lg"
           />
           <div className="text-center">
-            <h1 className="text-lg font-semibold tracking-tight text-foreground">
+            <h1 className="text-base font-semibold tracking-tight text-foreground">
               {panel === "login" ? "欢迎来到 LYNX" : "注册新账号"}
             </h1>
             <p className="mt-0.5 text-xs text-muted-foreground">
-              {panel === "login" ? "不用学，直接干" : "手机号 + 验证码 + 邀请码"}
+              {panel === "login" ? "用Lynx AI，人人都是超级个体" : "手机号 + 验证码 + 邀请码"}
             </p>
           </div>
         </div>
@@ -325,7 +338,7 @@ export function LoginModal({
               />
 
               {mode === "phone-code" && (
-                <div className="space-y-1.5">
+                <div className="space-y-1">
                   <label className="text-xs font-medium text-foreground">验证码</label>
                   <div className="flex gap-2">
                     <div className="relative flex-1">
@@ -447,7 +460,7 @@ export function LoginModal({
                 maxLength={11}
               />
 
-              <div className="space-y-1.5">
+              <div className="space-y-1">
                 <label className="text-xs font-medium text-foreground">验证码</label>
                 <div className="flex gap-2">
                   <div className="relative flex-1">
@@ -508,12 +521,6 @@ export function LoginModal({
                 disabled={loading}
                 maxLength={32}
               />
-
-              {/* 极简注册提示 */}
-              <div className="flex items-center gap-1.5 rounded-lg bg-muted-foreground/5 px-2.5 py-1.5 text-[11px] text-muted-foreground">
-                <Sparkles className="h-3 w-3 shrink-0" />
-                <span>注册即登录，密码自动生成，可用验证码或重置密码登录</span>
-              </div>
 
               {/* 错误提示 */}
               {error && (
@@ -583,7 +590,7 @@ const Field = forwardRef<HTMLInputElement, FieldProps>(function Field(
   ref
 ) {
   return (
-    <div className="space-y-1.5">
+    <div className="space-y-1">
       <label htmlFor={id} className="text-xs font-medium text-foreground">
         {label}
       </label>

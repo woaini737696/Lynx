@@ -5,6 +5,9 @@ import { createPortal } from "react-dom";
 import { X } from "lucide-react";
 import { cn } from "@/lib/utils";
 
+// 修复：鼠标在弹窗内按下，拖到遮罩层松开会误触发关闭
+// 方案：记录 mousedown 目标，仅在 mousedown 和 mouseup 都发生在遮罩层本身时才关闭
+
 interface ModalProps {
   open: boolean;
   onClose: () => void;
@@ -24,6 +27,20 @@ const sizeMap = {
 export function Modal({ open, onClose, title, children, size = "md", className }: ModalProps) {
   const modalRef = useRef<HTMLDivElement>(null);
   const previousFocusRef = useRef<HTMLElement | null>(null);
+  // 跟踪 mousedown 目标，防止鼠标在弹窗内按下拖到遮罩层松开时误关闭
+  const mouseDownTargetRef = useRef<EventTarget | null>(null);
+
+  const handleOverlayMouseDown = (e: React.MouseEvent) => {
+    mouseDownTargetRef.current = e.target;
+  };
+
+  const handleOverlayMouseUp = (e: React.MouseEvent) => {
+    // 仅当 mousedown 和 mouseup 都发生在遮罩层本身时才关闭
+    if (mouseDownTargetRef.current === e.currentTarget && e.target === e.currentTarget) {
+      onClose();
+    }
+    mouseDownTargetRef.current = null;
+  };
 
   // Esc 关闭 + Tab 焦点循环（focus trap）
   useEffect(() => {
@@ -90,7 +107,8 @@ export function Modal({ open, onClose, title, children, size = "md", className }
       className="fixed inset-0 z-[200] flex items-center justify-center bg-black/50 backdrop-blur-sm px-4 py-6"
       role="dialog"
       aria-modal="true"
-      onClick={onClose}
+      onMouseDown={handleOverlayMouseDown}
+      onMouseUp={handleOverlayMouseUp}
     >
       <div
         ref={modalRef}
@@ -99,7 +117,6 @@ export function Modal({ open, onClose, title, children, size = "md", className }
           sizeMap[size],
           className
         )}
-        onClick={(e) => e.stopPropagation()}
       >
         {title && (
           <div className="mb-4 flex items-center justify-between">
