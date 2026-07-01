@@ -1167,6 +1167,8 @@ function HermesConfigSection() {
   const loadStatus = async () => {
     try {
       // 1. 先浏览器直连本机 Dashboard 探测真实状态（不走服务器DB）
+      //    注意：跨机器场景下浏览器探测 127.0.0.1:9119 永远失败，
+      //    此情况由第 2 步的在线设备列表补充判断
       let localOnline = false;
       let localVersion: string | undefined;
       try {
@@ -1184,27 +1186,44 @@ function HermesConfigSection() {
       }
 
       // 2. 同时加载服务器DB的配置信息（enabled/autoStart/endpoint 等配置项仍存DB）
+      //    以及 WS 网关的在线设备列表（含 deviceType）
       let dbConfig: any = null;
+      let onlineDevices: Array<{ deviceType?: string; deviceName?: string }> = [];
       try {
         const res = await fetch("/api/hermes/status");
         if (res.ok) {
           const data = await res.json();
           dbConfig = data.config;
+          if (Array.isArray(data.devices)) {
+            onlineDevices = data.devices;
+          }
         }
       } catch {
         // DB 加载失败不影响本地状态展示
       }
 
-      // 3. 组合状态：本地探测优先，DB 配置补充
+      // 是否有桌面端在线（另一台机器上的桌面端正在运行 Dashboard）
+      const desktopOnline = onlineDevices.some(d => d.deviceType === "desktop");
+
+      // 3. 组合状态：本地探测优先，在线桌面端补充
+      //    - 本地探测在线 → running（本机 Dashboard 可用）
+      //    - 本地不在线但有桌面端在线 → running（远程桌面端正在运行 Dashboard）
+      //    - 都没有 → 不再强行降级 DB status，保留 DB 中真实状态
+      //      （旧逻辑的 bug：DB status 被桌面端写成 running 后，Web 端 loadStatus
+      //       又强行降级为 installed，导致用户看到"未运行"的误导信息）
+      const effectiveStatus = (localOnline || desktopOnline)
+        ? "running"
+        : (dbConfig?.status === "not_installed" ? "not_installed" : (dbConfig?.status || "installed"));
+
       const merged = {
-        installed: localOnline || (dbConfig?.status && dbConfig.status !== "not_installed"),
+        installed: localOnline || desktopOnline || (dbConfig?.status && dbConfig.status !== "not_installed"),
         installVersion: localVersion,           // 本机真实版本
-        connected: localOnline,                  // 本机真实在线状态
+        connected: localOnline,                  // 本机真实在线状态（仅本机 Dashboard 可达时为 true）
         version: localVersion,                   // 本机真实版本
         capabilities: dbConfig?.capabilities || ["computer_use", "shell", "skills_hub"],
         config: dbConfig ? {
           ...dbConfig,
-          status: localOnline ? "running" : (dbConfig.status === "not_installed" ? "not_installed" : "installed"),
+          status: effectiveStatus,
         } : null,
       };
       setStatus(merged);

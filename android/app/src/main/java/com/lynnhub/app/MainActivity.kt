@@ -7,6 +7,7 @@ import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.collectAsState
@@ -95,10 +96,11 @@ class MainActivity : ComponentActivity() {
                                 visible = showDock
                             )
                         }
-                    ) { _ ->
+                    ) { innerPadding ->
                         Box(
                             modifier = Modifier
                                 .fillMaxSize()
+                                .padding(bottom = innerPadding.calculateBottomPadding())
                                 // 核心页面支持左右滑动切换
                                 .then(
                                     if (currentRoute in coreRoutes) {

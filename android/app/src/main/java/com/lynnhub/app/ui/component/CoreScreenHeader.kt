@@ -48,21 +48,21 @@ fun CoreScreenHeader(
             .background(
                 Brush.verticalGradient(
                     colors = listOf(
-                        TopBarDeep,        // 80% Void 顶部
-                        TopBarDeepBlur     // 60% Deep 底部
+                        TopBarDeep,
+                        TopBarDeepBlur
                     )
                 )
             )
-            .statusBarsPadding()
             .drawBehind {
-                // 顶部高光（绘制在状态栏顶部位置）
                 drawLine(
                     color = GlassHighlightDeep.copy(alpha = 0.3f),
                     start = Offset(0f, 0f),
                     end = Offset(size.width, 0f),
                     strokeWidth = 1f
                 )
-                // 底部分隔线
+            }
+            .statusBarsPadding()
+            .drawBehind {
                 drawLine(
                     color = GlassBorderSubtle,
                     start = Offset(0f, size.height),

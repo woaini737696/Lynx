@@ -280,6 +280,8 @@ fun CallScreen(
         modifier = Modifier
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background)
+            .statusBarsPadding()
+            .navigationBarsPadding()
             // 上滑手势结束通话 + 轻触唤起控制按钮（仅权限通过后生效）
             .then(
                 if (permissionGranted == true) {

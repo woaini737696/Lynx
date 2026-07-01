@@ -998,10 +998,11 @@ export async function installHermesAgent(wheelFileName?: string): Promise<{
 
   // hermes-agent 不在 PyPI 上，从自建服务器下载 wheel 文件安装
   // 与桌面端 installer.rs 逻辑完全一致
+  // 走 /api/hermes/download-wheel API 路由代理下载，避免静态文件路径连接重置（error 10054）
   // wheelFileName 可由 updateHermesAgent 传入（来自 latest.json），未传时默认 0.18.0
   const finalWheelFileName = wheelFileName || "hermes_agent-0.18.0-py3-none-any.whl";
   const downloadUrls = [
-    `https://ai.lynxdo.com/downloads/${finalWheelFileName}`,
+    `https://ai.lynxdo.com/api/hermes/download-wheel?file=${finalWheelFileName}`,
   ];
 
   // 临时目录
@@ -3033,9 +3034,10 @@ export async function checkHermesUpdate(): Promise<HermesUpdateInfo> {
     logger.warn({ err: e }, "检测本机 HermesAgent 版本失败");
   }
 
-  // 2. 获取服务器最新版本（从自建服务器拉取 latest.json）
+  // 2. 获取服务器最新版本（走 /api/hermes/latest-json API 路由代理读取，
+  //    避免静态文件路径连接重置 error 10054）
   const latestUrls = [
-    "https://ai.lynxdo.com/downloads/latest.json",
+    "https://ai.lynxdo.com/api/hermes/latest-json",
   ];
 
   let latest: { version: string; wheel?: string; releaseNotes?: string; publishedAt?: string } | null = null;
@@ -3108,7 +3110,7 @@ export async function updateHermesAgent(): Promise<{
   // 1. 先从服务器拉取 latest.json，拿到真实最新的 wheel 文件名
   //    避免硬编码 0.18.0 导致未来发新版本时更新不生效
   const latestUrls = [
-    "https://ai.lynxdo.com/downloads/latest.json",
+    "https://ai.lynxdo.com/api/hermes/latest-json",
   ];
   let wheelFileName: string | undefined;
   let latestVersion = "unknown";

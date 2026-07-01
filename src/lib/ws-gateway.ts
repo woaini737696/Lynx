@@ -105,6 +105,7 @@ async function registerDevice(
     agentVersion: string;
     capabilities: string[];
     authMode: string;
+    deviceType?: string;
   }
 ) {
   const channelId = randomUUID();
@@ -119,6 +120,12 @@ async function registerDevice(
     userDevices.set(userId, new Set());
   }
   userDevices.get(userId)!.add(channelId);
+
+  // 在 ws 上记录设备类型（desktop | web），dispatch 时按设备类型路由
+  // 默认 web：保持向后兼容（旧桌面端未传 deviceType 时不应被当作 web，
+  // 但桌面端 ws_client.rs 已同步增加该字段，新版本会显式传 "desktop"）
+  const deviceType = data.deviceType === "desktop" ? "desktop" : "web";
+  (ws as WebSocket & { deviceType?: string }).deviceType = deviceType;
 
   // 写入数据库
   try {
@@ -151,7 +158,7 @@ async function registerDevice(
   (ws as WebSocket & { channelId?: string }).channelId = channelId;
   (ws as WebSocket & { userId?: string }).userId = userId;
 
-  logger.info(`[ws-gateway] PC 上线: user=${userId} device=${data.deviceName} channel=${channelId}`);
+  logger.info(`[ws-gateway] 设备上线: user=${userId} type=${deviceType} device=${data.deviceName} channel=${channelId}`);
 
   // 回复注册成功
   sendJson(ws, {
@@ -215,7 +222,21 @@ async function dispatchRemoteCommand(
 
   // 选择目标设备
   let targetChannel: string | undefined;
-  if (targetDeviceId) {
+
+  // 系统命令（__LYNN_CMD__:）只派给 desktop 类型设备，避免误派回 Web 端
+  // Web 端无法执行安装/启动/停止等本地系统操作
+  if (command.startsWith("__LYNN_CMD__:")) {
+    for (const channelId of channels) {
+      const ws = connections.get(channelId) as (WebSocket & { deviceType?: string }) | undefined;
+      if (ws && ws.deviceType === "desktop" && ws.readyState === WebSocket.OPEN) {
+        targetChannel = channelId;
+        break;
+      }
+    }
+    if (!targetChannel) {
+      return { dispatched: false, reason: "需要桌面端在线才能执行系统命令" };
+    }
+  } else if (targetDeviceId) {
     // 指定设备：targetDeviceId 可以是 channelId 或 deviceName
     if (channels.has(targetDeviceId)) {
       targetChannel = targetDeviceId;
@@ -361,12 +382,13 @@ const server = createServer(async (req, res) => {
       return;
     }
     const channels = userDevices.get(userId) || new Set<string>();
-    const devices: Array<{ channelId: string; deviceName?: string }> = [];
+    const devices: Array<{ channelId: string; deviceName?: string; deviceType?: string }> = [];
     for (const channelId of channels) {
-      const ws = connections.get(channelId) as (WebSocket & { deviceName?: string }) | undefined;
+      const ws = connections.get(channelId) as (WebSocket & { deviceName?: string; deviceType?: string }) | undefined;
       devices.push({
         channelId,
         deviceName: ws?.deviceName,
+        deviceType: ws?.deviceType,
       });
     }
     res.writeHead(200, { "Content-Type": "application/json" });
@@ -418,6 +440,7 @@ wss.on("connection", async (ws: WebSocket, req: import("http").IncomingMessage) 
           agentVersion: msg.agentVersion,
           capabilities: msg.capabilities,
           authMode: msg.authMode,
+          deviceType: msg.deviceType,
         });
         (ws as WebSocket & { deviceName?: string }).deviceName = msg.deviceName;
         // 推送现有指令订阅

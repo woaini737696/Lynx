@@ -24,6 +24,8 @@ import {
   Zap,
   Settings,
   Save,
+  Upload,
+  Wrench,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
@@ -31,6 +33,9 @@ import { toast } from "@/lib/toast";
 import { HelpButton } from "@/components/ui/HelpButton";
 import { Modal } from "@/components/ui/Modal";
 import { cloudApi, getCloudEndpoint } from "@/lib/cloud-api";
+import { invoke } from "@/lib/tauri";
+import type { AgentStatus } from "@/types/api";
+import { useAuthStore } from "@/stores/authStore";
 
 // 将相对路径头像 URL 拼接为云端绝对路径（WebView2 origin 是 tauri.localhost，相对路径会 404）
 function resolveAvatarUrl(url: string | null | undefined): string {
@@ -41,6 +46,7 @@ function resolveAvatarUrl(url: string | null | undefined): string {
 import {
   type Message,
   type ChatSession,
+  type ChatStreamCallbacks,
   QUICK_COMMANDS,
   listSessions,
   createSession,
@@ -49,7 +55,6 @@ import {
   appendMessage,
   feedbackMessage,
   chatCompletion,
-  streamSimulate,
   renderMarkdown,
   summarizeToolResult,
 } from "@/lib/ai-assistant";
@@ -104,6 +109,8 @@ export function AIAssistantPage({ inDrawer = false }: AIAssistantPageProps) {
   const [feedbackTarget, setFeedbackTarget] = useState<Message | null>(null);
   const [feedbackReason, setFeedbackReason] = useState("");
   const [showSettings, setShowSettings] = useState(false);
+  // WS 连接状态：用于 hermesExecute 工具调用前置检查（避免静默失败）
+  const [wsConnected, setWsConnected] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -129,8 +136,32 @@ export function AIAssistantPage({ inDrawer = false }: AIAssistantPageProps) {
     },
   });
 
+  // 查询 Agent WS 连接状态（用于 hermesExecute 工具调用前置检查）
+  useEffect(() => {
+    let cancelled = false;
+    const fetchWsStatus = async () => {
+      try {
+        const s = await invoke<AgentStatus>("get_agent_status");
+        if (!cancelled) setWsConnected(!!s?.wsConnected);
+      } catch {
+        // 非 Tauri 环境或命令不可用：忽略，默认 false
+      }
+    };
+    fetchWsStatus();
+    // 每 15 秒刷新一次，保持状态新鲜
+    const timer = setInterval(fetchWsStatus, 15000);
+    return () => {
+      cancelled = true;
+      clearInterval(timer);
+    };
+  }, []);
+
   // 助理显示名称（默认 "Lynn"，可被设置覆盖）
   const assistantName = aiSettings?.assistantName?.trim() || "Lynn";
+  // 助理 emoji 头像（无 avatarUrl 时使用，对齐 Web 端 assistantAvatar 字段）
+  const assistantEmoji = aiSettings?.assistantAvatar?.trim() || "🦊";
+  // 是否配置了头像 URL（无 URL 时回退到 emoji 显示）
+  const hasAvatarUrl = !!aiSettings?.avatarUrl;
   // 助理头像 URL（拼接云端 endpoint，避免 WebView2 相对路径 404）
   const assistantAvatarUrl = resolveAvatarUrl(aiSettings?.avatarUrl);
 
@@ -149,7 +180,7 @@ export function AIAssistantPage({ inDrawer = false }: AIAssistantPageProps) {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
   }, [messages]);
 
-  // 发送消息
+  // 发送消息（流式 SSE，支持 thinking/tool_start/tool_done/delta 事件实时更新 UI）
   const handleSend = useCallback(async (overrideContent?: string) => {
     const content = (overrideContent ?? input).trim();
     if (!content || loading) return;
@@ -200,20 +231,92 @@ export function AIAssistantPage({ inDrawer = false }: AIAssistantPageProps) {
         .filter((m) => !m.error && m.id !== "welcome")
         .map((m) => ({ role: m.role, content: m.content }));
 
-      // 调用 AI（非流式）
-      const res = await chatCompletion({ messages: history, sessionId });
-
-      // 逐字模拟流式输出
-      await streamSimulate(
-        res.content || "",
-        (partial) => {
+      // 流式回调：实时更新 UI
+      const callbacks: ChatStreamCallbacks = {
+        onThinking: (thinkContent) => {
           setMessages((prev) =>
             prev.map((m) =>
-              m.id === aiMsgId ? { ...m, content: partial } : m
+              m.id === aiMsgId
+                ? { ...m, content: thinkContent || "正在思考...", streaming: true }
+                : m
             )
           );
         },
-        controller.signal
+        onToolStart: (tool, args) => {
+          // hermesExecute 工具需要 WS 连接，未连接时明确提示（不静默失败）
+          if (tool === "hermesExecute" && !wsConnected) {
+            toast.error("Lynx Agent WS 未连接，请先在 Agent 页面启动 WS 连接");
+            setMessages((prev) =>
+              prev.map((m) =>
+                m.id === aiMsgId
+                  ? {
+                      ...m,
+                      content: "⚠️ Lynx Agent WS 未连接，无法执行本地工具。\n\n请先在 **Agent 页面** 启动 WS 连接，然后重试。",
+                      streaming: true,
+                      toolProgress: { tool, status: "running", args },
+                    }
+                  : m
+              )
+            );
+            return;
+          }
+          setMessages((prev) =>
+            prev.map((m) =>
+              m.id === aiMsgId
+                ? {
+                    ...m,
+                    content: `🔧 正在执行工具：${tool}...`,
+                    streaming: true,
+                    toolProgress: { tool, status: "running", args },
+                  }
+                : m
+            )
+          );
+        },
+        onToolDone: (tool, result) => {
+          setMessages((prev) =>
+            prev.map((m) =>
+              m.id === aiMsgId
+                ? {
+                    ...m,
+                    content: "✓ 工具执行完成，正在生成回复...",
+                    streaming: true,
+                    toolProgress: { tool, status: "done", result },
+                  }
+                : m
+            )
+          );
+        },
+        onDelta: (_chunk, fullContent) => {
+          setMessages((prev) =>
+            prev.map((m) =>
+              m.id === aiMsgId
+                ? { ...m, content: fullContent, toolProgress: null }
+                : m
+            )
+          );
+        },
+        onError: (err) => {
+          setMessages((prev) =>
+            prev.map((m) =>
+              m.id === aiMsgId
+                ? {
+                    ...m,
+                    content: `请求失败：${err.message}`,
+                    streaming: false,
+                    error: true,
+                    toolProgress: null,
+                  }
+                : m
+            )
+          );
+        },
+      };
+
+      // 调用 AI（流式 SSE）
+      const res = await chatCompletion(
+        { messages: history, sessionId, signal: controller.signal },
+        callbacks
       );
 
       // 最终化 AI 消息
@@ -222,7 +325,7 @@ export function AIAssistantPage({ inDrawer = false }: AIAssistantPageProps) {
           m.id === aiMsgId
             ? {
                 ...m,
-                content: res.content || "",
+                content: res.content || "(空回复)",
                 streaming: false,
                 provider: res.provider,
                 model: res.model,
@@ -230,11 +333,23 @@ export function AIAssistantPage({ inDrawer = false }: AIAssistantPageProps) {
                 toolCalled: res.toolCalled || null,
                 hermesMode: res.hermesMode,
                 hermesFallback: res.hermesFallback,
+                toolProgress: null,
               }
             : m
         )
       );
     } catch (err: unknown) {
+      // AbortError 是用户主动中止，不显示错误
+      if (err instanceof Error && err.name === "AbortError") {
+        setMessages((prev) =>
+          prev.map((m) =>
+            m.id === aiMsgId
+              ? { ...m, streaming: false, content: m.content || "（已中止）", toolProgress: null }
+              : m
+          )
+        );
+        return;
+      }
       const errorMsg = err instanceof Error ? err.message : String(err);
       setMessages((prev) =>
         prev.map((m) =>
@@ -244,6 +359,7 @@ export function AIAssistantPage({ inDrawer = false }: AIAssistantPageProps) {
                 content: `请求失败：${errorMsg}`,
                 streaming: false,
                 error: true,
+                toolProgress: null,
               }
             : m
         )
@@ -252,7 +368,7 @@ export function AIAssistantPage({ inDrawer = false }: AIAssistantPageProps) {
     } finally {
       setLoading(false);
     }
-  }, [input, loading, messages, currentSessionId, queryClient]);
+  }, [input, loading, messages, currentSessionId, queryClient, wsConnected]);
 
   // 从其他页面（如 AI 工作空间）跳转过来时，自动发送预填指令
   useEffect(() => {
@@ -399,15 +515,31 @@ export function AIAssistantPage({ inDrawer = false }: AIAssistantPageProps) {
             >
               {showSessionList ? <PanelLeftClose className="h-4 w-4" /> : <PanelLeftOpen className="h-4 w-4" />}
             </button>
-            <img
-              src={assistantAvatarUrl}
-              alt={assistantName}
-              className="h-10 w-10 rounded-xl object-cover shadow-md"
-              draggable={false}
-              onError={(e) => {
-                (e.currentTarget as HTMLImageElement).style.display = "none";
-              }}
-            />
+            {hasAvatarUrl ? (
+              <img
+                src={assistantAvatarUrl}
+                alt={assistantName}
+                className="h-10 w-10 rounded-xl object-cover shadow-md"
+                draggable={false}
+                onError={(e) => {
+                  // 头像加载失败：回退到 emoji 显示
+                  const t = e.currentTarget as HTMLImageElement;
+                  t.style.display = "none";
+                  const parent = t.parentElement;
+                  if (parent) {
+                    const fallback = document.createElement("div");
+                    fallback.className =
+                      "flex h-10 w-10 items-center justify-center rounded-xl bg-primary text-primary-foreground text-xl shadow-md";
+                    fallback.textContent = assistantEmoji;
+                    parent.appendChild(fallback);
+                  }
+                }}
+              />
+            ) : (
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary text-primary-foreground text-xl shadow-md">
+                {assistantEmoji}
+              </div>
+            )}
             <div>
               <h1 className="text-2xl font-bold tracking-tight text-foreground">{assistantName} · 超级助理</h1>
               <p className="mt-0.5 text-sm text-muted-foreground">
@@ -550,6 +682,8 @@ export function AIAssistantPage({ inDrawer = false }: AIAssistantPageProps) {
                 message={msg}
                 onFeedback={handleFeedback}
                 avatarUrl={assistantAvatarUrl}
+                hasAvatarUrl={hasAvatarUrl}
+                assistantEmoji={assistantEmoji}
               />
             ))}
             {loading && messages[messages.length - 1]?.role === "user" && (
@@ -715,10 +849,14 @@ function MessageBubble({
   message,
   onFeedback,
   avatarUrl,
+  hasAvatarUrl,
+  assistantEmoji,
 }: {
   message: Message;
   onFeedback: (msg: Message, feedback: "good" | "bad") => void;
   avatarUrl: string;
+  hasAvatarUrl: boolean;
+  assistantEmoji: string;
 }) {
   const [copied, setCopied] = useState(false);
   const [showToolDetail, setShowToolDetail] = useState(false);
@@ -741,7 +879,7 @@ function MessageBubble({
         <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
           <User className="h-4 w-4" />
         </div>
-      ) : (
+      ) : hasAvatarUrl ? (
         <img
           src={avatarUrl}
           alt="Lynx"
@@ -753,14 +891,42 @@ function MessageBubble({
             const parent = t.parentElement;
             if (parent) {
               parent.className =
-                "flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground";
-              parent.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 8V4H8"/><rect width="16" height="12" x="4" y="8" rx="2"/><path d="M2 14h2"/><path d="M20 14h2"/><path d="M15 13v2"/><path d="M9 13v2"/></svg>';
+                "flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground text-base";
+              parent.textContent = assistantEmoji;
             }
           }}
         />
+      ) : (
+        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground text-base">
+          {assistantEmoji}
+        </div>
       )}
       <div className={cn("flex max-w-[80%] flex-col", isUser && "items-end")}>
-        {/* 工具调用卡片 */}
+        {/* 工具调用进度卡片（流式期间显示） */}
+        {message.toolProgress && (
+          <div
+            className={cn(
+              "mb-1.5 flex items-center gap-2 rounded-xl border px-3 py-2 text-xs",
+              message.toolProgress.status === "running"
+                ? "border-cognition/30 bg-cognition/5 text-cognition"
+                : "border-task/30 bg-task/5 text-task"
+            )}
+          >
+            {message.toolProgress.status === "running" ? (
+              <Loader2 className="h-3 w-3 animate-spin" />
+            ) : (
+              <Check className="h-3 w-3" />
+            )}
+            <Wrench className="h-3 w-3" />
+            <span className="font-medium">
+              {message.toolProgress.status === "running"
+                ? `正在执行: ${message.toolProgress.tool}`
+                : `${message.toolProgress.tool} 执行完成`}
+            </span>
+          </div>
+        )}
+
+        {/* 工具调用卡片（消息完成后显示） */}
         {message.toolCalled && (
           <div className="mb-1.5 overflow-hidden rounded-xl border border-cognition/30 bg-cognition/5">
             <button
@@ -912,12 +1078,18 @@ function AISettingsModal({
 }) {
   const [form, setForm] = useState<AISettings>({});
   const [saving, setSaving] = useState(false);
+  const [avatarUploading, setAvatarUploading] = useState(false);
+  const avatarFileRef = useRef<HTMLInputElement>(null);
+
+  // 可选 emoji 头像（无 URL 时使用，对齐 Web 端）
+  const EMOJI_CHOICES = ["🦊", "🐱", "🤖", "🐼", "🧠", "⚡", "🌟", "🎯"];
 
   // 同步 props 到本地表单
   useEffect(() => {
     if (open && settings) {
       setForm({
         assistantName: settings.assistantName || "",
+        assistantAvatar: settings.assistantAvatar || "🦊",
         avatarUrl: settings.avatarUrl || "",
         personaStyle: settings.personaStyle || "",
         distilledStyle: settings.distilledStyle || "",
@@ -937,6 +1109,46 @@ function AISettingsModal({
     setForm((prev) => ({ ...prev, [key]: value }));
   };
 
+  // 头像文件上传：multipart/form-data 上传到 /api/ai/avatar-upload
+  // 参考 Web 端 src/app/ai/assistant/page.tsx 的 handleAvatarUpload
+  const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 2 * 1024 * 1024) {
+      toast.error("头像文件过大，最大 2MB");
+      return;
+    }
+    setAvatarUploading(true);
+    try {
+      const base = getCloudEndpoint().replace(/\/+$/, "");
+      const url = `${base}/api/ai/avatar-upload`;
+      const formData = new FormData();
+      formData.append("file", file);
+
+      // 走 fetch + Bearer token（与 cloudApi 认证方式一致）
+      const token = useAuthStore.getState().token;
+      const headers: Record<string, string> = {};
+      if (token) headers["Authorization"] = `Bearer ${token}`;
+
+      const res = await fetch(url, { method: "POST", headers, body: formData });
+      const data = await res.json();
+      if (res.ok && data.url) {
+        setForm((prev) => ({ ...prev, avatarUrl: data.url }));
+        // 立即保存到后端，避免关闭弹窗后丢失
+        await cloudApi.put("/api/ai/settings", { ...form, avatarUrl: data.url });
+        toast.success("头像上传成功");
+        onSaved();
+      } else {
+        toast.error(data?.error || "上传失败");
+      }
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "上传失败");
+    } finally {
+      setAvatarUploading(false);
+      if (avatarFileRef.current) avatarFileRef.current.value = "";
+    }
+  };
+
   const handleSave = async () => {
     setSaving(true);
     try {
@@ -954,29 +1166,99 @@ function AISettingsModal({
   return (
     <Modal open={open} onClose={onClose} title="助理设置" size="lg">
       <div className="space-y-5">
-        {/* 头像预览 */}
-        <div className="flex items-center gap-4">
-          <img
-            src={resolveAvatarUrl(form.avatarUrl) || avatarUrl}
-            alt="助理头像"
-            className="h-16 w-16 rounded-2xl object-cover shadow-md"
-            onError={(e) => {
-              (e.currentTarget as HTMLImageElement).src = `${getCloudEndpoint()}/lynx-icon-256.png`;
-            }}
-          />
-          <div className="flex-1">
-            <label className="text-xs font-medium text-foreground">头像 URL</label>
+        {/* 头像 - 支持 Emoji 选择、URL 输入和文件上传（对齐 Web 端） */}
+        <div>
+          <label className="mb-2 block text-xs font-medium text-foreground">助理头像</label>
+          {/* 当前头像预览 */}
+          <div className="mb-3 flex items-center gap-3">
+            <div className="flex h-16 w-16 items-center justify-center overflow-hidden rounded-2xl bg-primary text-primary-foreground shadow-md">
+              {form.avatarUrl ? (
+                <img
+                  src={resolveAvatarUrl(form.avatarUrl) || avatarUrl}
+                  alt="助理头像"
+                  className="h-full w-full object-cover"
+                  onError={(e) => {
+                    // URL 头像加载失败：回退到 emoji
+                    const t = e.currentTarget as HTMLImageElement;
+                    t.style.display = "none";
+                    const parent = t.parentElement;
+                    if (parent) {
+                      parent.className =
+                        "flex h-16 w-16 items-center justify-center rounded-2xl bg-primary text-primary-foreground text-3xl shadow-md";
+                      parent.textContent = form.assistantAvatar || "🦊";
+                    }
+                  }}
+                />
+              ) : (
+                <span className="text-3xl">{form.assistantAvatar || "🦊"}</span>
+              )}
+            </div>
+            <div className="flex-1">
+              <p className="text-[11px] text-muted-foreground">
+                {form.avatarUrl ? "当前使用图片 URL" : "当前使用 Emoji（无 URL 时显示）"}
+              </p>
+              {form.avatarUrl && (
+                <button
+                  onClick={() => update("avatarUrl", "")}
+                  className="mt-1 text-[11px] text-destructive hover:underline"
+                >
+                  移除头像 URL（回退到 Emoji）
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* Emoji 选择器（无 URL 时使用） */}
+          <div className="mb-2 flex flex-wrap items-center gap-1.5">
+            {EMOJI_CHOICES.map((emoji) => (
+              <button
+                key={emoji}
+                onClick={() => update("assistantAvatar", emoji)}
+                className={cn(
+                  "flex h-9 w-9 items-center justify-center rounded-lg border text-lg transition-colors",
+                  form.assistantAvatar === emoji
+                    ? "border-primary bg-primary/10"
+                    : "border-border/60 bg-background/40 hover:bg-primary/5"
+                )}
+              >
+                {emoji}
+              </button>
+            ))}
+            <span className="ml-1 text-[11px] text-muted-foreground">无 URL 时显示</span>
+          </div>
+
+          {/* URL 输入 + 文件上传 */}
+          <div className="flex items-center gap-2">
             <input
               type="text"
               value={form.avatarUrl || ""}
               onChange={(e) => update("avatarUrl", e.target.value)}
-              placeholder="/lynx-icon-256.png"
-              className="mt-1 h-9 w-full rounded-lg border border-border/60 bg-background/40 px-3 text-sm outline-none focus:ring-2 focus:ring-primary/20"
+              placeholder="粘贴图片 URL 或点击右侧上传"
+              className="h-9 flex-1 rounded-lg border border-border/60 bg-background/40 px-3 text-sm outline-none focus:ring-2 focus:ring-primary/20"
             />
-            <p className="mt-1 text-[11px] text-muted-foreground">
-              留空使用默认 Lynx 图标，可输入绝对或相对 URL
-            </p>
+            <input
+              ref={avatarFileRef}
+              type="file"
+              accept="image/png,image/jpeg,image/gif,image/webp,image/svg+xml"
+              onChange={handleAvatarUpload}
+              className="hidden"
+            />
+            <button
+              onClick={() => avatarFileRef.current?.click()}
+              disabled={avatarUploading}
+              className="btn-glass flex h-9 shrink-0 items-center gap-1.5 rounded-lg px-3 text-xs disabled:opacity-50"
+            >
+              {avatarUploading ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <Upload className="h-3.5 w-3.5" />
+              )}
+              {avatarUploading ? "上传中" : "上传"}
+            </button>
           </div>
+          <p className="mt-1 text-[11px] text-muted-foreground">
+            支持 PNG/JPEG/GIF/WebP/SVG，最大 2MB
+          </p>
         </div>
 
         {/* 助理名称 */}

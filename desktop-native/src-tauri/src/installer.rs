@@ -289,10 +289,11 @@ pub async fn install_ai_environment(app: AppHandle) -> Result<serde_json::Value,
         let pip_path = find_pip_exe()
             .ok_or_else(|| "未找到 pip 可执行文件".to_string())?;
 
-        // 服务器托管的 wheel 文件 URL（统一使用 ai.lynxdo.com）
+        // 服务器托管的 wheel 文件 URL（走 /api/hermes/download-wheel API 路由代理下载，
+        // 避免直接请求静态文件路径因 Nginx 配置问题导致连接异常重置 error 10054）
         const WHL_FILENAME: &str = "hermes_agent-0.18.0-py3-none-any.whl";
         let server_urls = [
-            "https://ai.lynxdo.com/downloads/".to_string() + WHL_FILENAME,
+            format!("https://ai.lynxdo.com/api/hermes/download-wheel?file={}", WHL_FILENAME),
         ];
 
         // 下载到临时目录
@@ -414,35 +415,45 @@ pub async fn install_ai_environment(app: AppHandle) -> Result<serde_json::Value,
 
 // ============ HermesAgent 版本检测与升级（迭代87 新增） ============
 
-/// 服务器 latest.json URL（统一使用 ai.lynxdo.com）
+/// 服务器 latest.json URL（走 /api/hermes/latest-json API 路由代理读取，
+/// 避免直接请求静态文件路径因 Nginx 配置问题导致连接异常重置 error 10054）
 const LATEST_JSON_URLS: &[&str] = &[
-    "https://ai.lynxdo.com/downloads/latest.json",
+    "https://ai.lynxdo.com/api/hermes/latest-json",
 ];
 
-/// 从服务器拉取 latest.json
+/// 从服务器拉取 latest.json（每个 URL 最多重试 3 次，间隔 1 秒）
 async fn fetch_latest_json() -> Result<serde_json::Value, String> {
     let client = reqwest::Client::builder()
         .timeout(std::time::Duration::from_secs(15))
         .build()
         .map_err(|e| format!("构建 HTTP client 失败: {}", e))?;
 
+    let max_retries: u32 = 3;
     let mut last_err = String::new();
     for url in LATEST_JSON_URLS {
-        match client.get(*url).send().await {
-            Ok(resp) if resp.status().is_success() => {
-                let json: serde_json::Value = resp.json().await
-                    .map_err(|e| format!("解析 latest.json 失败: {}", e))?;
-                return Ok(json);
+        for attempt in 1..=max_retries {
+            match client.get(*url).send().await {
+                Ok(resp) if resp.status().is_success() => {
+                    let json: serde_json::Value = resp.json().await
+                        .map_err(|e| format!("解析 latest.json 失败: {}", e))?;
+                    return Ok(json);
+                }
+                Ok(resp) => {
+                    last_err = format!("HTTP {} ({})", resp.status(), url);
+                    log::warn!("拉取 latest.json 失败 (第{}次): {}", attempt, last_err);
+                }
+                Err(e) => {
+                    last_err = format!("{}: {}", url, e);
+                    log::warn!("拉取 latest.json 网络错误 (第{}次): {}", attempt, last_err);
+                }
             }
-            Ok(resp) => {
-                last_err = format!("HTTP {} ({})", resp.status(), url);
-            }
-            Err(e) => {
-                last_err = format!("{}: {}", url, e);
+            // 未成功且还有重试机会时等待 1 秒
+            if attempt < max_retries {
+                tokio::time::sleep(std::time::Duration::from_secs(1)).await;
             }
         }
     }
-    Err(format!("拉取 latest.json 失败: {}", last_err))
+    Err(format!("拉取 latest.json 失败（已重试{}次）: {}", max_retries, last_err))
 }
 
 /// 获取本地 HermesAgent 版本（优先 Dashboard HTTP API，回退 hermes --version）
@@ -551,8 +562,9 @@ pub async fn update_hermes_agent(app: AppHandle) -> Result<serde_json::Value, St
     let pip_path = find_pip_exe()
         .ok_or_else(|| "未找到 pip 可执行文件".to_string())?;
 
+    // 走 /api/hermes/download-wheel API 路由代理下载，避免静态文件路径连接重置
     let server_urls = [
-        "https://ai.lynxdo.com/downloads/".to_string() + &wheel_filename,
+        format!("https://ai.lynxdo.com/api/hermes/download-wheel?file={}", wheel_filename),
     ];
 
     let tmp_dir = std::env::temp_dir().join("lynnhub-hermes-install");
