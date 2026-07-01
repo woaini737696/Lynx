@@ -1,5 +1,5 @@
 """Hermes Agent - Lynx 本地 AI 代理框架"""
 
 __version__ = "0.18.0"
-__author__ = "LynnHub"
+__author__ = "Lynn"
 __all__ = ["__version__"]

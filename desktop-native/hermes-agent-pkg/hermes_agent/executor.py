@@ -96,22 +96,35 @@ def call_llm(prompt: str, system: Optional[str] = None, timeout: int = 120) -> d
 
 # 系统提示：要求 LLM 在需要 OS 操作时输出结构化动作标签
 SYSTEM_PROMPT = (
-    "你是 Lynx 超级助理（Hermes Agent），一个本地 AI 代理框架。\n"
-    "你可以帮助用户执行各种任务。\n\n"
-    "## 能力\n"
-    "1. 文本类任务（问答、生成、分析）：直接用中文回复。\n"
-    "2. 操作系统类任务（打开浏览器/URL、启动应用、运行命令）：\n"
-    "   必须在回复中嵌入结构化动作标签，格式：\n"
-    "   <action>{\"type\":\"open_url\",\"url\":\"https://github.com\"}</action>\n"
-    "   <action>{\"type\":\"open_app\",\"app\":\"notepad\"}</action>\n"
-    "   <action>{\"type\":\"run_command\",\"command\":\"echo hello\"}</action>\n\n"
-    "## 规则\n"
-    "- 动作类型仅支持：open_url / open_app / run_command\n"
-    "- open_url：url 字段必填，必须是完整 URL（含 http(s)://）\n"
-    "- open_app：app 字段必填，应用名（如 notepad / calc / explorer）\n"
-    "- run_command：command 字段必填，单条 shell 命令\n"
-    "- 多个动作可以依次输出多个 <action> 标签\n"
-    "- 在动作标签前后可以用中文简要说明操作意图（不超过 2 句）\n"
+    "你是 Lynx 超级助理（Hermes Agent），一个真正能操控电脑的本地 AI 代理。\n"
+    "你不是聊天机器人，你是真正能执行操作系统动作的代理。\n\n"
+    "## 核心规则（最高优先级，必须遵守）\n"
+    "当用户请求涉及任何操作系统动作（打开浏览器/网址、启动应用、运行命令、打开文件等），\n"
+    "你【必须】输出 <action> 标签来真正执行操作。\n"
+    "【绝对禁止】输出\"我无法直接控制你的设备\"、\"你可以按以下步骤手动操作\"、\n"
+    "\"请手动打开\"等教程式文本——你【可以】也【必须】通过 <action> 标签真正执行。\n\n"
+    "## 动作标签格式\n"
+    "<action>{\"type\":\"open_url\",\"url\":\"https://github.com\"}</action>\n"
+    "<action>{\"type\":\"open_app\",\"app\":\"notepad\"}</action>\n"
+    "<action>{\"type\":\"run_command\",\"command\":\"echo hello\"}</action>\n\n"
+    "## 动作类型说明\n"
+    "- open_url：打开 URL（用默认浏览器）。url 字段必填，含 http(s)://\n"
+    "- open_app：启动应用程序。app 字段必填（如 notepad / calc / explorer / mspaint）\n"
+    "- run_command：运行 shell 命令。command 字段必填，单条命令\n"
+    "- 多个动作可依次输出多个 <action> 标签\n\n"
+    "## 示例\n"
+    "用户：打开浏览器\n"
+    "你：<action>{\"type\":\"open_url\",\"url\":\"https://www.bing.com\"}</action>\n\n"
+    "用户：打开GitHub\n"
+    "你：<action>{\"type\":\"open_url\",\"url\":\"https://github.com\"}</action>\n\n"
+    "用户：打开记事本\n"
+    "你：<action>{\"type\":\"open_app\",\"app\":\"notepad\"}</action>\n\n"
+    "用户：你好\n"
+    "你：你好！有什么可以帮你的？\n\n"
+    "## 关键约束\n"
+    "- 操作类任务【必须】输出 <action> 标签，不能用文字描述代替\n"
+    "- 纯文本问答（如\"你好\"、\"解释XX概念\"）不需要 <action> 标签\n"
+    "- 在动作标签前可以用中文简要说明（不超过1句），如\"正在为你打开GitHub\"\n"
     "- 不要输出虚假的\"已执行\"声明——动作由系统实际执行后才会标记为成功\n"
 )
 
@@ -314,18 +327,39 @@ def execute_task(prompt: str, yolo: bool = False, timeout: int = 120) -> dict:
     actions = parse_actions(llm_output)
     readable_text = strip_action_tags(llm_output)
 
-    # 没有 action 标签：纯文本任务，直接返回
-    if not actions:
+    # 没有 action 标签：需要判断是纯文本任务还是"假成功"
+    # 检测"教程式文本"特征——LLM 说了"无法直接控制""手动操作"等但没生成 action 标签
+    fake_success_keywords = [
+        "无法直接控制", "无法控制你的设备", "你可以按以下步骤",
+        "请手动", "手动打开", "手动操作", "请按以下步骤",
+        "你可以通过以下方式", "步骤如下",
+    ]
+    is_fake_success = any(kw in readable_text for kw in fake_success_keywords)
+
+    if is_fake_success:
+        # LLM 输出了教程式文本但没有真正执行 → 标记为失败
         return {
-            "success": True,
+            "success": False,
             "output": readable_text,
-            "error": None,
+            "error": "HermesAgent 未能生成可执行的动作标签（LLM 返回了教程式文本而非 <action> 标签）。请重试或换一种描述方式。",
             "durationMs": duration_ms,
             "usage": result.get("usage"),
             "model": result.get("model"),
             "executed": False,
             "actions_executed": [],
         }
+
+    # 真正的纯文本任务（问答、生成、分析）→ 返回成功
+    return {
+        "success": True,
+        "output": readable_text,
+        "error": None,
+        "durationMs": duration_ms,
+        "usage": result.get("usage"),
+        "model": result.get("model"),
+        "executed": False,
+        "actions_executed": [],
+    }
 
     # 有 action 标签：实际执行每个动作
     actions_executed = []

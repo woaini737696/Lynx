@@ -11,6 +11,7 @@
 
 use crate::AppState;
 use crate::hermes::router;
+use crate::installer;
 use serde_json::json;
 use std::sync::Arc;
 use std::sync::atomic::Ordering;
@@ -188,45 +189,47 @@ async fn handle_cloud_message(
             let cloud = state.cloud_endpoint.lock().map_err(|e| e.to_string())?.clone();
             let auth_mode = state.auth_mode.lock().map_err(|e| e.to_string())?.clone();
 
-            // 前端事件展示进度
-            let _ = app.emit("command-progress", json!({
-                "commandId": command_id,
-                "step": "执行中",
-                "percent": 50,
-            }));
-
-            // 优先调用本地 HermesAgent Dashboard HTTP API（真正的 AI Agent 执行）
-            // 这样 HermesAgent（有完整 LLM + computer_use 能力）会理解 prompt 并真正执行
-            // 例如"打开浏览器"会真正调用浏览器，而非简单的关键词匹配
             let start = std::time::Instant::now();
-            let dashboard_result = execute_via_dashboard(&command).await;
 
-            let result = match dashboard_result {
-                Some(r) => router::ExecutionResult {
-                    success: r.success,
-                    output: r.output,
-                    route: "dashboard".to_string(),
-                    steps: vec![],
-                    error: r.error,
-                    duration_ms: start.elapsed().as_millis() as u64,
-                },
-                None => {
-                    // Dashboard 不可用，回退到 route_and_execute（关键词匹配 + 本地 RPA）
-                    log::warn!("Dashboard 不可用，回退到 route_and_execute: {}", command);
-                    router::route_and_execute(
-                        &command,
-                        &cloud,
-                        Some(token),
-                        &auth_mode,
-                        state.inner().clone(),
-                        app.clone(),
-                    ).await
+            // 检查是否是特殊系统命令（来自 Web 端委托桌面端执行安装/启动/停止/更新）
+            let result = if command.starts_with("__LYNN_CMD__:") {
+                handle_special_command(&command, app.clone()).await
+            } else {
+                // 前端事件展示进度
+                let _ = app.emit("command-progress", json!({
+                    "commandId": command_id,
+                    "step": "执行中",
+                    "percent": 50,
+                }));
+
+                // 优先调用本地 HermesAgent Dashboard HTTP API（真正的 AI Agent 执行）
+                let dashboard_result = execute_via_dashboard(&command).await;
+
+                match dashboard_result {
+                    Some(r) => router::ExecutionResult {
+                        success: r.success,
+                        output: r.output,
+                        route: "dashboard".to_string(),
+                        steps: vec![],
+                        error: r.error,
+                        duration_ms: start.elapsed().as_millis() as u64,
+                    },
+                    None => {
+                        // Dashboard 不可用，回退到 route_and_execute（关键词匹配 + 本地 RPA）
+                        log::warn!("Dashboard 不可用，回退到 route_and_execute: {}", command);
+                        router::route_and_execute(
+                            &command,
+                            &cloud,
+                            Some(token),
+                            &auth_mode,
+                            state.inner().clone(),
+                            app.clone(),
+                        ).await
+                    }
                 }
             };
 
             // 通过 WS 回传最终结果给云端
-            // 网关 handleCommandUpdate 会更新 RemoteCommand 表 status = completed/failed
-            // 并转发给所有订阅该指令的 WS（安卓端/Web端）
             let update_msg = json!({
                 "type": "command-update",
                 "commandId": command_id,
@@ -320,6 +323,28 @@ async fn execute_via_dashboard(command: &str) -> Option<DashboardExecResult> {
         .unwrap_or("(任务已完成，无控制台输出)")
         .to_string();
 
+    // 真实性校验：如果 executed=false 且 actions_executed 为空，
+    // 且 output 包含教程式文本关键词，则判定为假成功
+    let executed = data.get("executed").and_then(|v| v.as_bool()).unwrap_or(false);
+    let actions_executed = data.get("actions_executed").and_then(|v| v.as_array());
+    let has_actions = actions_executed.map(|a| !a.is_empty()).unwrap_or(false);
+
+    if !executed && !has_actions {
+        // 检查是否是教程式文本（假成功）
+        let fake_keywords = [
+            "无法直接控制", "无法控制你的设备", "你可以按以下步骤",
+            "请手动", "手动打开", "手动操作",
+        ];
+        let is_fake = fake_keywords.iter().any(|kw| output.contains(kw));
+        if is_fake {
+            return Some(DashboardExecResult {
+                success: false,
+                output: String::new(),
+                error: Some("HermesAgent 未能真正执行操作（LLM 返回了教程式文本而非实际执行动作）".to_string()),
+            });
+        }
+    }
+
     Some(DashboardExecResult {
         success: true,
         output,
@@ -335,6 +360,84 @@ fn get_device_name() -> String {
         .map(|h| h.to_string_lossy().to_string())
         .unwrap_or_else(|| "unknown".to_string());
     format!("{}-{}", user, hostname)
+}
+
+/// 处理特殊系统命令（来自 Web 端委托桌面端执行）
+/// 命令格式：__LYNN_CMD__:<action>
+/// 支持：start_dashboard / stop_dashboard / install_hermes / update_hermes / check_update
+async fn handle_special_command(command: &str, app: tauri::AppHandle) -> router::ExecutionResult {
+    let action = command.strip_prefix("__LYNN_CMD__:").unwrap_or("");
+    let start = std::time::Instant::now();
+
+    log::info!("处理特殊系统命令: {}", action);
+
+    let (success, output, error) = match action {
+        "start_dashboard" => {
+            // 启动 HermesAgent Dashboard
+            match installer::start_hermes_dashboard_internal(9119).await {
+                Ok(_) => (true, "HermesAgent Dashboard 已启动（端口 9119）".to_string(), None),
+                Err(e) => (false, String::new(), Some(format!("启动 Dashboard 失败: {}", e))),
+            }
+        }
+        "stop_dashboard" => {
+            // 停止 HermesAgent Dashboard
+            match installer::stop_hermes_dashboard_internal().await {
+                Ok(_) => (true, "HermesAgent Dashboard 已停止".to_string(), None),
+                Err(e) => (false, String::new(), Some(format!("停止 Dashboard 失败: {}", e))),
+            }
+        }
+        "install_hermes" => {
+            // 安装 HermesAgent 环境
+            match installer::install_ai_environment(app.clone()).await {
+                Ok(result) => {
+                    let success = result.get("success").and_then(|v| v.as_bool()).unwrap_or(false);
+                    let message = result.get("message").and_then(|v| v.as_str()).unwrap_or("安装完成").to_string();
+                    (success, message, None)
+                }
+                Err(e) => (false, String::new(), Some(format!("安装失败: {}", e))),
+            }
+        }
+        "update_hermes" => {
+            // 强制升级 HermesAgent
+            match installer::update_hermes_agent(app.clone()).await {
+                Ok(result) => {
+                    let success = result.get("success").and_then(|v| v.as_bool()).unwrap_or(false);
+                    let message = result.get("message").and_then(|v| v.as_str()).unwrap_or("升级完成").to_string();
+                    (success, message, None)
+                }
+                Err(e) => (false, String::new(), Some(format!("升级失败: {}", e))),
+            }
+        }
+        "check_update" => {
+            // 检查更新
+            match installer::check_hermes_update().await {
+                Ok(result) => {
+                    let has_update = result.get("hasUpdate").and_then(|v| v.as_bool()).unwrap_or(false);
+                    let current = result.get("currentVersion").and_then(|v| v.as_str()).unwrap_or("未知");
+                    let latest = result.get("latestVersion").and_then(|v| v.as_str()).unwrap_or("未知");
+                    let output = if has_update {
+                        format!("发现新版本：v{}（当前 v{}）", latest, current)
+                    } else {
+                        format!("已是最新版本（v{}）", current)
+                    };
+                    (true, output, None)
+                }
+                Err(e) => (false, String::new(), Some(format!("检查更新失败: {}", e))),
+            }
+        }
+        _ => {
+            (false, String::new(), Some(format!("未知的系统命令: {}", action)))
+        }
+    };
+
+    router::ExecutionResult {
+        success,
+        output,
+        route: format!("special:{}", action),
+        steps: vec![],
+        error,
+        duration_ms: start.elapsed().as_millis() as u64,
+    }
 }
 
 // hostname crate 简化实现（避免新增依赖）

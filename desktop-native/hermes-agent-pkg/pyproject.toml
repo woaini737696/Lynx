@@ -9,7 +9,7 @@ description = "Lynx HermesAgent - 本地 AI 代理框架，支持桌面控制、
 readme = "README.md"
 requires-python = ">=3.9"
 license = { text = "MIT" }
-authors = [{ name = "LynnHub" }]
+authors = [{ name = "Lynn" }]
 keywords = ["ai", "agent", "automation", "llm", "hermes"]
 classifiers = [
     "Development Status :: 4 - Beta",

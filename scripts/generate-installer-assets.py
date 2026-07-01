@@ -124,8 +124,8 @@ def make_nsis_sidebar():
     # 宣传文案（自动换行）
     font_slogan = find_font(14, bold=True)
     slogan_line1 = "Lynx AI工作台"
-    slogan_line2 = "不用学"
-    slogan_line3 = "直接干"
+    slogan_line2 = "用Lynx AI"
+    slogan_line3 = "人人都是超级个体"
 
     for i, line in enumerate([slogan_line1, slogan_line2, slogan_line3]):
         bbox = draw.textbbox((0, 0), line, font=font_slogan)
@@ -137,13 +137,13 @@ def make_nsis_sidebar():
     # 底部装饰线 + 版本信息
     draw.line([(30, 270), (W - 30, 270)], fill=(43, 127, 255, 100), width=1)
     font_ver = find_font(9)
-    ver_text = "v1.0.12"
+    ver_text = "v1.0.30"
     bbox = draw.textbbox((0, 0), ver_text, font=font_ver)
     tw = bbox[2] - bbox[0]
     draw.text(((W - tw) // 2, 280), ver_text, fill=LIGHT_GRAY, font=font_ver)
 
     font_org = find_font(8)
-    org_text = "© 2026 LynnHub"
+    org_text = "© 2026 Lynn"
     bbox = draw.textbbox((0, 0), org_text, font=font_org)
     tw = bbox[2] - bbox[0]
     draw.text(((W - tw) // 2, 295), org_text, fill=LIGHT_GRAY, font=font_org)

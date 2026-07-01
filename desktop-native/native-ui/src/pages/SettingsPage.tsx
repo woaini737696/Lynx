@@ -392,7 +392,7 @@ export function SettingsPage() {
                       <input
                         value={newDir}
                         onChange={(e) => setNewDir(e.target.value)}
-                        placeholder="输入绝对路径，如 D:\\LynnHub\\user-data"
+                        placeholder="输入绝对路径，如 D:\\Lynx\\user-data"
                         className="h-10 flex-1 rounded-xl border border-border/60 bg-background/60 px-3 text-sm text-foreground outline-none focus:border-primary focus:ring-1 focus:ring-primary"
                       />
                       <button

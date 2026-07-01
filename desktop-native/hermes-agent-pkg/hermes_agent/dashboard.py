@@ -166,7 +166,7 @@ class DashboardHandler(BaseHTTPRequestHandler):
       Hermes Agent 已就绪。通过 Lynx 桌面端「超级助理」发送任务，
       或在终端执行 <code style="background:#f3f4f6;padding:2px 6px;border-radius:4px;">hermes -z "你的任务" --yolo</code>
     </p>
-    <div class="footer">© 2026 LynnHub · Lynx AI工作台</div>
+    <div class="footer">© 2026 Lynn · Lynx AI工作台</div>
   </div>
 </body>
 </html>"""

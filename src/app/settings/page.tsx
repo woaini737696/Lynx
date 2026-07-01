@@ -1314,23 +1314,10 @@ function HermesConfigSection() {
     "查询今天北京天气",
   ];
 
-  // ============ Web 端 HermesAgent 安装/启动/更新（通过下载 .bat 脚本实现）============
-  // 架构说明：Web 端部署在云服务器，API route 在服务器端执行，无法在用户本地执行 pip install/启动进程。
-  // 因此 Web 端的"一键安装/启动/更新"通过下载自动 .bat 脚本实现，用户双击运行即可完成全部操作。
-  // 浏览器应用天然无法直接在用户本地执行命令（Web 安全限制），.bat 脚本是最接近"一键安装"的方案。
-
-  /** 下载文本文件（用于生成 .bat 脚本） */
-  const downloadScript = (filename: string, content: string) => {
-    const blob = new Blob([content], { type: "application/octet-stream" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = filename;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-  };
+  // ============ Web 端 HermesAgent 安装/启动/更新（方案A：委托桌面端执行）============
+  // 架构说明：浏览器无法在用户本地执行命令（安全限制）。
+  // 方案A：Web 端检测本地 Dashboard 是否在线；不在线时检测是否有桌面端在线，
+  // 有就通过 WS 网关委托桌面端执行安装/启动/停止/更新；没有桌面端就提示下载桌面端。
 
   /** 检测本地 Dashboard 状态（前端直接 fetch localhost:9119） */
   const checkLocalDashboard = async (): Promise<{ online: boolean; version?: string }> => {
@@ -1349,6 +1336,40 @@ function HermesConfigSection() {
     return { online: false };
   };
 
+  /** 检测是否有在线设备（通过 WS 网关 /devices API） */
+  const checkOnlineDevices = async (): Promise<{ hasDevice: boolean; devices: any[] }> => {
+    try {
+      const res = await fetch("/api/devices");
+      if (res.ok) {
+        const data = await res.json();
+        const devices = Array.isArray(data.devices) ? data.devices : [];
+        return { hasDevice: devices.length > 0, devices };
+      }
+    } catch {
+      // API 不可用
+    }
+    return { hasDevice: false, devices: [] };
+  };
+
+  /** 通过 WS 网关委托在线设备执行特殊命令 */
+  const dispatchToDevice = async (command: string): Promise<{ success: boolean; output?: string; error?: string }> => {
+    try {
+      const res = await fetch("/api/hermes/dispatch", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ command }),
+      });
+      const data = await res.json();
+      return {
+        success: data.success === true,
+        output: data.output,
+        error: data.error,
+      };
+    } catch (e: any) {
+      return { success: false, error: e.message };
+    }
+  };
+
   /** 简单版本号比较（返回 >0 表示 a>b, 0 相等, <0 a<b） */
   const compareVersionsSimple = (a: string, b: string): number => {
     const pa = a.split(".").map(Number);
@@ -1362,49 +1383,79 @@ function HermesConfigSection() {
     return 0;
   };
 
-  // 一键安装 HermesAgent — 下载自动安装脚本（.bat）
-  // 脚本内容：检测Python → 下载wheel → pip install --force-reinstall → 启动Dashboard
+  // 一键安装 HermesAgent — 委托桌面端执行
   const handleInstall = async () => {
+    // 1. 先检测本地 Dashboard 是否已运行
+    const local = await checkLocalDashboard();
+    if (local.online) {
+      toast("HermesAgent 已安装并运行中（v" + (local.version || "未知") + "），无需重复安装", "success");
+      loadStatus();
+      return;
+    }
+
+    // 2. 检测是否有桌面端在线
     setInstalling(true);
-    try {
-      // 获取服务器最新版本信息
-      const res = await fetch("/api/hermes/update");
-      const data = await res.json().catch(() => ({}));
-      const wheelFile = data.wheelFile || "hermes_agent-0.18.0-py3-none-any.whl";
-      const version = data.latestVersion || "0.18.0";
-
-      const script = `@echo off\r\nchcp 65001 >nul\r\ntitle Lynx HermesAgent 一键安装 v${version}\r\necho ========================================\r\necho   Lynx HermesAgent 一键安装\r\necho   用Lynx AI，人人都是超级个体\r\necho ========================================\r\necho.\r\n\r\nREM 检测Python\r\necho [1/4] 检测 Python 环境...\r\npython --version >nul 2>&1\r\nif errorlevel 1 (\r\n    echo [错误] 未检测到 Python！\r\n    echo 请先安装 Python 3.9+ : https://python.org/downloads\r\n    echo 安装时请勾选 \"Add Python to PATH\"\r\n    pause\r\n    exit /b 1\r\n)\r\npython --version\r\n\r\nREM 下载 HermesAgent wheel\r\necho.\r\necho [2/4] 下载 HermesAgent v${version}...\r\nset WHL_URL=https://ai.lynxdo.com/downloads/${wheelFile}\r\nset WHL_PATH=%TEMP%\\${wheelFile}\r\npowershell -Command \"try { Invoke-WebRequest -Uri '%WHL_URL%' -OutFile '%WHL_PATH%' -UseBasicParsing } catch { Write-Host '下载失败:' $_.Exception.Message; exit 1 }\"\r\nif errorlevel 1 (\r\n    echo [错误] 下载 HermesAgent 失败，请检查网络连接\r\n    pause\r\n    exit /b 1\r\n)\r\n\r\nREM 安装 HermesAgent\r\necho.\r\necho [3/4] 安装 HermesAgent（pip install --upgrade）...\r\npip install --upgrade --force-reinstall --no-deps \"%WHL_PATH%\"\r\nif errorlevel 1 (\r\n    echo [错误] 安装失败\r\n    pause\r\n    exit /b 1\r\n)\r\n\r\nREM 清理下载文件\r\ndel \"%WHL_PATH%\" 2>nul\r\n\r\nREM 启动 Dashboard\r\necho.\r\necho [4/4] 启动 HermesAgent Dashboard...\r\nstart /b hermes dashboard --port 9119 --no-open\r\n\r\necho.\r\necho ========================================\r\necho   安装完成！\r\necho   Dashboard 已在 http://localhost:9119 运行\r\necho   请返回浏览器刷新页面\r\necho ========================================\r\necho.\r\necho 按任意键关闭此窗口（Dashboard 将继续在后台运行）\r\npause >nul\r\n`;
-      downloadScript("install-hermes-agent.bat", script);
-      toast("安装脚本已下载，请到下载文件夹双击运行 install-hermes-agent.bat", "success");
-    } catch (e: any) {
-      toast("生成安装脚本失败：" + e.message, "error");
-    } finally {
+    const { hasDevice } = await checkOnlineDevices();
+    if (!hasDevice) {
+      toast("未检测到在线的桌面端。请先安装并打开 Lynx 桌面端，Web 端将通过桌面端一键安装 HermesAgent", "error");
       setInstalling(false);
+      return;
     }
+
+    // 3. 委托桌面端执行安装
+    const result = await dispatchToDevice("__LYNN_CMD__:install_hermes");
+    if (result.success) {
+      toast(result.output || "HermesAgent 安装完成", "success");
+      loadStatus();
+    } else {
+      toast("安装失败：" + (result.error || "未知错误"), "error");
+    }
+    setInstalling(false);
   };
 
-  // 一键启动 HermesAgent Dashboard — 下载启动脚本
+  // 一键启动 HermesAgent Dashboard — 委托桌面端执行
   const handleStart = async () => {
-    setStarting(true);
-    try {
-      const script = `@echo off\r\nchcp 65001 >nul\r\ntitle Lynx HermesAgent Dashboard\r\necho 正在启动 HermesAgent Dashboard...\r\nstart /b hermes dashboard --port 9119 --no-open\r\necho.\r\necho ========================================\r\necho   Dashboard 已启动！\r\necho   访问地址：http://localhost:9119\r\necho   请返回浏览器刷新页面\r\necho ========================================\r\ntimeout /t 3 >nul\r\n`;
-      downloadScript("start-hermes-agent.bat", script);
-      toast("启动脚本已下载，请双击运行 start-hermes-agent.bat", "success");
-    } catch (e: any) {
-      toast("生成启动脚本失败：" + e.message, "error");
-    } finally {
-      setStarting(false);
+    // 1. 先检测本地 Dashboard 是否已运行
+    const local = await checkLocalDashboard();
+    if (local.online) {
+      toast("Dashboard 已在运行中（v" + (local.version || "未知") + "）", "success");
+      loadStatus();
+      return;
     }
+
+    // 2. 检测是否有桌面端在线
+    setStarting(true);
+    const { hasDevice } = await checkOnlineDevices();
+    if (!hasDevice) {
+      toast("未检测到在线的桌面端。请先安装并打开 Lynx 桌面端", "error");
+      setStarting(false);
+      return;
+    }
+
+    // 3. 委托桌面端启动 Dashboard
+    const result = await dispatchToDevice("__LYNN_CMD__:start_dashboard");
+    if (result.success) {
+      toast(result.output || "Dashboard 已启动", "success");
+      loadStatus();
+    } else {
+      toast("启动失败：" + (result.error || "未知错误"), "error");
+    }
+    setStarting(false);
   };
 
-  // 一键停止 HermesAgent Dashboard — 下载停止脚本
+  // 一键停止 HermesAgent Dashboard — 委托桌面端执行
   const handleStop = async () => {
-    try {
-      const script = `@echo off\r\nchcp 65001 >nul\r\necho 正在停止 HermesAgent Dashboard...\r\ntaskkill /f /im hermes.exe 2>nul\r\necho Dashboard 已停止\r\ntimeout /t 2 >nul\r\n`;
-      downloadScript("stop-hermes-agent.bat", script);
-      toast("停止脚本已下载，请双击运行 stop-hermes-agent.bat", "success");
-    } catch (e: any) {
-      toast("生成停止脚本失败：" + e.message, "error");
+    const { hasDevice } = await checkOnlineDevices();
+    if (!hasDevice) {
+      toast("未检测到在线的桌面端", "error");
+      return;
+    }
+    const result = await dispatchToDevice("__LYNN_CMD__:stop_dashboard");
+    if (result.success) {
+      toast(result.output || "Dashboard 已停止", "success");
+      loadStatus();
+    } else {
+      toast("停止失败：" + (result.error || "未知错误"), "error");
     }
   };
 
@@ -1428,8 +1479,18 @@ function HermesConfigSection() {
 
       const latestVersion = data.latestVersion;
       if (!currentVersion) {
-        // 本地 Dashboard 未运行，无法检测当前版本
-        toast("未检测到本地 Dashboard 运行，最新版本为 v" + latestVersion + "，请先点击一键安装/一键启动", "error");
+        // 本地 Dashboard 未运行，尝试通过桌面端检测
+        const { hasDevice } = await checkOnlineDevices();
+        if (hasDevice) {
+          const result = await dispatchToDevice("__LYNN_CMD__:check_update");
+          if (result.success) {
+            toast(result.output || "检查完成", "success");
+          } else {
+            toast("未检测到本地 Dashboard 运行，最新版本为 v" + latestVersion + "，请先点击一键启动", "error");
+          }
+        } else {
+          toast("未检测到本地 Dashboard 运行，最新版本为 v" + latestVersion + "，请先点击一键安装/一键启动", "error");
+        }
         return;
       }
 
@@ -1457,21 +1518,28 @@ function HermesConfigSection() {
     }
   };
 
-  // 执行更新 — 下载更新脚本（强制升级 + 重启Dashboard）
+  // 执行更新 — 委托桌面端强制升级
   const handleUpdate = async () => {
     setUpdating(true);
     try {
-      const res = await fetch("/api/hermes/update");
-      const data = await res.json();
-      const wheelFile = data.wheelFile || "hermes_agent-0.18.0-py3-none-any.whl";
-      const version = data.latestVersion || "0.18.0";
+      const { hasDevice } = await checkOnlineDevices();
+      if (!hasDevice) {
+        toast("未检测到在线的桌面端，无法执行更新", "error");
+        setUpdating(false);
+        return;
+      }
 
-      const script = `@echo off\r\nchcp 65001 >nul\r\ntitle Lynx HermesAgent 更新到 v${version}\r\necho ========================================\r\necho   HermesAgent 更新到 v${version}\r\necho ========================================\r\necho.\r\n\r\necho [1/4] 下载 HermesAgent v${version}...\r\nset WHL_URL=https://ai.lynxdo.com/downloads/${wheelFile}\r\nset WHL_PATH=%TEMP%\\${wheelFile}\r\npowershell -Command \"try { Invoke-WebRequest -Uri '%WHL_URL%' -OutFile '%WHL_PATH%' -UseBasicParsing } catch { Write-Host '下载失败:' $_.Exception.Message; exit 1 }\"\r\nif errorlevel 1 (\r\n    echo [错误] 下载失败\r\n    pause\r\n    exit /b 1\r\n)\r\n\r\necho.\r\necho [2/4] 停止旧版 Dashboard...\r\ntaskkill /f /im hermes.exe 2>nul\r\n\r\necho.\r\necho [3/4] 安装 HermesAgent v${version}...\r\npip install --upgrade --force-reinstall --no-deps \"%WHL_PATH%\"\r\nif errorlevel 1 (\r\n    echo [错误] 安装失败\r\n    pause\r\n    exit /b 1\r\n)\r\n\r\ndel \"%WHL_PATH%\" 2>nul\r\n\r\necho.\r\necho [4/4] 启动 Dashboard...\r\nstart /b hermes dashboard --port 9119 --no-open\r\n\r\necho.\r\necho ========================================\r\necho   更新完成！已升级到 v${version}\r\necho   Dashboard 已启动\r\necho   请返回浏览器刷新页面\r\necho ========================================\r\npause >nul\r\n`;
-      downloadScript("update-hermes-agent.bat", script);
-      toast("更新脚本已下载，请双击运行 update-hermes-agent.bat", "success");
-      setUpdateInfo(null);
+      // 委托桌面端执行强制升级
+      const result = await dispatchToDevice("__LYNN_CMD__:update_hermes");
+      if (result.success) {
+        toast(result.output || "HermesAgent 已升级到最新版本", "success");
+        setUpdateInfo(null);
+        loadStatus();
+      } else {
+        toast("更新失败：" + (result.error || "未知错误"), "error");
+      }
     } catch (e: any) {
-      toast("生成更新脚本失败：" + e.message, "error");
+      toast("更新请求失败：" + e.message, "error");
     } finally {
       setUpdating(false);
     }
