@@ -16,6 +16,8 @@ import {
   Cpu,
   Rocket,
   ExternalLink,
+  RefreshCw,
+  DownloadCloud,
 } from "lucide-react";
 import { useEffect, useState } from "react";
 
@@ -46,6 +48,15 @@ interface InstallProgress {
   percent: number;
 }
 
+interface HermesUpdateInfo {
+  hasUpdate: boolean;
+  currentVersion: string | null;
+  latestVersion: string;
+  wheel: string;
+  releaseNotes: string;
+  publishedAt: string;
+}
+
 const CAPABILITIES = [
   { key: "computer_use", label: "桌面控制", desc: "截图、鼠标键盘操作", icon: Monitor },
   { key: "shell", label: "Shell 命令", desc: "执行系统命令和脚本", icon: Terminal },
@@ -65,6 +76,10 @@ export function HermesPanel() {
   const [isInstalling, setIsInstalling] = useState(false);
   // 测试运行中标志：调用本地 HermesAgent HTTP API 验证可用性
   const [testing, setTesting] = useState(false);
+  // 检查更新结果（hasUpdate / latestVersion / 等）
+  const [updateInfo, setUpdateInfo] = useState<HermesUpdateInfo | null>(null);
+  // 升级进度（监听 install-progress 事件，复用同一 payload）
+  const [updateProgress, setUpdateProgress] = useState<InstallProgress | null>(null);
 
   // 本地检测 AI 环境（通过 Tauri 命令，不走云端 API）
   // 安装期间暂停 refetch + 禁用查询，避免 detect_ai_env 调用子进程导致控制台闪烁
@@ -251,6 +266,55 @@ export function HermesPanel() {
     await invoke("open_external", { url: endpoint });
   };
 
+  // 检查更新：调用 Rust 端 check_hermes_update 命令对比本机版本与服务器 latest.json
+  const checkUpdateMutation = useMutation({
+    mutationFn: async () => {
+      return invoke<HermesUpdateInfo>("check_hermes_update");
+    },
+    onSuccess: (data) => {
+      setUpdateInfo(data);
+      if (data.hasUpdate) {
+        toast.success(`发现新版本 v${data.latestVersion}`);
+      } else {
+        toast.success(`已是最新版本（v${data.currentVersion || data.latestVersion}）`);
+      }
+    },
+    onError: (e: unknown) => {
+      toast.error(e instanceof Error ? e.message : "检查更新失败");
+    },
+  });
+
+  // 立即更新：调用 Rust 端 update_hermes_agent 命令强制升级
+  const doUpdateMutation = useMutation({
+    mutationFn: async () => {
+      setUpdateProgress({ step: 0, total: 3, message: "开始升级...", percent: 0 });
+      // 监听升级进度（复用 install-progress 事件）
+      const unlisten = await listen<InstallProgress>("install-progress", (p) => {
+        setUpdateProgress(p);
+      });
+      try {
+        return await invoke<{ success: boolean; message?: string; version?: string }>("update_hermes_agent");
+      } finally {
+        unlisten();
+      }
+    },
+    onSuccess: (data) => {
+      setUpdateProgress(null);
+      if (data.success) {
+        toast.success(data.message || "升级成功");
+        setUpdateInfo(null);
+        queryClient.invalidateQueries({ queryKey: ["local-ai-env"] });
+        queryClient.invalidateQueries({ queryKey: ["dashboard-online"] });
+      } else {
+        toast.error(data.message || "升级失败");
+      }
+    },
+    onError: (e: unknown) => {
+      setUpdateProgress(null);
+      toast.error(e instanceof Error ? e.message : "升级失败");
+    },
+  });
+
   // 测试运行：调用本地 HermesAgent HTTP API 执行一个简单 prompt，验证 Agent 可用性
   const handleTestRun = async () => {
     setTesting(true);
@@ -425,7 +489,98 @@ export function HermesPanel() {
               </button>
             </>
           )}
+          {/* 检查更新按钮：所有状态下都可见 */}
+          <button
+            onClick={() => checkUpdateMutation.mutate()}
+            disabled={checkUpdateMutation.isPending || doUpdateMutation.isPending}
+            className="flex h-10 items-center justify-center gap-1.5 rounded-xl border border-border/60 bg-muted/30 px-4 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground disabled:opacity-50"
+            title="检查 HermesAgent 是否有新版本"
+          >
+            {checkUpdateMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+            检查更新
+          </button>
         </div>
+
+        {/* 更新信息卡片 */}
+        {updateInfo && (
+          <div
+            className={cn(
+              "rounded-xl border p-3",
+              updateInfo.hasUpdate
+                ? "border-primary/30 bg-primary/5"
+                : "border-green-500/30 bg-green-500/5"
+            )}
+          >
+            <div className="flex items-start justify-between gap-2">
+              <div className="flex-1">
+                <div className="flex items-center gap-1.5 text-sm font-medium">
+                  {updateInfo.hasUpdate ? (
+                    <>
+                      <DownloadCloud className="h-4 w-4 text-primary" />
+                      <span className="text-primary">发现新版本 v{updateInfo.latestVersion}</span>
+                    </>
+                  ) : (
+                    <>
+                      <CheckCircle2 className="h-4 w-4 text-green-500" />
+                      <span className="text-green-600">已是最新版本</span>
+                    </>
+                  )}
+                </div>
+                <div className="mt-1 text-xs text-muted-foreground">
+                  当前版本：{updateInfo.currentVersion || "未知"}
+                  <span className="mx-1.5">·</span>
+                  最新版本：v{updateInfo.latestVersion}
+                  {updateInfo.publishedAt && (
+                    <span className="ml-1.5 text-muted-foreground/70">
+                      （{new Date(updateInfo.publishedAt).toLocaleDateString("zh-CN")}）
+                    </span>
+                  )}
+                </div>
+                {updateInfo.releaseNotes && (
+                  <div className="mt-2 rounded-lg bg-muted/30 p-2 text-xs text-foreground/80">
+                    {updateInfo.releaseNotes}
+                  </div>
+                )}
+              </div>
+              {updateInfo.hasUpdate && (
+                <button
+                  onClick={() => doUpdateMutation.mutate()}
+                  disabled={doUpdateMutation.isPending}
+                  className="btn-primary-glass flex shrink-0 items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-medium"
+                >
+                  {doUpdateMutation.isPending ? (
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  ) : (
+                    <DownloadCloud className="h-3.5 w-3.5" />
+                  )}
+                  立即更新
+                </button>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* 升级进度条 */}
+        {doUpdateMutation.isPending && updateProgress && (
+          <div className="rounded-xl border border-primary/30 bg-primary/5 p-3">
+            <div className="mb-2 flex items-center justify-between text-xs">
+              <span className="flex items-center gap-1.5 font-medium text-primary">
+                <Loader2 className="h-3 w-3 animate-spin" />
+                {updateProgress.message}
+              </span>
+              <span className="text-muted-foreground">{updateProgress.percent}%</span>
+            </div>
+            <div className="h-1.5 overflow-hidden rounded-full bg-muted">
+              <div
+                className="h-full rounded-full bg-primary transition-all duration-300"
+                style={{ width: `${updateProgress.percent}%` }}
+              />
+            </div>
+            <p className="mt-2 text-[11px] text-muted-foreground">
+              步骤 {updateProgress.step}/{updateProgress.total} · 从服务器下载最新 wheel 并强制升级
+            </p>
+          </div>
+        )}
 
         {/* 安装进度 */}
         {installMutation.isPending && installProgress && (

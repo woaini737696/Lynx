@@ -9,6 +9,7 @@
 
 | 迭代 | 日期 | 任务概要 |
 |------|------|----------|
+| [迭代 91](#迭代-91---2026-07-01) | 2026-07-01 | 桌面端v1.0.29+Web端HermesAgent三问题彻底修复：① Web端无法连接本地Dashboard根因(Web端部署在云服务器,API route在服务器端执行pip install/startHermesAgent,但浏览器fetch 127.0.0.1:9119连用户本地,服务器没Dashboard运行。修复方案:Web端"一键安装/启动/停止/更新"全部改为下载自动.bat脚本,用户双击运行完成全部操作-downloadScript+checkLocalDashboard+compareVersionsSimple) ② 桌面端开发者名称LynnHub→Lynn(tauri.conf.json publisher+copyright) ③ 桌面端加检查更新按钮+假成功根因修复(installer.rs检测到已安装就跳过不升级→新增check_hermes_update+update_hermes_agent两个Rust命令,update用--force-reinstall强制覆盖旧版本;HermesPanel.tsx新增检查更新按钮+更新信息卡片+升级进度条;lib.rs注册新命令) + DEVELOPMENT_SPEC.md新增步骤10清理规范(每次完成任务后必须执行cargo clean+清理hermes-agent-pkg构建产物+清理系统临时目录) |
 | [迭代 90](#迭代-90---2026-07-01) | 2026-07-01 | 安卓端v0.1.5四项任务：ASR 400修复(VoiceApiClient multipart字段名audio→file匹配服务端file)+弹窗深色毛玻璃(抽取FrostedGlassDialog公共组件surface0.95f+黑0.45f双层渐变/统一替换3处AlertDialog:TasksScreen/MemoryScreen/TokenAnalysisPage)+首页删三按钮(QuickEntries/QuickEntryCard删除留呼吸球)+Lynx助理P0(ChatPanelViewModel send改assistantMode=true启用工具调用+工具调用结果拼接展示+QuickChip从3个硬编码改为6个对齐Web端QUICK_COMMANDS:今日概览/创建灵感/看板状态/搜索记忆/执行巡检/执行技能) |
 | [迭代 89](#迭代-89---2026-07-01) | 2026-07-01 | Web端三项需求：① C端用户列表去除"参考Kimi/豆包"文案(c-users/page.tsx+help-content.ts) ② 注册弹窗简化为手机号+验证码+邀请码(去除密码和昵称字段,后端自动生成随机密码+昵称默认手机号,注册后用验证码方式signIn直接登录) ③ 信息架构极简优化方向A(侧边栏29项→16项)：新建4个聚合页(/inspiration=Inbox+收敛+墓地, /knowledge=对话资产+认知库+记忆图谱, /automation=AI工作流+飞书任务, /account=钱包+会员)使用visitedTabs懒加载+block/hidden保留state + 新建2个路由级layout(/settings/layout.tsx收纳7个系统子页Tab, /skills/layout.tsx收纳技能管理+市场Tab) + Sidebar NAV_GROUPS精简(灵感收集3→1/知识资产3→1/AI中心6→4/系统8→2/账户2→1) + 清理13个unused lucide图标import |
 | [迭代 88](#迭代-88---2026-07-01) | 2026-07-01 | 安卓端v0.1.4三项问题修复：通话崩溃修复(CallScreen加RECORD_AUDIO运行时权限申请+过渡态+recordWithVad try-catch防御)+记忆图谱改为时间流卡片列表(删除2D力导向Canvas/MemoryGraphCanvas/NodeDetailCard/NodePosition,重写为LazyColumn卡片按时间倒序+分类筛选+点击展开收起+保留搜索FAB)+重画LynxIcons.Search线性放大镜(完整圆arcTo+手柄lineTo)+删除主题设置UI入口(外观分组/ThemePickerDialog/themeLabel/showThemeDialog)+MainActivity强制深色模式(不跟随系统,浅色未适配) |
@@ -436,6 +437,80 @@ Web 端三项需求：① C 端用户列表去除"参考 Kimi/豆包"文案提�
 - **人性设计**：相关功能聚合到同一页面 Tab 切换，减少页面跳转
 - **零破坏性**：原路由全部保留兼容，子页组件零改动，纯前端信息架构调整
 - **性能优化**：visitedTabs 懒加载机制，未访问的 Tab 不 mount 不请求
+
+---
+
+## 迭代 91 - 2026-07-01
+
+### 任务概要
+桌面端 v1.0.29 + Web 端 HermesAgent 三问题彻底修复：① Web 端无法连接本地 Dashboard 根因；② 桌面端开发者名称 LynnHub→Lynn；③ 桌面端加检查更新按钮 + 假成功根因修复。
+
+### 背景问题
+1. **Web 端无法连接本地 Dashboard**：用户反馈"Web 端 HermesAgent 已经更新成功到 0.18.0 了，也启动成功的状态，但还是无法成功调用：无法连接本地 HermesAgent Dashboard（127.0.0.1:9119）"。
+   - **根因**：Web 端部署在云服务器（ai.lynxdo.com），API route 在服务器端执行 `pip install` 和 `startHermesAgent`，但浏览器 fetch `http://127.0.0.1:9119` 连的是用户本地电脑，那里没有 Dashboard 运行。浏览器应用天然无法在用户本地执行命令（Web 安全限制）。
+   - **修复方案**：Web 端"一键安装/启动/停止/更新"全部改为下载自动 .bat 脚本，用户双击运行即可完成全部操作（检测 Python → 下载 wheel → pip install --force-reinstall → 启动 Dashboard）。
+
+2. **桌面端开发者名称错误**：用户反馈"桌面端的开发者名称改成：Lynn，现在是 LynnHub 不对"。
+   - **修复**：`tauri.conf.json` 的 `publisher` 从 "LynnHub" 改为 "Lynn"，`copyright` 也改为 "© 2026 Lynn. All rights reserved."。
+
+3. **桌面端没有检查更新按钮 + 假成功**：用户反馈"桌面端没有检查更新按钮，并且也还是原来一样的问题，提示成功了，但实际没动作"。
+   - **根因**：桌面端使用 `native-ui/HermesPanel.tsx` 组件（不是主项目的 `DesktopHermesSection.tsx`），该组件没有检查更新功能；`installer.rs` 检测到已安装就跳过（"已安装，跳过"），不会升级旧版本 0.17.0。
+   - **修复**：新增 `check_hermes_update` + `update_hermes_agent` 两个 Rust 命令，`update_hermes_agent` 使用 `--force-reinstall` 强制覆盖旧版本；`HermesPanel.tsx` 新增检查更新按钮 + 更新信息卡片 + 升级进度条。
+
+### 完成内容
+
+**Web 端（settings/page.tsx）**：
+1. 新增 `downloadScript(filename, content)` 辅助函数：生成 .bat 脚本下载
+2. 新增 `checkLocalDashboard()` 检测本地 Dashboard 状态：前端直接 fetch localhost:9119/api/status
+3. 新增 `compareVersionsSimple(a, b)` 版本号比较
+4. `handleInstall` 改为生成 `install-hermes-agent.bat`（检测 Python → 下载 wheel → pip install --force-reinstall → 启动 Dashboard）
+5. `handleStart` 改为生成 `start-hermes-agent.bat`
+6. `handleStop` 改为生成 `stop-hermes-agent.bat`
+7. `handleCheckUpdate` 改为前端直接检测本地 Dashboard 版本 + 对比服务器 latest.json
+8. `handleUpdate` 改为生成 `update-hermes-agent.bat`（强制升级 + 重启 Dashboard）
+
+**桌面端 Rust（installer.rs + lib.rs）**：
+1. 新增 `fetch_latest_json()` - 从服务器拉取 latest.json（支持多域名回退）
+2. 新增 `get_local_hermes_version()` - 获取本地版本（优先 Dashboard HTTP API，回退 hermes --version）
+3. 新增 `compare_versions(a, b)` - 简单版本号比较
+4. 新增 `pub async fn check_hermes_update()` - 检查更新公开接口
+5. 新增 `pub async fn update_hermes_agent(app)` - 强制升级（使用 --force-reinstall 覆盖旧版本）
+6. `lib.rs` 注册 `check_hermes_update` + `update_hermes_agent` 两个 Tauri 命令
+
+**桌面端前端（HermesPanel.tsx）**：
+1. 新增 `HermesUpdateInfo` 接口
+2. 新增 `updateInfo` + `updateProgress` 状态
+3. 新增 `checkUpdateMutation` - 调用 `check_hermes_update` 命令
+4. 新增 `doUpdateMutation` - 调用 `update_hermes_agent` 命令
+5. 新增"检查更新"按钮（所有状态下都可见）
+6. 新增更新信息卡片（发现新版本/已是最新版本 + 当前/最新版本对比 + release notes + 立即更新按钮）
+7. 新增升级进度条（步骤 + 百分比 + 消息）
+
+**配置变更**：
+- `tauri.conf.json`：publisher "LynnHub" → "Lynn"，copyright 改为 "© 2026 Lynn. All rights reserved."，version 1.0.28 → 1.0.29
+- `Cargo.toml`：version 1.0.28 → 1.0.29
+- `native-ui/package.json`：version 1.0.26 → 1.0.29
+- `DEVELOPMENT_SPEC.md`：新增"步骤 10：清理临时文件、无用文件、无用进程（必须执行）"规范
+
+### 自测结果
+- ✅ 桌面端 native-ui TypeScript 编译通过（`npx tsc --noEmit --skipLibCheck`）
+- ✅ Web 端 TypeScript 编译通过（`npx tsc --noEmit --skipLibCheck`）
+- ✅ 桌面端 Rust 编译通过（只有 warnings，无 errors）
+- ✅ 桌面端打包成功：`D:\cargo-target-native\release\bundle\nsis\Lynx_1.0.29_x64-setup.exe` (6.62MB)
+- ✅ 已复制到 `D:\LynnHub\downloads\Lynx_1.0.29_x64-setup.exe`
+- ✅ Web 端构建+上传成功（40.38 MB tar.gz）
+- ✅ 服务器 PM2 重启成功（lynx-app + lynx-ws-gateway online）
+- ✅ 健康检查通过：`https://ai.lynxdo.com/api/health` 返回 `{"ok":true}`
+
+### 涉及文件
+- `src/app/settings/page.tsx` - Web 端 HermesConfigSection 重构为 .bat 脚本下载方案
+- `desktop-native/native-ui/src/components/agent/HermesPanel.tsx` - 新增检查更新按钮 + 更新信息卡片 + 升级进度条
+- `desktop-native/src-tauri/src/installer.rs` - 新增 check_hermes_update + update_hermes_agent + 辅助函数
+- `desktop-native/src-tauri/src/lib.rs` - 注册 check_hermes_update + update_hermes_agent Tauri 命令
+- `desktop-native/src-tauri/tauri.conf.json` - publisher 改为 Lynn + version 1.0.29
+- `desktop-native/src-tauri/Cargo.toml` - version 1.0.29
+- `desktop-native/native-ui/package.json` - version 1.0.29
+- `DEVELOPMENT_SPEC.md` - 新增步骤 10 清理规范
 
 ---
 

@@ -285,6 +285,41 @@ git push origin master
 
 **Gitee 仓库**：`https://gitee.com/shenzhens-emotions-are-booming_0/lynn-hub.git`
 
+### 步骤 10：清理临时文件、无用文件、无用进程（必须执行）
+
+每次完成开发任务后，必须执行以下清理操作，确保开发工具不会因垃圾文件累积而越来越卡顿：
+
+```powershell
+# 1. 清理桌面端 Rust 编译缓存（每次打包后必须执行）
+cargo clean --manifest-path desktop-native\src-tauri\Cargo.toml
+
+# 2. 清理 hermes-agent-pkg 构建产物
+Remove-Item -Path "desktop-native\hermes-agent-pkg\dist" -Recurse -Force -ErrorAction SilentlyContinue
+Remove-Item -Path "desktop-native\hermes-agent-pkg\build" -Recurse -Force -ErrorAction SilentlyContinue
+Remove-Item -Path "desktop-native\hermes-agent-pkg\*.egg-info" -Recurse -Force -ErrorAction SilentlyContinue
+
+# 3. 清理系统临时目录中的 HermesAgent 安装文件
+Remove-Item -Path "$env:TEMP\lynnhub-hermes-install" -Recurse -Force -ErrorAction SilentlyContinue
+Remove-Item -Path "$env:TEMP\hermes_local_run" -Recurse -Force -ErrorAction SilentlyContinue
+
+# 4. 清理打包临时文件
+Remove-Item -Path "D:\LynnHub\Temp\lynx-standalone.tar.gz" -Force -ErrorAction SilentlyContinue
+
+# 5. 清理 Next.js 构建缓存（仅在需要释放空间时执行）
+# Remove-Item -Path ".next\cache" -Recurse -Force -ErrorAction SilentlyContinue
+
+# 6. 运行 Trae Solo 缓存清理脚本（深度清理）
+# powershell -ExecutionPolicy Bypass -File scripts\clean-trae-cache.ps1
+```
+
+**清理规范要点**：
+- 每次迭代完成后**必须执行**清理，不允许跳过
+- 桌面端打包后必须执行 `cargo clean`，防止 cargo-target 目录累积超过 10GB
+- hermes-agent-pkg 打包后必须清理 dist/build/*.egg-info 目录
+- 系统临时目录中的安装文件必须清理
+- 清理完成后确认无残留的临时进程（如 hermes dashboard 子进程）
+- 每周执行一次 `scripts\clean-trae-cache.ps1` 深度清理（需关闭 Trae Solo 后执行）
+
 ---
 
 ## 四、域名与 DNS

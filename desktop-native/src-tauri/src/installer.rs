@@ -412,3 +412,220 @@ pub async fn install_ai_environment(app: AppHandle) -> Result<serde_json::Value,
         "status": final_check,
     }))
 }
+
+// ============ HermesAgent 版本检测与升级（迭代87 新增） ============
+
+/// 服务器 latest.json URL（依次尝试多个域名）
+const LATEST_JSON_URLS: &[&str] = &[
+    "https://ai.lynxdo.com/downloads/latest.json",
+    "https://app.lynnhub.com/downloads/latest.json",
+];
+
+/// 从服务器拉取 latest.json
+async fn fetch_latest_json() -> Result<serde_json::Value, String> {
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(15))
+        .build()
+        .map_err(|e| format!("构建 HTTP client 失败: {}", e))?;
+
+    let mut last_err = String::new();
+    for url in LATEST_JSON_URLS {
+        match client.get(*url).send().await {
+            Ok(resp) if resp.status().is_success() => {
+                let json: serde_json::Value = resp.json().await
+                    .map_err(|e| format!("解析 latest.json 失败: {}", e))?;
+                return Ok(json);
+            }
+            Ok(resp) => {
+                last_err = format!("HTTP {} ({})", resp.status(), url);
+            }
+            Err(e) => {
+                last_err = format!("{}: {}", url, e);
+            }
+        }
+    }
+    Err(format!("拉取 latest.json 失败: {}", last_err))
+}
+
+/// 获取本地 HermesAgent 版本（优先 Dashboard HTTP API，回退 hermes --version）
+async fn get_local_hermes_version() -> Option<String> {
+    // 1. 优先通过 Dashboard /api/status 获取（最准确，运行中才有）
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(3))
+        .build()
+        .ok()?;
+    match client.get("http://127.0.0.1:9119/api/status").send().await {
+        Ok(resp) if resp.status().is_success() => {
+            let json: serde_json::Value = resp.json().await.ok()?;
+            if let Some(v) = json.get("version").and_then(|v| v.as_str()) {
+                return Some(v.to_string());
+            }
+        }
+        _ => {}
+    }
+    // 2. 回退到 hermes --version 命令
+    if let Some(hermes_path) = find_hermes_exe() {
+        let mut cmd = tokio::process::Command::new(&hermes_path);
+        cmd.arg("--version");
+        if let Ok(out) = tokio::time::timeout(
+            std::time::Duration::from_secs(3),
+            no_window(&mut cmd).output(),
+        ).await {
+            if let Ok(out) = out {
+                if out.status.success() {
+                    let ver = String::from_utf8_lossy(&out.stdout).trim().to_string();
+                    // 提取版本号（"hermes-agent 0.18.0" -> "0.18.0"）
+                    let ver = ver.split_whitespace().last().unwrap_or(&ver).to_string();
+                    return Some(ver);
+                }
+            }
+        }
+    }
+    None
+}
+
+/// 简单版本号比较（返回 >0 表示 a>b, 0 相等, <0 a<b）
+fn compare_versions(a: &str, b: &str) -> i32 {
+    let pa: Vec<u32> = a.split('.').filter_map(|s| s.parse().ok()).collect();
+    let pb: Vec<u32> = b.split('.').filter_map(|s| s.parse().ok()).collect();
+    let max_len = pa.len().max(pb.len());
+    for i in 0..max_len {
+        let va = pa.get(i).copied().unwrap_or(0);
+        let vb = pb.get(i).copied().unwrap_or(0);
+        if va > vb { return 1; }
+        if va < vb { return -1; }
+    }
+    0
+}
+
+/// 检查 HermesAgent 更新（公开接口，供 lib.rs 调用）
+pub async fn check_hermes_update() -> Result<serde_json::Value, String> {
+    log::info!("检查 HermesAgent 更新...");
+
+    // 1. 获取本地版本
+    let local_version = get_local_hermes_version().await;
+    log::info!("本地 HermesAgent 版本: {:?}", local_version);
+
+    // 2. 拉取服务器 latest.json
+    let latest = fetch_latest_json().await?;
+    let latest_version = latest.get("version").and_then(|v| v.as_str())
+        .ok_or("latest.json 缺少 version 字段")?.to_string();
+    let wheel = latest.get("wheel").and_then(|v| v.as_str())
+        .unwrap_or("").to_string();
+    let release_notes = latest.get("releaseNotes").and_then(|v| v.as_str())
+        .unwrap_or("").to_string();
+    let published_at = latest.get("publishedAt").and_then(|v| v.as_str())
+        .unwrap_or("").to_string();
+
+    // 3. 比较版本（无法获取本地版本时，认为有更新以兜底）
+    let has_update = match &local_version {
+        Some(local) => compare_versions(local, &latest_version) < 0,
+        None => true,
+    };
+
+    Ok(json!({
+        "hasUpdate": has_update,
+        "currentVersion": local_version,
+        "latestVersion": latest_version,
+        "wheel": wheel,
+        "releaseNotes": release_notes,
+        "publishedAt": published_at,
+    }))
+}
+
+/// 强制升级 HermesAgent（使用 --force-reinstall 确保旧版本被覆盖）
+/// 解决 installer.rs 中检测到已安装就跳过导致旧版本无法升级的问题
+pub async fn update_hermes_agent(app: AppHandle) -> Result<serde_json::Value, String> {
+    log::info!("开始强制升级 HermesAgent...");
+    let total_steps: u8 = 3;
+
+    // Step 1: 拉取最新版本信息
+    emit_progress(&app, 1, total_steps, "正在获取最新版本信息...", 10);
+    let latest = fetch_latest_json().await?;
+    let wheel_filename = latest.get("wheel").and_then(|v| v.as_str())
+        .ok_or("latest.json 缺少 wheel 字段")?.to_string();
+    let latest_version = latest.get("version").and_then(|v| v.as_str())
+        .unwrap_or("").to_string();
+
+    // Step 2: 下载 wheel
+    emit_progress(&app, 2, total_steps, &format!("正在下载 HermesAgent v{}...", latest_version), 40);
+
+    let pip_path = find_pip_exe()
+        .ok_or_else(|| "未找到 pip 可执行文件".to_string())?;
+
+    let server_urls = [
+        "https://ai.lynxdo.com/downloads/".to_string() + &wheel_filename,
+        "https://app.lynnhub.com/downloads/".to_string() + &wheel_filename,
+    ];
+
+    let tmp_dir = std::env::temp_dir().join("lynnhub-hermes-install");
+    std::fs::create_dir_all(&tmp_dir).map_err(|e| format!("创建临时目录失败: {}", e))?;
+    let local_whl = tmp_dir.join(&wheel_filename);
+
+    // 删除旧的 wheel 文件（避免文件名不同时累积）
+    if std::path::Path::new(&local_whl).exists() {
+        let _ = std::fs::remove_file(&local_whl);
+    }
+
+    let mut downloaded = false;
+    let mut last_err = String::new();
+    for url in &server_urls {
+        match download_file(url, &local_whl).await {
+            Ok(size) => {
+                log::info!("HermesAgent wheel 下载成功: {} 字节", size);
+                downloaded = true;
+                break;
+            }
+            Err(e) => {
+                log::warn!("从 {} 下载失败: {}", url, e);
+                last_err = e;
+            }
+        }
+    }
+
+    if !downloaded {
+        return Err(format!("下载 HermesAgent 失败: {}", last_err));
+    }
+
+    // Step 3: pip install --force-reinstall（强制升级覆盖旧版本）
+    emit_progress(&app, 3, total_steps, "正在安装（强制升级）...", 70);
+
+    let mut pip_cmd = tokio::process::Command::new(&pip_path);
+    pip_cmd.args(&[
+        "install",
+        "--disable-pip-version-check",
+        "--force-reinstall",
+        "--no-deps",
+        local_whl.to_str().unwrap_or(""),
+    ]);
+    pip_cmd.kill_on_drop(true);
+
+    let pip_install_result = tokio::time::timeout(
+        std::time::Duration::from_secs(120),
+        no_window(&mut pip_cmd).output(),
+    )
+    .await
+    .map_err(|_| "HermesAgent 升级超时（120秒）".to_string())?
+    .map_err(|e| format!("pip 执行失败: {}", e))?;
+
+    if !pip_install_result.status.success() {
+        let stderr = String::from_utf8_lossy(&pip_install_result.stderr);
+        let stdout = String::from_utf8_lossy(&pip_install_result.stdout);
+        log::warn!("HermesAgent 升级失败: stderr={}, stdout={}", stderr, stdout);
+        return Err(format!(
+            "HermesAgent 升级失败: {}",
+            if stderr.is_empty() { stdout.to_string() } else { stderr.to_string() }
+        ));
+    }
+
+    // 清理临时文件
+    let _ = std::fs::remove_file(&local_whl);
+
+    emit_progress(&app, 3, total_steps, "升级完成", 100);
+
+    Ok(json!({
+        "success": true,
+        "message": format!("HermesAgent 已升级到 v{}", latest_version),
+        "version": latest_version,
+    }))
+}
