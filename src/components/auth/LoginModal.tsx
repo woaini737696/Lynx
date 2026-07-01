@@ -2,7 +2,7 @@
 
 // 登录弹窗：液态玻璃样式，符合 iOS 26 Liquid Glass 规范
 // 两种登录模式：手机号+密码（默认） / 手机号+验证码
-// 注册面板：手机号 + 验证码 + 邀请码 + 密码
+// 注册面板：手机号 + 验证码 + 邀请码（极简，密码自动生成，昵称默认手机号）
 // 万能验证码：从数据库读取，管理员可在设置页配置和开关
 
 import { useEffect, useRef, useState, forwardRef } from "react";
@@ -50,10 +50,9 @@ export function LoginModal({
 
   // 表单字段
   const [phone, setPhone] = useState("");
-  const [password, setPassword] = useState("");
+  const [password, setPassword] = useState(""); // 仅登录 phone-password 模式使用
   const [code, setCode] = useState("");
   const [inviteCode, setInviteCode] = useState("");
-  const [displayName, setDisplayName] = useState("");
 
   // UI 状态
   const [loading, setLoading] = useState(false);
@@ -191,10 +190,6 @@ export function LoginModal({
       setError("请输入邀请码");
       return;
     }
-    if (password.length < 6) {
-      setError("密码至少 6 位");
-      return;
-    }
 
     setLoading(true);
     try {
@@ -205,8 +200,7 @@ export function LoginModal({
           phone,
           code,
           inviteCode: inviteCode.trim().toUpperCase(),
-          password,
-          displayName: displayName.trim() || undefined,
+          // password 与 displayName 不传：后端自动生成随机密码、昵称默认手机号
         }),
       });
       const data = await res.json();
@@ -214,20 +208,20 @@ export function LoginModal({
         setError(data.error || "注册失败");
         return;
       }
-      // 注册成功，使用注册返回的 token 直接登录（next-auth 走一次 signIn）
+      // 注册成功：用验证码方式直接登录（万能验证码可复用）
       const signInRes = await signIn("credentials", {
         phone,
-        password,
+        code,
         redirect: false,
       });
       if (signInRes?.ok) {
         onSuccess();
         return;
       }
-      // 若 signIn 失败，提示用户手动登录
+      // 若 signIn 失败，切到验证码登录面板提示用户手动登录
       setPanel("login");
-      setMode("phone-password");
-      setError("注册成功，请使用手机号+密码登录");
+      setMode("phone-code");
+      setError("注册成功，请使用验证码登录");
     } catch {
       setError("网络错误，请重试");
     } finally {
@@ -515,29 +509,11 @@ export function LoginModal({
                 maxLength={32}
               />
 
-              <Field
-                id="password-register"
-                label="设置密码（至少 6 位）"
-                icon={Lock}
-                type="password"
-                value={password}
-                onChange={setPassword}
-                placeholder="请设置登录密码"
-                autoComplete="new-password"
-                disabled={loading}
-              />
-
-              <Field
-                id="display-name"
-                label="昵称（可选）"
-                icon={User}
-                type="text"
-                value={displayName}
-                onChange={setDisplayName}
-                placeholder="不填则使用手机号"
-                disabled={loading}
-                maxLength={50}
-              />
+              {/* 极简注册提示 */}
+              <div className="flex items-center gap-1.5 rounded-lg bg-muted-foreground/5 px-2.5 py-1.5 text-[11px] text-muted-foreground">
+                <Sparkles className="h-3 w-3 shrink-0" />
+                <span>注册即登录，密码自动生成，可用验证码或重置密码登录</span>
+              </div>
 
               {/* 错误提示 */}
               {error && (

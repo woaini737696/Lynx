@@ -345,7 +345,7 @@ export default function CUsersPage() {
     <div className="p-4 sm:p-8">
       <PageHeader
         title="C 端用户管理"
-        subtitle="管理自注册的 C 端用户（参考 Kimi/豆包）"
+        subtitle="管理自注册的 C 端用户"
         action={<HelpButton contentKey="admin-c-users" />}
       />
 

@@ -6,12 +6,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Target,
   KanbanSquare,
-  MessageSquare,
   Brain,
-  BookOpen,
-  Skull,
   Inbox,
-  Moon,
   Settings,
   PanelLeft,
   X,
@@ -24,22 +20,13 @@ import {
   Workflow,
   Bot,
   Wrench,
-  Store,
-  ListTodo,
-  Radar,
-  MessageCircle,
-  Bell,
-  Activity,
-  Database,
   ScrollText,
-  Monitor,
   Users,
   UserCircle,
   Shield,
   Briefcase,
   Coins,
   Wallet,
-  Crown,
   LogOut,
   Loader2,
   Settings2,
@@ -78,28 +65,29 @@ const NAV_GROUPS: NavGroup[] = [
       { href: "/board", label: "决策看板", icon: KanbanSquare, color: "text-campaign" },
     ],
   },
+  // 信息架构精简：灵感收集 3 项合并为 1 项（/inspiration 聚合页 Tab 切换）
   {
     id: "capture",
     label: "灵感收集",
     icon: Inbox,
     color: "text-foreground",
     items: [
-      { href: "/inbox", label: "Inbox", icon: Inbox, color: "text-foreground" },
-      { href: "/converge", label: "灵感收敛", icon: Moon, color: "text-northstar" },
-      { href: "/graveyard", label: "灵感墓地", icon: Skull, color: "text-graveyard" },
+      { href: "/inspiration", label: "灵感", icon: Inbox, color: "text-foreground" },
     ],
   },
+  // 信息架构精简：知识资产 3 项合并为 1 项（/knowledge 聚合页 Tab 切换）
   {
     id: "assets",
     label: "知识资产",
     icon: Brain,
     color: "text-cognition",
     items: [
-      { href: "/assets", label: "对话资产", icon: MessageSquare, color: "text-campaign" },
-      { href: "/cognition", label: "认知库", icon: BookOpen, color: "text-cognition" },
-      { href: "/memory", label: "记忆图谱", icon: Brain, color: "text-cognition" },
+      { href: "/knowledge", label: "知识", icon: Brain, color: "text-cognition" },
     ],
   },
+  // 信息架构精简：AI 中心 6 项合并为 4 项
+  // - 技能管理 + Skill 市场 → /skills（layout 路由级 Tab）
+  // - AI 工作流 + 飞书任务 → /automation（聚合页 Tab）
   {
     id: "ai",
     label: "AI 中心",
@@ -107,13 +95,14 @@ const NAV_GROUPS: NavGroup[] = [
     color: "text-cognition",
     items: [
       { href: "/ai/workspace", label: "AI 工作空间", icon: LayoutGrid, color: "text-cognition" },
-      { href: "/ai/flows", label: "AI 工作流", icon: Workflow, color: "text-cognition" },
       { href: "/ai/assistant", label: "Lynx超级助理", icon: Bot, color: "text-cognition" },
-      { href: "/skills", label: "技能管理", icon: Wrench, color: "text-cognition" },
-      { href: "/skills/market", label: "Skill 市场", icon: Store, color: "text-cognition" },
-      { href: "/ai/lark-tasks", label: "飞书任务", icon: ListTodo, color: "text-cognition" },
+      { href: "/skills", label: "技能", icon: Wrench, color: "text-cognition" },
+      { href: "/automation", label: "自动化", icon: Workflow, color: "text-cognition" },
     ],
   },
+  // 信息架构精简：系统 8 项合并为 2 项
+  // - 7 个子页（patrol/lark-bot/push/diagnostics/remote-control/backup）收纳进 /settings 二级 Tab
+  // - dev-log 路径不在 /settings/* 下，保留独立项
   {
     id: "system",
     label: "系统",
@@ -121,23 +110,17 @@ const NAV_GROUPS: NavGroup[] = [
     color: "text-muted-foreground",
     items: [
       { href: "/settings", label: "设置", icon: Settings, color: "text-muted-foreground" },
-      { href: "/settings/patrol", label: "AI 巡检", icon: Radar, color: "text-cognition" },
-      { href: "/settings/lark-bot", label: "飞书机器人", icon: MessageCircle, color: "text-campaign" },
-      { href: "/settings/push", label: "通知设置", icon: Bell, color: "text-muted-foreground" },
-      { href: "/settings/diagnostics", label: "性能监控", icon: Activity, color: "text-task" },
-      { href: "/settings/remote-control", label: "远程操控", icon: Monitor, color: "text-northstar" },
-      { href: "/settings/backup", label: "数据备份", icon: Database, color: "text-muted-foreground" },
       { href: "/dev-log", label: "开发日志", icon: ScrollText, color: "text-muted-foreground" },
     ],
   },
+  // 信息架构精简：账户 2 项合并为 1 项（/account 聚合页 Tab 切换）
   {
     id: "account",
     label: "账户",
     icon: Wallet,
     color: "text-northstar",
     items: [
-      { href: "/wallet", label: "钱包", icon: Wallet, color: "text-northstar" },
-      { href: "/membership", label: "会员", icon: Crown, color: "text-campaign" },
+      { href: "/account", label: "账户", icon: Wallet, color: "text-northstar" },
     ],
   },
   {
