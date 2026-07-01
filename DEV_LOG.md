@@ -498,7 +498,7 @@ Web 端三项需求：① C 端用户列表去除"参考 Kimi/豆包"文案提�
 - **真机安装**：`adb -d install -r` Success
 
 ### Commit
-（待提交后填入）
+`9c116ff9`
 
 ---
 
