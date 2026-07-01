@@ -411,7 +411,13 @@
 - `.\gradlew.bat :app:compileDebugKotlin`：**BUILD SUCCESSFUL in 36s**，0 错误（首次缺 borderColor 参数已修复）
 - `.\gradlew.bat :app:assembleDebug`：**BUILD SUCCESSFUL in 58s**
 - 版本号 0.1.3 → 0.1.4（`versionCode 4 → 5`）
-- APK 已生成，待设备重连后安装
+- **模拟器回归测试**（AVD: lynnhub_avd, API 34）：
+  - APK 安装到模拟器：Success
+  - App 启动正常，PID 3939 运行中，无 FATAL/AndroidRuntime 异常
+  - MainActivity 正常加载（topResumedActivity 确认）
+  - logcat 仅有模拟器系统级错误（SoundTrigger/WifiChip 等），与 App 无关
+  - 模拟器无登录凭据，核心页面深度功能（通话/记忆/设置）待真机验证
+- **真机安装**（设备 13e37082）：`adb install -r` Success
 
 ### Commit
 `d9b06c4a`
