@@ -9,6 +9,7 @@
 
 | 迭代 | 日期 | 任务概要 |
 |------|------|----------|
+| [迭代 92](#迭代-92---2026-07-01) | 2026-07-01 | Web端四项优化：① 回退迭代89信息架构极简优化(删除4个聚合页account/automation/inspiration/knowledge+2个路由layout settings/skills,恢复Sidebar.tsx到29项菜单) ② 注册弹窗紧凑排版(缩小Logo/标题/间距/移除冗余提示,一屏显示完整) ③ 全局Slogan替换不用学直接干→用Lynx AI人人都是超级个体(Web端LoginModal+settings安装脚本+manifest+桌面端LoginPage+桌面端LoginModal) ④ 修复弹窗鼠标拖拽误关闭(MouseDown/MouseUp跟踪+仅遮罩层本身按下松开才关闭,LoginModal+Modal.tsx) |
 | [迭代 91](#迭代-91---2026-07-01) | 2026-07-01 | 桌面端v1.0.29+Web端HermesAgent三问题彻底修复：① Web端无法连接本地Dashboard根因(Web端部署在云服务器,API route在服务器端执行pip install/startHermesAgent,但浏览器fetch 127.0.0.1:9119连用户本地,服务器没Dashboard运行。修复方案:Web端"一键安装/启动/停止/更新"全部改为下载自动.bat脚本,用户双击运行完成全部操作-downloadScript+checkLocalDashboard+compareVersionsSimple) ② 桌面端开发者名称LynnHub→Lynn(tauri.conf.json publisher+copyright) ③ 桌面端加检查更新按钮+假成功根因修复(installer.rs检测到已安装就跳过不升级→新增check_hermes_update+update_hermes_agent两个Rust命令,update用--force-reinstall强制覆盖旧版本;HermesPanel.tsx新增检查更新按钮+更新信息卡片+升级进度条;lib.rs注册新命令) + DEVELOPMENT_SPEC.md新增步骤10清理规范(每次完成任务后必须执行cargo clean+清理hermes-agent-pkg构建产物+清理系统临时目录) |
 | [迭代 90](#迭代-90---2026-07-01) | 2026-07-01 | 安卓端v0.1.5四项任务：ASR 400修复(VoiceApiClient multipart字段名audio→file匹配服务端file)+弹窗深色毛玻璃(抽取FrostedGlassDialog公共组件surface0.95f+黑0.45f双层渐变/统一替换3处AlertDialog:TasksScreen/MemoryScreen/TokenAnalysisPage)+首页删三按钮(QuickEntries/QuickEntryCard删除留呼吸球)+Lynx助理P0(ChatPanelViewModel send改assistantMode=true启用工具调用+工具调用结果拼接展示+QuickChip从3个硬编码改为6个对齐Web端QUICK_COMMANDS:今日概览/创建灵感/看板状态/搜索记忆/执行巡检/执行技能) |
 | [迭代 89](#迭代-89---2026-07-01) | 2026-07-01 | Web端三项需求：① C端用户列表去除"参考Kimi/豆包"文案(c-users/page.tsx+help-content.ts) ② 注册弹窗简化为手机号+验证码+邀请码(去除密码和昵称字段,后端自动生成随机密码+昵称默认手机号,注册后用验证码方式signIn直接登录) ③ 信息架构极简优化方向A(侧边栏29项→16项)：新建4个聚合页(/inspiration=Inbox+收敛+墓地, /knowledge=对话资产+认知库+记忆图谱, /automation=AI工作流+飞书任务, /account=钱包+会员)使用visitedTabs懒加载+block/hidden保留state + 新建2个路由级layout(/settings/layout.tsx收纳7个系统子页Tab, /skills/layout.tsx收纳技能管理+市场Tab) + Sidebar NAV_GROUPS精简(灵感收集3→1/知识资产3→1/AI中心6→4/系统8→2/账户2→1) + 清理13个unused lucide图标import |
@@ -437,6 +438,52 @@ Web 端三项需求：① C 端用户列表去除"参考 Kimi/豆包"文案提�
 - **人性设计**：相关功能聚合到同一页面 Tab 切换，减少页面跳转
 - **零破坏性**：原路由全部保留兼容，子页组件零改动，纯前端信息架构调整
 - **性能优化**：visitedTabs 懒加载机制，未访问的 Tab 不 mount 不请求
+
+---
+
+## 迭代 92 - 2026-07-01
+
+### 任务概要
+Web 端四项优化：① 回退迭代89信息架构极简优化；② 注册弹窗紧凑排版；③ 全局 Slogan 替换；④ 修复弹窗鼠标拖拽误关闭。
+
+### 背景问题
+1. 用户对迭代89的横向 Tab 收纳方案不满意，要求改回原来的样式排版
+2. 注册弹窗内容过多，底部"返回登录"入口被遮挡，需要滑动才能显示
+3. 产品 Slogan "不用学，直接干" 需要全局替换为 "用Lynx AI，人人都是超级个体"
+4. 登录注册弹窗，鼠标按住移动到弹窗外再松开会关闭弹窗，体验糟糕
+
+### 完成内容
+
+**1. 回退迭代89信息架构极简优化**
+- 删除 4 个聚合页：`/account`、`/automation`、`/inspiration`、`/knowledge`
+- 删除 2 个路由级 layout：`/settings/layout.tsx`、`/skills/layout.tsx`
+- `git checkout` 恢复 `Sidebar.tsx` 到迭代89前状态（29 项菜单恢复）
+
+**2. 注册弹窗紧凑排版**
+- Logo 缩小 h-12→h-10，标题 text-lg→text-base
+- 弹窗内边距 p-6→p-5，标题区间距 mb-6→mb-4、gap-2→gap-1.5
+- 表单间距 space-y-4→space-y-3，Field label 间距 space-y-1.5→space-y-1
+- 底部区域 mt-5 pt-4→mt-3 pt-3
+- 移除注册表单冗余"极简注册提示"
+- 一屏显示完整内容，底部登录入口不再被遮挡
+
+**3. 全局 Slogan 替换**
+- Web 端 `LoginModal.tsx`：不用学，直接干 → 用Lynx AI，人人都是超级个体
+- Web 端 `settings/page.tsx`：HermesAgent 安装脚本中的 Slogan
+- `public/manifest.webmanifest`：description 字段
+- 桌面端 `LoginPage.tsx`：超级AI工作台，不用学，直接干 → 用Lynx AI，人人都是超级个体
+- 桌面端 `LoginModal.tsx`：不用学，直接干 → 用Lynx AI，人人都是超级个体
+
+**4. 修复弹窗鼠标拖拽误关闭**
+- 问题根因：`onClick={onClose}` 在遮罩层上，鼠标在弹窗内 mousedown 拖到遮罩层 mouseup 时触发 click 关闭
+- 修复方案：用 `mouseDownTargetRef` 跟踪 mousedown 目标，仅在 mousedown 和 mouseup 都发生在遮罩层本身时才关闭
+- 修改文件：`LoginModal.tsx` + `Modal.tsx`（通用组件）
+- 移除 `onClick={(e) => e.stopPropagation()}`，不再需要阻止冒泡
+
+### 自测结果
+- tsc --noEmit：通过（清理 .next/types 残留后 exit code 0）
+- npm run build：通过（exit code 0，所有路由正常生成）
+- 迭代89的聚合页路由（/account /automation /inspiration /knowledge）不再生成，原有路由（/inbox /converge /graveyard /wallet /membership /settings/* /skills /skills/market）恢复正常
 
 ---
 
