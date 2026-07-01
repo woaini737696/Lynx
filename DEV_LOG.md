@@ -9,6 +9,7 @@
 
 | 迭代 | 日期 | 任务概要 |
 |------|------|----------|
+| [迭代 96](#迭代-96---2026-07-01) | 2026-07-01 | 桌面端v1.0.31+Web端HermesAgent四项根因彻底修复：① hermesExecute假成功终极根因修复(executor.py第352行无条件return导致第364-403行<action>标签执行代码成为死代码永远不执行→改为if not actions条件块+ws_client.rs fake_keywords从6个扩展到9个对齐executor.py+hermes-client.ts fakeSuccessKeywords同步9个+use-device-ws.ts handleRemoteCommand新增假成功检测逻辑之前完全没有校验) ② app.lynnhub.com DNS失败修复(installer.rs删除3处fallback URL+hermes-client.ts删除3处fallback URL全局统一ai.lynxdo.com) ③ Web端状态架构彻底重构(settings/page.tsx loadStatus重写为浏览器直连127.0.0.1:9119/api/status探测本机真实状态不走服务器DB+dashboard.py _send_html加CORS头之前只有_send_json有+dashboard.py新增/api/shutdown端点供Web端浏览器直连停止+install/route.ts删除服务器spawn hermes进程违反架构约束改为返回400指向dispatch路由+status/route.ts移除detectHermesInstall和testHermesConnection仅返回DB配置+dispatch/route.ts增加操作后回写DB status逻辑+handleStop增加本地直连停止路径) ④ 发布者LynnHub→Lynn完整改名(tauri.conf.json identifier com.lynnhub.native→com.lynx.app+Cargo.toml name lynnhub-desktop-native→lynx-desktop lib name同步+main.rs lynnhub_desktop_lib::run→lynx_desktop_lib::run+build-native.ps1进程名3处+App Paths注册表+编译产物路径+NSIS编译方式从手动makensis改为npx tauri build --bundles nsis+证书文件lynnhub-code-sign.cer→lynx-code-sign.cer+installer-hooks.nsh证书引用+Cargo.lock同步) + 重新打包hermes_agent-0.18.0 wheel(executor.py已改死代码) + 更新latest.json发布说明 |
 | [迭代 95](#迭代-95---2026-07-01) | 2026-07-01 | 桌面端v1.0.30+Web端HermesAgent六项彻底修复：① hermesExecute假成功根因彻底修复(executor.py SYSTEM_PROMPT强化强制要求操作类任务输出<action>标签+禁止教程式文本"无法直接控制你的设备"+无action时检测假成功关键词返回success=False+hermes-client.ts dispatchRemoteCommand检查executed/actions_executed字段+ws_client.rs execute_via_dashboard同样检查executed字段) ② Web端HermesAgent方案A委托桌面端(撤回迭代91的.bat脚本方案+Web端settings/page.tsx handleInstall/handleStart/handleStop/handleUpdate改为通过WS网关委托在线桌面端执行+新建/api/devices和/api/hermes/dispatch路由+ws_client.rs新增handle_special_command处理__LYNN_CMD__:前缀命令分发到installer.rs的start/stop/install/update/check_update函数) ③ NSIS卸载"Error launching installer"修复(installer-hooks.nsh新增NSIS_HOOK_PREINSTALL宏安装前taskkill /IM Lynx.exe /F强制终止进程+Sleep 1000等待句柄释放避免文件占用) ④ NSIS updater.pubkey空字符串修复(tauri signer generate生成签名密钥对+tauri.conf.json pubkey填入真实公钥) ⑤ 发布者信息全局LynnHub→Lynn(Cargo.toml authors+pyproject.toml authors+__init__.py __author__+dashboard.py页脚+LICENSE.txt+main.rs/lib.rs注释+capabilities/default.json description+README.md版权+NotificationSettingsPage.tsx+SettingsPage.tsx placeholder共12处) ⑥ 安装包Slogan修改(generate-installer-assets.py "不用学"/"直接干"→"用Lynx AI"/"人人都是超级个体"+版本号v1.0.12→v1.0.30+版权© 2026 LynnHub→© 2026 Lynn+重新生成nsis-header.bmp/nsis-sidebar.bmp) + 重新打包hermes_agent-0.18.0 wheel(executor.py已改) + 更新latest.json发布说明 |
 | [迭代 94](#迭代-94---2026-07-01) | 2026-07-01 | 安卓端v0.1.7五项修复+全页面缓存：① 灵感速记页顶部固定(新建TopBarColumnScaffold统一脚手架+IdeaPanel重写使用GlassTopBar固定吸附状态栏+内容区verticalScroll) ② ASR:400+HTML错误页彻底修复(后端asr/route.ts加runtime=nodejs避免Edge Runtime限制+新建asr-base64/route.ts JSON端点+安卓recognizeSpeechSmart自动fallback multipart→base64+检测content-type拒绝HTML错误页) ③ 通话页进入跳动修复(CallScreen移除contentAlignment=Center+加statusBarsPadding+延后startCall到第二帧delay(16)避免入场动画与重绘冲突) ④ Lynx助理历史记录丢失修复(AssistantViewModel加SavedStateHandle+loadMessages增量合并+refreshMessages每次进入页面刷新+LaunchedEffect触发) ⑤ 三核心页顶部空白修复(TasksScreen去除vertical padding+HomeScreen加statusBarsPadding让顶部高度一致) ⑥ 全页面缓存系统(新建PageCacheManager进程级单例+Home/Tasks/Memory ViewModel加入缓存读写实现无感加载) |
 | [迭代 93](#迭代-93---2026-07-01) | 2026-07-01 | 安卓端v0.1.6七项任务iOS26液态玻璃v4+流式全双工：① iOS26液态玻璃色板(Color.kt新增17个深色玻璃色值GlassDeepBase/DialogDeepPrimary/TopBarDeep/BubbleUserDeep等避免白色.copy(alpha)染色) ② LiquidGlassKit统一组件库(LiquidGlassSurface/Dialog/TopBar/BackButton/PageScaffold/Bubble/IconButton/GlassStrength枚举1:1还原App Store视觉) ③ 弹窗白色透明修复(FrostedGlassDialog委托LiquidGlassDialog+DialogDeepPrimary深色叠加) ④ 设置面板跳动修复(Animatable独立面板滑入+静态SettingsScrim遮罩+AppNavigation路由改fadeIn避免双重滑动) ⑤ 子页面顶部悬浮固定(GlassTopBar+SubPageScaffold+CoreScreenHeader深色渐变背景+statusBarsPadding) ⑥ Lynx助理与Web端同步(新建AssistantViewModel复用getChatSessions/createChatSession API+注入system message含用户profile+记忆图谱+assistantMode=true工具调用+AssistantScreen长按语音detectTapGestures onPress录音+GlassBubble深色气泡) ⑦ 语音通话流式全双工改造(VoiceApiClient新增connectStreamingASR WebSocket+StreamingVoiceSession+AudioRecorder.startStreaming流式PCM chunk+CallViewModel WebSocket优先HTTP fallback+AudioTrack流式播放替代MediaPlayer累积+VAD端点检测+详细400错误日志打印response body) |
@@ -441,6 +442,148 @@ Web 端三项需求：① C 端用户列表去除"参考 Kimi/豆包"文案提�
 - **人性设计**：相关功能聚合到同一页面 Tab 切换，减少页面跳转
 - **零破坏性**：原路由全部保留兼容，子页组件零改动，纯前端信息架构调整
 - **性能优化**：visitedTabs 懒加载机制，未访问的 Tab 不 mount 不请求
+
+---
+
+## 迭代 96 - 2026-07-01
+
+### 任务概要
+
+桌面端 v1.0.31 + Web 端 HermesAgent 四项根因彻底修复。本次迭代针对用户反馈的 4 个严重问题（检查更新 DNS 失败、hermesExecute 假成功仍存在、Web 端状态完全错乱、发布者仍显示 LynnHub）进行了全量代码扫描与根因定位，确保一次性彻底修复。
+
+### 完成内容
+
+#### 1. hermesExecute 假成功终极根因修复（executor.py 死代码）
+
+**根因定位**：`executor.py` 第 352-362 行存在一个**无条件 `return`**，导致第 364-403 行的 `<action>` 标签真实执行代码**永远不会被执行**（死代码）。即使 LLM 正确输出了 `<action>` 标签，RPA 动作也永远不会真正执行，而是直接返回 LLM 生成的教程式文本作为"成功"结果。
+
+**修复方案**：
+- 将第 352-362 行的无条件 `return` 改为 `if not actions:` 条件块
+  - 没有 action 标签（纯文本任务：问答、生成、分析）→ 返回成功
+  - 有 action 标签 → 继续往下执行真正的 RPA 动作执行代码
+- 假成功关键词已有 9 个（含"步骤如下"），无需修改
+
+**三层假成功校验关键词统一**：
+- `executor.py`：9 个关键词（含"步骤如下"）
+- `ws_client.rs`：fake_keywords 从 6 个扩展到 9 个，与 executor.py 一致
+  ```rust
+  let fake_keywords = [
+      "无法直接控制", "无法控制你的设备", "你可以按以下步骤",
+      "请手动", "手动打开", "手动操作", "请按以下步骤",
+      "你可以通过以下方式", "步骤如下",
+  ];
+  ```
+- `hermes-client.ts`：fakeSuccessKeywords 从 6 个扩展到 9 个（同上）
+- `use-device-ws.ts`：`handleRemoteCommand` 新增假成功检测逻辑（之前**完全没有**校验）
+  - 检查 `executed` 字段和 `actions_executed` 数组
+  - 若无 executed 标记且无 actions，且 output 包含假成功关键词 → 返回 `success: false`
+
+#### 2. app.lynnhub.com DNS 失败修复（全局统一 ai.lynxdo.com）
+
+**根因**：`app.lynnhub.com` 域名根本不存在（DNS error 11001），但代码中仍作为 fallback URL 保留。
+
+**修复方案**：删除所有 `app.lynnhub.com` fallback URL，全局统一为 `ai.lynxdo.com`：
+- `installer.rs`：删除 3 处 fallback（LATEST_JSON_URLS、WHEEL_DOWNLOAD_URLS、SERVER_URLS）
+- `hermes-client.ts`：删除 3 处 fallback（downloadUrls、latestUrls 等）
+- 全局 grep 验证：`app.lynnhub.com` 零匹配
+
+#### 3. Web 端状态架构彻底重构（浏览器直连本机探测）
+
+**根因**：Web 端 `loadStatus()` 走服务器 API → 读 DB 的 `HermesConfig.status` + 服务器本机 `detectHermesInstall` + 服务器 `fetch` 自己的 `localhost:9119`，全都不是用户本机真实状态。导致：
+- 桌面版运行 0.18.0 但 Web 端显示 0.17.0（DB 旧数据）
+- 默认变成"已开启"状态（DB 残留）
+- 无法点停止（dispatch 委托桌面端但 dispatch 成功后不更新 DB）
+- Dashboard 的 HTML 响应缺失 CORS 头（`_send_html` 未加）
+
+**修复方案**：
+- `settings/page.tsx` `loadStatus` 完全重写：
+  - 浏览器直连 `http://127.0.0.1:9119/api/status` 探测本机真实状态（3 秒超时）
+  - 同时加载服务器 DB 配置信息（补充展示）
+  - 组合状态：本地探测优先，DB 配置补充
+- `dashboard.py` `_send_html` 方法添加 CORS 头（之前只有 `_send_json` 有）
+- `dashboard.py` 新增 `/api/shutdown` 端点（供 Web 端浏览器直连停止 Dashboard）
+- `install/route.ts` 完全重写：
+  - 删除服务器 `spawn hermes dashboard` 进程逻辑（违反"服务器上不允许 cli/agent"硬约束）
+  - GET 仅返回 DB 配置（不再 `detectHermesInstall`）
+  - POST 仅保留 status 探测
+  - install/start/stop 返回 400 指向 dispatch 路由
+- `status/route.ts` 完全重写：
+  - 移除 `detectHermesInstall` 和 `testHermesConnection`
+  - 仅返回 DB 配置项，状态由前端浏览器直连探测
+- `dispatch/route.ts` 增加 dispatch 操作后回写 DB status 逻辑：
+  - `install_hermes` 成功 → `status: "installed"`
+  - `start_dashboard` 成功 → `status: "running"`
+  - `stop_dashboard` 成功 → `status: "installed"`
+  - `update_hermes` 成功 → `status: "installed"`
+  - 失败 → 写入 `lastError`
+- `handleStop` 增加本地直连停止路径：
+  - 先浏览器直连 `http://127.0.0.1:9119/api/shutdown` POST 停止
+  - 失败则降级到委托桌面端停止
+
+#### 4. 发布者 LynnHub → Lynn 完整改名
+
+**根因**：迭代 95 只改了 `publisher`/`copyright` 字段，但 NSIS 安装包的"发布者"信息实际来源于：
+- `tauri.conf.json` 的 `identifier`（决定注册表路径）
+- `Cargo.toml` 的 `name`（决定 exe 名称）
+- `build-native.ps1` 引用进程名
+
+**修复方案**（完整改名）：
+- `tauri.conf.json`：`identifier` `com.lynnhub.native` → `com.lynx.app`，`resources` `lynnhub-code-sign.cer` → `lynx-code-sign.cer`
+- `Cargo.toml`：`name` `lynnhub-desktop-native` → `lynx-desktop`，`lib name` `lynnhub_desktop_lib` → `lynx_desktop_lib`，`version` `1.0.30` → `1.0.31`
+- `main.rs`：`lynnhub_desktop_lib::run()` → `lynx_desktop_lib::run()`
+- `build-native.ps1`：进程名 3 处 `lynnhub-desktop-native` → `lynx-desktop`，App Paths 注册表，编译产物路径，NSIS 编译方式从手动 `makensis` 改为 `npx tauri build --bundles nsis`，dist 输出名 `lynx_1.0.5.exe` → `Lynx_1.0.31_x64-setup.exe`
+- 证书文件：`lynnhub-code-sign.cer` → `lynx-code-sign.cer`（重命名）
+- `installer-hooks.nsh`：证书引用同步更新
+- `Cargo.lock`：同步更新包名和版本号
+- `native-ui/package.json`：版本号 `1.0.30` → `1.0.31`
+- `generate-installer-assets.py`：`ver_text` `v1.0.30` → `v1.0.31`
+
+### 重新打包 hermes_agent-0.18.0 wheel
+- `executor.py` 死代码已修复，重新打包 wheel（18787 bytes）
+- 更新 `public/downloads/latest.json` 发布说明
+
+### 编译验证
+- TypeScript 编译验证通过（Web + native-ui）
+- Web 构建成功
+- 桌面端 v1.0.31 打包成功（`Lynx_1.0.31_x64-setup.exe`，6942160 bytes）
+
+### 部署
+- Web 端部署到 `ai.lynxdo.com`（HTTP 200 验证）
+- 桌面端安装包复制到 `D:\LynnHub\downloads\Lynx_1.0.31_x64-setup.exe`
+
+### 涉及文件
+**桌面端 Rust**：
+- `desktop-native/hermes-agent-pkg/hermes_agent/executor.py`（死代码根因修复）
+- `desktop-native/src-tauri/src/ws_client.rs`（fake_keywords 扩展到 9 个）
+- `desktop-native/src-tauri/src/installer.rs`（删除 3 处 app.lynnhub.com fallback）
+- `desktop-native/src-tauri/src/main.rs`（lib 名引用更新）
+- `desktop-native/src-tauri/Cargo.toml`（name/lib name/version 更新）
+- `desktop-native/src-tauri/Cargo.lock`（同步更新）
+- `desktop-native/src-tauri/tauri.conf.json`（identifier/version/resources 更新）
+- `desktop-native/src-tauri/nsis/installer-hooks.nsh`（证书引用更新）
+- `desktop-native/src-tauri/lynx-code-sign.cer`（从 lynnhub-code-sign.cer 重命名）
+
+**桌面端构建脚本**：
+- `desktop-native/build-native.ps1`（进程名/注册表/产物路径/NSIS 编译方式更新）
+- `desktop-native/native-ui/package.json`（版本号更新）
+- `scripts/generate-installer-assets.py`（ver_text 更新）
+
+**Web 端**：
+- `src/lib/hermes-client.ts`（fakeSuccessKeywords 扩展 + 删除 3 处 app.lynnhub.com fallback）
+- `src/hooks/use-device-ws.ts`（handleRemoteCommand 新增假成功检测）
+- `src/app/settings/page.tsx`（loadStatus 重写 + handleStop 增加本地直连）
+- `src/app/api/hermes/install/route.ts`（完全重写）
+- `src/app/api/hermes/status/route.ts`（完全重写）
+- `src/app/api/hermes/dispatch/route.ts`（增加回写 DB status）
+
+**HermesAgent Python**：
+- `desktop-native/hermes-agent-pkg/hermes_agent/dashboard.py`（_send_html 加 CORS + /api/shutdown 端点）
+- `public/downloads/hermes_agent-0.18.0-py3-none-any.whl`（重新打包）
+- `public/downloads/latest.json`（更新发布说明）
+
+### 待后续优化
+- 需用户手动运行 `clean-trae-cache.ps1` 清理 Rust 编译缓存
+- 建议重启 Trae Solo 降低内存占用
 
 ---
 

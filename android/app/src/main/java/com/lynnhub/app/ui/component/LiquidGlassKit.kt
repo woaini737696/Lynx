@@ -271,6 +271,7 @@ fun GlassTopBar(
                     )
                 )
             )
+            .statusBarsPadding()
             .drawBehind {
                 // 底部分隔线（iOS26 App Store 顶部栏标志性元素）
                 drawLine(
@@ -291,7 +292,6 @@ fun GlassTopBar(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .statusBarsPadding()
                 .padding(horizontal = 16.dp, vertical = 12.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween

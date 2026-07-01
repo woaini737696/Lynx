@@ -333,7 +333,8 @@ async fn execute_via_dashboard(command: &str) -> Option<DashboardExecResult> {
         // 检查是否是教程式文本（假成功）
         let fake_keywords = [
             "无法直接控制", "无法控制你的设备", "你可以按以下步骤",
-            "请手动", "手动打开", "手动操作",
+            "请手动", "手动打开", "手动操作", "请按以下步骤",
+            "你可以通过以下方式", "步骤如下",
         ];
         let is_fake = fake_keywords.iter().any(|kw| output.contains(kw));
         if is_fake {

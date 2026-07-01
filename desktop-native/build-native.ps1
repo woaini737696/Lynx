@@ -18,10 +18,10 @@ if ($UninstallExisting) {
     Write-Host "==> Uninstalling existing Lynx (if any)..."
 
     # Force kill running process to avoid file lock during uninstall
-    $proc = Get-Process -Name "lynnhub-desktop-native" -ErrorAction SilentlyContinue
+    $proc = Get-Process -Name "lynx-desktop" -ErrorAction SilentlyContinue
     if ($proc) {
         Write-Host "    Stopping running Lynx process..."
-        Stop-Process -Name "lynnhub-desktop-native" -Force -ErrorAction SilentlyContinue
+        Stop-Process -Name "lynx-desktop" -Force -ErrorAction SilentlyContinue
         Start-Sleep -Milliseconds 800
     }
 
@@ -50,7 +50,7 @@ if ($UninstallExisting) {
     if (Test-Path $uninstReg) {
         Remove-Item -Path $uninstReg -Recurse -Force -ErrorAction SilentlyContinue
     }
-    $appPathReg = "HKLM:\Software\Microsoft\Windows\CurrentVersion\App Paths\lynnhub-desktop-native.exe"
+    $appPathReg = "HKLM:\Software\Microsoft\Windows\CurrentVersion\App Paths\lynx-desktop.exe"
     if (Test-Path $appPathReg) {
         Remove-Item -Path $appPathReg -Recurse -Force -ErrorAction SilentlyContinue
     }
@@ -108,21 +108,32 @@ try {
 $here = (Get-Location).Path
 $binDir = Join-Path $here "bin"
 New-Item -ItemType Directory -Path $binDir -Force | Out-Null
-$builtExe = "D:\cargo-target-native\release\lynnhub-desktop-native.exe"
-$binExe = Join-Path $binDir "lynnhub-desktop-native.exe"
+$builtExe = "D:\cargo-target-native\release\lynx-desktop.exe"
+$binExe = Join-Path $binDir "lynx-desktop.exe"
 if (-not (Test-Path $builtExe)) { throw "Built binary not found at $builtExe" }
 Copy-Item -Path $builtExe -Destination $binExe -Force
 Write-Host "==> Binary staged: $binExe"
 
-# ---------- Build NSIS installer ----------
-Write-Host "==> Compiling NSIS installer..."
+# ---------- Build NSIS installer via tauri build ----------
+Write-Host "==> Compiling NSIS installer via tauri build..."
+Push-Location (Join-Path $root "src-tauri")
+try {
+    $tauriProc = Start-Process -FilePath "npx.cmd" -ArgumentList "tauri","build","--bundles","nsis" -NoNewWindow -Wait -PassThru -RedirectStandardOutput "tauri-stdout.log" -RedirectStandardError "tauri-stderr.log"
+    if ($tauriProc.ExitCode -ne 0) { throw "Tauri build failed" }
+} finally {
+    Pop-Location
+}
+
+# Tauri NSIS output: D:\cargo-target-native\release\bundle\nsis\Lynx_1.0.31_x64-setup.exe
+$nsisOutput = "D:\cargo-target-native\release\bundle\nsis\Lynx_1.0.31_x64-setup.exe"
+if (-not (Test-Path $nsisOutput)) { throw "NSIS output not found at $nsisOutput" }
+
+# Copy to dist dir
 $distDir = Join-Path $root "dist"
 New-Item -ItemType Directory -Path $distDir -Force | Out-Null
-# Use Start-Process to avoid PowerShell NativeCommandError on stderr
-$nsisProc = Start-Process -FilePath $nsis -ArgumentList "/INPUTCHARSET UTF8","installer.nsi" -NoNewWindow -Wait -PassThru -RedirectStandardOutput "nsis-stdout.log" -RedirectStandardError "nsis-stderr.log"
-if ($nsisProc.ExitCode -ne 0) { throw "NSIS compile failed" }
+$exe = Join-Path $distDir "Lynx_1.0.31_x64-setup.exe"
+Copy-Item -Path $nsisOutput -Destination $exe -Force
 
-$exe = Join-Path $root "dist\lynx_1.0.5.exe"
 if (Test-Path $exe) {
     $size = (Get-Item $exe).Length
     Write-Host "==> Installer ready: $exe ($size bytes)"

@@ -322,7 +322,6 @@ fun CallScreen(
             horizontalAlignment = Alignment.CenterHorizontally,
             modifier = Modifier
                 .fillMaxSize()
-                .statusBarsPadding()
                 .padding(horizontal = 24.dp, vertical = 40.dp)
         ) {
             // ====== 中央可视化区：3 层波纹 + 白色猞猁 logo ======

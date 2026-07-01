@@ -4,7 +4,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/auth-utils";
-import { dispatchRemoteCommand } from "@/lib/hermes-client";
+import { dispatchRemoteCommand, upsertHermesConfig } from "@/lib/hermes-client";
 import { getLogger } from "@/lib/logger";
 
 const logger = getLogger("hermes-dispatch");
@@ -34,6 +34,22 @@ export async function POST(req: NextRequest) {
       command,
       180, // 安装/升级可能需要较长时间
     );
+
+    // 根据命令类型和执行结果同步更新 DB status（解决 Web 端状态显示脱节问题）
+    const action = command.replace("__LYNN_CMD__:", "");
+    if (result.success) {
+      if (action === "install_hermes") {
+        await upsertHermesConfig(auth.user.id, { status: "installed", lastError: null });
+      } else if (action === "start_dashboard") {
+        await upsertHermesConfig(auth.user.id, { status: "running", lastError: null });
+      } else if (action === "stop_dashboard") {
+        await upsertHermesConfig(auth.user.id, { status: "installed", lastError: null });
+      } else if (action === "update_hermes") {
+        await upsertHermesConfig(auth.user.id, { status: "installed", lastError: null });
+      }
+    } else {
+      await upsertHermesConfig(auth.user.id, { lastError: result.error || `${action} 失败` });
+    }
 
     return NextResponse.json(result);
   } catch (e) {

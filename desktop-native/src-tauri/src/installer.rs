@@ -289,11 +289,10 @@ pub async fn install_ai_environment(app: AppHandle) -> Result<serde_json::Value,
         let pip_path = find_pip_exe()
             .ok_or_else(|| "未找到 pip 可执行文件".to_string())?;
 
-        // 服务器托管的 wheel 文件 URL（依次尝试多个域名）
+        // 服务器托管的 wheel 文件 URL（统一使用 ai.lynxdo.com）
         const WHL_FILENAME: &str = "hermes_agent-0.18.0-py3-none-any.whl";
         let server_urls = [
             "https://ai.lynxdo.com/downloads/".to_string() + WHL_FILENAME,
-            "https://app.lynnhub.com/downloads/".to_string() + WHL_FILENAME,
         ];
 
         // 下载到临时目录
@@ -415,10 +414,9 @@ pub async fn install_ai_environment(app: AppHandle) -> Result<serde_json::Value,
 
 // ============ HermesAgent 版本检测与升级（迭代87 新增） ============
 
-/// 服务器 latest.json URL（依次尝试多个域名）
+/// 服务器 latest.json URL（统一使用 ai.lynxdo.com）
 const LATEST_JSON_URLS: &[&str] = &[
     "https://ai.lynxdo.com/downloads/latest.json",
-    "https://app.lynnhub.com/downloads/latest.json",
 ];
 
 /// 从服务器拉取 latest.json
@@ -555,7 +553,6 @@ pub async fn update_hermes_agent(app: AppHandle) -> Result<serde_json::Value, St
 
     let server_urls = [
         "https://ai.lynxdo.com/downloads/".to_string() + &wheel_filename,
-        "https://app.lynnhub.com/downloads/".to_string() + &wheel_filename,
     ];
 
     let tmp_dir = std::env::temp_dir().join("lynnhub-hermes-install");

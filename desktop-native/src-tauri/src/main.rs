@@ -3,5 +3,5 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 fn main() {
-    lynnhub_desktop_lib::run()
+    lynx_desktop_lib::run()
 }

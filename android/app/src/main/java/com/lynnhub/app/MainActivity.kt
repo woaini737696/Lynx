@@ -6,7 +6,7 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.collectAsState
@@ -78,6 +78,7 @@ class MainActivity : ComponentActivity() {
                     Scaffold(
                         modifier = Modifier.fillMaxSize(),
                         containerColor = MaterialTheme.colorScheme.background,
+                        contentWindowInsets = androidx.compose.foundation.layout.WindowInsets(0, 0, 0, 0),
                         bottomBar = {
                             DockBar(
                                 currentRoute = currentRoute,
@@ -94,11 +95,10 @@ class MainActivity : ComponentActivity() {
                                 visible = showDock
                             )
                         }
-                    ) { innerPadding ->
+                    ) { _ ->
                         Box(
                             modifier = Modifier
                                 .fillMaxSize()
-                                .padding(innerPadding)
                                 // 核心页面支持左右滑动切换
                                 .then(
                                     if (currentRoute in coreRoutes) {

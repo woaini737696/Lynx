@@ -1,8 +1,8 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "Lynx",
-  "version": "1.0.30",
-  "identifier": "com.lynnhub.native",
+  "version": "1.0.31",
+  "identifier": "com.lynx.app",
   "build": {
     "beforeDevCommand": "npm run frontend:dev",
     "devUrl": "http://localhost:5177",
@@ -46,7 +46,7 @@
     "category": "Productivity",
     "shortDescription": "Lynx 全平台智能助理桌面端",
     "longDescription": "Lynx 原生桌面端，本地前端 + 云端 API，安装即用，支持全局唤起与自动更新。",
-    "resources": ["lynnhub-code-sign.cer"],
+    "resources": ["lynx-code-sign.cer"],
     "windows": {
       "nsis": {
         "installerIcon": "icons/icon.ico",

@@ -106,10 +106,10 @@ fun HomeScreen(
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(horizontal = 22.dp)
                 .statusBarsPadding()
+                .padding(horizontal = 22.dp)
         ) {
-            Spacer(modifier = Modifier.height(12.dp))
+            Spacer(modifier = Modifier.height(16.dp))
 
             // 顶部 Header
             HomeHeader(

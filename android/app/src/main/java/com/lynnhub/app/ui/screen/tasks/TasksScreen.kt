@@ -80,7 +80,6 @@ fun TasksScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .imePadding()
-                .padding(horizontal = 16.dp)
         ) {
             CoreScreenHeader(
                 title = "任务",
@@ -94,7 +93,8 @@ fun TasksScreen(
             SyncStateBar(
                 syncState = state.syncState,
                 isSyncing = state.isSyncing,
-                onSync = viewModel::triggerSync
+                onSync = viewModel::triggerSync,
+                modifier = Modifier.padding(horizontal = 16.dp)
             )
 
             Spacer(modifier = Modifier.height(12.dp))
@@ -102,7 +102,8 @@ fun TasksScreen(
             // 药丸分段器
             TaskFilterTabs(
                 selected = state.filter,
-                onSelect = viewModel::setFilter
+                onSelect = viewModel::setFilter,
+                modifier = Modifier.padding(horizontal = 16.dp)
             )
 
             Spacer(modifier = Modifier.height(12.dp))
@@ -126,7 +127,7 @@ fun TasksScreen(
                 }
 
                 LazyColumn(
-                    modifier = Modifier.weight(1f),
+                    modifier = Modifier.weight(1f).padding(horizontal = 16.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     if (visibleTasks.isNotEmpty()) {
@@ -164,6 +165,7 @@ fun TasksScreen(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
+                    .padding(horizontal = 16.dp)
                     .clip(RoundedCornerShape(14.dp))
                     .background(Primary.copy(alpha = 0.12f))
                     .border(1.dp, Primary.copy(alpha = 0.3f), RoundedCornerShape(14.dp))
@@ -215,10 +217,11 @@ fun TasksScreen(
 private fun SyncStateBar(
     syncState: com.lynnhub.app.data.remote.dto.SyncStateDto?,
     isSyncing: Boolean,
-    onSync: () -> Unit
+    onSync: () -> Unit,
+    modifier: Modifier = Modifier
 ) {
     Row(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(12.dp))
             .background(Liquid2)
@@ -285,10 +288,11 @@ private fun SyncStateBar(
 @Composable
 private fun TaskFilterTabs(
     selected: TasksFilter,
-    onSelect: (TasksFilter) -> Unit
+    onSelect: (TasksFilter) -> Unit,
+    modifier: Modifier = Modifier
 ) {
     Row(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(999.dp))
             .background(Surface)

@@ -349,17 +349,18 @@ def execute_task(prompt: str, yolo: bool = False, timeout: int = 120) -> dict:
             "actions_executed": [],
         }
 
-    # 真正的纯文本任务（问答、生成、分析）→ 返回成功
-    return {
-        "success": True,
-        "output": readable_text,
-        "error": None,
-        "durationMs": duration_ms,
-        "usage": result.get("usage"),
-        "model": result.get("model"),
-        "executed": False,
-        "actions_executed": [],
-    }
+    # 没有 action 标签：纯文本任务（问答、生成、分析）→ 返回成功
+    if not actions:
+        return {
+            "success": True,
+            "output": readable_text,
+            "error": None,
+            "durationMs": duration_ms,
+            "usage": result.get("usage"),
+            "model": result.get("model"),
+            "executed": False,
+            "actions_executed": [],
+        }
 
     # 有 action 标签：实际执行每个动作
     actions_executed = []
