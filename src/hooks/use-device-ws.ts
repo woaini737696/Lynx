@@ -216,16 +216,16 @@ async function handleRemoteCommand(
     };
   }
 
-  // 回传最终结果
+  // 回传最终结果（error 提升到顶层，与桌面端 ws_client.rs 和 WS 网关一致）
   sendJson(ws, {
     type: "command-update",
     commandId,
     status: result.success ? "completed" : "failed",
+    error: result.error,
     result: {
       success: result.success,
       output: result.output,
       route: result.route,
-      error: result.error,
       durationMs: result.durationMs || 0,
     },
   });

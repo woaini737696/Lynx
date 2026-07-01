@@ -91,7 +91,8 @@ export interface HermesSkill {
 export async function dispatchRemoteCommand(
   userId: string,
   command: string,
-  timeoutSec: number = 120
+  timeoutSec: number = 120,
+  targetDeviceId?: string
 ): Promise<{
   success: boolean;
   output: string;
@@ -122,7 +123,7 @@ export async function dispatchRemoteCommand(
     const resp = await fetch(`${WS_GATEWAY_URL}/dispatch`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ userId, command, commandId }),
+      body: JSON.stringify({ userId, command, commandId, targetDeviceId }),
       signal: AbortSignal.timeout(8000),
     });
     const data = await resp.json().catch(() => ({}));
@@ -956,74 +957,108 @@ export async function installHermesAgent(): Promise<{
   const { exec } = await import("child_process");
   const { promisify } = await import("util");
   const execAsync = promisify(exec);
+  const fs = await import("fs").then(m => m.promises || m);
+  const path = await import("path");
+  const os = await import("os");
 
-  logger.info("HermesAgent 安装请求：pip install hermes-agent");
+  logger.info("HermesAgent 安装请求：下载 wheel 文件 + 本地 pip install");
 
   const pipCmd = process.platform === "win32" ? "pip" : "pip3";
-
   const cleanEnv: NodeJS.ProcessEnv = { ...process.env };
   delete cleanEnv.PIP_INDEX_URL;
   delete cleanEnv.PIP_EXTRA_INDEX_URL;
 
-  const mirrors = [
-    "https://pypi.tuna.tsinghua.edu.cn/simple",
-    "https://mirrors.aliyun.com/pypi/simple/",
-    "https://mirrors.cloud.tencent.com/pypi/simple",
-    "https://pypi.org/simple",
+  // hermes-agent 不在 PyPI 上，从自建服务器下载 wheel 文件安装
+  // 与桌面端 installer.rs 逻辑完全一致
+  const wheelFileName = "hermes_agent-0.17.0-py3-none-any.whl";
+  const downloadUrls = [
+    `https://ai.lynxdo.com/downloads/${wheelFileName}`,
+    `https://app.lynnhub.com/downloads/${wheelFileName}`,
   ];
 
-  const verifyInstall = async (): Promise<boolean> => {
+  // 临时目录
+  const tempDir = path.join(os.tmpdir(), "lynnhub-hermes-install");
+  await fs.mkdir(tempDir, { recursive: true }).catch(() => {});
+  const localWheelPath = path.join(tempDir, wheelFileName);
+
+  // 1. 下载 wheel 文件（依次尝试两个服务器）
+  let downloadOk = false;
+  let downloadErr = "";
+  for (const url of downloadUrls) {
+    try {
+      logger.info({ url }, "下载 HermesAgent wheel");
+      const resp = await fetch(url, { signal: AbortSignal.timeout(120_000) });
+      if (!resp.ok) {
+        downloadErr = `HTTP ${resp.status}`;
+        continue;
+      }
+      const buf = Buffer.from(await resp.arrayBuffer());
+      await fs.writeFile(localWheelPath, buf);
+      downloadOk = true;
+      logger.info({ localWheelPath, size: buf.length }, "wheel 下载成功");
+      break;
+    } catch (e) {
+      downloadErr = (e as Error).message;
+      logger.warn({ url, err: downloadErr }, "下载失败，尝试下一个 URL");
+    }
+  }
+
+  if (!downloadOk) {
+    return {
+      success: false,
+      error: `下载 wheel 文件失败：${downloadErr}。请检查网络连接或手动下载 ${downloadUrls.join(" 或 ")}`,
+    };
+  }
+
+  // 2. 本地 pip install（--no-deps 与桌面端一致，避免依赖解析失败）
+  const installCmd = `${pipCmd} install --disable-pip-version-check --upgrade --no-deps "${localWheelPath}"`;
+  logger.info({ installCmd }, "执行本地 wheel 安装");
+
+  try {
+    const { stdout, stderr } = await execAsync(installCmd, {
+      timeout: 120_000,
+      maxBuffer: 10 * 1024 * 1024,
+      env: cleanEnv,
+    });
+    const output = (stdout || "") + (stderr ? `\n${stderr}` : "");
+
+    // 3. 验证安装
     const hermesExe = await findHermesExe();
     if (hermesExe) {
       try {
         await execAsync(`"${hermesExe}" --version`, { timeout: 10000, env: cleanEnv });
-        return true;
+        clearHermesDetectCache();
+        logger.info("HermesAgent 安装成功");
+        // 清理临时文件
+        await fs.unlink(localWheelPath).catch(() => {});
+        return { success: true, output };
       } catch {
-        // 可执行文件存在但 --version 失败，继续检查 pip
+        // --version 失败但 pip install 成功了
       }
     }
+    // pip show 回退验证
     try {
       const verifyCmd = process.platform === "win32" ? "pip show hermes-agent" : "pip3 show hermes-agent";
       await execAsync(verifyCmd, { timeout: 15000, env: cleanEnv });
-      return true;
+      clearHermesDetectCache();
+      logger.info("HermesAgent 安装成功（pip show 验证）");
+      await fs.unlink(localWheelPath).catch(() => {});
+      return { success: true, output };
     } catch {
-      return false;
+      return {
+        success: false,
+        output,
+        error: "安装执行但验证失败，请检查 Python 版本（需 3.11+）",
+      };
     }
-  };
-
-  let lastError = "";
-  let lastOutput = "";
-
-  for (const mirror of mirrors) {
-    const installCmd = `${pipCmd} install --disable-pip-version-check -i ${mirror} hermes-agent`;
-    logger.info({ mirror }, "尝试安装 HermesAgent");
-    try {
-      const { stdout, stderr } = await execAsync(installCmd, {
-        timeout: 180000,
-        maxBuffer: 10 * 1024 * 1024,
-        env: cleanEnv,
-      });
-      const output = (stdout || "") + (stderr ? `\n${stderr}` : "");
-      lastOutput = output;
-
-      if (await verifyInstall()) {
-        clearHermesDetectCache();
-        logger.info({ mirror }, "HermesAgent 安装成功");
-        return { success: true, output };
-      }
-      lastError = `镜像 ${mirror} 安装执行但验证失败`;
-    } catch (e) {
-      const err = e as { stderr?: string; message?: string };
-      lastError = `镜像 ${mirror} 失败：${err.stderr || err.message || "未知错误"}`;
-      logger.warn({ mirror, err: lastError }, "HermesAgent 安装失败，尝试下一个镜像");
-    }
+  } catch (e) {
+    const err = e as { stderr?: string; message?: string };
+    return {
+      success: false,
+      output: err.stderr || "",
+      error: `本地 pip install 失败：${err.message || "未知错误"}`,
+    };
   }
-
-  return {
-    success: false,
-    output: lastOutput,
-    error: lastError || "所有镜像源安装均失败，请检查 Python 版本（需 3.11+）或网络连接",
-  };
 }
 
 export async function startHermesAgent(port: number = 9119): Promise<{

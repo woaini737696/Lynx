@@ -1330,7 +1330,7 @@ async function executeHermesExecute(
   const desktopDevice = devices.find((d) => !d.deviceName.startsWith("Web-"));
   const targetDevice = desktopDevice || devices[0];
 
-  const remoteResult = await dispatchRemoteCommand(user.id, prompt, timeoutSec);
+  const remoteResult = await dispatchRemoteCommand(user.id, prompt, timeoutSec, targetDevice.wsChannelId);
   result = {
     success: remoteResult.success,
     output: remoteResult.output,
