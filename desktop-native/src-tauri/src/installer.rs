@@ -2,7 +2,7 @@
 //
 // 流程：
 // 1. 检测环境（Python/pip、Node、agent-browser、hermes）
-// 2. 创建授权目录 D:\LynnHub\user-data\
+// 2. 创建授权目录 D:\Lynx\user-data\
 // 3. 下载 HermesAgent wheel（从服务器拉取）并本地安装
 // 4. 安装 agent-browser（如未装）
 // 5. 启动本地进程并注册到云端
@@ -628,4 +628,84 @@ pub async fn update_hermes_agent(app: AppHandle) -> Result<serde_json::Value, St
         "message": format!("HermesAgent 已升级到 v{}", latest_version),
         "version": latest_version,
     }))
+}
+
+// ============ Dashboard 启动/停止（供 ws_client.rs 调用） ============
+
+/// 启动 HermesAgent Dashboard（内部函数，供 ws_client.rs 调用）
+pub async fn start_hermes_dashboard_internal(port: u16) -> Result<(), String> {
+    let hermes_path = find_hermes_exe()
+        .ok_or_else(|| "未找到 hermes 可执行文件，请先点击一键安装".to_string())?;
+
+    log::info!("启动 Hermes Dashboard: {} --port {}", hermes_path, port);
+
+    let mut cmd = tokio::process::Command::new(&hermes_path);
+    cmd.args(&["dashboard", "--port", &port.to_string(), "--no-open"]);
+    cmd.stdin(std::process::Stdio::null());
+    cmd.stdout(std::process::Stdio::null());
+    cmd.stderr(std::process::Stdio::piped());
+    cmd.kill_on_drop(false);
+
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        const CREATE_NO_WINDOW: u32 = 0x08000000;
+        cmd.creation_flags(CREATE_NO_WINDOW);
+    }
+
+    let child = cmd.spawn().map_err(|e| format!("启动 Hermes Dashboard 失败: {}", e))?;
+    let pid = child.id().unwrap_or(0);
+    log::info!("Hermes Dashboard 已启动, PID: {}, 端口: {}", pid, port);
+
+    // 等待 Dashboard 启动（最多 5 秒）
+    tokio::time::sleep(std::time::Duration::from_secs(2)).await;
+
+    Ok(())
+}
+
+/// 停止 HermesAgent Dashboard（内部函数，供 ws_client.rs 调用）
+pub async fn stop_hermes_dashboard_internal() -> Result<(), String> {
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        const CREATE_NO_WINDOW: u32 = 0x08000000;
+        let mut netstat_cmd = tokio::process::Command::new("netstat");
+        netstat_cmd.args(&["-ano"]);
+        netstat_cmd.creation_flags(CREATE_NO_WINDOW);
+        let netstat_out = netstat_cmd
+            .output()
+            .await
+            .map_err(|e| format!("netstat 执行失败: {}", e))?;
+        let stdout = String::from_utf8_lossy(&netstat_out.stdout);
+
+        let mut killed = 0;
+        for line in stdout.lines() {
+            if line.contains(":9119") && line.contains("LISTENING") {
+                let parts: Vec<&str> = line.split_whitespace().collect();
+                if let Some(pid_str) = parts.last() {
+                    if let Ok(pid) = pid_str.parse::<u32>() {
+                        let mut kill_cmd = tokio::process::Command::new("taskkill");
+                        kill_cmd.args(&["/F", "/PID", &pid.to_string()]);
+                        kill_cmd.creation_flags(CREATE_NO_WINDOW);
+                        let _ = kill_cmd.output().await;
+                        killed += 1;
+                    }
+                }
+            }
+        }
+        if killed > 0 {
+            log::info!("已停止 {} 个 Hermes Dashboard 进程", killed);
+            Ok(())
+        } else {
+            log::info!("未找到运行中的 Hermes Dashboard 进程");
+            Ok(())
+        }
+    }
+    #[cfg(not(windows))]
+    {
+        let mut cmd = tokio::process::Command::new("pkill");
+        cmd.args(&["-f", "hermes dashboard"]);
+        let _ = cmd.output().await;
+        Ok(())
+    }
 }

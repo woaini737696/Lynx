@@ -2,7 +2,7 @@ Metadata-Version: 2.4
 Name: hermes-agent
 Version: 0.18.0
 Summary: Lynx HermesAgent - 本地 AI 代理框架，支持桌面控制、Shell 命令、浏览器自动化与技能自学习
-Author: LynnHub
+Author: Lynn
 License: MIT
 Project-URL: Homepage, https://github.com/LynnHub/hermes-agent
 Project-URL: Repository, https://github.com/LynnHub/hermes-agent
@@ -86,4 +86,4 @@ MIMO_MODEL=mimo-chat
 
 ## 许可证
 
-MIT License - © 2026 LynnHub
+MIT License - © 2026 Lynn

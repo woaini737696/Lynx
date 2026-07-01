@@ -157,6 +157,33 @@ export async function dispatchRemoteCommand(
       const output = typeof resultData.output === "string"
         ? resultData.output
         : (typeof cmd.result === "string" ? cmd.result : JSON.stringify(resultData));
+
+      // 真实性校验：检查是否真正执行了动作
+      // 防止 executor.py 假成功（LLM 返回了教程式文本但没执行 RPA 动作）
+      const executed = resultData.executed;
+      const actionsExecuted = resultData.actions_executed;
+      const hasExecutedFlag = executed === true;
+      const hasActions = Array.isArray(actionsExecuted) && actionsExecuted.length > 0;
+
+      // 如果 executed=false 且 actions_executed 为空，检查 output 是否包含教程式文本
+      const fakeSuccessKeywords = [
+        "无法直接控制", "无法控制你的设备", "你可以按以下步骤",
+        "请手动", "手动打开", "手动操作",
+      ];
+      const isFakeSuccess = !hasExecutedFlag && !hasActions &&
+        typeof output === "string" &&
+        fakeSuccessKeywords.some(kw => output.includes(kw));
+
+      if (isFakeSuccess) {
+        return {
+          success: false,
+          output: "",
+          error: "HermesAgent 未能真正执行操作（LLM 返回了教程式文本而非实际执行动作）。请确保 HermesAgent 已更新到最新版本，或换一种指令描述方式。",
+          durationMs: cmd.durationMs || 0,
+          route: cmd.route || undefined,
+        };
+      }
+
       return {
         success: true,
         output,

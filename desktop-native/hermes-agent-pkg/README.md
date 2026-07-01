@@ -62,4 +62,4 @@ MIMO_MODEL=mimo-chat
 
 ## 许可证
 
-MIT License - © 2026 LynnHub
+MIT License - © 2026 Lynn

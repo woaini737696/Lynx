@@ -1,4 +1,4 @@
-// LynnHub 桌面端核心库
+// Lynx 桌面端核心库
 // 集成 HermesAgent 本地超级助理 + 四类RPA能力 + 三档授权模式
 
 pub mod hermes;
@@ -39,12 +39,12 @@ pub struct AppState {
 
 impl Default for AppState {
     fn default() -> Self {
-        // 默认授权目录：跨平台 app data 目录下的 LynnHub/user-data
-        // （Windows: %APPDATA%\LynnHub\user-data，macOS: ~/Library/Application Support/LynnHub/user-data，Linux: ~/.local/share/LynnHub/user-data）
+        // 默认授权目录：跨平台 app data 目录下的 Lynx/user-data
+        // （Windows: %APPDATA%\Lynx\user-data，macOS: ~/Library/Application Support/Lynx/user-data，Linux: ~/.local/share/Lynx/user-data）
         // 在 Tauri setup 阶段可用 app.path().app_data_dir()，但 Default 在 Builder 之前执行，
         // 因此这里用 dirs crate 提供等价路径，避免硬编码 D:\LynnHub
         let default_dir = dirs::data_dir()
-            .map(|d| d.join("LynnHub").join("user-data").to_string_lossy().to_string())
+            .map(|d| d.join("Lynx").join("user-data").to_string_lossy().to_string())
             .unwrap_or_else(|| "./user-data".to_string());
 
         // 确保默认授权目录存在
@@ -673,7 +673,7 @@ pub fn run() {
             cloud_request,
         ])
         .setup(|app| {
-            log::info!("LynnHub 桌面端启动完成");
+            log::info!("Lynx 桌面端启动完成");
 
             // ============ 系统托盘（Tauri 2.x API） ============
             // 只保留"退出 Lynx"一个菜单项，双击托盘图标显示主窗口

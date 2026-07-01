@@ -181,7 +181,7 @@ export function NotificationSettingsPage() {
       // 额外调用飞书通知接口验证飞书通道（失败不阻塞主流程）
       try {
         await cloudApi.post("/api/ai/notify-feishu", {
-          message: "这是一条来自 LynnHub 的测试通知",
+          message: "这是一条来自 Lynx 的测试通知",
         });
         toast.success("飞书测试通知已发送");
       } catch (e) {

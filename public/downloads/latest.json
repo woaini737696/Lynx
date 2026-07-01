@@ -1,6 +1,6 @@
 {
   "version": "0.18.0",
   "wheel": "hermes_agent-0.18.0-py3-none-any.whl",
-  "releaseNotes": "修复 executor.py 把 LLM 步骤描述文本当成功结果的 bug，新增 parse_actions + execute_rpa_action 真正执行 RPA 动作（open_url/open_app/run_command）",
-  "publishedAt": "2026-07-01T15:00:00Z"
+  "releaseNotes": "强化 SYSTEM_PROMPT 强制要求操作类任务输出 <action> 标签；executor.py 新增假成功检测（LLM 输出教程式文本时返回 success=False）；hermes-client.ts + ws_client.rs 增加 executed/actions_executed 字段真实性校验",
+  "publishedAt": "2026-07-01T16:30:00Z"
 }
