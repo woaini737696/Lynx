@@ -170,6 +170,15 @@ function detectIntent(text: string): { tool: string; args: Record<string, any> }
     return { tool: "getBoardStats", args: {} };
   }
 
+  // hermesExecute 兜底：本地电脑操作类意图（打开浏览器/应用/运行命令等）
+  if (/打开|启动|运行|执行|操控|控制|截.*屏|截图/.test(text) && /浏览器|记事本|应用|程序|软件|电脑|桌面|文件|命令|脚本|终端|cmd|powershell/.test(text)) {
+    return { tool: "hermesExecute", args: { prompt: text } };
+  }
+  // 纯"打开XX"类（如"打开浏览器"）
+  if (/^打开|^启动|^运行/.test(text) && text.length < 30) {
+    return { tool: "hermesExecute", args: { prompt: text } };
+  }
+
   return null;
 }
 
