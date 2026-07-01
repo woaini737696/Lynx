@@ -405,27 +405,28 @@ object LynxIcons {
             viewportWidth = 24f,
             viewportHeight = 24f
         ).apply {
+            // 放大镜镜片：完整圆形（圆心 10,10，半径 6）
             path(
                 fill = null,
                 stroke = SolidColor(StrokeColor),
-                strokeLineWidth = 1.6f,
+                strokeLineWidth = 1.8f,
                 strokeLineCap = StrokeCap.Round,
                 strokeLineJoin = StrokeJoin.Round
             ) {
-                moveTo(11f, 11f)
-                arcTo(8f, 8f, 0f, true, false, 11f, 3f)
-                arcTo(8f, 8f, 0f, true, false, 11f, 11f)
-                close()
+                moveTo(16f, 10f)
+                arcTo(6f, 6f, 0f, true, false, 4f, 10f)
+                arcTo(6f, 6f, 0f, true, true, 16f, 10f)
             }
+            // 放大镜手柄：右下斜线
             path(
                 fill = null,
                 stroke = SolidColor(StrokeColor),
-                strokeLineWidth = 1.6f,
+                strokeLineWidth = 1.8f,
                 strokeLineCap = StrokeCap.Round,
                 strokeLineJoin = StrokeJoin.Round
             ) {
-                moveTo(21f, 21f)
-                lineTo(16.65f, 16.65f)
+                moveTo(15f, 15f)
+                lineTo(20f, 20f)
             }
         }.build()
     }

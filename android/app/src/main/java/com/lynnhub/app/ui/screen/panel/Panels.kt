@@ -6,6 +6,10 @@ import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
+import android.Manifest
+import android.content.pm.PackageManager
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -37,12 +41,14 @@ import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.changedToDown
 import androidx.compose.ui.input.pointer.changedToUp
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.content.ContextCompat
 import com.lynnhub.app.R
 import com.lynnhub.app.ui.theme.*
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -209,33 +215,59 @@ fun CallScreen(
     viewModel: CallViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
+    val context = LocalContext.current
     // 控制按钮可见性
     var controlsVisible by remember { mutableStateOf(true) }
+    // 权限状态：null=申请中, true=已授权, false=被拒绝
+    var permissionGranted by remember { mutableStateOf<Boolean?>(null) }
 
-    // 进入通话页面即启动通话
-    LaunchedEffect(Unit) {
-        viewModel.startCall()
+    // 检查录音权限
+    fun checkMicPermission(): Boolean =
+        ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED
+
+    // 权限申请 Launcher
+    val permissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        permissionGranted = granted
+        if (granted) viewModel.startCall()
     }
 
-    // 控制按钮 3 秒自动隐藏
+    // 进入通话页面：先检查权限，有权限直接 startCall，无权限弹申请
+    LaunchedEffect(Unit) {
+        if (checkMicPermission()) {
+            permissionGranted = true
+            viewModel.startCall()
+        } else {
+            permissionGranted = null // 标记申请中
+            permissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+        }
+    }
+
+    // 控制按钮 3 秒自动隐藏（仅在通话中）
     LaunchedEffect(controlsVisible) {
-        if (controlsVisible) {
+        if (controlsVisible && permissionGranted == true) {
             delay(3000)
             controlsVisible = false
         }
     }
 
     // 通话状态文字
-    val stateText = when (uiState.state) {
-        CallState.LISTENING -> "Lynx 正在聆听"
-        CallState.THINKING -> "Lynx 正在思考"
-        CallState.SPEAKING -> "Lynx 正在回复"
-        CallState.ERROR -> "出错了，重试中..."
-        CallState.IDLE -> "通话结束"
+    val stateText = when {
+        permissionGranted == null -> "正在准备通话..."
+        permissionGranted == false -> "需要录音权限"
+        uiState.state == CallState.LISTENING -> "Lynx 正在聆听"
+        uiState.state == CallState.THINKING -> "Lynx 正在思考"
+        uiState.state == CallState.SPEAKING -> "Lynx 正在回复"
+        uiState.state == CallState.ERROR -> "出错了，重试中..."
+        uiState.state == CallState.IDLE -> "通话结束"
+        else -> ""
     }
 
-    // AI 摘要文案：优先显示用户说的话 / AI 回复
+    // AI 摘要文案
     val aiSummary = when {
+        permissionGranted == null -> "正在检查麦克风权限..."
+        permissionGranted == false -> "请在系统设置中开启麦克风权限后重试"
         uiState.state == CallState.SPEAKING && uiState.aiResponse.isNotBlank() -> uiState.aiResponse
         uiState.state == CallState.THINKING && uiState.transcript.isNotBlank() -> "你刚说：${uiState.transcript}"
         uiState.error != null -> uiState.error!!
@@ -246,41 +278,43 @@ fun CallScreen(
         modifier = Modifier
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background)
-            // 上滑手势结束通话 + 轻触唤起控制按钮
-            .pointerInput(Unit) {
-                awaitPointerEventScope {
-                    while (true) {
-                        val event = awaitPointerEvent(PointerEventPass.Initial)
-                        val down = event.changes.firstOrNull() ?: continue
-                        if (!down.changedToDown()) continue
-                        val startX = down.position.x
-                        val startY = down.position.y
-                        var triggered = false
-                        var moved = false
+            // 上滑手势结束通话 + 轻触唤起控制按钮（仅权限通过后生效）
+            .then(
+                if (permissionGranted == true) {
+                    Modifier.pointerInput(Unit) {
+                        awaitPointerEventScope {
+                            while (true) {
+                                val event = awaitPointerEvent(PointerEventPass.Initial)
+                                val down = event.changes.firstOrNull() ?: continue
+                                if (!down.changedToDown()) continue
+                                val startX = down.position.x
+                                val startY = down.position.y
+                                var triggered = false
+                                var moved = false
 
-                        while (true) {
-                            val moveEvent = awaitPointerEvent(PointerEventPass.Initial)
-                            val change = moveEvent.changes.firstOrNull() ?: break
-                            if (change.changedToUp()) {
-                                // 未触发滑动的轻触 → 切换控制按钮可见性
-                                if (!moved && !triggered) {
-                                    controlsVisible = !controlsVisible
+                                while (true) {
+                                    val moveEvent = awaitPointerEvent(PointerEventPass.Initial)
+                                    val change = moveEvent.changes.firstOrNull() ?: break
+                                    if (change.changedToUp()) {
+                                        if (!moved && !triggered) {
+                                            controlsVisible = !controlsVisible
+                                        }
+                                        break
+                                    }
+                                    val dx = change.position.x - startX
+                                    val dy = change.position.y - startY
+                                    if (abs(dx) > 10f || abs(dy) > 10f) moved = true
+                                    if (!triggered && dy < -80.dp.toPx()) {
+                                        triggered = true
+                                        viewModel.endCall()
+                                        onBack()
+                                    }
                                 }
-                                break
-                            }
-                            val dx = change.position.x - startX
-                            val dy = change.position.y - startY
-                            if (abs(dx) > 10f || abs(dy) > 10f) moved = true
-                            // 上滑超过 80dp → 结束通话
-                            if (!triggered && dy < -80.dp.toPx()) {
-                                triggered = true
-                                viewModel.endCall()
-                                onBack()
                             }
                         }
                     }
-                }
-            },
+                } else Modifier
+            ),
         contentAlignment = Alignment.Center
     ) {
         Column(
@@ -345,8 +379,17 @@ fun CallScreen(
 
             Spacer(modifier = Modifier.height(40.dp))
 
-            // ====== 底部控制按钮（仅挂断 + 打断）======
-            if (controlsVisible) {
+            // ====== 底部控制按钮 ======
+            if (permissionGranted == false) {
+                // 权限被拒绝：显示返回按钮
+                CallButton(
+                    icon = Icons.AutoMirrored.Filled.ArrowBack,
+                    bgColor = Danger.copy(alpha = 0.15f),
+                    iconTint = Danger,
+                    borderColor = Danger.copy(alpha = 0.25f),
+                    onClick = onBack
+                )
+            } else if (controlsVisible && permissionGranted == true) {
                 Row(
                     horizontalArrangement = Arrangement.spacedBy(32.dp),
                     verticalAlignment = Alignment.CenterVertically

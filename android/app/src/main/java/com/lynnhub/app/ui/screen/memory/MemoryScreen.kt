@@ -1,30 +1,22 @@
 package com.lynnhub.app.ui.screen.memory
 
-import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.gestures.detectTapGestures
-import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.Path as ComposePath
-import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -47,9 +39,6 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import javax.inject.Inject
-import kotlin.math.cos
-import kotlin.math.sin
-import kotlin.math.sqrt
 
 // ============ 状态 ============
 data class MemoryScreenUiState(
@@ -58,7 +47,7 @@ data class MemoryScreenUiState(
     val query: String = "",
     val isLoading: Boolean = false,
     val isSearching: Boolean = false,
-    val selectedNodeId: String? = null,
+    val expandedId: String? = null,
     val toast: String? = null,
     val category: String = "全部"
 )
@@ -111,13 +100,10 @@ class MemoryScreenViewModel @Inject constructor(
                 } else {
                     val searchResp = apiService.searchMemory(q)
                     val resultIds = searchResp.results.map { it.id }.toSet()
-                    // 保留原图中匹配的节点 + 它们之间的边
                     val allResp = apiService.getMemory()
                     val matchedNodes = allResp.nodes.filter { it.id in resultIds }
-                    val matchedEdges = allResp.edges.filter { it.from in resultIds && it.to in resultIds }
                     _uiState.value = _uiState.value.copy(
                         nodes = matchedNodes,
-                        edges = matchedEdges,
                         isSearching = false,
                         toast = "找到 ${matchedNodes.size} 条记忆"
                     )
@@ -131,8 +117,10 @@ class MemoryScreenViewModel @Inject constructor(
         }
     }
 
-    fun selectNode(id: String?) {
-        _uiState.value = _uiState.value.copy(selectedNodeId = id)
+    fun toggleExpand(id: String) {
+        _uiState.value = _uiState.value.copy(
+            expandedId = if (_uiState.value.expandedId == id) null else id
+        )
     }
 
     fun clearToast() {
@@ -143,16 +131,6 @@ class MemoryScreenViewModel @Inject constructor(
         _uiState.value = _uiState.value.copy(category = category)
     }
 }
-
-// ============ 力导向布局数据 ============
-data class NodePosition(
-    val id: String,
-    var x: Float,
-    var y: Float,
-    var vx: Float = 0f,
-    var vy: Float = 0f,
-    val node: MemoryNodeDto
-)
 
 // ============ 页面 ============
 @Composable
@@ -174,12 +152,11 @@ fun MemoryScreen(
             .background(MaterialTheme.colorScheme.background)
     ) {
         Column(
-            modifier = Modifier
-                .fillMaxSize()
+            modifier = Modifier.fillMaxSize()
         ) {
             // 顶部 Header
             CoreScreenHeader(
-                title = "记忆图谱",
+                title = "记忆",
                 userName = userName,
                 onOpenSettings = onOpenSettings
             )
@@ -217,7 +194,7 @@ fun MemoryScreen(
                 }
             }
 
-            // 图谱区域
+            // 卡片列表区域
             if (uiState.isLoading) {
                 Box(
                     modifier = Modifier
@@ -228,18 +205,16 @@ fun MemoryScreen(
                     CircularProgressIndicator(color = Primary)
                 }
             } else {
-                // 筛选节点
+                // 按分类筛选
                 val filteredNodes = if (uiState.category == "全部") {
                     uiState.nodes
                 } else {
                     uiState.nodes.filter { memoryTypeLabel(it.type) == uiState.category }
                 }
-                val filteredNodeIds = filteredNodes.map { it.id }.toSet()
-                val filteredEdges = uiState.edges.filter {
-                    it.from in filteredNodeIds && it.to in filteredNodeIds
-                }
+                // 按时间倒序（最新在前）
+                val sortedNodes = filteredNodes.sortedByDescending { it.createdAt }
 
-                if (filteredNodes.isEmpty()) {
+                if (sortedNodes.isEmpty()) {
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -253,20 +228,29 @@ fun MemoryScreen(
                         )
                     }
                 } else {
-                    MemoryGraphCanvas(
-                        nodes = filteredNodes,
-                        edges = filteredEdges,
-                        selectedNodeId = uiState.selectedNodeId,
-                        onNodeTap = { id -> viewModel.selectNode(id) },
+                    LazyColumn(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .weight(1f)
-                    )
+                            .weight(1f),
+                        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        items(
+                            items = sortedNodes,
+                            key = { it.id }
+                        ) { node ->
+                            MemoryCard(
+                                node = node,
+                                isExpanded = uiState.expandedId == node.id,
+                                onClick = { viewModel.toggleExpand(node.id) }
+                            )
+                        }
+                    }
                 }
             }
         }
 
-        // 右下角悬浮搜索 FAB（与首页灵感 FAB 相同位置和样式）
+        // 右下角悬浮搜索 FAB
         Pressable(
             onClick = { showSearchDialog = true },
             modifier = Modifier
@@ -283,18 +267,6 @@ fun MemoryScreen(
                 tint = TextPrimary,
                 modifier = Modifier.size(24.dp)
             )
-        }
-
-        // 底部详情卡片
-        uiState.selectedNodeId?.let { selectedId ->
-            val selectedNode = uiState.nodes.find { it.id == selectedId }
-            if (selectedNode != null) {
-                NodeDetailCard(
-                    node = selectedNode,
-                    onDismiss = { viewModel.selectNode(null) },
-                    modifier = Modifier.align(Alignment.BottomCenter)
-                )
-            }
         }
     }
 
@@ -325,300 +297,83 @@ fun MemoryScreen(
     }
 }
 
-// ============ 2D 力导向图谱 Canvas ============
+// ============ 记忆卡片 ============
 @Composable
-private fun MemoryGraphCanvas(
-    nodes: List<MemoryNodeDto>,
-    edges: List<MemoryEdgeDto>,
-    selectedNodeId: String?,
-    onNodeTap: (String) -> Unit,
-    modifier: Modifier = Modifier
-) {
-    // 初始化节点位置（圆形分布）
-    val positions = remember(nodes) {
-        val centerX = 500f
-        val centerY = 500f
-        val radius = 300f
-        nodes.mapIndexed { index, node ->
-            val angle = (2.0 * Math.PI * index / maxOf(nodes.size, 1)).toFloat()
-            NodePosition(
-                id = node.id,
-                x = centerX + radius * cos(angle),
-                y = centerY + radius * sin(angle),
-                node = node
-            )
-        }
-    }
-
-    // 力导向模拟
-    LaunchedEffect(nodes, edges) {
-        val iterations = 80
-        repeat(iterations) {
-            positions.forEach { p ->
-                // 排斥力
-                var fx = 0f
-                var fy = 0f
-                positions.forEach { q ->
-                    if (p.id != q.id) {
-                        val dx = p.x - q.x
-                        val dy = p.y - q.y
-                        val dist = maxOf(sqrt(dx * dx + dy * dy), 1f)
-                        val repulsion = 8000f / (dist * dist)
-                        fx += (dx / dist) * repulsion
-                        fy += (dy / dist) * repulsion
-                    }
-                }
-                // 吸引力（沿边）
-                edges.forEach { e ->
-                    val otherId = when (p.id) {
-                        e.from -> e.to
-                        e.to -> e.from
-                        else -> null
-                    }
-                    if (otherId != null) {
-                        val other = positions.find { it.id == otherId }
-                        if (other != null) {
-                            val dx = other.x - p.x
-                            val dy = other.y - p.y
-                            val dist = maxOf(sqrt(dx * dx + dy * dy), 1f)
-                            val attraction = (dist - 120f) * 0.05f
-                            fx += (dx / dist) * attraction
-                            fy += (dy / dist) * attraction
-                        }
-                    }
-                }
-                // 向中心吸引（防止飞出）
-                fx += (500f - p.x) * 0.01f
-                fy += (500f - p.y) * 0.01f
-                p.vx = (p.vx + fx) * 0.7f
-                p.vy = (p.vy + fy) * 0.7f
-            }
-            positions.forEach { p ->
-                p.x += p.vx
-                p.y += p.vy
-            }
-        }
-    }
-
-    // 缩放和平移状态
-    var scale by remember { mutableStateOf(1f) }
-    var offsetX by remember { mutableStateOf(0f) }
-    var offsetY by remember { mutableStateOf(0f) }
-
-    Box(
-        modifier = modifier
-            .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background)
-            // 双指缩放 + 拖拽平移
-            .pointerInput(Unit) {
-                detectTransformGestures { _, pan, zoom, _ ->
-                    scale = (scale * zoom).coerceIn(0.3f, 3f)
-                    offsetX += pan.x
-                    offsetY += pan.y
-                }
-            }
-            // 单击检测（点击节点）
-            .pointerInput(Unit) {
-                detectTapGestures(
-                    onTap = { tapOffset ->
-                        // 将屏幕坐标转换为图谱坐标
-                        val graphX = (tapOffset.x - offsetX) / scale
-                        val graphY = (tapOffset.y - offsetY) / scale
-                        // 查找最近的节点（在点击半径内）
-                        var closestId: String? = null
-                        var closestDist = Float.MAX_VALUE
-                        positions.forEach { p ->
-                            val dx = p.x - graphX
-                            val dy = p.y - graphY
-                            val dist = sqrt(dx * dx + dy * dy)
-                            val nodeRadius = (8f + p.node.strength.toFloat() * 1.5f).coerceIn(8f, 24f)
-                            if (dist < nodeRadius + 15f && dist < closestDist) {
-                                closestDist = dist
-                                closestId = p.id
-                            }
-                        }
-                        closestId?.let { onNodeTap(it) }
-                    }
-                )
-            }
-    ) {
-        Canvas(
-            modifier = Modifier
-                .fillMaxSize()
-                .graphicsLayer(
-                    scaleX = scale,
-                    scaleY = scale,
-                    translationX = offsetX,
-                    translationY = offsetY
-                )
-        ) {
-            val canvasWidth = size.width
-            val canvasHeight = size.height
-            val centerX = canvasWidth / 2f
-            val centerY = canvasHeight / 2f
-
-            // 将图谱坐标（0-1000）映射到 Canvas 坐标
-            fun mapX(x: Float): Float = centerX + (x - 500f)
-            fun mapY(y: Float): Float = centerY + (y - 500f)
-
-            // 绘制边（贝塞尔曲线）
-            edges.forEach { edge ->
-                val fromP = positions.find { it.id == edge.from }
-                val toP = positions.find { it.id == edge.to }
-                if (fromP != null && toP != null) {
-                    val x1 = mapX(fromP.x)
-                    val y1 = mapY(fromP.y)
-                    val x2 = mapX(toP.x)
-                    val y2 = mapY(toP.y)
-                    // 中点偏移形成弧线
-                    val midX = (x1 + x2) / 2f
-                    val midY = (y1 + y2) / 2f + 10f
-
-                    val path = ComposePath()
-                    path.moveTo(x1, y1)
-                    path.quadraticBezierTo(midX, midY, x2, y2)
-
-                    val isHighlighted = selectedNodeId == edge.from || selectedNodeId == edge.to
-                    drawPath(
-                        path = path,
-                        color = if (isHighlighted) Primary.copy(alpha = 0.4f) else Color.White.copy(alpha = 0.08f),
-                        style = Stroke(width = if (isHighlighted) 2f else 1f)
-                    )
-                }
-            }
-
-            // 绘制节点
-            positions.forEach { p ->
-                val x = mapX(p.x)
-                val y = mapY(p.y)
-                val radius = (8f + p.node.strength.toFloat() * 1.5f).coerceIn(8f, 24f)
-                val color = memoryTypeColor(p.node.type)
-                val isSelected = selectedNodeId == p.id
-
-                // 选中节点的光晕
-                if (isSelected) {
-                    drawCircle(
-                        color = color.copy(alpha = 0.2f),
-                        radius = radius + 8f,
-                        center = Offset(x, y)
-                    )
-                }
-
-                // 节点填充
-                drawCircle(
-                    color = color.copy(alpha = if (isSelected) 0.9f else 0.7f),
-                    radius = radius,
-                    center = Offset(x, y)
-                )
-                // 节点描边
-                drawCircle(
-                    color = color.copy(alpha = 0.4f),
-                    radius = radius,
-                    center = Offset(x, y),
-                    style = Stroke(width = 1.5f)
-                )
-            }
-        }
-    }
-
-    // 节点标签 overlay（使用 Canvas 无法直接画文字，用 Text 叠加）
-    // 简化：仅在选中时通过底部卡片显示信息
-}
-
-// ============ 底部详情卡片 ============
-@Composable
-private fun NodeDetailCard(
+private fun MemoryCard(
     node: MemoryNodeDto,
-    onDismiss: () -> Unit,
-    modifier: Modifier = Modifier
+    isExpanded: Boolean,
+    onClick: () -> Unit
 ) {
-    val color = memoryTypeColor(node.type)
-
-    Column(
-        modifier = modifier
+    Box(
+        modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 16.dp)
-            .clip(RoundedCornerShape(20.dp))
-            .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.95f))
-            .border(1.dp, color.copy(alpha = 0.2f), RoundedCornerShape(20.dp))
+            .clip(RoundedCornerShape(16.dp))
+            .background(MaterialTheme.colorScheme.surface)
+            .border(1.dp, BorderSubtle, RoundedCornerShape(16.dp))
+            .clickable(onClick = onClick)
             .padding(16.dp)
     ) {
-        // 顶部：类型标签 + 关闭按钮
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Box(
-                modifier = Modifier
-                    .clip(RoundedCornerShape(999.dp))
-                    .background(color.copy(alpha = 0.12f))
-                    .border(1.dp, color.copy(alpha = 0.22f), RoundedCornerShape(999.dp))
-                    .padding(horizontal = 10.dp, vertical = 4.dp)
+        Column {
+            // 类型标签 + 时间
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
             ) {
+                // 类型标签
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(6.dp))
+                        .background(memoryTypeColor(node.type).copy(alpha = 0.15f))
+                        .padding(horizontal = 8.dp, vertical = 3.dp)
+                ) {
+                    Text(
+                        text = memoryTypeLabel(node.type),
+                        fontSize = 10.sp,
+                        color = memoryTypeColor(node.type),
+                        fontWeight = FontWeight.SemiBold
+                    )
+                }
+                // 时间
                 Text(
-                    text = memoryTypeLabel(node.type),
-                    color = color,
+                    text = node.createdAt.take(16).replace("T", " "),
                     fontSize = 10.sp,
-                    fontWeight = FontWeight.SemiBold
+                    color = TextMuted
                 )
             }
-            Spacer(modifier = Modifier.weight(1f))
-            Icon(
-                imageVector = Icons.Filled.Close,
-                contentDescription = "关闭",
-                tint = TextMuted,
-                modifier = Modifier
-                    .size(20.dp)
-                    .clickable { onDismiss() }
-            )
-        }
 
-        Spacer(modifier = Modifier.height(10.dp))
-
-        // 标题
-        Text(
-            text = node.label.ifBlank { "未命名" },
-            color = MaterialTheme.colorScheme.onSurface,
-            fontSize = 15.sp,
-            fontWeight = FontWeight.Bold,
-            maxLines = 2,
-            overflow = TextOverflow.Ellipsis
-        )
-
-        // 内容
-        if (node.fullContent.isNotBlank()) {
-            Spacer(modifier = Modifier.height(8.dp))
-            Text(
-                text = node.fullContent,
-                color = TextMuted,
-                fontSize = 12.sp,
-                lineHeight = 18.sp,
-                maxLines = 4,
-                overflow = TextOverflow.Ellipsis
-            )
-        }
-
-        // 底部信息
-        Spacer(modifier = Modifier.height(10.dp))
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween
-        ) {
-            Text(
-                text = "强度: ${"%.1f".format(node.strength)}",
-                color = TextMuted,
-                fontSize = 10.sp
-            )
-            Text(
-                text = "关联 ${node.connections.size} 个节点",
-                color = TextMuted,
-                fontSize = 10.sp
-            )
-            if (node.createdAt.isNotBlank()) {
+            if (node.label.isNotBlank()) {
+                Spacer(modifier = Modifier.height(8.dp))
                 Text(
-                    text = node.createdAt.take(10),
-                    color = TextMuted,
-                    fontSize = 10.sp
+                    text = node.label,
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+
+            Spacer(modifier = Modifier.height(4.dp))
+
+            // 摘要 / 展开
+            val content = node.fullContent.ifBlank { node.label }
+            Text(
+                text = content,
+                fontSize = 12.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = if (isExpanded) Int.MAX_VALUE else 2,
+                overflow = if (isExpanded) TextOverflow.Visible else TextOverflow.Ellipsis,
+                lineHeight = 18.sp
+            )
+
+            if (content.length > 120) {
+                Spacer(modifier = Modifier.height(6.dp))
+                Text(
+                    text = if (isExpanded) "收起" else "展开全文",
+                    fontSize = 11.sp,
+                    color = Primary,
+                    fontWeight = FontWeight.Medium
                 )
             }
         }
