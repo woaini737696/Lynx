@@ -214,12 +214,19 @@ export async function executeAssistantCommand(
   return invoke("execute_assistant_command", { command, targetDevice });
 }
 
-/** 一键安装 AI 环境 */
+/** 一键安装 AI 环境（仅桌面端可用） */
 export async function installAiEnv(): Promise<{
   success: boolean;
   message: string;
   status: Record<string, unknown>;
 }> {
+  if (!isDesktop()) {
+    return {
+      success: false,
+      message: "浏览器无法直接安装 HermesAgent。请在命令行运行 `pip install hermes-agent` 安装，或使用桌面端一键安装。",
+      status: {},
+    };
+  }
   return invoke("install_ai_env");
 }
 
@@ -229,8 +236,11 @@ export async function detectAiEnv(): Promise<Record<string, unknown> | null> {
   return invoke<Record<string, unknown>>("detect_ai_env");
 }
 
-/** 启动 HermesAgent 本地进程 */
+/** 启动 HermesAgent 本地进程（仅桌面端可用） */
 export async function startHermesAgent(): Promise<void> {
+  if (!isDesktop()) {
+    throw new Error("浏览器无法直接启动 HermesAgent。请在命令行运行 `hermes dashboard --port 9119` 启动 Dashboard。");
+  }
   return invoke<void>("start_hermes_agent");
 }
 

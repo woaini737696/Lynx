@@ -52,6 +52,7 @@ fun SettingsScreen(
     val uiState by viewModel.uiState.collectAsState()
     var showClearCacheDialog by remember { mutableStateOf(false) }
     var showLogoutDialog by remember { mutableStateOf(false) }
+    var showThemeDialog by remember { mutableStateOf(false) }
 
     Box(
         modifier = Modifier
@@ -194,6 +195,15 @@ fun SettingsScreen(
                         // Toggle 占位
                     }
 
+                    // 外观分组（主题切换）
+                    SettingsGroupTitle("外观")
+                    SettingsRow(
+                        icon = LynxIcons.Info,
+                        label = "主题模式",
+                        value = themeLabel(uiState.theme),
+                        onClick = { showThemeDialog = true }
+                    )
+
                     // 关于分组
                     SettingsGroupTitle("关于")
                     SettingsRow(
@@ -268,6 +278,110 @@ fun SettingsScreen(
             onDismiss = { showLogoutDialog = false }
         )
     }
+
+    // 主题切换弹窗
+    if (showThemeDialog) {
+        ThemePickerDialog(
+            currentTheme = uiState.theme,
+            onSelect = { theme ->
+                viewModel.setTheme(theme)
+                showThemeDialog = false
+            },
+            onDismiss = { showThemeDialog = false }
+        )
+    }
+}
+
+/** 主题模式中文标签 */
+private fun themeLabel(theme: String): String = when (theme) {
+    "dark" -> "深色"
+    "light" -> "浅色"
+    else -> "跟随系统"
+}
+
+/**
+ * 主题选择弹窗：深色 / 浅色 / 跟随系统
+ * 选择后立即生效（MainActivity 监听 themeFlow 自动 recomposition）
+ */
+@Composable
+private fun ThemePickerDialog(
+    currentTheme: String,
+    onSelect: (String) -> Unit,
+    onDismiss: () -> Unit
+) {
+    val options = listOf(
+        "light" to "浅色（白天）",
+        "dark" to "深色（夜晚）",
+        "system" to "跟随系统"
+    )
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = MaterialTheme.colorScheme.surface,
+        titleContentColor = TextPrimary,
+        title = {
+            Text(
+                text = "主题模式",
+                fontWeight = FontWeight.SemiBold,
+                fontSize = 15.sp,
+                color = TextPrimary
+            )
+        },
+        text = {
+            Column {
+                options.forEach { (value, label) ->
+                    val isSelected = value == currentTheme
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(if (isSelected) Primary.copy(alpha = 0.12f) else Color.Transparent)
+                            .clickable { onSelect(value) }
+                            .padding(horizontal = 12.dp, vertical = 12.dp)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(20.dp)
+                                .clip(CircleShape)
+                                .background(if (isSelected) Primary else Color.Transparent)
+                                .border(
+                                    1.dp,
+                                    if (isSelected) Primary else BorderHover,
+                                    CircleShape
+                                ),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            if (isSelected) {
+                                Icon(
+                                    imageVector = LynxIcons.Check,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.onPrimary,
+                                    modifier = Modifier.size(12.dp)
+                                )
+                            }
+                        }
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Text(
+                            text = label,
+                            fontSize = 14.sp,
+                            color = if (isSelected) Primary else TextPrimary,
+                            fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal
+                        )
+                    }
+                    Spacer(modifier = Modifier.height(4.dp))
+                }
+            }
+        },
+        confirmButton = {
+            Text(
+                text = "关闭",
+                color = TextMuted,
+                modifier = Modifier
+                    .clickable { onDismiss() }
+                    .padding(vertical = 8.dp, horizontal = 12.dp)
+            )
+        }
+    )
 }
 
 @Composable

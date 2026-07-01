@@ -1,47 +1,35 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/auth-utils";
-import {
-  getHermesConfig,
-  upsertHermesConfig,
-  detectHermesInstall,
-  installHermesAgent,
-  startHermesAgent,
-  stopHermesAgent,
-  clearHermesDetectCache,
-} from "@/lib/hermes-client";
+import { getHermesConfig } from "@/lib/hermes-client";
 import { getLogger } from "@/lib/logger";
 
 const logger = getLogger("hermes-api");
 
 // GET /api/hermes/install - 获取安装状态
+// 服务器不检测本地 hermes 安装（服务器禁止安装 hermes）
+// 仅返回数据库中的配置状态，桌面端会通过 WS 上报真实本地状态
 export async function GET() {
   const auth = await requireAuth();
   if (auth.user === null) return auth.error;
 
   try {
     const config = await getHermesConfig(auth.user.id);
-    const detect = await detectHermesInstall();
-
-    // 如果检测到已安装但数据库无记录或状态为 not_installed，自动补建/更新
-    if (detect.installed && (!config || config.status === "not_installed")) {
-      await upsertHermesConfig(auth.user.id, {
-        status: "installed",
-        installedAt: new Date(),
-        ...(config ? {} : { endpoint: "http://localhost:9119" }),
-      });
-    }
 
     return NextResponse.json({
-      status: detect.installed ? "installed" : (config?.status || "not_installed"),
-      installed: detect.installed,
-      version: detect.version,
-      path: detect.path,
+      // 服务器端不检测本地安装，仅返回数据库状态
+      // 桌面端客户端会通过 WS 网关上报真实本地安装状态
+      status: config?.status || "not_installed",
+      installed: config?.status === "installed" || config?.status === "running",
+      version: null, // 服务器不知道客户端版本
+      path: null,
       config: config ? {
         enabled: config.enabled,
         endpoint: config.endpoint,
         autoStart: config.autoStart,
         capabilities: config.capabilities,
       } : null,
+      // 提示前端：服务器无法执行 install/start/stop，需要桌面端
+      requiresDesktop: true,
     });
   } catch (e) {
     logger.error({ err: e }, "获取 Hermes 安装状态失败");
@@ -52,122 +40,34 @@ export async function GET() {
   }
 }
 
-// POST /api/hermes/install - 一键安装/启动 Hermes Agent
-// body: { action: "install" | "start" | "stop", port?: number }
+// POST /api/hermes/install - 拒绝在服务器执行 install/start/stop
+//
+// 架构说明（2026-07-01 修正）：
+// - HermesAgent 只能安装在用户本地电脑，服务器禁止安装（安全漏洞）
+// - install/start/stop 必须通过桌面端客户端 Tauri command 在用户本地执行
+// - 浏览器访问 Web 端时，这些操作应直接提示下载桌面端
+// - 仅保留 status 查询（从数据库读取，不触碰服务器文件系统）
 export async function POST(req: NextRequest) {
   const auth = await requireAuth();
   if (auth.user === null) return auth.error;
 
   try {
     const body = await req.json();
-    const { action, port } = body as { action?: string; port?: number };
+    const { action } = body as { action?: string };
 
-    if (action === "install") {
-      // 标记为安装中
-      await upsertHermesConfig(auth.user.id, {
-        status: "installing",
-        lastError: null,
-      });
-
-      const result = await installHermesAgent();
-      clearHermesDetectCache(); // 安装后清除缓存，下次状态查询会重新检测
-      if (result.success) {
-        await upsertHermesConfig(auth.user.id, {
-          status: "installed",
-          installedAt: new Date(),
-          lastCheckedAt: new Date(),
-          lastError: null,
-        });
-        return NextResponse.json({
-          success: true,
-          message: "Hermes Agent 安装成功",
-          output: result.output?.slice(-500),
-        });
-      } else {
-        await upsertHermesConfig(auth.user.id, {
-          status: "error",
-          lastError: result.error,
-          lastCheckedAt: new Date(),
-        });
-        return NextResponse.json(
-          { success: false, error: result.error || "安装失败" },
-          { status: 500 }
-        );
-      }
-    }
-
-    if (action === "start") {
-      // 用文件系统检测判断是否已安装，而非数据库记录
-      const detect = await detectHermesInstall();
-      if (!detect.installed) {
-        // 未安装时自动尝试安装（Web端独立部署场景）
-        const installResult = await installHermesAgent();
-        clearHermesDetectCache();
-        if (!installResult.success) {
-          return NextResponse.json(
-            { error: "HermesAgent 未安装且自动安装失败：" + (installResult.error || "未知原因") + "。请先点击「一键安装」，或下载 Lynx 桌面端客户端。" },
-            { status: 400 }
-          );
-        }
-        // 安装成功，继续启动
-      }
-      // 数据库无记录时自动补建（用户可能通过 pip 手动安装）
-      const config = await getHermesConfig(auth.user.id);
-      if (!config) {
-        await upsertHermesConfig(auth.user.id, {
-          status: "installed",
-          installedAt: new Date(),
-          endpoint: `http://localhost:${port || 9119}`,
-        });
-      }
-      const targetPort = port || 9119; // Hermes Dashboard 默认端口
-      const result = await startHermesAgent(targetPort);
-      if (result.success) {
-        await upsertHermesConfig(auth.user.id, {
-          status: "running",
-          endpoint: `http://localhost:${targetPort}`,
-          lastCheckedAt: new Date(),
-          lastError: null,
-        });
-        return NextResponse.json({
-          success: true,
-          message: `Hermes Agent Dashboard 已启动（端口 ${targetPort}）`,
-          pid: result.pid,
-        });
-      } else {
-        await upsertHermesConfig(auth.user.id, {
-          status: "error",
-          lastError: result.error,
-          lastCheckedAt: new Date(),
-        });
-        return NextResponse.json(
-          { success: false, error: result.error },
-          { status: 500 }
-        );
-      }
-    }
-
-    if (action === "stop") {
-      const config = await getHermesConfig(auth.user.id);
-      const targetPort = port || 9119;
-      const result = await stopHermesAgent(targetPort);
-      await upsertHermesConfig(auth.user.id, {
-        status: "installed",
-        lastCheckedAt: new Date(),
-        lastError: result.success ? null : result.error,
-      });
-      return NextResponse.json({
-        success: result.success,
-        message: result.success ? "Hermes Agent 已停止" : (result.error || "停止失败"),
-      });
-    }
-
-    return NextResponse.json(
-      { error: "未知操作，支持 install | start | stop" },
-      { status: 400 }
-    );
+    // 所有涉及本地操作的动作都拒绝在服务器执行
+    return NextResponse.json({
+      success: false,
+      error:
+        "HermesAgent 只能安装在您的本地电脑，服务器不执行安装/启动/停止操作（安全架构）。\n\n" +
+        "请下载并安装 Lynx 桌面端客户端，在桌面端的「设置 → Lynx Agent」中执行" +
+        (action === "install" ? "安装" : action === "start" ? "启动" : action === "stop" ? "停止" : "相关操作") +
+        "。\n" +
+        "下载地址：https://ai.lynxdo.com/downloads",
+      requiresDesktop: true,
+    }, { status: 400 });
   } catch (e) {
-    logger.error({ err: e }, "Hermes 安装/启动操作失败");
+    logger.error({ err: e }, "Hermes install POST 失败");
     return NextResponse.json(
       { error: "服务器错误：" + (e as Error).message },
       { status: 500 }

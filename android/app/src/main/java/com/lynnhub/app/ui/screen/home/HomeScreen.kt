@@ -29,6 +29,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -44,6 +45,7 @@ import com.lynnhub.app.ui.theme.BorderSubtle
 import com.lynnhub.app.ui.theme.Deep
 import com.lynnhub.app.ui.theme.GradientPrimary
 import com.lynnhub.app.ui.theme.LiquidBorder
+import com.lynnhub.app.ui.theme.Liquid2
 import com.lynnhub.app.ui.theme.Liquid3
 import com.lynnhub.app.ui.theme.Motion
 import com.lynnhub.app.ui.theme.Primary
@@ -55,14 +57,16 @@ import com.lynnhub.app.ui.theme.Think
 import com.lynnhub.app.ui.theme.Void
 
 /**
- * Lynx v6 首页
+ * Lynx v6 首页 - 今日工作台
  *
- * 设计要点：
- * - 顶部：左侧「早上好，Lynn」，右侧用户头像（进入设置）
- * - Agent 状态：胶囊 pill「Lynx Agent 在线」
- * - 中央 140dp 呼吸球，纯白猞猁 logo 68dp，点击进通话
- * - 时间流：玻璃卡片，顶部渐变消融
- * - 右下角 FAB：灵感速记入口
+ * 重新设计：从"时间流"改为"今日工作台"，更实用
+ * - 顶部：问候 + 头像（设置入口）
+ * - Agent 状态 pill
+ * - 中央呼吸球（点击进通话）
+ * - 今日概览：3 个统计胶囊（进行中/今日完成/待处理飞书）
+ * - 快捷入口：灵感速记 / Lynx 助理 / Agent 远程
+ * - 最近飞书任务 Top 3
+ * - 右下角 FAB：灵感速记
  */
 @Composable
 fun HomeScreen(
@@ -115,7 +119,7 @@ fun HomeScreen(
             // Agent 状态 pill
             AgentStatusPill(label = uiState.agentLabel)
 
-            Spacer(modifier = Modifier.height(20.dp))
+            Spacer(modifier = Modifier.height(16.dp))
 
             // 中央呼吸球
             BreathBall(
@@ -123,26 +127,291 @@ fun HomeScreen(
                 modifier = Modifier.align(Alignment.CenterHorizontally)
             )
 
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(16.dp))
 
-            // 时间流
-            Timeline(
-                items = uiState.timeline,
+            // 今日概览统计
+            TodayOverview(
+                activeTaskCount = uiState.activeTaskCount,
+                todayDoneCount = uiState.todayDoneCount,
+                pendingLarkTaskCount = uiState.pendingLarkTaskCount
+            )
+
+            Spacer(modifier = Modifier.height(14.dp))
+
+            // 快捷入口
+            QuickEntries(
+                onIdea = onOpenIdea,
+                onCall = onOpenCall,
+                modifier = Modifier.fillMaxWidth()
+            )
+
+            Spacer(modifier = Modifier.height(14.dp))
+
+            // 最近飞书任务
+            RecentTasksSection(
+                tasks = uiState.recentTasks,
                 isLoading = uiState.isLoading,
                 modifier = Modifier
                     .fillMaxWidth()
                     .weight(1f)
-                    .padding(top = 8.dp)
             )
         }
 
-        // 右下角灵感 FAB（吸附在导航栏上方，留 12dp 间距）
+        // 右下角灵感 FAB
         IdeaFab(
             onClick = onOpenIdea,
             modifier = Modifier
                 .align(Alignment.BottomEnd)
                 .padding(end = 22.dp, bottom = 12.dp)
         )
+    }
+}
+
+// ============ 今日概览统计 ============
+@Composable
+private fun TodayOverview(
+    activeTaskCount: Int,
+    todayDoneCount: Int,
+    pendingLarkTaskCount: Int
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        StatChip(
+            label = "进行中",
+            value = activeTaskCount,
+            color = Primary,
+            modifier = Modifier.weight(1f)
+        )
+        StatChip(
+            label = "已完成",
+            value = todayDoneCount,
+            color = Agent,
+            modifier = Modifier.weight(1f)
+        )
+        StatChip(
+            label = "飞书待办",
+            value = pendingLarkTaskCount,
+            color = Think,
+            modifier = Modifier.weight(1f)
+        )
+    }
+}
+
+@Composable
+private fun StatChip(
+    label: String,
+    value: Int,
+    color: Color,
+    modifier: Modifier = Modifier
+) {
+    Column(
+        modifier = modifier
+            .clip(RoundedCornerShape(14.dp))
+            .background(Liquid2)
+            .border(1.dp, LiquidBorder, RoundedCornerShape(14.dp))
+            .padding(vertical = 10.dp, horizontal = 8.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Text(
+            text = value.toString(),
+            fontSize = 20.sp,
+            fontWeight = FontWeight.Bold,
+            color = color
+        )
+        Spacer(modifier = Modifier.height(2.dp))
+        Text(
+            text = label,
+            fontSize = 10.sp,
+            color = TextMuted
+        )
+    }
+}
+
+// ============ 快捷入口 ============
+@Composable
+private fun QuickEntries(
+    onIdea: () -> Unit,
+    onCall: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Row(
+        modifier = modifier,
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        QuickEntryCard(
+            label = "灵感速记",
+            color = Primary,
+            modifier = Modifier.weight(1f),
+            onClick = onIdea
+        )
+        QuickEntryCard(
+            label = "语音通话",
+            color = Agent,
+            modifier = Modifier.weight(1f),
+            onClick = onCall
+        )
+        QuickEntryCard(
+            label = "Lynx 助理",
+            color = Think,
+            modifier = Modifier.weight(1f),
+            onClick = onCall // 复用通话入口（助理面板可从通话进入）
+        )
+    }
+}
+
+@Composable
+private fun QuickEntryCard(
+    label: String,
+    color: Color,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit
+) {
+    Box(
+        modifier = modifier
+            .height(54.dp)
+            .clip(RoundedCornerShape(14.dp))
+            .background(Liquid2)
+            .border(1.dp, color.copy(alpha = 0.18f), RoundedCornerShape(14.dp))
+            .clickable(onClick = onClick),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = label,
+            fontSize = 12.sp,
+            color = TextPrimary,
+            fontWeight = FontWeight.Medium
+        )
+    }
+}
+
+// ============ 最近飞书任务 ============
+@Composable
+private fun RecentTasksSection(
+    tasks: List<com.lynnhub.app.data.remote.dto.LarkTaskDto>,
+    isLoading: Boolean,
+    modifier: Modifier = Modifier
+) {
+    Column(modifier = modifier) {
+        // 标题
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            Text(
+                text = "最近任务",
+                fontSize = 12.sp,
+                color = TextMuted,
+                fontWeight = FontWeight.SemiBold,
+                letterSpacing = 1.sp
+            )
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .height(1.dp)
+                    .background(
+                        Brush.horizontalGradient(
+                            colors = listOf(Liquid3, Color.Transparent)
+                        )
+                    )
+            )
+        }
+
+        Spacer(modifier = Modifier.height(10.dp))
+
+        if (isLoading) {
+            Box(
+                modifier = Modifier.fillMaxWidth().weight(1f),
+                contentAlignment = Alignment.TopCenter
+            ) {
+                Text(
+                    text = "加载中…",
+                    fontSize = 12.sp,
+                    color = TextMuted,
+                    modifier = Modifier.padding(top = 20.dp)
+                )
+            }
+            return
+        }
+
+        if (tasks.isEmpty()) {
+            Box(
+                modifier = Modifier.fillMaxWidth().weight(1f),
+                contentAlignment = Alignment.TopCenter
+            ) {
+                Text(
+                    text = "暂无飞书任务",
+                    fontSize = 12.sp,
+                    color = TextMuted,
+                    modifier = Modifier.padding(top = 20.dp)
+                )
+            }
+            return
+        }
+
+        LazyColumn(
+            modifier = Modifier.fillMaxSize().weight(1f),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            items(tasks, key = { it.guid }) { task ->
+                HomeTaskCard(task = task)
+            }
+        }
+    }
+}
+
+@Composable
+private fun HomeTaskCard(task: com.lynnhub.app.data.remote.dto.LarkTaskDto) {
+    GlassCard(
+        variant = GlassVariant.Default,
+        shape = RoundedCornerShape(14.dp),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            // 状态点
+            Box(
+                modifier = Modifier
+                    .size(8.dp)
+                    .clip(CircleShape)
+                    .background(if (task.completed) Agent else Primary)
+            )
+            Spacer(modifier = Modifier.width(10.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = task.summary,
+                    fontSize = 13.sp,
+                    color = if (task.completed) TextMuted else TextPrimary,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                task.tasklistName?.let {
+                    Text(
+                        text = it,
+                        fontSize = 10.sp,
+                        color = TextMuted,
+                        modifier = Modifier.padding(top = 2.dp)
+                    )
+                }
+            }
+            // 负责人
+            if (task.assignees.isNotEmpty()) {
+                val name = task.assignees.firstOrNull()?.displayName
+                    ?: task.assignees.firstOrNull()?.name
+                    ?: "?"
+                Text(
+                    text = name,
+                    fontSize = 10.sp,
+                    color = TextMuted
+                )
+            }
+        }
     }
 }
 
@@ -373,167 +642,4 @@ private fun IdeaFab(
     }
 }
 
-// ============ 时间流 ============
-@Composable
-private fun Timeline(
-    items: List<TimelineItem>,
-    isLoading: Boolean,
-    modifier: Modifier = Modifier
-) {
-    Column(modifier = modifier) {
-        // 标题
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(10.dp)
-        ) {
-            Text(
-                text = "时间流",
-                fontSize = 12.sp,
-                color = TextMuted,
-                fontWeight = FontWeight.SemiBold,
-                letterSpacing = 1.sp
-            )
-            Box(
-                modifier = Modifier
-                    .weight(1f)
-                    .height(1.dp)
-                    .background(
-                        Brush.horizontalGradient(
-                            colors = listOf(
-                                Liquid3,
-                                Color.Transparent
-                            )
-                        )
-                    )
-            )
-        }
 
-        if (isLoading) {
-            Box(
-                modifier = Modifier.fillMaxWidth().weight(1f),
-                contentAlignment = Alignment.TopCenter
-            ) {
-                Text(
-                    text = "加载中…",
-                    fontSize = 12.sp,
-                    color = TextMuted,
-                    modifier = Modifier.padding(top = 40.dp)
-                )
-            }
-            return
-        }
-
-        if (items.isEmpty()) {
-            Box(
-                modifier = Modifier.fillMaxWidth().weight(1f),
-                contentAlignment = Alignment.TopCenter
-            ) {
-                Text(
-                    text = "暂无动态",
-                    fontSize = 12.sp,
-                    color = TextMuted,
-                    modifier = Modifier.padding(top = 40.dp)
-                )
-            }
-            return
-        }
-
-        // 时间流列表 + 顶部渐变消融（与呼吸球柔和过渡）
-        Box(modifier = Modifier.fillMaxSize().weight(1f)) {
-            LazyColumn(
-                modifier = Modifier.fillMaxSize(),
-                verticalArrangement = Arrangement.spacedBy(10.dp)
-            ) {
-                items(items, key = { it.id }) { item ->
-                    TimelineCard(item)
-                }
-            }
-            // 顶部 18dp 渐变消融遮罩
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(18.dp)
-                    .align(Alignment.TopCenter)
-                    .background(
-                        Brush.verticalGradient(
-                            colors = listOf(
-                                Void.copy(alpha = 0.9f),
-                                Color.Transparent
-                            )
-                        )
-                    )
-            )
-        }
-    }
-}
-
-@Composable
-private fun TimelineCard(item: TimelineItem) {
-    val relativeTime = formatRelativeTime(item.createdAt)
-    val badgeColor = when (item.type) {
-        "task" -> Agent
-        "memory" -> Think
-        "cognition" -> Primary
-        "report" -> Agent
-        else -> Primary
-    }
-
-    GlassCard(
-        variant = GlassVariant.Default,
-        shape = RoundedCornerShape(24.dp),
-        modifier = Modifier.fillMaxWidth()
-    ) {
-        Column(
-            modifier = Modifier.padding(16.dp)
-        ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                Box(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(999.dp))
-                        .background(badgeColor.copy(alpha = 0.12f))
-                        .border(1.dp, badgeColor.copy(alpha = 0.18f), RoundedCornerShape(999.dp))
-                        .padding(horizontal = 9.dp, vertical = 3.dp)
-                ) {
-                    Text(
-                        text = typeLabel(item.type),
-                        fontSize = 10.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        color = badgeColor
-                    )
-                }
-                if (relativeTime.isNotBlank()) {
-                    Text(
-                        text = relativeTime,
-                        fontSize = 10.sp,
-                        color = TextMuted,
-                        modifier = Modifier.weight(1f)
-                    )
-                }
-            }
-
-            Spacer(modifier = Modifier.height(8.dp))
-
-            Text(
-                text = item.title,
-                fontSize = 13.5.sp,
-                color = TextPrimary,
-                lineHeight = 22.sp,
-                maxLines = 2
-            )
-        }
-    }
-}
-
-private fun typeLabel(type: String): String = when (type.lowercase()) {
-    "report" -> "报告"
-    "idea" -> "灵感"
-    "cognition" -> "认知"
-    "task" -> "任务"
-    "memory" -> "记忆"
-    else -> type
-}

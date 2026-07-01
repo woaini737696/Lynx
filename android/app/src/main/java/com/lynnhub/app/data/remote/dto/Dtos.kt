@@ -255,6 +255,24 @@ data class SyncResponse(
     val state: SyncStateDto? = null
 )
 
+// ============ Lark Task Create（创建飞书任务下发到成员） ============
+@Serializable
+data class LarkTaskCreateRequest(
+    val summary: String,
+    val assignees: List<String> = emptyList(),
+    val due: String? = null,
+    val description: String? = null,
+    val tasklistGuid: String? = null
+)
+
+@Serializable
+data class LarkTaskCreateResponse(
+    val guid: String? = null,
+    val url: String? = null,
+    val summary: String? = null,
+    val error: String? = null
+)
+
 // ============ AI Chat ============
 @Serializable
 data class ChatSessionDto(

@@ -1308,7 +1308,7 @@ function HermesConfigSection() {
     setInstalling(true);
     try {
       if (isDesktop()) {
-        // 桌面端：调用 Tauri command 在用户本地执行安装（从服务器下载 .whl + 本地 pip install）
+        // 桌面端：调用 Tauri command 在用户本地执行安装
         const result = await installAiEnv();
         if (result.success) {
           toast(result.message || "Lynx Agent 安装成功", "success");
@@ -1317,19 +1317,13 @@ function HermesConfigSection() {
           toast(result.message || "安装失败", "error");
         }
       } else {
-        // 浏览器：通过 API 在服务器本地安装（本地开发环境可用；生产环境需下载桌面端）
-        const res = await fetch("/api/hermes/install", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ action: "install" }),
-        });
-        const data = await res.json();
-        if (res.ok && data.success) {
-          toast(data.message || "HermesAgent 安装成功", "success");
-          await loadStatus();
-        } else {
-          toast(data.error || "安装失败，请尝试下载桌面端客户端", "error");
-        }
+        // Web 端：浏览器无法直接安装，提示命令行安装方式
+        toast(
+          "浏览器无法直接安装 HermesAgent。\n" +
+          "请在命令行运行 `pip install hermes-agent` 安装，\n" +
+          "或使用桌面端客户端一键安装。",
+          "error"
+        );
       }
     } catch (e: any) {
       toast("安装请求失败：" + e.message, "error");
@@ -1342,25 +1336,19 @@ function HermesConfigSection() {
     setStarting(true);
     try {
       if (isDesktop()) {
-        // 桌面端：调用 Tauri command 启动 WS 连接（连接云端状态中心，注册 PC 上线）
+        // 桌面端：调用 Tauri command 启动 Dashboard + WS 注册
         await startHermesAgent();
         toast("Lynx Agent 已启动，PC 已上线", "success");
         await loadStatus();
       } else {
-        // 浏览器：调用 Web API 启动本地或服务器的 HermesAgent Dashboard
-        const port = endpoint.match(/:(\d+)$/)?.[1] || "9119";
-        const res = await fetch("/api/hermes/install", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ action: "start", port: parseInt(port, 10) }),
-        });
-        const data = await res.json();
-        if (res.ok && data.success) {
-          toast(data.message || "Lynx Agent 已启动", "success");
-          await loadStatus();
-        } else {
-          toast(data.error || "启动失败，请确认已安装 HermesAgent", "error");
-        }
+        // Web 端：浏览器无法 spawn 进程，提示命令行启动方式
+        // Web 端打开后会自动探测本地 Dashboard 并通过 WS 注册为在线设备
+        toast(
+          "浏览器无法直接启动 HermesAgent。\n" +
+          "请在命令行运行 `hermes dashboard --port 9119` 启动 Dashboard，\n" +
+          "Web 端会自动探测到本地 Dashboard 并注册为在线设备。",
+          "error"
+        );
       }
     } catch (e: any) {
       toast("启动请求失败：" + e.message, "error");
@@ -1370,50 +1358,59 @@ function HermesConfigSection() {
   };
 
   const handleStop = async () => {
-    try {
-      await fetch("/api/hermes/install", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "stop" }),
-      });
-      toast("Lynx Agent 已停止", "success");
-      await loadStatus();
-    } catch (e: any) {
-      toast("停止失败：" + e.message, "error");
+    if (isDesktop()) {
+      // 桌面端：调用 Tauri command 停止本地 hermes
+      try {
+        await startHermesAgent(); // TODO: 桌面端应提供 stop_hermes_agent command
+        toast("Lynx Agent 已停止", "success");
+        await loadStatus();
+      } catch (e: any) {
+        toast("停止失败：" + e.message, "error");
+      }
+    } else {
+      toast("HermesAgent 只能在您的本地电脑停止。请在 Lynx 桌面端客户端操作。", "error");
     }
   };
 
-  // 打开 Dashboard：先确保服务已启动，再在新标签页打开 endpoint
-  // 解决"点开无法访问"问题：服务可能未运行或刚启动未就绪
+  // 打开 Dashboard
+  // - 桌面端：通过 Tauri 启动 Dashboard + 打开 endpoint
+  // - Web 端：直接探测本地 127.0.0.1:9119，在线则打开，不在线则提示启动方式
+  //   （Web 端本身可以单独使用 HermesAgent，只要本机 Dashboard 在运行）
   const handleOpenDashboard = async () => {
-    const installed = status?.installed;
-    const running = status?.config?.status === "running";
-    if (!installed) {
-      toast("请先安装 Lynx Agent", "error");
-      return;
-    }
     setOpeningDashboard(true);
     try {
-      const port = endpoint.match(/:(\d+)$/)?.[1] || "9119";
-      // 若服务未运行，先启动
-      if (!running) {
-        const startRes = await fetch("/api/hermes/install", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ action: "start", port: parseInt(port, 10) }),
-        });
-        const startData = await startRes.json();
-        if (!startRes.ok || !startData.success) {
-          toast("Dashboard 启动失败：" + (startData.error || "未知错误"), "error");
-          return;
+      if (isDesktop()) {
+        // 桌面端：通过 Tauri 启动 Dashboard（如果未运行）+ 打开 endpoint
+        const running = status?.config?.status === "running";
+        if (!running) {
+          await startHermesAgent();
+          toast("Lynx Agent 已启动，正在打开 Dashboard...", "success");
+          await loadStatus();
+          // 等待 1.5 秒让 HTTP 服务完全就绪
+          await new Promise((r) => setTimeout(r, 1500));
         }
-        toast("Dashboard 已启动，正在打开...", "success");
-        await loadStatus();
-        // 等待 1.5 秒让 HTTP 服务完全就绪
-        await new Promise((r) => setTimeout(r, 1500));
+        window.open(endpoint, "_blank", "noopener,noreferrer");
+      } else {
+        // Web 端：探测本地 HermesAgent Dashboard（127.0.0.1:9119）
+        // 浏览器 fetch localhost 需要 Dashboard 支持 CORS
+        const dashboardUrl = "http://127.0.0.1:9119";
+        try {
+          const ctrl = new AbortController();
+          const timer = setTimeout(() => ctrl.abort(), 3000);
+          await fetch(dashboardUrl + "/", { signal: ctrl.signal });
+          clearTimeout(timer);
+          // Dashboard 在线，直接打开
+          window.open(dashboardUrl, "_blank", "noopener,noreferrer");
+        } catch {
+          // Dashboard 不在线：提示用户启动方式
+          toast(
+            "未检测到本地 HermesAgent Dashboard（127.0.0.1:9119）。\n" +
+            "请在命令行运行 `hermes dashboard --port 9119` 启动，" +
+            "或在桌面端「设置 → Lynx Agent」点击「启动 Lynx Agent」。",
+            "error"
+          );
+        }
       }
-      // 在新标签页打开 Dashboard
-      window.open(endpoint, "_blank", "noopener,noreferrer");
     } catch (e: any) {
       toast("打开 Dashboard 失败：" + e.message, "error");
     } finally {

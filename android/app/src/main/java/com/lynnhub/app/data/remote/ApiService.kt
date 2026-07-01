@@ -94,6 +94,10 @@ interface ApiService {
     @POST("api/lark-tasks/sync")
     suspend fun triggerSync(): SyncResponse
 
+    /** 创建飞书任务（下发到成员） */
+    @POST("api/lark-tasks/create")
+    suspend fun createLarkTask(@Body body: LarkTaskCreateRequest): LarkTaskCreateResponse
+
     // ============ AI Chat ============
     @GET("api/ai/chat/sessions")
     suspend fun getChatSessions(): ChatSessionsResponse
