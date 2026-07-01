@@ -57,3 +57,40 @@ val Divider = Color(0x08FFFFFF)          // rgba(255,255,255,0.03)
 // ---------- 渐变 ----------
 val GradientPrimary = listOf(Primary, PrimaryDeep)           // 主按钮渐变
 val GradientBreath = listOf(Primary.copy(alpha = 0.40f), Agent.copy(alpha = 0.15f)) // 呼吸球渐变
+
+// ============ iOS26 液态玻璃 v4 专用色板（App Store 风格 1:1 还原）============
+// 设计原则：深色主题下，玻璃容器必须以"深色叠加"为基础，避免任何 .copy(alpha) 覆盖白色染色
+
+// 玻璃容器深色基底（替代旧 Liquid2/3 的白色染色方案）
+// 直接采用 Void/Deep 降透明度，确保深色主题下永远是深色叠加
+val GlassDeepBase = Color(0xD902040C)        // 85% Void，强玻璃容器底色
+val GlassDeepSoft = Color(0xB302040C)        // 70% Void，普通玻璃容器底色
+val GlassDeepSubtle = Color(0x80070B18)      // 50% Deep，轻量玻璃容器底色
+
+// 弹窗专用深色叠加（避免使用 Surface.copy(alpha)）
+val DialogDeepPrimary = Color(0xE602040C)    // 90% Void，弹窗主背景
+val DialogDeepSecondary = Color(0xB3070B18)  // 70% Deep，弹窗渐变次色
+val DialogScrim = Color(0x99000000)          // 60% Black，弹窗外遮罩
+
+// 顶部 TopBar 专用（半透明深色 + 模糊背景）
+val TopBarDeep = Color(0xCC02040C)           // 80% Void，TopBar背景
+val TopBarDeepBlur = Color(0x99070B18)       // 60% Deep，TopBar模糊层
+
+// 高光描边（保留 LiquidHighlight 但提供深色版）
+val GlassHighlightDeep = Color(0x59FFFFFF)   // 35% 白色高光（用于深色玻璃顶部光）
+val GlassBorderDeep = Color(0x33FFFFFF)      // 20% 白色描边（深色玻璃）
+val GlassBorderSubtle = Color(0x1FFFFFFF)    // 12% 白色描边（轻量深色玻璃）
+
+// 液态玻璃动态阴影
+val GlassShadowDeep = Color(0x66000000)      // 40% Black 阴影
+val GlassGlowPrimary = Color(0x264B9FFF)     // 15% Primary 光晕
+
+// 设置面板专用（解决跳动+深色风格）
+val SettingsPanelBg = Color(0xF202040C)      // 95% Void，设置面板主背景
+val SettingsScrim = Color(0x80000000)        // 50% Black，设置面板遮罩
+
+// 聊天气泡专用（液态玻璃深色版）
+val BubbleUserDeep = Color(0xCC070B18)       // 80% Deep，用户气泡
+val BubbleAssistantDeep = Color(0xCC0A1228)  // 80% 蓝黑，AI气泡
+val BubbleUserBorder = Color(0x334B9FFF)     // 20% Primary 描边
+val BubbleAssistantBorder = Color(0x3330D6B5) // 20% Agent 描边
