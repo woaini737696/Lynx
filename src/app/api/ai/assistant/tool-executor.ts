@@ -1282,19 +1282,6 @@ async function executeExportBackup(
 
 // ============ Hermes Agent ============
 
-/** 检查用户是否有在线的 PC 会话（桌面端或 Web 端已连接 WS 网关） */
-async function getOnlinePcSession(userId: string) {
-  const session = await prisma.pcSession.findFirst({
-    where: { userId, status: "online" },
-    orderBy: { lastHeartbeat: "desc" },
-  });
-  // 心跳超过 60 秒视为离线
-  if (session && Date.now() - session.lastHeartbeat.getTime() > 60_000) {
-    return null;
-  }
-  return session;
-}
-
 /** 获取用户所有在线设备（桌面端 + Web 端） */
 async function getOnlineDevices(userId: string) {
   const threshold = new Date(Date.now() - 60_000);
