@@ -9,6 +9,7 @@
 
 | 迭代 | 日期 | 任务概要 |
 |------|------|----------|
+| [迭代 89](#迭代-89---2026-07-01) | 2026-07-01 | Web端三项需求：① C端用户列表去除"参考Kimi/豆包"文案(c-users/page.tsx+help-content.ts) ② 注册弹窗简化为手机号+验证码+邀请码(去除密码和昵称字段,后端自动生成随机密码+昵称默认手机号,注册后用验证码方式signIn直接登录) ③ 信息架构极简优化方向A(侧边栏29项→16项)：新建4个聚合页(/inspiration=Inbox+收敛+墓地, /knowledge=对话资产+认知库+记忆图谱, /automation=AI工作流+飞书任务, /account=钱包+会员)使用visitedTabs懒加载+block/hidden保留state + 新建2个路由级layout(/settings/layout.tsx收纳7个系统子页Tab, /skills/layout.tsx收纳技能管理+市场Tab) + Sidebar NAV_GROUPS精简(灵感收集3→1/知识资产3→1/AI中心6→4/系统8→2/账户2→1) + 清理13个unused lucide图标import |
 | [迭代 88](#迭代-88---2026-07-01) | 2026-07-01 | 安卓端v0.1.4三项问题修复：通话崩溃修复(CallScreen加RECORD_AUDIO运行时权限申请+过渡态+recordWithVad try-catch防御)+记忆图谱改为时间流卡片列表(删除2D力导向Canvas/MemoryGraphCanvas/NodeDetailCard/NodePosition,重写为LazyColumn卡片按时间倒序+分类筛选+点击展开收起+保留搜索FAB)+重画LynxIcons.Search线性放大镜(完整圆arcTo+手柄lineTo)+删除主题设置UI入口(外观分组/ThemePickerDialog/themeLabel/showThemeDialog)+MainActivity强制深色模式(不跟随系统,浅色未适配) |
 | [迭代 87](#迭代-87---2026-07-01) | 2026-07-01 | 新增C端用户管理模块(参考Kimi/豆包)：User表新增source/lastLoginAt/registerIp字段+新增LoginLog表(登录历史,CASCADE删除)+注册流程设置source=self_register+registerIp+写首次LoginLog+登录流程(token+NextAuth)更新lastLoginAt+token登录写LoginLog+新增/api/c-users(列表GET+详情GET含登录历史+PATCH启用禁用/角色提升/重置密码+DELETE)+新增/admin/c-users前端页面(液态玻璃风格+顶部统计卡片+搜索+状态/角色筛选+详情弹窗+重置密码一次性返回+角色提升弹窗+HelpButton)+侧边栏管理分组新增C端用户菜单项+权限管理同步(新增c-user:manage到PERMISSION_CATALOG+ADMIN_ONLY_PERMISSIONS,76项权限,admin(76)/editor(57)/viewer(33))+MySQL直连SQL迁移(幂等information_schema检查,不依赖prisma CLI) |
 | [迭代 86](#迭代-86---2026-07-01) | 2026-07-01 | HermesAgent检查更新功能+架构澄清：Web端和桌面端HermesAgent配置模块新增检查更新按钮(对比本机版本与服务器latest.json+有新版本自动下载安装+无更新提示暂无更新)+installHermesAgent支持动态wheel文件名参数(不再硬编码0.18.0,updateHermesAgent先拉latest.json拿最新wheel文件名再安装)+新增/api/hermes/update路由(GET检查+POST更新)+新增public/downloads/latest.json记录服务器最新版本信息+架构澄清:Web端和桌面端本质都是PC端,HermesAgent功能完全一样同步,只有安卓端需要远程操控PC端,Web端和桌面端都支持独立工作独立运行HermesAgent互不依赖 |
@@ -338,6 +339,102 @@
 - TypeScript 类型检查通过（`npx tsc --noEmit` 无错误）
 - 服务器端角色权限 seed 成功（admin 75 项 / editor 57 项 / viewer 33 项）
 - 服务器临时脚本已清理
+
+---
+
+## 迭代 89 - 2026-07-01
+
+### 任务概要
+Web 端三项需求：① C 端用户列表去除"参考 Kimi/豆包"文案提示；② 注册弹窗简化为手机号 + 验证码 + 邀请码（去除密码和昵称字段）；③ 信息架构极简主义优化（方向 A：侧边栏 29 项 → 16 项）。
+
+### 背景问题
+1. C 端用户列表 subtitle 出现"参考 Kimi/豆包"文案，用户明确不需要这个对比提示。
+2. 注册弹窗要求设置密码和昵称，门槛过高，不符合极简注册理念。用户要求简化为"手机号 + 验证码 + 邀请码"三字段，验证码使用后台万能验证码，邀请码使用后台批量随机生成的六位数。
+3. 系统功能越来越复杂，侧边栏一级菜单多达 29 项，不符合极简主义设计。用户要求从产品战略角度优化，达到"极简 + 丰富"的产品感官和使用体验。
+
+### 方案确认（AskUserQuestion 弹窗）
+- 任务3 优化方向 → **你要给出推荐的方向和方案，说清楚推荐理由，再弹窗和我确认实现**
+- 任务3 实施范围 → **仅前端信息架构（推荐）**
+- 任务3 方案确认 → **按方案实施（推荐）** + 用户补充"符合极简主义和符合人性设计理念来做"
+
+### 完成内容
+
+#### 1. 去除"参考 Kimi/豆包"文案（`c-users/page.tsx` + `help-content.ts`）
+- `src/app/admin/c-users/page.tsx`：PageHeader subtitle 从"管理自注册的 C 端用户（参考 Kimi/豆包）"改为"管理自注册的 C 端用户"
+- `src/lib/help-content.ts`：`admin-c-users` 条目 need 字段从"管理员需要像 Kimi/豆包那样集中管理..."改为"管理员需要集中管理..."
+
+#### 2. 注册弹窗简化（`LoginModal.tsx`）
+- **移除字段**：密码 Field、昵称 Field（displayName state 移除，password state 保留注释"仅登录 phone-password 模式使用"）
+- **handleRegister 简化**：
+  - 移除密码长度校验
+  - POST `/api/auth/register` body 仅传 `phone/code/inviteCode`（不传 password/displayName，后端自动生成随机密码、昵称默认手机号）
+  - 注册成功后用验证码方式 `signIn("credentials", { phone, code })` 直接登录（万能验证码可复用）
+  - 若 signIn 失败，切到验证码登录面板提示用户手动登录
+- **注册表单 UI**：移除密码 Field 和昵称 Field，替换为极简提示"注册即登录，密码自动生成，可用验证码或重置密码登录"
+- 顶部注释更新为"注册面板：手机号 + 验证码 + 邀请码（极简，密码自动生成，昵称默认手机号）"
+
+#### 3. 信息架构极简优化（方向 A：侧边栏 29 项 → 16 项）
+
+**合并方案表**：
+
+| 当前分组 | 当前项数 | 合并后 | 合并方式 |
+|---------|---------|--------|---------|
+| 今日执行 | 2 | 2（不变） | 保持 |
+| 灵感收集 | 3 | 1 | → `/inspiration` |
+| 知识资产 | 3 | 1 | → `/knowledge` |
+| AI 中心 | 6 | 4 | 技能 + 市场 → `/skills` layout；工作流 + 飞书 → `/automation`；工作空间、Lynx 助理保持 |
+| 系统 | 8 | 2 | 7 子页收纳进 `/settings` 二级 Tab；dev-log 保留独立项 |
+| 账户 | 2 | 1 | 钱包 + 会员 → `/account` |
+| 管理(admin) | 5 | 5（不变） | 保持 |
+
+**A1. 新建 `/inspiration` 聚合页**（`src/app/inspiration/page.tsx`）
+- 灵感收集 3 项合并：Inbox + 灵感收敛 + 灵感墓地
+- 复用 settings/page.tsx 的 Tab 骨架：sticky 横向 Tab 条 + `visitedTabs` 懒加载 + `block/hidden` 切换保留 state
+- 子页组件直接 `import InboxPage from "@/app/inbox/page"`（自包含、无路由依赖）
+- 子页保留各自 PageHeader 作为子标题（零改动）
+- 原路由 `/inbox` `/converge` `/graveyard` 保留兼容（侧边栏改指向 `/inspiration`）
+
+**A2. 新建 `/knowledge` 聚合页**（`src/app/knowledge/page.tsx`）
+- 知识资产 3 项合并：对话资产 + 认知库 + 记忆图谱
+- 模式同 inspiration：import 子页组件 + visitedTabs 懒加载
+
+**A3. 新建 `/automation` 聚合页 + `/skills/layout.tsx`**
+- `/automation`（`src/app/automation/page.tsx`）：AI 工作流 + 飞书任务 合并（模式同 inspiration）
+- `/skills/layout.tsx`（路由级 Tab）：技能管理 + Skill 市场
+  - 使用路由级 layout（而非组件级 Tab），因为 `/skills/market` 依赖 `useSearchParams`（URL 状态）
+  - layout 提供 Tab 导航条，子路由完全不改动
+  - 原 `/skills` 和 `/skills/market` 子页零改动
+
+**A4. 改造 `/settings` 为二级分区页 + 新建 `/account`**
+- `/settings/layout.tsx`（路由级 Tab）：7 个系统子页收纳
+  - Tab：基础配置(/settings) / AI 巡检 / 飞书机器人 / 通知 / 性能监控 / 远程操控 / 数据备份
+  - `/settings/page.tsx` 作为"基础配置"Tab（保留原 5 Tab 内部结构：AI 模型 / Lynx Agent / 认证 / 系统状态 / 配置文件）
+  - 子页完全不改动
+  - 注：dev-log 路径不在 `/settings/*` 下，保留为侧边栏独立项
+- `/account/page.tsx`（聚合页）：钱包 + 会员 合并（模式同 inspiration）
+
+**A5. 调整 Sidebar NAV_GROUPS + 清理 unused imports**
+- `src/components/layout/Sidebar.tsx` NAV_GROUPS 调整：
+  - 灵感收集组：3 项 → 1 项（`/inspiration`）
+  - 知识资产组：3 项 → 1 项（`/knowledge`）
+  - AI 中心组：6 项 → 4 项（`ai/workspace` + `ai/assistant` + `/skills` + `/automation`）
+  - 系统组：8 项 → 2 项（`/settings` + `/dev-log`）
+  - 账户组：2 项 → 1 项（`/account`）
+- 清理 13 个 unused lucide 图标 import：Moon / Skull / MessageSquare / BookOpen / Store / ListTodo / Radar / MessageCircle / Bell / Activity / Database / Monitor / Crown
+
+### 自测结果
+- `npx tsc --noEmit`：**通过**（exit code 0，无类型错误）
+- `npm run lint`：**通过**（仅 4 个 `<img>` 历史遗留警告，非本次改动）
+- `npm run build`：**通过**（exit code 0）
+  - 新路由全部正常生成：`/account` 3.1 kB / `/automation` 2.14 kB / `/inspiration` 856 B / `/knowledge` 5.58 kB
+  - `/settings` 16.7 kB（含 layout）/ `/skills` 19.4 kB（含 layout）
+  - standalone 模式 ENOENT 警告为历史遗留问题（路径含 `C:\Users\lynnd\.local\share\mimocode`），不影响构建成功
+
+### 设计理念
+- **极简主义**：侧边栏从 29 项精简到 16 项，减少用户认知负担
+- **人性设计**：相关功能聚合到同一页面 Tab 切换，减少页面跳转
+- **零破坏性**：原路由全部保留兼容，子页组件零改动，纯前端信息架构调整
+- **性能优化**：visitedTabs 懒加载机制，未访问的 Tab 不 mount 不请求
 
 ---
 
