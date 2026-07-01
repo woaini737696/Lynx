@@ -56,6 +56,11 @@ import javax.inject.Inject
 
 // ============ 公共脚手架 ============
 
+/**
+ * 子页面统一脚手架（使用 iOS26 GlassPageScaffold，固定顶部栏）
+ *
+ * 修复：返回按钮固定吸附顶部，不随页面滚动
+ */
 @Composable
 private fun SubPageScaffold(
     title: String,
@@ -72,7 +77,7 @@ private fun SubPageScaffold(
                 detectTapGestures(onTap = { keyboardController?.hide() })
             }
     ) {
-        // 右滑返回手势检测层（Initial 阶段，不消费事件）
+        // 右滑返回手势检测层
         ReturnSwipeDetector(
             returnDirection = "right",
             onReturn = onBack,
@@ -80,27 +85,23 @@ private fun SubPageScaffold(
         )
 
         Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .imePadding()
-                .verticalScroll(rememberScrollState())
-                .padding(start = 22.dp, end = 22.dp, top = 16.dp, bottom = 24.dp)
+            modifier = Modifier.fillMaxSize()
         ) {
-            // 标题栏（按视觉稿：panel-title 19px/700）
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                BackButton(onClick = onBack)
-                Spacer(modifier = Modifier.width(10.dp))
-                Text(
-                    text = title,
-                    fontSize = 19.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = TextPrimary,
-                    modifier = Modifier.weight(1f)
-                )
-            }
-            // 滑动提示独立一行（按视觉稿 panel-hint）
-            SwipeHint(text = "← 右滑返回", modifier = Modifier.padding(start = 50.dp, top = 4.dp, bottom = 22.dp))
-            content()
+            // 固定顶部栏（iOS26 液态玻璃风格，不随滚动）
+            com.lynnhub.app.ui.component.GlassTopBar(
+                title = title,
+                onBack = onBack
+            )
+
+            // 可滚动内容
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .imePadding()
+                    .verticalScroll(rememberScrollState())
+                    .padding(start = 22.dp, end = 22.dp, top = 16.dp, bottom = 24.dp),
+                content = content
+            )
         }
     }
 }

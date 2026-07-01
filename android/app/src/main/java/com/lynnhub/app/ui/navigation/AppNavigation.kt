@@ -98,13 +98,13 @@ fun AppNavigation(
             AgentPanel(onBack = { navController.popBackStack() })
         }
 
-        // ====== 设置面板（从右侧滑入，88% 宽度侧滑面板，400ms 专用时长） ======
+        // ====== 设置面板（fadeIn 150ms 仅淡入遮罩，内部 SettingsScreen 自行控制面板 400ms 滑入，避免跳动） ======
         composable(
             route = Routes.SETTINGS,
-            enterTransition = { slideInHorizontally(tween(Motion.DURATION_SETTINGS_PANEL, easing = easing)) { it } },
-            exitTransition = { slideOutHorizontally(tween(Motion.DURATION_SETTINGS_PANEL, easing = easing)) { it } },
-            popEnterTransition = { slideInHorizontally(tween(Motion.DURATION_SETTINGS_PANEL, easing = easing)) { it } },
-            popExitTransition = { slideOutHorizontally(tween(Motion.DURATION_SETTINGS_PANEL, easing = easing)) { it } }
+            enterTransition = { fadeIn(tween(Motion.DURATION_BUTTON_PRESS, easing = easing)) },
+            exitTransition = { fadeOut(tween(Motion.DURATION_BUTTON_PRESS, easing = easing)) },
+            popEnterTransition = { fadeIn(tween(Motion.DURATION_BUTTON_PRESS, easing = easing)) },
+            popExitTransition = { fadeOut(tween(Motion.DURATION_BUTTON_PRESS, easing = easing)) }
         ) {
             SettingsScreen(
                 onBack = { navController.popBackStack() },

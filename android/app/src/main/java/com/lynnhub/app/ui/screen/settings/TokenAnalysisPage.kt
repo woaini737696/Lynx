@@ -146,71 +146,70 @@ fun TokenAnalysisPage(
         )
 
         Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .imePadding()
-                .verticalScroll(rememberScrollState())
-                .padding(start = 22.dp, end = 22.dp, top = 16.dp, bottom = 24.dp)
+            modifier = Modifier.fillMaxSize()
         ) {
-            // 标题栏 + 使用说明按钮（按视觉稿：panel-title 19px/700）
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                BackButton(onClick = onBack)
-                Spacer(modifier = Modifier.width(10.dp))
-                Text(
-                    text = "词元分析",
-                    fontSize = 19.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = TextPrimary,
-                    modifier = Modifier.weight(1f)
-                )
-                // 右上角使用说明按钮
-                Box(
-                    modifier = Modifier
-                        .size(32.dp)
-                        .clip(RoundedCornerShape(8.dp))
-                        .clickable { showHelp = true },
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        imageVector = Icons.Filled.HelpOutline,
-                        contentDescription = "使用说明",
-                        tint = TextMuted,
-                        modifier = Modifier.size(20.dp)
-                    )
+            // 固定顶部栏（iOS26 液态玻璃风格，含使用说明按钮）
+            com.lynnhub.app.ui.component.GlassTopBar(
+                title = "词元分析",
+                onBack = onBack,
+                actions = {
+                    Box(
+                        modifier = Modifier
+                            .size(38.dp)
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(com.lynnhub.app.ui.theme.GlassDeepSoft)
+                            .border(1.dp, com.lynnhub.app.ui.theme.GlassBorderSubtle, RoundedCornerShape(12.dp))
+                            .clickable { showHelp = true },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Filled.HelpOutline,
+                            contentDescription = "使用说明",
+                            tint = TextMuted,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
                 }
-            }
-            SwipeHint(text = "← 右滑返回", modifier = Modifier.padding(start = 50.dp, top = 4.dp, bottom = 22.dp))
-
-            // 输入框
-            OutlinedTextField(
-                value = state.input,
-                onValueChange = viewModel::updateInput,
-                placeholder = {
-                    Text(
-                        "输入要分析的文本（支持中英文混合）...",
-                        color = TextMuted,
-                        fontSize = 13.sp
-                    )
-                },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(120.dp)
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(Surface)
-                    .onFocusChanged { isInputFocused = it.isFocused },
-                shape = RoundedCornerShape(12.dp),
-                colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = Primary.copy(alpha = 0.3f),
-                    unfocusedBorderColor = Color.Transparent,
-                    cursorColor = Primary,
-                    focusedTextColor = TextPrimary,
-                    unfocusedTextColor = TextPrimary
-                ),
-                textStyle = androidx.compose.ui.text.TextStyle(
-                    fontSize = 13.sp,
-                    lineHeight = 18.sp
-                )
             )
+
+            // 可滚动内容
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .imePadding()
+                    .verticalScroll(rememberScrollState())
+                    .padding(start = 22.dp, end = 22.dp, top = 16.dp, bottom = 24.dp)
+            ) {
+                // 输入框
+                OutlinedTextField(
+                    value = state.input,
+                    onValueChange = viewModel::updateInput,
+                    placeholder = {
+                        Text(
+                            "输入要分析的文本（支持中英文混合）...",
+                            color = TextMuted,
+                            fontSize = 13.sp
+                        )
+                    },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(120.dp)
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(Surface)
+                        .onFocusChanged { isInputFocused = it.isFocused },
+                    shape = RoundedCornerShape(12.dp),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = Primary.copy(alpha = 0.3f),
+                        unfocusedBorderColor = Color.Transparent,
+                        cursorColor = Primary,
+                        focusedTextColor = TextPrimary,
+                        unfocusedTextColor = TextPrimary
+                    ),
+                    textStyle = androidx.compose.ui.text.TextStyle(
+                        fontSize = 13.sp,
+                        lineHeight = 18.sp
+                    )
+                )
 
             Spacer(modifier = Modifier.height(12.dp))
 
@@ -356,6 +355,7 @@ fun TokenAnalysisPage(
             }
 
             Spacer(modifier = Modifier.height(40.dp))
+        }
         }
     }
 
