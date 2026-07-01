@@ -290,7 +290,7 @@ pub async fn install_ai_environment(app: AppHandle) -> Result<serde_json::Value,
             .ok_or_else(|| "未找到 pip 可执行文件".to_string())?;
 
         // 服务器托管的 wheel 文件 URL（依次尝试多个域名）
-        const WHL_FILENAME: &str = "hermes_agent-0.17.0-py3-none-any.whl";
+        const WHL_FILENAME: &str = "hermes_agent-0.18.0-py3-none-any.whl";
         let server_urls = [
             "https://ai.lynxdo.com/downloads/".to_string() + WHL_FILENAME,
             "https://app.lynnhub.com/downloads/".to_string() + WHL_FILENAME,

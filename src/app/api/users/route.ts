@@ -21,6 +21,7 @@ export async function GET() {
         select: {
           id: true,
           username: true,
+          phone: true,
           email: true,
           displayName: true,
           role: true,
@@ -60,30 +61,37 @@ export async function POST(req: NextRequest) {
 
     const body = await req.json().catch(() => ({}));
 
-    // 输入校验：username max 64，password min 6 max 128，role 动态查 Role 表
+    // 输入校验：username 可选（不填自动生成 phone_${phone}），password 可选（C 端用户可免密，不填自动生成）
     const username = validateString(body?.username, 64);
-    if (!username) {
-      return NextResponse.json({ error: "用户名不能为空" }, { status: 400 });
-    }
 
-    // 密码校验：必须为字符串，长度 6-128（不截断，超长直接拒绝）
+    // 密码校验：可选，长度 6-128；未提供或不足 6 位时自动生成随机密码（C 端用户可免密）
     const rawPassword = body?.password;
-    if (typeof rawPassword !== "string" || rawPassword.length < 6) {
-      return NextResponse.json(
-        { error: "密码不能为空且至少 6 位" },
-        { status: 400 }
-      );
+    let password: string;
+    if (typeof rawPassword === "string" && rawPassword.length >= 6) {
+      if (rawPassword.length > 128) {
+        return NextResponse.json(
+          { error: "密码长度不能超过 128 位" },
+          { status: 400 }
+        );
+      }
+      password = rawPassword;
+    } else {
+      // 自动生成随机密码（与 /api/auth/register 一致，C 端用户可凭手机号+验证码登录）
+      password = Math.random().toString(36).slice(2, 10) + "A1!";
     }
-    if (rawPassword.length > 128) {
-      return NextResponse.json(
-        { error: "密码长度不能超过 128 位" },
-        { status: 400 }
-      );
-    }
-    const password = rawPassword;
 
     const email = validateString(body?.email, 255);
     const displayName = validateString(body?.displayName, 100);
+
+    // 手机号校验（支持手机号登录，必填）
+    const phone = validateString(body?.phone, 20);
+    if (!phone) {
+      return NextResponse.json({ error: "手机号不能为空" }, { status: 400 });
+    }
+    // 中国手机号格式校验：1 开头 + 第二位 3-9 + 共 11 位
+    if (!/^1[3-9]\d{9}$/.test(phone)) {
+      return NextResponse.json({ error: "手机号格式不正确（需为 11 位中国手机号）" }, { status: 400 });
+    }
 
     // 校验 role：动态查 Role 表是否存在该 name（不再硬编码 admin/editor/viewer）
     const role =
@@ -101,12 +109,22 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // 检查用户名是否已存在
-    const existing = await prisma.user.findUnique({
-      where: { username },
+    // 检查用户名是否已存在（仅在显式指定 username 时检查）
+    if (username) {
+      const existing = await prisma.user.findUnique({
+        where: { username },
+      });
+      if (existing) {
+        return NextResponse.json({ error: "用户名已存在" }, { status: 400 });
+      }
+    }
+
+    // 检查手机号是否已存在
+    const existingPhone = await prisma.user.findUnique({
+      where: { phone },
     });
-    if (existing) {
-      return NextResponse.json({ error: "用户名已存在" }, { status: 400 });
+    if (existingPhone) {
+      return NextResponse.json({ error: "手机号已被使用" }, { status: 400 });
     }
 
     // 检查邮箱是否已存在（如果提供了邮箱）
@@ -121,10 +139,14 @@ export async function POST(req: NextRequest) {
 
     const passwordHash = await bcrypt.hash(password, 10);
 
+    // username 自动生成（如果未显式指定）：phone_${phone}
+    const finalUsername = username || `phone_${phone}`;
+
     const user = await prisma.user.create({
       data: {
-        username,
+        username: finalUsername,
         passwordHash,
+        phone,
         email: email || null,
         displayName,
         role,
@@ -132,6 +154,7 @@ export async function POST(req: NextRequest) {
       select: {
         id: true,
         username: true,
+        phone: true,
         email: true,
         displayName: true,
         role: true,

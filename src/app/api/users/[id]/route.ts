@@ -19,6 +19,7 @@ export async function GET(
       select: {
         id: true,
         username: true,
+        phone: true,
         email: true,
         displayName: true,
         role: true,
@@ -51,7 +52,7 @@ export async function PATCH(
 
     const { id } = params;
     const body = await req.json();
-    const { email, displayName, role, active, password } = body;
+    const { phone, email, displayName, role, active, password } = body;
 
     const existing = await prisma.user.findUnique({ where: { id } });
     if (!existing) {
@@ -59,6 +60,30 @@ export async function PATCH(
     }
 
     const data: Record<string, unknown> = {};
+
+    // 手机号修改
+    if (phone !== undefined) {
+      const trimmedPhone = phone?.trim() || null;
+      if (!trimmedPhone) {
+        return NextResponse.json({ error: "手机号不能为空" }, { status: 400 });
+      }
+      if (!/^1[3-9]\d{9}$/.test(trimmedPhone)) {
+        return NextResponse.json({ error: "手机号格式不正确（需为 11 位中国手机号）" }, { status: 400 });
+      }
+      // 检查手机号是否被其他用户占用
+      if (trimmedPhone !== existing.phone) {
+        const conflict = await prisma.user.findUnique({
+          where: { phone: trimmedPhone },
+        });
+        if (conflict && conflict.id !== id) {
+          return NextResponse.json(
+            { error: "手机号已被其他用户使用" },
+            { status: 400 }
+          );
+        }
+      }
+      data.phone = trimmedPhone;
+    }
 
     if (email !== undefined) {
       const trimmedEmail = email?.trim() || null;
@@ -125,6 +150,7 @@ export async function PATCH(
       select: {
         id: true,
         username: true,
+        phone: true,
         email: true,
         displayName: true,
         role: true,

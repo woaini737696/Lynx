@@ -330,64 +330,126 @@ export interface PermissionDef {
   group: string; // 权限分组（按模块）
 }
 
-// 权限目录（按模块分组，30+ 项）
+// 权限目录（按模块分组，覆盖系统全部功能模块）
+// 维护原则：每新增一个功能模块或 API 端点，必须同步在此目录补充对应权限 key，
+// 并在 DEFAULT_ROLES 中分配给相应角色，保证权限管理与功能完全同步。
 export const PERMISSION_CATALOG: PermissionDef[] = [
-  // 灵感模块
+  // ============ 灵感模块 ============
   { key: "idea:create", label: "创建灵感", description: "在 Inbox 中新建灵感", group: "灵感" },
   { key: "idea:delete", label: "删除灵感", description: "删除已有灵感", group: "灵感" },
   { key: "idea:edit", label: "编辑灵感", description: "修改灵感内容与标签", group: "灵感" },
   { key: "idea:export", label: "导出灵感", description: "导出灵感数据", group: "灵感" },
+  { key: "idea:revive", label: "复活灵感", description: "从墓场恢复灵感", group: "灵感" },
 
-  // 任务模块
+  // ============ 任务模块 ============
   { key: "task:manage", label: "管理看板任务", description: "增删改决策看板任务", group: "任务" },
   { key: "task:create", label: "创建任务", description: "在看板中新建任务", group: "任务" },
   { key: "task:complete", label: "完成任务", description: "标记任务为完成", group: "任务" },
   { key: "task:delete", label: "删除任务", description: "删除看板任务", group: "任务" },
 
-  // 记忆模块
+  // ============ 记忆模块 ============
   { key: "memory:write", label: "写入记忆", description: "向记忆图谱写入节点", group: "记忆" },
   { key: "memory:update", label: "更新记忆", description: "修改记忆节点标签", group: "记忆" },
   { key: "memory:read", label: "读取记忆", description: "查询记忆图谱节点", group: "记忆" },
   { key: "memory:delete", label: "删除记忆", description: "删除记忆节点", group: "记忆" },
   { key: "memory:rebuild", label: "重建记忆", description: "重建记忆图谱 embedding", group: "记忆" },
 
-  // 认知模块
+  // ============ 认知模块 ============
+  { key: "cognition:read", label: "读取认知", description: "查询单条认知条目详情", group: "认知" },
   { key: "cognition:manage", label: "管理认知库", description: "增删改认知条目", group: "认知" },
   { key: "cognition:extract", label: "提取认知", description: "AI 提取认知条目", group: "认知" },
   { key: "cognition:delete", label: "删除认知", description: "删除认知条目", group: "认知" },
 
-  // 技能模块
+  // ============ 技能模块 ============
   { key: "skill:execute", label: "执行技能", description: "运行已安装的技能", group: "技能" },
   { key: "skill:generate", label: "生成技能", description: "AI 生成新技能", group: "技能" },
   { key: "skill:import", label: "导入技能", description: "导入外部技能", group: "技能" },
   { key: "skill:export", label: "导出技能", description: "导出技能分享", group: "技能" },
+  { key: "skill:manage", label: "管理技能", description: "技能发布/回滚/版本/市场管理", group: "技能" },
 
-  // 工作流模块
+  // ============ 工作流模块 ============
   { key: "flow:execute", label: "执行工作流", description: "运行 AI 工作流", group: "工作流" },
   { key: "flow:manage", label: "管理工作流", description: "增删改 AI 工作流", group: "工作流" },
+  { key: "flow:read", label: "查看工作流", description: "查看工作流列表与详情", group: "工作流" },
 
-  // AI 模块
+  // ============ AI 模块 ============
   { key: "ai:chat", label: "AI 对话", description: "使用 AI 助理对话", group: "AI" },
   { key: "ai:voice", label: "AI 语音", description: "使用语音识别与合成", group: "AI" },
   { key: "ai:settings", label: "AI 配置", description: "修改 AI 模型与 Provider 配置", group: "AI" },
+  { key: "ai:tool:use", label: "使用 AI 工具", description: "调用 AI 工具（embedding/models 等）", group: "AI" },
+  { key: "ai:distill:read", label: "查看蒸馏模板", description: "查看 AI 蒸馏模板列表与详情", group: "AI" },
+  { key: "ai:distill:manage", label: "管理蒸馏模板", description: "增删改 AI 蒸馏模板与版本", group: "AI" },
+  { key: "ai:workspace:read", label: "查看 AI 工作空间", description: "查看 AI 工作空间配置", group: "AI" },
+  { key: "ai:workspace:manage", label: "管理 AI 工作空间", description: "修改 AI 工作空间配置", group: "AI" },
 
-  // 对话资产模块
+  // ============ 对话资产模块 ============
+  { key: "conversation:read", label: "读取对话", description: "查看对话资产详情", group: "对话" },
   { key: "conversation:capture", label: "捕获对话", description: "上传对话资产进行提取", group: "对话" },
   { key: "conversation:delete", label: "删除对话", description: "删除对话资产", group: "对话" },
 
-  // 巡检模块
+  // ============ 巡检模块 ============
   { key: "patrol:execute", label: "执行巡检", description: "运行巡检规则", group: "巡检" },
   { key: "patrol:manage", label: "管理巡检", description: "增删改巡检规则", group: "巡检" },
+  { key: "patrol:read", label: "查看巡检", description: "查看巡检日志与结果", group: "巡检" },
 
-  // 备份模块
+  // ============ 备份模块 ============
   { key: "backup:export", label: "导出备份", description: "导出系统数据备份", group: "备份" },
   { key: "backup:import", label: "导入备份", description: "导入系统数据备份", group: "备份" },
+  { key: "backup:verify", label: "校验备份", description: "校验备份文件完整性", group: "备份" },
 
-  // 系统管理模块
+  // ============ Hermes 模块（RPA / 远程命令 / 桌面端协同） ============
+  { key: "hermes:execute", label: "执行 RPA 任务", description: "通过 HermesAgent 执行 RPA 自动化任务", group: "Hermes" },
+  { key: "hermes:install", label: "安装/启停 HermesAgent", description: "安装、启动、停止本地 HermesAgent", group: "Hermes" },
+  { key: "hermes:skill:manage", label: "管理 Hermes 技能", description: "同步/导入/导出/预加载 Hermes 技能", group: "Hermes" },
+  { key: "hermes:memory:manage", label: "管理 Hermes 记忆", description: "同步/搜索 Hermes 记忆", group: "Hermes" },
+  { key: "hermes:cron:manage", label: "管理 Hermes 定时任务", description: "增删改/执行 Hermes 定时任务", group: "Hermes" },
+  { key: "hermes:remote-command", label: "下发远程命令", description: "通过 WS 网关向桌面端下发远程命令", group: "Hermes" },
+  { key: "hermes:config", label: "配置 Hermes", description: "修改 Hermes 配置与模型", group: "Hermes" },
+  { key: "hermes:report:read", label: "查看 Hermes 报告", description: "查看 RPA 执行报告与主动报告", group: "Hermes" },
+  { key: "hermes:pattern:manage", label: "管理 Hermes 模式", description: "增删改/自动检查 Hermes 行为模式", group: "Hermes" },
+
+  // ============ 飞书模块 ============
+  { key: "lark:task:manage", label: "管理飞书任务", description: "读写飞书任务、同步飞书任务", group: "飞书" },
+  { key: "lark:bot:test", label: "测试飞书机器人", description: "发送测试消息验证飞书机器人", group: "飞书" },
+
+  // ============ 会员/钱包模块 ============
+  { key: "membership:read", label: "查看会员", description: "查看会员等级/订单/计价", group: "会员" },
+  { key: "membership:manage", label: "管理会员", description: "管理会员等级与订单", group: "会员" },
+  { key: "wallet:read", label: "查看钱包", description: "查看钱包余额与交易记录", group: "会员" },
+  { key: "wallet:manage", label: "管理钱包", description: "管理钱包与交易", group: "会员" },
+
+  // ============ 推送模块 ============
+  { key: "push:subscribe", label: "订阅推送", description: "订阅/取消订阅 Web 推送", group: "推送" },
+  { key: "push:test", label: "测试推送", description: "发送测试推送通知", group: "推送" },
+
+  // ============ 搜索模块 ============
+  { key: "search:use", label: "全局搜索", description: "使用全局搜索功能", group: "搜索" },
+
+  // ============ PC 会话模块 ============
+  { key: "pc-session:manage", label: "管理 PC 会话", description: "查看/断开 PC 在线会话", group: "PC会话" },
+
+  // ============ Agent 审计模块 ============
+  { key: "agent-audit:read", label: "查看 Agent 审计", description: "查询/提交 Agent 审计日志", group: "Agent审计" },
+
+  // ============ 上传模块 ============
+  { key: "upload:use", label: "上传文件", description: "上传头像/附件等文件", group: "上传" },
+
+  // ============ 其他模块 ============
+  { key: "dev-log:read", label: "查看开发日志", description: "查看系统开发日志", group: "其他" },
+  { key: "graveyard:manage", label: "管理墓场", description: "管理归档灵感（恢复/永久删除）", group: "其他" },
+  { key: "focus:manage", label: "管理专注模式", description: "查看/修改专注模式状态", group: "其他" },
+
+  // ============ 用户自助模块 ============
+  { key: "user:profile:edit", label: "编辑个人资料", description: "修改自己的头像/昵称/职业", group: "用户自助" },
+  { key: "user:ai-keys:manage", label: "管理个人 AI Key", description: "管理自己的 DeepSeek/MiMo API Key", group: "用户自助" },
+
+  // ============ 系统管理模块 ============
   { key: "user:manage", label: "管理用户", description: "增删改系统用户", group: "系统" },
   { key: "role:manage", label: "管理角色", description: "修改角色权限配置", group: "系统" },
   { key: "system:config", label: "系统配置", description: "修改系统级配置", group: "系统" },
   { key: "token:stats", label: "词元统计", description: "查看词元消耗统计", group: "系统" },
+  { key: "system:diagnostics", label: "系统诊断", description: "查看系统诊断信息与 404 统计", group: "系统" },
+  { key: "profession:manage", label: "管理职业空间", description: "管理 12 岗位职业空间配置", group: "系统" },
 ];
 
 // 全部权限 key 列表
@@ -403,17 +465,84 @@ export interface DefaultRoleDef {
   profession?: string | null;
 }
 
-// admin：全部权限
-// editor：除系统管理模块外全部（user/role/system/token/backup:import 等仅 admin）
-// viewer：idea:create + skill:execute（只读 + 有限操作）
+// admin 仅限的系统级权限（其他角色不可分配）
 const ADMIN_ONLY_PERMISSIONS = new Set([
   "user:manage",
   "role:manage",
   "system:config",
   "token:stats",
+  "system:diagnostics",
+  "profession:manage",
   "backup:import",
   "ai:settings",
+  "ai:workspace:manage",
+  "membership:manage",
+  "wallet:manage",
+  "hermes:install",
+  "hermes:remote-command",
+  "hermes:pattern:manage",
+  "lark:bot:test",
+  "flow:manage",
+  "ai:distill:manage",
+  "graveyard:manage",
 ]);
+
+// viewer（C 端用户默认角色）：自助操作 + 只读 + 有限创作
+// 参考 C 端应用（豆包/Kimi）默认体验：可对话/搜索/上传/管理自己资料
+const VIEWER_PERMISSIONS = [
+  // 灵感创作
+  "idea:create",
+  "idea:edit",
+  // 任务
+  "task:create",
+  "task:complete",
+  // 记忆/认知只读
+  "memory:read",
+  "cognition:read",
+  "cognition:extract",
+  // 技能
+  "skill:execute",
+  // 工作流执行
+  "flow:execute",
+  "flow:read",
+  // AI 基础能力
+  "ai:chat",
+  "ai:voice",
+  "ai:tool:use",
+  "ai:distill:read",
+  "ai:workspace:read",
+  // 对话资产
+  "conversation:read",
+  "conversation:capture",
+  // 巡检只读
+  "patrol:read",
+  "patrol:execute",
+  // 备份导出（仅自己的数据）
+  "backup:export",
+  "backup:verify",
+  // Hermes 基础使用
+  "hermes:execute",
+  "hermes:report:read",
+  "hermes:memory:manage",
+  // 飞书任务
+  "lark:task:manage",
+  // 会员/钱包只读
+  "membership:read",
+  "wallet:read",
+  // 推送
+  "push:subscribe",
+  // 搜索
+  "search:use",
+  // 上传
+  "upload:use",
+  // 其他
+  "focus:manage",
+  // 用户自助
+  "user:profile:edit",
+  "user:ai-keys:manage",
+];
+
+// editor：除 ADMIN_ONLY_PERMISSIONS 外全部权限
 const EDITOR_PERMISSIONS = ALL_PERMISSION_KEYS.filter(
   (k) => !ADMIN_ONLY_PERMISSIONS.has(k)
 );
@@ -438,8 +567,8 @@ export const DEFAULT_ROLES: DefaultRoleDef[] = [
   {
     name: "viewer",
     displayName: "访客",
-    description: "只读访问 + 有限操作（创建灵感、执行技能）",
-    permissions: ["idea:create", "skill:execute"],
+    description: "C 端用户默认角色：可对话/搜索/上传/管理自己资料，仅有限创作",
+    permissions: VIEWER_PERMISSIONS,
     isSystem: true,
     profession: null, // viewer 不绑定职业
   },

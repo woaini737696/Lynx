@@ -1315,9 +1315,23 @@ async function executeHermesExecute(
   const timeoutSec = args.timeout || 120;
   let result: { success: boolean; output: string; error?: string; durationMs?: number; steps?: unknown[] };
 
-  // 唯一路径：通过 WS 网关远程下发到用户电脑（桌面端或 Web 端均可接收）
-  // 接收端收到后优先调用 HermesAgent Dashboard HTTP API（真正 AI 执行）
-  const devices = await getOnlineDevices(user.id);
+  // 通过 WS 网关 /devices 端点查询真实在线设备（内存状态，不依赖 DB 心跳）
+  const WS_GATEWAY_URL = process.env.WS_GATEWAY_URL || "http://localhost:3001";
+  let devices: Array<{ channelId: string; deviceName: string }> = [];
+  try {
+    const resp = await fetch(`${WS_GATEWAY_URL}/devices?userId=${user.id}`, {
+      signal: AbortSignal.timeout(5000),
+    });
+    const data = await resp.json().catch(() => ({}));
+    devices = Array.isArray(data.devices) ? data.devices : [];
+  } catch (e) {
+    return {
+      success: false,
+      output: "",
+      error: "WS 网关不可达：" + (e as Error).message + "。请确保 WS 网关（端口 3001）正在运行。",
+    };
+  }
+
   if (devices.length === 0) {
     return {
       success: false,
@@ -1326,18 +1340,20 @@ async function executeHermesExecute(
     };
   }
 
-  // 多设备策略：优先选桌面端（非 Web- 开头），其次选最近心跳的设备
+  // 多设备策略：优先选桌面端（非 Web- 开头），其次选第一个
   const desktopDevice = devices.find((d) => !d.deviceName.startsWith("Web-"));
   const targetDevice = desktopDevice || devices[0];
+  const targetDeviceId = targetDevice.channelId;
+  const targetDeviceName = targetDevice.deviceName;
 
-  const remoteResult = await dispatchRemoteCommand(user.id, prompt, timeoutSec, targetDevice.wsChannelId);
+  const remoteResult = await dispatchRemoteCommand(user.id, prompt, timeoutSec, targetDeviceId);
   result = {
     success: remoteResult.success,
     output: remoteResult.output,
     error: remoteResult.error,
     durationMs: remoteResult.durationMs,
     steps: remoteResult.success
-      ? [{ action: "remote-dispatch", device: targetDevice.deviceName, route: remoteResult.route || "desktop", timestamp: new Date().toISOString() }]
+      ? [{ action: "remote-dispatch", device: targetDeviceName, route: remoteResult.route || "desktop", timestamp: new Date().toISOString() }]
       : undefined,
   };
 
