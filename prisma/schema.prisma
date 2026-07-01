@@ -36,6 +36,12 @@ model User {
   // ===== 权限缓存版本号（角色变更时递增，用于多实例缓存失效）=====
   permissionVersion Int @default(0)
 
+  // ===== C 端用户管理（参考 Kimi/豆包）=====
+  source       String   @default("admin_create") @db.VarChar(32) // self_register | admin_create：用户来源（自注册 / admin 创建）
+  lastLoginAt  DateTime? // 最后登录时间（登录成功时更新）
+  registerIp   String?  @db.VarChar(64) // 注册时 IP（仅自注册用户记录）
+  loginLogs    LoginLog[] // 登录历史
+
   ideas             Idea[]
   conversations     Conversation[]
   tasks             Task[]
@@ -64,6 +70,19 @@ model User {
   sCoinTransactions   SCoinTransaction[]
   membership          Membership?
   subscriptionOrders  SubscriptionOrder[]
+}
+
+// 登录历史日志（C 端用户管理 - 登录历史追踪）
+model LoginLog {
+  id        String   @id @default(cuid())
+  userId    String
+  ip        String?  @db.VarChar(64) // 登录 IP
+  userAgent String?  @db.VarChar(500) // User-Agent
+  loginAt   DateTime @default(now()) // 登录时间
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, loginAt]) // 按用户+时间查询（用户登录历史列表）
+  @@index([loginAt]) // 按时间查询（全局登录审计）
 }
 
 // 角色权限配置

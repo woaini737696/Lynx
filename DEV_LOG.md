@@ -9,6 +9,8 @@
 
 | 迭代 | 日期 | 任务概要 |
 |------|------|----------|
+| [迭代 88](#迭代-88---2026-07-01) | 2026-07-01 | 安卓端v0.1.4三项问题修复：通话崩溃修复(CallScreen加RECORD_AUDIO运行时权限申请+过渡态+recordWithVad try-catch防御)+记忆图谱改为时间流卡片列表(删除2D力导向Canvas/MemoryGraphCanvas/NodeDetailCard/NodePosition,重写为LazyColumn卡片按时间倒序+分类筛选+点击展开收起+保留搜索FAB)+重画LynxIcons.Search线性放大镜(完整圆arcTo+手柄lineTo)+删除主题设置UI入口(外观分组/ThemePickerDialog/themeLabel/showThemeDialog)+MainActivity强制深色模式(不跟随系统,浅色未适配) |
+| [迭代 87](#迭代-87---2026-07-01) | 2026-07-01 | 新增C端用户管理模块(参考Kimi/豆包)：User表新增source/lastLoginAt/registerIp字段+新增LoginLog表(登录历史,CASCADE删除)+注册流程设置source=self_register+registerIp+写首次LoginLog+登录流程(token+NextAuth)更新lastLoginAt+token登录写LoginLog+新增/api/c-users(列表GET+详情GET含登录历史+PATCH启用禁用/角色提升/重置密码+DELETE)+新增/admin/c-users前端页面(液态玻璃风格+顶部统计卡片+搜索+状态/角色筛选+详情弹窗+重置密码一次性返回+角色提升弹窗+HelpButton)+侧边栏管理分组新增C端用户菜单项+权限管理同步(新增c-user:manage到PERMISSION_CATALOG+ADMIN_ONLY_PERMISSIONS,76项权限,admin(76)/editor(57)/viewer(33))+MySQL直连SQL迁移(幂等information_schema检查,不依赖prisma CLI) |
 | [迭代 86](#迭代-86---2026-07-01) | 2026-07-01 | HermesAgent检查更新功能+架构澄清：Web端和桌面端HermesAgent配置模块新增检查更新按钮(对比本机版本与服务器latest.json+有新版本自动下载安装+无更新提示暂无更新)+installHermesAgent支持动态wheel文件名参数(不再硬编码0.18.0,updateHermesAgent先拉latest.json拿最新wheel文件名再安装)+新增/api/hermes/update路由(GET检查+POST更新)+新增public/downloads/latest.json记录服务器最新版本信息+架构澄清:Web端和桌面端本质都是PC端,HermesAgent功能完全一样同步,只有安卓端需要远程操控PC端,Web端和桌面端都支持独立工作独立运行HermesAgent互不依赖 |
 | [迭代 85](#迭代-85---2026-07-01) | 2026-07-01 | 用户管理手机号支持+权限管理全量同步：用户管理API+UI全链路支持phone字段(settings/profile个人资料页显示手机号只读+admin/users手机号搜索+列表显示)+权限目录从35项扩充到75项覆盖全部功能模块(补全conversation:read/cognition:read两个P0缺失key+新增Hermes/Lark/会员/钱包/推送/搜索等25个未覆盖模块)+DEFAULT_ROLES同步(admin 75项/editor 57项/viewer 33项对齐C端应用)+admin创建用户支持免密(密码可选自动生成)+username可选(不填自动生成phone_xxx)+register接口限流(IP5次/小时+手机号3次/天)+token登录限流(IP10次/分钟)+服务器端角色权限seed同步 |
 | [迭代 84](#迭代-84---2026-07-01) | 2026-07-01 | 安卓端v0.1.3四项任务收尾：主题全面替换MaterialTheme.colorScheme(13文件19处硬编码Void/Deep替换)+毛玻璃弹窗(FrostedGlassDialog辅助组件+ThemePickerDialog/ConfirmDialog重写)+全双工语音通话CallViewModel完整实现(LISTENING→THINKING→SPEAKING状态机+CompletableDeferred+VAD端点检测+流式TTS+MediaPlayer临时文件播放+对话历史20条限制)+CallScreen接入ViewModel+PC联调AgentPanel.approveOrReject stub修复(dispatchRemoteCommand下发approve/reject指令)+MemoryScreen.kt编译错误修复(Inject导入/LocalDensity移除/Float-Double类型修正) |
@@ -127,6 +129,92 @@
 
 ### Commit hash
 `4181fb4d`
+
+---
+
+## 迭代 87 - 2026-07-01
+
+### 任务概要
+新增 C 端用户管理模块，独立管理自注册的 C 端用户（参考 Kimi/豆包的 C 端用户管理做法），与现有"用户管理"（系统用户/admin 创建的）并列。
+
+### 需求确认（弹窗）
+- **菜单结构**：独立菜单项"C 端用户"，路径 /admin/c-users
+- **数据区分**：新增 source 字段 + lastLoginAt + registerIp（涉及 schema 变更）
+- **功能范围**：基础展示+搜索+筛选 + 启用/禁用+重置密码 + 查看详情+登录历史
+- **角色提升**：允许提升角色，但仍在 C 端用户列表展示（保留 source 标记）
+
+### 变更内容
+
+#### 1. Schema 变更（prisma/schema.prisma）
+- User model 新增 3 个字段：
+  - `source` String @default("admin_create") @db.VarChar(32) — self_register | admin_create
+  - `lastLoginAt` DateTime? — 最后登录时间
+  - `registerIp` String? @db.VarChar(64) — 注册时 IP
+- 新增 LoginLog model（登录历史）：
+  - id / userId / ip / userAgent / loginAt
+  - @@index([userId, loginAt]) + @@index([loginAt])
+  - user 关系 onDelete: Cascade
+
+#### 2. 注册流程改造（src/app/api/auth/register/route.ts）
+- 创建用户时设置 source: "self_register" + registerIp
+- lastLoginAt: new Date()（注册即首次登录）
+- 事务内写首次 LoginLog（含 ip + userAgent）
+
+#### 3. Admin 创建用户流程改造（src/app/api/users/route.ts）
+- 创建用户时设置 source: "admin_create"（系统用户）
+
+#### 4. 登录流程改造
+- App 端 token 登录（src/app/api/auth/token/route.ts）：
+  - 异步更新 lastLoginAt + 写 LoginLog（不阻塞返回）
+- Web 端 NextAuth（src/auth.ts）：
+  - authorize 成功后异步更新 lastLoginAt（NextAuth authorize 无法获取 req 头部，仅更新时间不写 LoginLog）
+
+#### 5. 新增 C 端用户管理 API
+- GET /api/c-users — 列表（带搜索 q + 状态筛选 status + 角色筛选 role，仅 source=self_register）
+- GET /api/c-users/[id]?logLimit=30 — 详情 + 最近登录历史
+- PATCH /api/c-users/[id] — 更新（displayName/role/active/password/resetPassword）
+  - resetPassword=true 时自动生成随机密码返回 newPassword（一次性返回）
+- DELETE /api/c-users/[id] — 注销/删除（不能删自己）
+
+#### 6. 新增前端页面（src/app/admin/c-users/page.tsx）
+- 液态玻璃风格（与 admin/users 一致）
+- 顶部统计卡片：总数/启用数/禁用数
+- 列表：头像+手机号+显示名+角色徽章+状态+注册时间+最后登录+注册IP
+- 搜索 + 状态筛选 + 角色筛选
+- 操作（行内按钮 + 右键菜单）：
+  - 查看详情弹窗（含登录历史列表）
+  - 启用/禁用切换
+  - 重置密码（确认后弹窗展示一次性新密码 + 复制按钮）
+  - 角色提升（弹窗下拉选角色）
+  - 删除（确认弹窗）
+- HelpButton（contentKey="admin-c-users"）
+- 无创建按钮（C 端用户走公开注册流程）
+
+#### 7. 侧边栏菜单（src/components/layout/Sidebar.tsx）
+- 管理分组新增"C 端用户"菜单项（UserCircle 图标，路径 /admin/c-users）
+- 紧跟"用户管理"之后
+
+#### 8. 权限管理同步（src/lib/permissions.ts + scripts/deploy/seed-roles-server.js）
+- PERMISSION_CATALOG 新增 `c-user:manage`（系统分组，76 项权限）
+- ADMIN_ONLY_PERMISSIONS 新增 c-user:manage（仅 admin 可分配）
+- 服务器端 seed-roles-server.js 同步更新
+- 重新 seed 后：admin(76) / editor(57) / viewer(33)
+
+#### 9. 数据库迁移（scripts/deploy/migrate-c-users.sql）
+- 通过 MySQL CLI 直接执行（不依赖 prisma CLI，避免服务器安装 prisma 7.x 不兼容）
+- 幂等设计：information_schema 检查后再 ALTER/CREATE
+- 兼容 MySQL 8.0.46（不支持 ADD COLUMN IF NOT EXISTS / CREATE INDEX IF NOT EXISTS）
+
+### 帮助内容（src/lib/help-content.ts）
+- 新增 "admin-c-users" 帮助条目（痛点/需求/解决方案/使用方法 4 段）
+
+### 验证
+- TypeScript 编译：tsc --noEmit 无错误
+- ESLint：新文件零警告零错误
+- Next.js 构建：成功
+- 服务器部署：deploy_standalone.py 成功
+- 数据库迁移：SQL 成功执行，User 表新增 3 字段，LoginLog 表创建成功
+- 角色 seed：admin(76) / editor(57) / viewer(33) 同步成功
 
 ---
 

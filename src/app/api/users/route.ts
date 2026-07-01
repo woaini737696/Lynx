@@ -150,6 +150,7 @@ export async function POST(req: NextRequest) {
         email: email || null,
         displayName,
         role,
+        source: "admin_create", // admin 创建：系统用户（非 C 端自注册）
       },
       select: {
         id: true,

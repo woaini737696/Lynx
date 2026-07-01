@@ -52,14 +52,14 @@ const PERMISSION_CATALOG = [
   // 用户自助
   "user:profile:edit", "user:ai-keys:manage",
   // 系统
-  "user:manage", "role:manage", "system:config", "token:stats", "system:diagnostics", "profession:manage",
+  "user:manage", "c-user:manage", "role:manage", "system:config", "token:stats", "system:diagnostics", "profession:manage",
 ];
 
 const ALL_PERMISSION_KEYS = PERMISSION_CATALOG;
 
 // admin 仅限权限
 const ADMIN_ONLY = new Set([
-  "user:manage", "role:manage", "system:config", "token:stats", "system:diagnostics", "profession:manage",
+  "user:manage", "c-user:manage", "role:manage", "system:config", "token:stats", "system:diagnostics", "profession:manage",
   "backup:import", "ai:settings", "ai:workspace:manage", "membership:manage", "wallet:manage",
   "hermes:install", "hermes:remote-command", "hermes:pattern:manage", "lark:bot:test",
   "flow:manage", "ai:distill:manage", "graveyard:manage",

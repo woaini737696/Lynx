@@ -445,6 +445,7 @@ export const PERMISSION_CATALOG: PermissionDef[] = [
 
   // ============ 系统管理模块 ============
   { key: "user:manage", label: "管理用户", description: "增删改系统用户", group: "系统" },
+  { key: "c-user:manage", label: "管理 C 端用户", description: "管理自注册的 C 端用户（启用/禁用/重置密码/角色提升/查看登录历史）", group: "系统" },
   { key: "role:manage", label: "管理角色", description: "修改角色权限配置", group: "系统" },
   { key: "system:config", label: "系统配置", description: "修改系统级配置", group: "系统" },
   { key: "token:stats", label: "词元统计", description: "查看词元消耗统计", group: "系统" },
@@ -468,6 +469,7 @@ export interface DefaultRoleDef {
 // admin 仅限的系统级权限（其他角色不可分配）
 const ADMIN_ONLY_PERMISSIONS = new Set([
   "user:manage",
+  "c-user:manage",
   "role:manage",
   "system:config",
   "token:stats",

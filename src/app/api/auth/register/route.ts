@@ -97,6 +97,8 @@ export async function POST(req: NextRequest) {
     // 创建用户 + 标记邀请码已使用（事务）
     const username = `phone_${phone}`;
     const passwordHash = await bcrypt.hash(finalPassword, 10);
+    const registerIp = getClientKey(req);
+    const userAgent = req.headers.get("user-agent") || null;
     const user = await prisma.$transaction(async (tx) => {
       const u = await tx.user.create({
         data: {
@@ -105,7 +107,14 @@ export async function POST(req: NextRequest) {
           phone,
           displayName: displayName?.trim() || phone,
           role: "viewer",
+          source: "self_register", // C 端用户：自注册
+          registerIp,
+          lastLoginAt: new Date(), // 注册即首次登录
         },
+      });
+      // 写入首次登录日志
+      await tx.loginLog.create({
+        data: { userId: u.id, ip: registerIp, userAgent },
       });
       await tx.inviteCode.update({
         where: { id: invite.id },
