@@ -64,7 +64,8 @@ class MainActivity : ComponentActivity() {
 
         setContent {
             val token by userPreferences.tokenFlow.collectAsState(initial = null)
-            val themeMode by userPreferences.themeFlow.collectAsState(initial = "system")
+            // 强制深色模式（浅色模式未适配，暂不跟随系统）
+            val themeMode = "dark"
             val isLoggedIn = token != null
 
             LynnHubTheme(themeMode = themeMode) {

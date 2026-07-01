@@ -179,8 +179,16 @@ class CallViewModel @Inject constructor(
 
     /** 录音 + VAD 端点检测，返回 WAV 数据；null 表示未录到有效音频或已挂断 */
     private suspend fun recordWithVad(): ByteArray? {
-        if (!audioRecorder.start()) {
-            _uiState.update { it.copy(state = CallState.ERROR, error = "无法启动录音，请检查麦克风权限") }
+        try {
+            if (!audioRecorder.start()) {
+                _uiState.update { it.copy(state = CallState.ERROR, error = "无法启动录音，请检查麦克风权限") }
+                return null
+            }
+        } catch (e: SecurityException) {
+            _uiState.update { it.copy(state = CallState.ERROR, error = "缺少录音权限，请在设置中开启") }
+            return null
+        } catch (e: Exception) {
+            _uiState.update { it.copy(state = CallState.ERROR, error = "录音启动失败: ${e.message}") }
             return null
         }
         vadDetector.reset()
@@ -206,11 +214,16 @@ class CallViewModel @Inject constructor(
         }
 
         if (_uiState.value.state == CallState.IDLE) {
-            audioRecorder.stop()
+            try { audioRecorder.stop() } catch (_: Exception) {}
             return null
         }
 
-        val pcmData = audioRecorder.stop()
+        val pcmData = try {
+            audioRecorder.stop()
+        } catch (e: Exception) {
+            _uiState.update { it.copy(state = CallState.ERROR, error = "录音停止失败: ${e.message}") }
+            return null
+        }
         if (pcmData.isEmpty()) return null
         return audioRecorder.pcmToWav(pcmData)
     }

@@ -341,6 +341,83 @@
 
 ---
 
+## 迭代 88 - 2026-07-01
+
+### 任务概要
+安卓端 v0.1.4 三项问题修复：① 语音通话点击崩溃修复（运行时权限申请缺失）；② 记忆图谱改为时间流卡片列表（放弃 2D 力导向图谱）；③ 搜索 icon 重画 + 主题设置删除。
+
+### 背景问题
+1. **首页点击语音通话按钮卡死然后崩溃**：CallScreen 进入即 `LaunchedEffect { viewModel.startCall() }` 启动录音，但**没有运行时申请 RECORD_AUDIO 权限**（ChatPanel/IdeaPanel 都有 `recordPermissionLauncher`，唯独 CallScreen 缺失）。Android 6.0+ 未授权时 `AudioRecord.startRecording()` 抛 IllegalStateException → 崩溃。
+2. **记忆图谱还是很糟糕**：2D 力导向 Canvas 图谱交互体验差，用户要求放弃图谱改为卡片管理。右下角搜索 FAB 的 `LynxIcons.Search` path 有缺陷（arcTo 画圆不完整）导致显示残缺。
+3. **主题设置删除**：用户明确"太麻烦了不要了"，浅色模式未适配无法使用，只保留深色。
+
+### 方案确认（AskUserQuestion 弹窗）
+- 通话崩溃修复方案 → **权限+过渡态（推荐）**
+- 记忆卡片展示形式 → **时间流列表（推荐）**
+- 搜索 icon 重做样式 → **重画线性放大镜（推荐）**
+- 主题设置删除范围 → **仅删 UI 入口（推荐）** + 用户补充"只保留深色，浅色未适配不使用"
+
+### 完成内容
+
+#### 1. 通话崩溃修复（`Panels.kt` CallScreen + `CallViewModel.kt`）
+- **CallScreen 增加运行时权限申请**：
+  - 新增 `permissionGranted: Boolean?` 状态（null=申请中, true=已授权, false=被拒绝）
+  - 新增 `checkMicPermission()` 用 `ContextCompat.checkSelfPermission`
+  - 新增 `permissionLauncher = rememberLauncherForActivityResult(RequestPermission())`
+  - `LaunchedEffect(Unit)`：有权限直接 startCall，无权限 `permissionLauncher.launch(RECORD_AUDIO)`
+  - 授权后回调 `viewModel.startCall()`
+- **过渡态 UI**：权限申请中显示"正在准备通话..."/"正在检查麦克风权限..."；被拒绝显示"需要录音权限"+ 返回按钮
+- **手势区域条件化**：上滑挂断/轻触唤起控制按钮仅在 `permissionGranted == true` 时生效（`Modifier.then(if...)`）
+- **CallViewModel.recordWithVad 加 try-catch 防御**：
+  - `audioRecorder.start()` 包裹 try-catch（SecurityException + Exception）
+  - `audioRecorder.stop()` 包裹 try-catch
+  - 错误时更新 `CallState.ERROR` + error 消息，不崩溃
+
+#### 2. 记忆图谱改为时间流卡片列表（`MemoryScreen.kt` 完全重写）
+- **删除**：`MemoryGraphCanvas`（2D 力导向 Canvas）、`NodeDetailCard`、`NodePosition` 数据类
+- **删除 imports**：Canvas、detectTapGestures、detectTransformGestures、Offset、Path、Stroke、graphicsLayer、pointerInput、cos、sin、sqrt
+- **新增 `MemoryCard` Composable**：
+  - 类型标签（彩色背景胶囊）+ 时间（右上角）
+  - 标题（14sp SemiBold）+ 摘要（12sp 2 行省略）
+  - 点击展开/收起全文（`isExpanded` 控制 maxLines，>120 字显示"展开全文"/"收起"）
+- **主页面改为 `LazyColumn`**：
+  - 按分类筛选 + 按 `createdAt` 倒序排列（最新在前）
+  - `items(key = { it.id })` + `verticalArrangement = spacedBy(12.dp)`
+  - 空态："暂无记忆" / "未找到相关记忆"
+- **保留**：分类标签 Row、右下角搜索 FAB、MemorySearchDialog、memoryTypeColor/memoryTypeLabel 工具函数
+- 标题从"记忆图谱"改为"记忆"
+
+#### 3. 重画 LynxIcons.Search 线性放大镜（`LynxIcons.kt`）
+- **原 path 缺陷**：`arcTo(8f, 8f, 0f, true, false, 11f, 3f)` + `arcTo(8f, 8f, 0f, true, false, 11f, 11f)` + `close()` 画圆不完整，显示残缺
+- **新 path**：
+  - 镜片：`moveTo(16f, 10f)` → `arcTo(6f, 6f, 0f, true, false, 4f, 10f)` → `arcTo(6f, 6f, 0f, true, true, 16f, 10f)` 形成完整圆（圆心 10,10，半径 6）
+  - 手柄：`moveTo(15f, 15f)` → `lineTo(20f, 20f)` 右下斜线
+  - stroke 1.8f（原 1.6f 加粗一点更清晰）
+- 修复所有用到 Search 的地方（记忆搜索 FAB 等）
+
+#### 4. 删除主题设置 UI 入口 + 强制深色（`SettingsScreen.kt` + `MainActivity.kt`）
+- **SettingsScreen.kt 删除**：
+  - `showThemeDialog` 状态声明
+  - "外观"分组 + "主题模式" SettingsRow
+  - `ThemePickerDialog` 调用块
+  - `themeLabel` 函数
+  - `ThemePickerDialog` 函数定义（保留 `FrostedGlassDialog` 和 `ConfirmDialog`，其他设置弹窗仍用）
+- **MainActivity.kt 强制深色**：
+  - `val themeMode by userPreferences.themeFlow.collectAsState(initial = "system")` → `val themeMode = "dark"`
+  - 不再读取用户主题偏好，App 永远深色，不跟随系统切换
+  - Theme.kt 的 LynxLightColorScheme 保留但不会被激活
+
+### 自测结果
+- `.\gradlew.bat :app:compileDebugKotlin`：**BUILD SUCCESSFUL in 36s**，0 错误（首次缺 borderColor 参数已修复）
+- `.\gradlew.bat :app:assembleDebug`：**BUILD SUCCESSFUL in 58s**
+- 版本号 0.1.3 → 0.1.4（`versionCode 4 → 5`）
+- APK 已生成，待设备重连后安装
+
+### Commit
+（待提交后填入）
+
+---
+
 ## 迭代 84 - 2026-07-01
 
 ### 任务概要
