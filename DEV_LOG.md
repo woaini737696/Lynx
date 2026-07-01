@@ -175,7 +175,7 @@
 - 版本号 1.0.26 → 1.0.27（`desktop-native/src-tauri/tauri.conf.json`）。
 
 ### Commit
-`19216071`
+`1a372424`
 
 ---
 
