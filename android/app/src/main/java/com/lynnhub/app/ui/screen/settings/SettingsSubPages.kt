@@ -67,7 +67,7 @@ private fun SubPageScaffold(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(Void)
+            .background(MaterialTheme.colorScheme.background)
             .pointerInput(Unit) {
                 detectTapGestures(onTap = { keyboardController?.hide() })
             }

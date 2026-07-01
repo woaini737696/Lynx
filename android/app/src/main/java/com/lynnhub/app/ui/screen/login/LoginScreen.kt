@@ -57,7 +57,7 @@ fun LoginScreen(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(Void)
+            .background(MaterialTheme.colorScheme.background)
             .imePadding(),
         contentAlignment = Alignment.Center
     ) {
@@ -73,7 +73,7 @@ fun LoginScreen(
                 modifier = Modifier
                     .size(72.dp)
                     .clip(RoundedCornerShape(18.dp))
-                    .background(Void)
+                    .background(MaterialTheme.colorScheme.background)
                     .border(1.dp, LiquidBorder, RoundedCornerShape(18.dp))
                     .shadow(
                         elevation = 0.dp,

@@ -70,7 +70,7 @@ fun TasksScreen(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(Void)
+            .background(MaterialTheme.colorScheme.background)
             .pointerInput(Unit) {
                 detectTapGestures(onTap = { keyboardController?.hide() })
             }
@@ -244,18 +244,24 @@ private fun SyncStateBar(
         Column(modifier = Modifier.weight(1f)) {
             Text(
                 text = when {
-                    isSyncing -> "正在同步…"
-                    syncState?.lastError != null -> "同步异常: ${syncState.lastError}"
-                    syncState?.lastSyncAt != null -> "已同步 · ${syncState.lastSyncAt.take(16).replace("T", " ")}"
-                    else -> "点击同步飞书任务"
+                    isSyncing -> "正在刷新…"
+                    syncState?.lastSyncAt != null -> "数据库 · 最后同步 ${syncState.lastSyncAt.take(16).replace("T", " ")}"
+                    else -> "点击刷新数据库"
                 },
                 fontSize = 12.sp,
-                color = if (syncState?.lastError != null) Danger else TextPrimary,
+                color = TextPrimary,
                 fontWeight = FontWeight.Medium
             )
             if (syncState?.taskCount != null && syncState.taskCount > 0) {
                 Text(
-                    text = "共 ${syncState.taskCount} 条任务",
+                    text = "共 ${syncState.taskCount} 条任务 · 飞书同步请在 Web/桌面端",
+                    fontSize = 10.sp,
+                    color = TextMuted,
+                    modifier = Modifier.padding(top = 2.dp)
+                )
+            } else {
+                Text(
+                    text = "飞书任务请在 Web 端/桌面端同步",
                     fontSize = 10.sp,
                     color = TextMuted,
                     modifier = Modifier.padding(top = 2.dp)
@@ -264,7 +270,7 @@ private fun SyncStateBar(
         }
         if (!isSyncing) {
             Text(
-                text = "同步",
+                text = "刷新",
                 color = Primary,
                 fontSize = 12.sp,
                 fontWeight = FontWeight.SemiBold,

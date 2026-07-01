@@ -406,8 +406,15 @@ data class MemoryNodeDto(
 )
 
 @Serializable
+data class MemoryEdgeDto(
+    val from: String = "",
+    val to: String = ""
+)
+
+@Serializable
 data class MemoryResponse(
-    val nodes: List<MemoryNodeDto> = emptyList()
+    val nodes: List<MemoryNodeDto> = emptyList(),
+    val edges: List<MemoryEdgeDto> = emptyList()
 )
 
 @Serializable

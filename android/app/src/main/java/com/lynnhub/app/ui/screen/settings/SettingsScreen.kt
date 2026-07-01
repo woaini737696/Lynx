@@ -23,6 +23,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.lynnhub.app.ui.component.LynxIcons
 import com.lynnhub.app.ui.theme.*
@@ -57,7 +58,7 @@ fun SettingsScreen(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(Void.copy(alpha = 0.55f))
+            .background(MaterialTheme.colorScheme.background.copy(alpha = 0.55f))
     ) {
         Row(modifier = Modifier.fillMaxSize()) {
             // 左侧 12% 遮罩：点击关闭面板
@@ -74,7 +75,7 @@ fun SettingsScreen(
                     .fillMaxHeight()
                     .weight(0.88f)
                     .clip(RoundedCornerShape(topStart = 28.dp, bottomStart = 28.dp))
-                    .background(Void)
+                    .background(MaterialTheme.colorScheme.background)
                     .border(1.dp, LiquidBorder, RoundedCornerShape(topStart = 28.dp, bottomStart = 28.dp))
             ) {
                 // 右滑关闭手势
@@ -300,8 +301,41 @@ private fun themeLabel(theme: String): String = when (theme) {
 }
 
 /**
+ * 毛玻璃弹窗容器：半透明 + 渐变 + 细描边，营造液态玻璃质感
+ * 兼容所有 Android 版本（无 blur 依赖，靠半透明 + 渐变模拟）
+ */
+@Composable
+private fun FrostedGlassDialog(
+    onDismiss: () -> Unit,
+    content: @Composable () -> Unit
+) {
+    Dialog(onDismissRequest = onDismiss) {
+        Box(
+            modifier = Modifier
+                .clip(RoundedCornerShape(24.dp))
+                .background(
+                    Brush.linearGradient(
+                        colors = listOf(
+                            MaterialTheme.colorScheme.surface.copy(alpha = 0.82f),
+                            MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.72f)
+                        )
+                    )
+                )
+                .border(
+                    1.dp,
+                    MaterialTheme.colorScheme.outline.copy(alpha = 0.18f),
+                    RoundedCornerShape(24.dp)
+                )
+        ) {
+            content()
+        }
+    }
+}
+
+/**
  * 主题选择弹窗：深色 / 浅色 / 跟随系统
  * 选择后立即生效（MainActivity 监听 themeFlow 自动 recomposition）
+ * 毛玻璃背景效果，半透明 + 渐变
  */
 @Composable
 private fun ThemePickerDialog(
@@ -314,74 +348,69 @@ private fun ThemePickerDialog(
         "dark" to "深色（夜晚）",
         "system" to "跟随系统"
     )
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        containerColor = MaterialTheme.colorScheme.surface,
-        titleContentColor = TextPrimary,
-        title = {
+    FrostedGlassDialog(onDismiss = onDismiss) {
+        Column(modifier = Modifier.padding(24.dp)) {
             Text(
                 text = "主题模式",
                 fontWeight = FontWeight.SemiBold,
                 fontSize = 15.sp,
-                color = TextPrimary
+                color = MaterialTheme.colorScheme.onSurface
             )
-        },
-        text = {
-            Column {
-                options.forEach { (value, label) ->
-                    val isSelected = value == currentTheme
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
+            Spacer(modifier = Modifier.height(16.dp))
+            options.forEach { (value, label) ->
+                val isSelected = value == currentTheme
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(if (isSelected) Primary.copy(alpha = 0.12f) else Color.Transparent)
+                        .clickable { onSelect(value) }
+                        .padding(horizontal = 12.dp, vertical = 12.dp)
+                ) {
+                    Box(
                         modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(12.dp))
-                            .background(if (isSelected) Primary.copy(alpha = 0.12f) else Color.Transparent)
-                            .clickable { onSelect(value) }
-                            .padding(horizontal = 12.dp, vertical = 12.dp)
+                            .size(20.dp)
+                            .clip(CircleShape)
+                            .background(if (isSelected) Primary else Color.Transparent)
+                            .border(
+                                1.dp,
+                                if (isSelected) Primary else MaterialTheme.colorScheme.outline,
+                                CircleShape
+                            ),
+                        contentAlignment = Alignment.Center
                     ) {
-                        Box(
-                            modifier = Modifier
-                                .size(20.dp)
-                                .clip(CircleShape)
-                                .background(if (isSelected) Primary else Color.Transparent)
-                                .border(
-                                    1.dp,
-                                    if (isSelected) Primary else BorderHover,
-                                    CircleShape
-                                ),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            if (isSelected) {
-                                Icon(
-                                    imageVector = LynxIcons.Check,
-                                    contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.onPrimary,
-                                    modifier = Modifier.size(12.dp)
-                                )
-                            }
+                        if (isSelected) {
+                            Icon(
+                                imageVector = LynxIcons.Check,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.onPrimary,
+                                modifier = Modifier.size(12.dp)
+                            )
                         }
-                        Spacer(modifier = Modifier.width(12.dp))
-                        Text(
-                            text = label,
-                            fontSize = 14.sp,
-                            color = if (isSelected) Primary else TextPrimary,
-                            fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal
-                        )
                     }
-                    Spacer(modifier = Modifier.height(4.dp))
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Text(
+                        text = label,
+                        fontSize = 14.sp,
+                        color = if (isSelected) Primary else MaterialTheme.colorScheme.onSurface,
+                        fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal
+                    )
                 }
+                Spacer(modifier = Modifier.height(4.dp))
             }
-        },
-        confirmButton = {
+            Spacer(modifier = Modifier.height(12.dp))
             Text(
                 text = "关闭",
-                color = TextMuted,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                fontSize = 13.sp,
                 modifier = Modifier
+                    .align(Alignment.End)
                     .clickable { onDismiss() }
                     .padding(vertical = 8.dp, horizontal = 12.dp)
             )
         }
-    )
+    }
 }
 
 @Composable
@@ -502,7 +531,7 @@ private fun DangerRow(
     }
 }
 
-// ============ 确认弹窗组件 ============
+// ============ 确认弹窗组件（毛玻璃背景） ============
 @Composable
 fun ConfirmDialog(
     title: String,
@@ -512,25 +541,44 @@ fun ConfirmDialog(
     onConfirm: () -> Unit,
     onDismiss: () -> Unit
 ) {
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        containerColor = Deep,
-        titleContentColor = TextPrimary,
-        title = {
-            Text(text = title, fontWeight = FontWeight.SemiBold, fontSize = 15.sp)
-        },
-        text = {
-            Text(text = text, color = TextMuted, fontSize = 12.sp)
-        },
-        confirmButton = {
-            TextButton(onClick = onConfirm) {
-                Text(confirmText, color = Danger, fontWeight = FontWeight.SemiBold)
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text(cancelText, color = TextPrimary)
+    FrostedGlassDialog(onDismiss = onDismiss) {
+        Column(modifier = Modifier.padding(24.dp)) {
+            Text(
+                text = title,
+                fontWeight = FontWeight.SemiBold,
+                fontSize = 15.sp,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+            Spacer(modifier = Modifier.height(12.dp))
+            Text(
+                text = text,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                fontSize = 12.sp
+            )
+            Spacer(modifier = Modifier.height(20.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.End
+            ) {
+                Text(
+                    text = cancelText,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    fontSize = 13.sp,
+                    modifier = Modifier
+                        .clickable { onDismiss() }
+                        .padding(vertical = 8.dp, horizontal = 12.dp)
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = confirmText,
+                    color = Danger,
+                    fontWeight = FontWeight.SemiBold,
+                    fontSize = 13.sp,
+                    modifier = Modifier
+                        .clickable { onConfirm() }
+                        .padding(vertical = 8.dp, horizontal = 12.dp)
+                )
             }
         }
-    )
+    }
 }

@@ -19,6 +19,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -172,6 +173,49 @@ class AgentPanelViewModel @Inject constructor(
         }
     }
 
+    /**
+     * 审批操作：通过 WS Gateway 下发 approve / reject 指令到 PC
+     * @param action "approve" 或 "reject"
+     * @param reportId 关联的报告 ID（可选）
+     */
+    fun approveOrReject(action: String, reportId: String? = null) {
+        if (_uiState.value.isExecuting) return
+        _uiState.update { it.copy(isExecuting = true) }
+        viewModelScope.launch {
+            try {
+                val userId = userPreferences.userFlow.let { flow ->
+                    var id: String? = null
+                    flow.collect { if (it != null) { id = it.id; return@collect } }
+                    id
+                }
+                if (userId == null) {
+                    _uiState.update { it.copy(isExecuting = false, toast = "未登录") }
+                    return@launch
+                }
+
+                val targetDeviceId = _uiState.value.onlineDevices.firstOrNull()?.deviceId
+                val command = if (reportId != null) "${action}:${reportId}" else action
+                val resp = apiService.dispatchRemoteCommand(
+                    com.lynnhub.app.data.remote.dto.DispatchRequest(
+                        userId = userId,
+                        command = command,
+                        targetDeviceId = targetDeviceId
+                    )
+                )
+                val msg = if (resp.dispatched) {
+                    val label = if (action == "approve") "批准" else "拒绝"
+                    "已${label}，指令已下发到 PC" + (resp.commandId?.let { "（任务ID: ${it.take(8)}）" } ?: "")
+                } else {
+                    resp.reason ?: "下发失败：PC 不在线"
+                }
+                _uiState.update { it.copy(isExecuting = false, toast = msg) }
+                resp.commandId?.let { wsGatewayClient.watchCommand(it) }
+            } catch (e: Exception) {
+                _uiState.update { it.copy(isExecuting = false, toast = "审批失败: ${e.message ?: "网络错误"}") }
+            }
+        }
+    }
+
     fun toast(msg: String) {
         _uiState.update { it.copy(toast = msg) }
     }
@@ -192,7 +236,7 @@ fun AgentPanel(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(Void)
+            .background(MaterialTheme.colorScheme.background)
     ) {
         // 反向滑动检测层（左滑返回）
         ReturnSwipeDetector(
@@ -282,8 +326,14 @@ fun AgentPanel(
                 ApprovalCard(
                     latestReport = state.reports.firstOrNull(),
                     isExecuting = state.isExecuting,
-                    onApprove = { viewModel.toast("已处理") },
-                    onReject = { viewModel.toast("已处理") }
+                    onApprove = {
+                        val reportId = state.reports.firstOrNull()?.id
+                        viewModel.approveOrReject("approve", reportId)
+                    },
+                    onReject = {
+                        val reportId = state.reports.firstOrNull()?.id
+                        viewModel.approveOrReject("reject", reportId)
+                    }
                 )
             }
         }
