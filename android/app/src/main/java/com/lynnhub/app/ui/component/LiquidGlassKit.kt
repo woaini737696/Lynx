@@ -16,13 +16,16 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListScope
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.Icon
@@ -398,6 +401,53 @@ fun GlassPageScaffold(
  * 用户在右（蓝色描边 + 深蓝底）
  * AI在左（青色描边 + 深青底）
  */
+/**
+ * 统一顶部栏脚手架（普通 Column 内容版，支持 verticalScroll）
+ *
+ * 用于表单/输入型子页面（如灵感速记）：
+ * - 顶部 GlassTopBar 固定吸附状态栏
+ * - 内容区 verticalScroll 滚动
+ * - 自动处理状态栏安全区域
+ *
+ * @param title 顶部栏标题
+ * @param onBack 返回回调
+ * @param actions TopBar 右侧操作区
+ * @param contentPadding 内容区内边距
+ * @param content 可滚动内容
+ */
+@Composable
+fun TopBarColumnScaffold(
+    title: String,
+    onBack: () -> Unit,
+    modifier: Modifier = Modifier,
+    actions: @Composable RowScope.() -> Unit = {},
+    contentPadding: PaddingValues = PaddingValues(
+        start = 22.dp, end = 22.dp, top = 16.dp, bottom = 24.dp
+    ),
+    content: @Composable ColumnScope.() -> Unit
+) {
+    Box(
+        modifier = modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background)
+    ) {
+        Column(modifier = Modifier.fillMaxSize()) {
+            // 固定顶部栏（不随滚动）
+            GlassTopBar(title = title, onBack = onBack, actions = actions)
+
+            // 可滚动内容
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .imePadding()
+                    .verticalScroll(rememberScrollState())
+                    .padding(contentPadding),
+                content = content
+            )
+        }
+    }
+}
+
 @Composable
 fun GlassBubble(
     message: String,

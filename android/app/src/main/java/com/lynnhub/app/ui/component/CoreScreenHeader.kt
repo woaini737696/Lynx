@@ -54,7 +54,7 @@ fun CoreScreenHeader(
                 )
             )
             .drawBehind {
-                // 顶部高光
+                // 顶部高光（绘制在状态栏顶部位置）
                 drawLine(
                     color = GlassHighlightDeep.copy(alpha = 0.3f),
                     start = Offset(0f, 0f),

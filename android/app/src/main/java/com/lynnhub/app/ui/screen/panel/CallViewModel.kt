@@ -337,7 +337,7 @@ class CallViewModel @Inject constructor(
 
         val wavData = audioRecorder.pcmToWav(pcmData)
         return try {
-            voiceApiClient.recognizeSpeech(wavData)
+            voiceApiClient.recognizeSpeechSmart(wavData)
         } catch (e: Exception) {
             _uiState.update { it.copy(error = "ASR 失败: ${e.message}") }
             ""

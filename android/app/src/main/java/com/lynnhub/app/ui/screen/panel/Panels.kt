@@ -233,8 +233,10 @@ fun CallScreen(
         if (granted) viewModel.startCall()
     }
 
-    // 进入通话页面：先检查权限，有权限直接 startCall，无权限弹申请
+    // 进入通话页面：延后到第二帧启动通话，避免页面入场动画与 startCall 重绘冲突导致跳动
     LaunchedEffect(Unit) {
+        // 等待一帧让页面入场动画先完成布局
+        kotlinx.coroutines.delay(16)
         if (checkMicPermission()) {
             permissionGranted = true
             viewModel.startCall()
@@ -314,12 +316,14 @@ fun CallScreen(
                         }
                     }
                 } else Modifier
-            ),
-        contentAlignment = Alignment.Center
+            )
     ) {
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
-            modifier = Modifier.padding(horizontal = 24.dp, vertical = 40.dp)
+            modifier = Modifier
+                .fillMaxSize()
+                .statusBarsPadding()
+                .padding(horizontal = 24.dp, vertical = 40.dp)
         ) {
             // ====== 中央可视化区：3 层波纹 + 白色猞猁 logo ======
             Box(

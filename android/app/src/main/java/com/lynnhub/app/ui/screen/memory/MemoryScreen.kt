@@ -61,17 +61,37 @@ class MemoryScreenViewModel @Inject constructor(
     private val _uiState = MutableStateFlow(MemoryScreenUiState())
     val uiState: StateFlow<MemoryScreenUiState> = _uiState.asStateFlow()
 
-    init { load() }
+    init {
+        // 先从缓存读取（无感加载）
+        viewModelScope.launch {
+            val cached: Pair<MemoryScreenUiState, Boolean>? =
+                com.lynnhub.app.util.PageCacheManager.get(
+                    com.lynnhub.app.util.CacheKeys.MEMORY
+                )
+            if (cached != null) {
+                _uiState.value = cached.first.copy(isLoading = false)
+            }
+        }
+        load()
+    }
 
     fun load() {
-        _uiState.value = _uiState.value.copy(isLoading = true)
+        if (_uiState.value.nodes.isEmpty()) {
+            _uiState.value = _uiState.value.copy(isLoading = true)
+        }
         viewModelScope.launch {
             try {
                 val resp = apiService.getMemory()
-                _uiState.value = _uiState.value.copy(
+                val newState = _uiState.value.copy(
                     nodes = resp.nodes,
                     edges = resp.edges,
                     isLoading = false
+                )
+                _uiState.value = newState
+                // 存入缓存
+                com.lynnhub.app.util.PageCacheManager.put(
+                    com.lynnhub.app.util.CacheKeys.MEMORY,
+                    newState
                 )
             } catch (e: Exception) {
                 _uiState.value = _uiState.value.copy(

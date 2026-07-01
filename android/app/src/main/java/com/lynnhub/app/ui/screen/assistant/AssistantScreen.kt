@@ -97,6 +97,11 @@ fun AssistantScreen(
     var isInputFocused by remember { mutableStateOf(false) }
     var isLongPressing by remember { mutableStateOf(false) }
 
+    // 每次进入页面时刷新历史消息，确保与 Web 端同步
+    LaunchedEffect(Unit) {
+        viewModel.refreshMessages()
+    }
+
     Box(
         modifier = Modifier
             .fillMaxSize()

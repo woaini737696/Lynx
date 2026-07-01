@@ -5,6 +5,7 @@ import android.content.pm.PackageManager
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import androidx.lifecycle.SavedStateHandle
 import com.lynnhub.app.data.local.UserPreferences
 import com.lynnhub.app.data.remote.ApiService
 import com.lynnhub.app.data.remote.VoiceApiClient
@@ -42,7 +43,8 @@ class AssistantViewModel @Inject constructor(
     private val apiService: ApiService,
     private val voiceApiClient: VoiceApiClient,
     private val userPreferences: UserPreferences,
-    @ApplicationContext private val context: Context
+    @ApplicationContext private val context: Context,
+    private val savedStateHandle: SavedStateHandle
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(AssistantUiState())
@@ -101,18 +103,43 @@ class AssistantViewModel @Inject constructor(
     /** 加载历史消息：与 Web 端共享同一会话历史 */
     private fun loadMessages() {
         val sid = _uiState.value.sessionId ?: return
-        if (_uiState.value.isSending || _uiState.value.messages.isNotEmpty()) return
+        // 增量缓存：记录已加载的最大消息ID，避免重复加载
+        val lastLoadedId = savedStateHandle.get<String>("last_loaded_msg_id")
         viewModelScope.launch {
             try {
                 val resp = apiService.getChatMessages(sid)
+                // 增量合并：保留本地新增的未发送消息（在 isSending=false 时才覆盖）
+                val currentMessages = _uiState.value.messages
+                val merged = if (currentMessages.isNotEmpty() && _uiState.value.isSending) {
+                    // 正在发送中，只追加服务端新增的历史消息
+                    val currentIds = currentMessages.map { it.id }.toSet()
+                    val newFromServer = resp.messages.filter { it.id !in currentIds }
+                    currentMessages + newFromServer
+                } else {
+                    // 非发送中，直接用服务端最新数据覆盖
+                    resp.messages
+                }
                 _uiState.update { state ->
-                    if (state.messages.isEmpty()) state.copy(messages = resp.messages)
-                    else state
+                    state.copy(messages = merged)
+                }
+                // 记录最后一条消息ID用于增量对比
+                resp.messages.lastOrNull()?.id?.let {
+                    savedStateHandle["last_loaded_msg_id"] = it
                 }
             } catch (e: Exception) {
                 // 加载历史失败不阻塞用户发送
             }
         }
+    }
+
+    /**
+     * 刷新历史消息：页面 onResume 时调用
+     * 每次回到页面都重新拉取，确保与 Web 端同步
+     */
+    fun refreshMessages() {
+        val sid = _uiState.value.sessionId ?: return
+        if (_uiState.value.isSending) return  // 正在发送中不刷新
+        loadMessages()
     }
 
     /** 加载记忆图谱：让助理具备记忆上下文 */
@@ -247,7 +274,7 @@ class AssistantViewModel @Inject constructor(
         _uiState.update { it.copy(isRecording = false, isTranscribing = true) }
         viewModelScope.launch {
             try {
-                val text = voiceApiClient.recognizeSpeech(wavData)
+                val text = voiceApiClient.recognizeSpeechSmart(wavData)
                 _uiState.update { it.copy(isTranscribing = false) }
                 if (text.isNotBlank()) {
                     send(text)

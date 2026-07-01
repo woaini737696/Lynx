@@ -9,6 +9,7 @@
 
 | 迭代 | 日期 | 任务概要 |
 |------|------|----------|
+| [迭代 94](#迭代-94---2026-07-01) | 2026-07-01 | 安卓端v0.1.7五项修复+全页面缓存：① 灵感速记页顶部固定(新建TopBarColumnScaffold统一脚手架+IdeaPanel重写使用GlassTopBar固定吸附状态栏+内容区verticalScroll) ② ASR:400+HTML错误页彻底修复(后端asr/route.ts加runtime=nodejs避免Edge Runtime限制+新建asr-base64/route.ts JSON端点+安卓recognizeSpeechSmart自动fallback multipart→base64+检测content-type拒绝HTML错误页) ③ 通话页进入跳动修复(CallScreen移除contentAlignment=Center+加statusBarsPadding+延后startCall到第二帧delay(16)避免入场动画与重绘冲突) ④ Lynx助理历史记录丢失修复(AssistantViewModel加SavedStateHandle+loadMessages增量合并+refreshMessages每次进入页面刷新+LaunchedEffect触发) ⑤ 三核心页顶部空白修复(TasksScreen去除vertical padding+HomeScreen加statusBarsPadding让顶部高度一致) ⑥ 全页面缓存系统(新建PageCacheManager进程级单例+Home/Tasks/Memory ViewModel加入缓存读写实现无感加载) |
 | [迭代 93](#迭代-93---2026-07-01) | 2026-07-01 | 安卓端v0.1.6七项任务iOS26液态玻璃v4+流式全双工：① iOS26液态玻璃色板(Color.kt新增17个深色玻璃色值GlassDeepBase/DialogDeepPrimary/TopBarDeep/BubbleUserDeep等避免白色.copy(alpha)染色) ② LiquidGlassKit统一组件库(LiquidGlassSurface/Dialog/TopBar/BackButton/PageScaffold/Bubble/IconButton/GlassStrength枚举1:1还原App Store视觉) ③ 弹窗白色透明修复(FrostedGlassDialog委托LiquidGlassDialog+DialogDeepPrimary深色叠加) ④ 设置面板跳动修复(Animatable独立面板滑入+静态SettingsScrim遮罩+AppNavigation路由改fadeIn避免双重滑动) ⑤ 子页面顶部悬浮固定(GlassTopBar+SubPageScaffold+CoreScreenHeader深色渐变背景+statusBarsPadding) ⑥ Lynx助理与Web端同步(新建AssistantViewModel复用getChatSessions/createChatSession API+注入system message含用户profile+记忆图谱+assistantMode=true工具调用+AssistantScreen长按语音detectTapGestures onPress录音+GlassBubble深色气泡) ⑦ 语音通话流式全双工改造(VoiceApiClient新增connectStreamingASR WebSocket+StreamingVoiceSession+AudioRecorder.startStreaming流式PCM chunk+CallViewModel WebSocket优先HTTP fallback+AudioTrack流式播放替代MediaPlayer累积+VAD端点检测+详细400错误日志打印response body) |
 | [迭代 92](#迭代-92---2026-07-01) | 2026-07-01 | Web端四项优化：① 回退迭代89信息架构极简优化(删除4个聚合页account/automation/inspiration/knowledge+2个路由layout settings/skills,恢复Sidebar.tsx到29项菜单) ② 注册弹窗紧凑排版(缩小Logo/标题/间距/移除冗余提示,一屏显示完整) ③ 全局Slogan替换不用学直接干→用Lynx AI人人都是超级个体(Web端LoginModal+settings安装脚本+manifest+桌面端LoginPage+桌面端LoginModal) ④ 修复弹窗鼠标拖拽误关闭(MouseDown/MouseUp跟踪+仅遮罩层本身按下松开才关闭,LoginModal+Modal.tsx) |
 | [迭代 91](#迭代-91---2026-07-01) | 2026-07-01 | 桌面端v1.0.29+Web端HermesAgent三问题彻底修复：① Web端无法连接本地Dashboard根因(Web端部署在云服务器,API route在服务器端执行pip install/startHermesAgent,但浏览器fetch 127.0.0.1:9119连用户本地,服务器没Dashboard运行。修复方案:Web端"一键安装/启动/停止/更新"全部改为下载自动.bat脚本,用户双击运行完成全部操作-downloadScript+checkLocalDashboard+compareVersionsSimple) ② 桌面端开发者名称LynnHub→Lynn(tauri.conf.json publisher+copyright) ③ 桌面端加检查更新按钮+假成功根因修复(installer.rs检测到已安装就跳过不升级→新增check_hermes_update+update_hermes_agent两个Rust命令,update用--force-reinstall强制覆盖旧版本;HermesPanel.tsx新增检查更新按钮+更新信息卡片+升级进度条;lib.rs注册新命令) + DEVELOPMENT_SPEC.md新增步骤10清理规范(每次完成任务后必须执行cargo clean+清理hermes-agent-pkg构建产物+清理系统临时目录) |
@@ -439,6 +440,103 @@ Web 端三项需求：① C 端用户列表去除"参考 Kimi/豆包"文案提�
 - **人性设计**：相关功能聚合到同一页面 Tab 切换，减少页面跳转
 - **零破坏性**：原路由全部保留兼容，子页组件零改动，纯前端信息架构调整
 - **性能优化**：visitedTabs 懒加载机制，未访问的 Tab 不 mount 不请求
+
+---
+
+## 迭代 94 - 2026-07-01
+
+### 任务概要
+
+安卓端 v0.1.7 五项修复 + 全页面缓存系统。
+
+### 完成内容
+
+#### 1. 灵感速记页顶部固定 + 统一脚手架（LiquidGlassKit.kt）
+- 新增 `TopBarColumnScaffold` 统一脚手架（GlassTopBar 固定 + verticalScroll 滚动）
+- 重写 IdeaPanel.kt 使用 TopBarColumnScaffold 替代 Box+Column 结构
+- 标题栏"灵感速记"固定吸附状态栏，不再随内容滚动消失
+- 所有子页面规范：使用 TopBarColumnScaffold 或 GlassPageScaffold 实现顶部固定
+
+#### 2. ASR:400 + HTML 错误页彻底修复
+**后端修复**：
+- `src/app/api/ai/asr/route.ts` 添加 `export const runtime = "nodejs"` 避免走 Edge Runtime
+  - Edge Runtime 不支持完整 multipart/form-data 解析，会返回 HTML 错误页
+- `src/app/api/ai/asr-base64/route.ts` 新建 Base64 JSON 端点
+  - 接收 `{ audio: "base64", mimeType: "audio/wav" }` JSON body
+  - 避免 multipart 边界问题、Edge Runtime 限制、HTML 错误页
+
+**安卓端修复**：
+- VoiceApiClient 新增 `recognizeSpeechBase64()` 方法（Base64 JSON 传输）
+- VoiceApiClient 新增 `recognizeSpeechSmart()` 智能方法（先尝试 multipart，失败自动 fallback 到 base64）
+- 所有 ASR 调用点改为 `recognizeSpeechSmart`：
+  - AssistantViewModel（Lynx 助理长按语音）
+  - CallViewModel（语音通话 fallback）
+  - ChatPanel（旧聊天面板）
+  - IdeaPanel（灵感速记语音输入）
+- recognizeSpeech 和 recognizeSpeechBase64 都检测 content-type 是否为 text/html
+  - 若返回 HTML 错误页则抛出明确错误，不解析 HTML 展示给用户
+
+#### 3. 通话页进入跳动修复（Panels.kt）
+- 移除 Box 的 `contentAlignment = Alignment.Center`
+- Column 加 `fillMaxSize().statusBarsPadding()` 从顶部布局
+- `LaunchedEffect` 中延后 `startCall` 到第二帧（`delay(16)` 等待入场动画完成）
+  - 避免页面入场动画与 startCall 重绘冲突导致跳动
+
+#### 4. Lynx 助理历史记录丢失修复（AssistantViewModel.kt）
+- 新增 `SavedStateHandle` 依赖注入（保存最后加载的消息 ID）
+- `loadMessages()` 增量合并策略：
+  - 发送中：只追加服务端新增消息，保留本地未发送消息
+  - 非发送中：用服务端最新数据覆盖
+- 新增 `refreshMessages()` 公开方法，每次进入页面时调用
+- AssistantScreen 添加 `LaunchedEffect(Unit) { viewModel.refreshMessages() }`
+  - 确保每次切换页面回来都重新拉取历史与 Web 端同步
+
+#### 5. 三核心页顶部空白修复
+- TasksScreen.kt 去除 Column 的 `vertical = 16.dp` padding
+- HomeScreen.kt 的 Column 加 `statusBarsPadding()`（之前用 Spacer(16dp) 模拟）
+  - 让首页与任务/记忆/Lynx 助理页顶部高度一致，消除"多出一块空白"
+
+#### 6. 全页面缓存系统（PageCacheManager.kt）
+- 新建 `PageCacheManager` 进程级单例
+  - `put(key, data)` 存入缓存
+  - `get(key, ttlMs)` 读取缓存（返回数据+是否过期）
+  - TTL 5 分钟，超过自动失效
+  - `invalidate(key)` 手动失效
+- HomeViewModel、TasksViewModel、MemoryScreenViewModel 加入缓存读写
+  - init 时先从缓存读取并立即更新 UI（无感加载）
+  - load 成功后把最新数据存入缓存
+  - 切换页面回来后立即显示缓存数据，后台请求最新数据增量更新
+
+### 编译验证
+- `assembleDebug` 编译成功（仅未使用变量警告，不影响功能）
+- APK v0.1.7 (versionCode=8) 已构建
+
+### 涉及文件
+**安卓端**：
+- `android/app/src/main/java/com/lynnhub/app/ui/component/LiquidGlassKit.kt`（新增 TopBarColumnScaffold）
+- `android/app/src/main/java/com/lynnhub/app/ui/screen/panel/IdeaPanel.kt`（重写使用 TopBarColumnScaffold）
+- `android/app/src/main/java/com/lynnhub/app/ui/screen/panel/Panels.kt`（CallScreen 跳动修复）
+- `android/app/src/main/java/com/lynnhub/app/ui/screen/panel/CallViewModel.kt`（改用 recognizeSpeechSmart）
+- `android/app/src/main/java/com/lynnhub/app/ui/screen/panel/ChatPanel.kt`（改用 recognizeSpeechSmart）
+- `android/app/src/main/java/com/lynnhub/app/ui/screen/tasks/TasksScreen.kt`（去除 vertical padding）
+- `android/app/src/main/java/com/lynnhub/app/ui/screen/tasks/TasksViewModel.kt`（加缓存）
+- `android/app/src/main/java/com/lynnhub/app/ui/screen/memory/MemoryScreen.kt`（加缓存）
+- `android/app/src/main/java/com/lynnhub/app/ui/screen/home/HomeScreen.kt`（加 statusBarsPadding）
+- `android/app/src/main/java/com/lynnhub/app/ui/screen/home/HomeViewModel.kt`（加缓存）
+- `android/app/src/main/java/com/lynnhub/app/ui/screen/assistant/AssistantViewModel.kt`（SavedStateHandle + 增量合并）
+- `android/app/src/main/java/com/lynnhub/app/ui/screen/assistant/AssistantScreen.kt`（LaunchedEffect 刷新）
+- `android/app/src/main/java/com/lynnhub/app/data/remote/VoiceApiClient.kt`（新增 base64 + smart + HTML 检测）
+- `android/app/src/main/java/com/lynnhub/app/util/PageCacheManager.kt`（新建缓存管理器）
+- `android/app/build.gradle.kts`（版本号 0.1.6 → 0.1.7, versionCode 7 → 8）
+
+**Web 端**：
+- `src/app/api/ai/asr/route.ts`（加 runtime=nodejs）
+- `src/app/api/ai/asr-base64/route.ts`（新建 Base64 JSON 端点）
+
+### 待后续优化
+- 设备 13e37082 未连接，APK 待用户连接设备后安装自测
+- ASR base64 端点需部署到服务器后才能生效
+- PageCacheManager 可扩展为磁盘缓存（当前仅内存）
 
 ---
 
