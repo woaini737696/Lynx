@@ -274,33 +274,15 @@ fun SettingsScreen(
 /**
  * 毛玻璃弹窗容器：半透明 + 渐变 + 细描边，营造液态玻璃质感
  * 兼容所有 Android 版本（无 blur 依赖，靠半透明 + 渐变模拟）
+ * 注：已迁移至 com.lynnhub.app.ui.component.FrostedGlassDialog 公共组件，
+ * 此处保留别名仅为兼容 SettingsScreen 内部引用，统一深色半透明背景。
  */
 @Composable
 private fun FrostedGlassDialog(
     onDismiss: () -> Unit,
     content: @Composable () -> Unit
 ) {
-    Dialog(onDismissRequest = onDismiss) {
-        Box(
-            modifier = Modifier
-                .clip(RoundedCornerShape(24.dp))
-                .background(
-                    Brush.linearGradient(
-                        colors = listOf(
-                            MaterialTheme.colorScheme.surface.copy(alpha = 0.82f),
-                            MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.72f)
-                        )
-                    )
-                )
-                .border(
-                    1.dp,
-                    MaterialTheme.colorScheme.outline.copy(alpha = 0.18f),
-                    RoundedCornerShape(24.dp)
-                )
-        ) {
-            content()
-        }
-    }
+    com.lynnhub.app.ui.component.FrostedGlassDialog(onDismiss = onDismiss, content = content)
 }
 
 @Composable

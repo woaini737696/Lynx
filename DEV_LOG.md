@@ -9,6 +9,7 @@
 
 | 迭代 | 日期 | 任务概要 |
 |------|------|----------|
+| [迭代 90](#迭代-90---2026-07-01) | 2026-07-01 | 安卓端v0.1.5四项任务：ASR 400修复(VoiceApiClient multipart字段名audio→file匹配服务端file)+弹窗深色毛玻璃(抽取FrostedGlassDialog公共组件surface0.95f+黑0.45f双层渐变/统一替换3处AlertDialog:TasksScreen/MemoryScreen/TokenAnalysisPage)+首页删三按钮(QuickEntries/QuickEntryCard删除留呼吸球)+Lynx助理P0(ChatPanelViewModel send改assistantMode=true启用工具调用+工具调用结果拼接展示+QuickChip从3个硬编码改为6个对齐Web端QUICK_COMMANDS:今日概览/创建灵感/看板状态/搜索记忆/执行巡检/执行技能) |
 | [迭代 89](#迭代-89---2026-07-01) | 2026-07-01 | Web端三项需求：① C端用户列表去除"参考Kimi/豆包"文案(c-users/page.tsx+help-content.ts) ② 注册弹窗简化为手机号+验证码+邀请码(去除密码和昵称字段,后端自动生成随机密码+昵称默认手机号,注册后用验证码方式signIn直接登录) ③ 信息架构极简优化方向A(侧边栏29项→16项)：新建4个聚合页(/inspiration=Inbox+收敛+墓地, /knowledge=对话资产+认知库+记忆图谱, /automation=AI工作流+飞书任务, /account=钱包+会员)使用visitedTabs懒加载+block/hidden保留state + 新建2个路由级layout(/settings/layout.tsx收纳7个系统子页Tab, /skills/layout.tsx收纳技能管理+市场Tab) + Sidebar NAV_GROUPS精简(灵感收集3→1/知识资产3→1/AI中心6→4/系统8→2/账户2→1) + 清理13个unused lucide图标import |
 | [迭代 88](#迭代-88---2026-07-01) | 2026-07-01 | 安卓端v0.1.4三项问题修复：通话崩溃修复(CallScreen加RECORD_AUDIO运行时权限申请+过渡态+recordWithVad try-catch防御)+记忆图谱改为时间流卡片列表(删除2D力导向Canvas/MemoryGraphCanvas/NodeDetailCard/NodePosition,重写为LazyColumn卡片按时间倒序+分类筛选+点击展开收起+保留搜索FAB)+重画LynxIcons.Search线性放大镜(完整圆arcTo+手柄lineTo)+删除主题设置UI入口(外观分组/ThemePickerDialog/themeLabel/showThemeDialog)+MainActivity强制深色模式(不跟随系统,浅色未适配) |
 | [迭代 87](#迭代-87---2026-07-01) | 2026-07-01 | 新增C端用户管理模块(参考Kimi/豆包)：User表新增source/lastLoginAt/registerIp字段+新增LoginLog表(登录历史,CASCADE删除)+注册流程设置source=self_register+registerIp+写首次LoginLog+登录流程(token+NextAuth)更新lastLoginAt+token登录写LoginLog+新增/api/c-users(列表GET+详情GET含登录历史+PATCH启用禁用/角色提升/重置密码+DELETE)+新增/admin/c-users前端页面(液态玻璃风格+顶部统计卡片+搜索+状态/角色筛选+详情弹窗+重置密码一次性返回+角色提升弹窗+HelpButton)+侧边栏管理分组新增C端用户菜单项+权限管理同步(新增c-user:manage到PERMISSION_CATALOG+ADMIN_ONLY_PERMISSIONS,76项权限,admin(76)/editor(57)/viewer(33))+MySQL直连SQL迁移(幂等information_schema检查,不依赖prisma CLI) |
@@ -435,6 +436,69 @@ Web 端三项需求：① C 端用户列表去除"参考 Kimi/豆包"文案提�
 - **人性设计**：相关功能聚合到同一页面 Tab 切换，减少页面跳转
 - **零破坏性**：原路由全部保留兼容，子页组件零改动，纯前端信息架构调整
 - **性能优化**：visitedTabs 懒加载机制，未访问的 Tab 不 mount 不请求
+
+---
+
+## 迭代 90 - 2026-07-01
+
+### 任务概要
+安卓端 v0.1.5 四项任务：① ASR 400 修复；② 所有弹窗改为深色半透明毛玻璃；③ 首页删除三个重复按钮；④ Lynx 助理 P0 同步 Web 端（assistantMode + QUICK_COMMANDS + 工具调用展示）。
+
+### 背景问题
+1. **语音通话 ASR 失败 400**：服务端 ASR 接口要求 multipart 字段名 `file`（[asr/route.ts:23-29](file:///d:/Lynn工作空间/LynnHub/src/app/api/ai/asr/route.ts)），但安卓端 [VoiceApiClient.kt:41](file:///d:/Lynn工作空间/LynnHub/android/app/src/main/java/com/lynnhub/app/data/remote/VoiceApiClient.kt) 用 `audio` → 服务端找不到文件 → 400。
+2. **弹窗看不清内容**：3 处原生 `AlertDialog` + FrostedGlassDialog(alpha 0.82f) 在深色背景下偏透。
+3. **首页三按钮重复**：QuickEntries（灵感速记/语音通话/Lynx助理）功能重复，且"Lynx助理"错误复用 `onCall`。
+4. **Lynx助理不完整**：`assistantMode=false` 无工具调用、QuickChip 仅 3 个硬编码，与 Web 端 6 个 QUICK_COMMANDS 差距大。
+
+### 方案确认（AskUserQuestion 弹窗）
+- ASR 修复 → **仅改字段名 file（推荐）**
+- 弹窗毛玻璃 → **抽取公共组件+统一替换（推荐）**
+- 首页三按钮 → **删三按钮留呼吸球（推荐）**
+- Lynx助理 → **分阶段 P0 先做（推荐）**
+
+### 完成内容
+
+#### 1. ASR 400 修复（`VoiceApiClient.kt`）
+- `addFormDataPart("audio", "audio.wav", ...)` → `addFormDataPart("file", "audio.wav", ...)`
+- 匹配服务端 `asr/route.ts` 的 `formData.get("file")` 要求
+
+#### 2. 弹窗深色毛玻璃（新建公共组件 + 统一替换 3 处 AlertDialog）
+- **新建** `ui/component/FrostedGlassDialog.kt` 公共组件：
+  - `Dialog` + `Brush.linearGradient(surface 0.95f → 黑 0.45f 双层渐变)`
+  - 1dp `outline 0.25f` 描边 + 24dp 圆角
+  - 深色半透明背景，确保内容清晰可读
+- **TasksScreen.kt**：`AlertDialog` → `FrostedGlassDialog` + Column(padding 24dp) + Row 按钮区
+- **MemoryScreen.kt**：`AlertDialog` → `FrostedGlassDialog` + Column(padding 24dp) + Row 按钮区
+- **TokenAnalysisPage.kt**：`AlertDialog` → `FrostedGlassDialog` + Column(padding 24dp)
+- **SettingsScreen.kt**：私有 `FrostedGlassDialog` 改为委托公共组件（保留别名兼容内部引用）
+
+#### 3. 首页删除三按钮（`HomeScreen.kt`）
+- 删除 `QuickEntries` 调用（line 143-147）
+- 删除 `QuickEntries` 和 `QuickEntryCard` 函数定义（line 234-288）
+- 保留中央呼吸球（点击进通话）+ 右下角灵感 FAB
+
+#### 4. Lynx 助理 P0（`ChatPanel.kt` + `AssistantScreen.kt`）
+- **ChatPanelViewModel.send()**：
+  - `assistantMode = false` → `assistantMode = true`（启用工具调用）
+  - 新增工具调用结果拼接展示：`resp.toolCalled?.let { append("[工具调用: ${tool.tool}]"); append("结果: $result") }`
+- **AssistantScreen.kt QuickChip**：
+  - 从 3 个硬编码（整理灵感/跑巡检/生成日报）改为 6 个对齐 Web 端 QUICK_COMMANDS：
+    - 📋 今日概览 / 💡 创建灵感 / 📊 看板状态 / 🔍 搜索记忆 / 🛡️ 执行巡检 / ⚡ 执行技能
+  - 每个 chip 发送完整的 message 文本（非 label）
+
+### 自测结果（按 10.1 安卓端自测规范）
+- `.\gradlew.bat :app:compileDebugKotlin`：**BUILD SUCCESSFUL in 1m 1s**，0 错误
+- `.\gradlew.bat :app:assembleDebug`：**BUILD SUCCESSFUL in 1m 12s**
+- 版本号 0.1.4 → 0.1.5（`versionCode 5 → 6`）
+- **模拟器回归测试**（AVD: lynnhub_avd, API 34）：
+  - APK 安装：Success
+  - App 启动正常，PID 3220 运行中，无 FATAL/AndroidRuntime 异常
+  - logcat 仅有模拟器系统级错误（SoundTrigger/WifiChip 等），与 App 无关
+  - 模拟器无登录凭据，核心功能（ASR/弹窗/助理工具调用）待真机验证
+- **真机安装**：`adb -d install -r` Success
+
+### Commit
+（待提交后填入）
 
 ---
 

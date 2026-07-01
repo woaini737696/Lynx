@@ -184,14 +184,27 @@ class ChatPanelViewModel @Inject constructor(
                         ChatMessageRequest(role = msg.role, content = msg.content)
                     },
                     provider = "deepseek",
-                    assistantMode = false,
+                    assistantMode = true,  // 启用助理模式：支持工具调用
                     stream = false
                 )
                 val resp = apiService.sendChat(req)
+                // 助理模式可能返回工具调用结果，拼接显示
+                var displayContent = buildString {
+                    append(resp.content.ifBlank { "(空回复)" })
+                    resp.toolCalled?.let { tool ->
+                        append("\n\n[工具调用: ${tool.tool}]")
+                        tool.result?.let { result ->
+                            append("\n结果: $result")
+                        }
+                    }
+                }
+                if (displayContent.isBlank()) {
+                    displayContent = "(空回复)"
+                }
                 val aiMsg = ChatMessageDto(
                     id = UUID.randomUUID().toString(),
                     role = "assistant",
-                    content = resp.content.ifBlank { "(空回复)" }
+                    content = displayContent
                 )
                 _uiState.update {
                     it.copy(messages = it.messages + aiMsg, isSending = false)

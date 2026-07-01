@@ -128,16 +128,19 @@ fun AssistantScreen(
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // 快捷指令
+            // 快捷指令（对齐 Web 端 QUICK_COMMANDS）
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
                     .horizontalScroll(rememberScrollState()),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                QuickChip(text = "整理灵感") { viewModel.sendQuickCommand("整理灵感") }
-                QuickChip(text = "跑巡检") { viewModel.sendQuickCommand("跑巡检") }
-                QuickChip(text = "生成日报") { viewModel.sendQuickCommand("生成日报") }
+                QuickChip(text = "📋 今日概览") { viewModel.sendQuickCommand("给我一个今日概览：今天有多少灵感、看板任务进度、最近记忆") }
+                QuickChip(text = "💡 创建灵感") { viewModel.sendQuickCommand("帮我创建一个灵感：") }
+                QuickChip(text = "📊 看板状态") { viewModel.sendQuickCommand("看板状态如何？本周完成了多少任务？") }
+                QuickChip(text = "🔍 搜索记忆") { viewModel.sendQuickCommand("帮我搜索记忆：") }
+                QuickChip(text = "🛡️ 执行巡检") { viewModel.sendQuickCommand("跑一下AI巡检，看看有什么需要关注的") }
+                QuickChip(text = "⚡ 执行技能") { viewModel.sendQuickCommand("列出可用技能，我想执行一个") }
             }
 
             Spacer(modifier = Modifier.height(12.dp))
