@@ -9,6 +9,7 @@
 
 | 迭代 | 日期 | 任务概要 |
 |------|------|----------|
+| [迭代 86](#迭代-86---2026-07-01) | 2026-07-01 | HermesAgent检查更新功能+架构澄清：Web端和桌面端HermesAgent配置模块新增检查更新按钮(对比本机版本与服务器latest.json+有新版本自动下载安装+无更新提示暂无更新)+installHermesAgent支持动态wheel文件名参数(不再硬编码0.18.0,updateHermesAgent先拉latest.json拿最新wheel文件名再安装)+新增/api/hermes/update路由(GET检查+POST更新)+新增public/downloads/latest.json记录服务器最新版本信息+架构澄清:Web端和桌面端本质都是PC端,HermesAgent功能完全一样同步,只有安卓端需要远程操控PC端,Web端和桌面端都支持独立工作独立运行HermesAgent互不依赖 |
 | [迭代 85](#迭代-85---2026-07-01) | 2026-07-01 | 用户管理手机号支持+权限管理全量同步：用户管理API+UI全链路支持phone字段(settings/profile个人资料页显示手机号只读+admin/users手机号搜索+列表显示)+权限目录从35项扩充到75项覆盖全部功能模块(补全conversation:read/cognition:read两个P0缺失key+新增Hermes/Lark/会员/钱包/推送/搜索等25个未覆盖模块)+DEFAULT_ROLES同步(admin 75项/editor 57项/viewer 33项对齐C端应用)+admin创建用户支持免密(密码可选自动生成)+username可选(不填自动生成phone_xxx)+register接口限流(IP5次/小时+手机号3次/天)+token登录限流(IP10次/分钟)+服务器端角色权限seed同步 |
 | [迭代 84](#迭代-84---2026-07-01) | 2026-07-01 | 安卓端v0.1.3四项任务收尾：主题全面替换MaterialTheme.colorScheme(13文件19处硬编码Void/Deep替换)+毛玻璃弹窗(FrostedGlassDialog辅助组件+ThemePickerDialog/ConfirmDialog重写)+全双工语音通话CallViewModel完整实现(LISTENING→THINKING→SPEAKING状态机+CompletableDeferred+VAD端点检测+流式TTS+MediaPlayer临时文件播放+对话历史20条限制)+CallScreen接入ViewModel+PC联调AgentPanel.approveOrReject stub修复(dispatchRemoteCommand下发approve/reject指令)+MemoryScreen.kt编译错误修复(Inject导入/LocalDensity移除/Float-Double类型修正) |
 | [迭代 83](#迭代-83---2026-07-01) | 2026-07-01 | 桌面端v1.0.27 HermesAgent架构彻底修正：服务器禁止任何CLI/agent/pip install(findHermesExe/execHermes/installHermesAgent/startHermesAgent/stopHermesAgent全部改为返回错误不执行子进程)+抽取dispatchRemoteCommand共享函数到hermes-client.ts(tool-executor与flow-engine共用)+executeHermesTask重写为WS远程执行+executeHermesListSkills移除CLI回退+settings页Web端handleOpenDashboard探测本地127.0.0.1:9119在线直接打开(不再强制提示下载桌面端)+handleInstall/handleStart/handleStop Web端提示命令行方式+desktop-client installAiEnv/startHermesAgent加isDesktop检查+飞书任务警告改为中性提示(不强制桌面端) |
@@ -126,6 +127,66 @@
 
 ### Commit hash
 `4181fb4d`
+
+---
+
+## 迭代 86 - 2026-07-01
+
+### 任务概要
+为 Web 端和桌面端的 HermesAgent 配置模块新增「检查更新」按钮，解决用户无法重新安装 HermesAgent 的问题。同时澄清架构：Web 端和桌面端本质都是 PC 端，HermesAgent 功能完全一样同步，只有安卓端需要远程操控 PC 端。
+
+### 背景问题
+1. **无法重新安装 HermesAgent**：用户已安装的 HermesAgent 无法通过"一键安装"按钮重新安装（pip install 会跳过已安装版本），需要"检查更新"机制对比本机版本与服务器版本，有新版本时自动更新。
+2. **installHermesAgent 硬编码版本号**：原实现把 wheel 文件名硬编码为 `hermes_agent-0.18.0-py3-none-any.whl`，未来发布新版本时即使 latest.json 更新，更新功能也不会真正安装新版本。
+3. **架构澄清**：用户明确 Web 端和桌面端本质都是 PC 端使用，只是形态不同，HermesAgent 功能应完全一样同步。只有安卓端需要远程操控 PC 端。Web 端和桌面端都支持独立工作、独立运行 HermesAgent，没有互相依赖。
+
+### 完成内容
+
+#### 1. 检查更新核心逻辑（hermes-client.ts）
+- 新增 `HermesUpdateInfo` 接口（currentVersion/latestVersion/hasUpdate/wheelFile/releaseNotes）
+- 新增 `checkHermesUpdate()` — 先 `detectHermesInstall()` 获取本机版本，再 fetch 服务器 `latest.json` 获取最新版本，用 `compareVersions()` 对比版本号
+- 新增 `updateHermesAgent()` — 先拉 `latest.json` 获取最新 wheel 文件名，再调用 `installHermesAgent(wheelFileName)` 真正安装
+- 新增 `compareVersions()` — 标准语义化版本比较（split "." + 逐段对比）
+- **关键修复**：`installHermesAgent(wheelFileName?: string)` 改为支持动态 wheel 文件名参数，不再硬编码 0.18.0。未传参时默认 0.18.0（向后兼容），`updateHermesAgent` 传入从 latest.json 拉到的最新 wheel 文件名
+
+#### 2. 检查更新 API 路由（/api/hermes/update）
+- 新建 `src/app/api/hermes/update/route.ts`
+- GET — 调用 `checkHermesUpdate()` 返回 `{ currentVersion, latestVersion, hasUpdate, wheelFile, releaseNotes }`
+- POST — 调用 `updateHermesAgent()` 执行更新，返回 `{ success, output, newVersion, error }`
+
+#### 3. 服务器版本信息文件
+- 新建 `public/downloads/latest.json` — 记录最新版本信息（version: 0.18.0, wheel: hermes_agent-0.18.0-py3-none-any.whl, releaseNotes, publishedAt）
+- 客户端通过 fetch 此文件对比版本，未来发布新版本只需更新此文件 + 上传新 wheel
+
+#### 4. Web 端检查更新 UI（settings/page.tsx HermesConfigSection）
+- 新增 state：checkingUpdate / updating / updateInfo
+- 新增 `handleCheckUpdate` — fetch GET /api/hermes/update，有更新 toast 提示 + 显示更新卡片（含 releaseNotes + 立即更新按钮），无更新 toast "当前已是最新版本"
+- 新增 `handleUpdate` — fetch POST /api/hermes/update，成功 toast "已更新到 vX.X.X"
+- UI 新增「检查更新」按钮（DownloadCloud 图标）+ 更新提示卡片
+
+#### 5. 桌面端检查更新 UI（DesktopHermesSection.tsx）
+- 同步新增检查更新 state + handleCheckUpdate / handleUpdate + UI 按钮
+- 与 Web 端 HermesConfigSection 逻辑完全一致
+
+#### 6. 架构澄清确认
+- 确认 Web 端和桌面端 HermesAgent 安装/启动/停止/检查更新/执行 都走相同 API（POST /api/hermes/install, GET/POST /api/hermes/update）
+- Web 端 handleInstall 直接 fetch POST 不检查 isDesktop（独立安装，不依赖桌面端）
+- 桌面端 DesktopHermesSection 在 Tauri webview 内运行时显示（isDesktop 检查）
+- 安卓端通过 WS 网关远程操控 PC 端（dispatchRemoteCommand）
+
+### 修改文件清单
+- `src/lib/hermes-client.ts` — 新增 checkHermesUpdate / updateHermesAgent / compareVersions / HermesUpdateInfo；installHermesAgent 改为支持动态 wheel 文件名参数
+- `src/app/api/hermes/update/route.ts` — 新建：检查更新 API 路由（GET + POST）
+- `public/downloads/latest.json` — 新建：服务器最新版本信息文件
+- `src/app/settings/page.tsx` — HermesConfigSection 加检查更新按钮 + 更新提示 UI
+- `src/components/settings/DesktopHermesSection.tsx` — 桌面端加检查更新按钮 + 更新提示 UI
+- `DEV_LOG.md` — 开发日志
+
+### 验证结果
+- TypeScript 类型检查通过（`npx tsc --noEmit --skipLibCheck` 无错误）
+- Web 端构建通过（`npm run build` 成功）
+- Web 端已部署到服务器（deploy_standalone.py 成功，latest.json + wheel 文件已同步）
+- 代码已提交 Gitee（e3adfa08）
 
 ---
 
