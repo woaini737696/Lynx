@@ -9,6 +9,7 @@ import { toast } from "@/components/ui/toast";
 type UserProfile = {
   id: string;
   username: string;
+  phone: string | null;
   displayName: string;
   profession: string | null;
   avatarUrl: string | null;
@@ -243,10 +244,29 @@ export default function ProfileSettingsPage() {
             />
           </div>
 
-          {/* 姓名（只读） */}
+          {/* 手机号（只读，登录凭据） */}
+          <div className="space-y-1.5">
+            <label className="text-xs font-medium text-foreground" htmlFor="phone">
+              手机号（登录凭据，不可修改）
+            </label>
+            <input
+              id="phone"
+              type="tel"
+              value={profile.phone || ""}
+              readOnly
+              disabled
+              className="w-full cursor-not-allowed rounded-lg border border-border bg-muted/40 px-3 py-2 text-xs text-muted-foreground"
+              placeholder="未绑定手机号"
+            />
+            <p className="text-[10px] text-muted-foreground">
+              手机号是登录凭据，如需修改请联系管理员
+            </p>
+          </div>
+
+          {/* 用户名（只读，系统自动生成） */}
           <div className="space-y-1.5">
             <label className="text-xs font-medium text-foreground" htmlFor="username">
-              用户名（登录名，不可修改）
+              用户名（系统自动生成，不可修改）
             </label>
             <input
               id="username"
@@ -312,7 +332,7 @@ export default function ProfileSettingsPage() {
           <User className="mt-0.5 h-3.5 w-3.5 shrink-0" />
           <div>
             <p>· 头像、昵称、职业可自由修改，保存后立即生效。</p>
-            <p>· 用户名和角色由管理员管理，如需修改请联系管理员。</p>
+            <p>· 手机号、用户名和角色由管理员管理，如需修改请联系管理员。</p>
             <p>· 修改昵称后，顶部栏显示可能需要刷新页面或重新登录才会更新。</p>
           </div>
         </div>

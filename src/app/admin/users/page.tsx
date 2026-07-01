@@ -26,6 +26,7 @@ import { openContextMenu } from "@/components/ui/ContextMenu";
 type User = {
   id: string;
   username: string;
+  phone: string | null;
   email: string | null;
   displayName: string;
   role: string;
@@ -50,6 +51,7 @@ type RoleOption = {
 type FormData = {
   username: string;
   password: string;
+  phone: string;
   email: string;
   displayName: string;
   role: string;
@@ -59,6 +61,7 @@ type FormData = {
 const EMPTY_FORM: FormData = {
   username: "",
   password: "",
+  phone: "",
   email: "",
   displayName: "",
   role: "",
@@ -156,6 +159,7 @@ export default function UsersPage() {
     setForm({
       username: user.username,
       password: "",
+      phone: user.phone || "",
       email: user.email || "",
       displayName: user.displayName,
       role: user.role,
@@ -183,8 +187,9 @@ export default function UsersPage() {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            username: form.username,
-            password: form.password,
+            username: form.username || undefined, // 不填则后端自动生成 phone_${phone}
+            password: form.password || undefined, // 留空则后端自动生成随机密码（C 端用户可免密）
+            phone: form.phone,
             email: form.email || undefined,
             displayName: form.displayName || undefined,
             role: form.role,
@@ -198,6 +203,7 @@ export default function UsersPage() {
         toast("用户创建成功", "success");
       } else if (modalMode === "edit" && editingId) {
         const body: Record<string, unknown> = {
+          phone: form.phone,
           email: form.email || undefined,
           displayName: form.displayName,
           role: form.role,
@@ -254,7 +260,8 @@ export default function UsersPage() {
     return users.filter((u) => {
       if (searchQuery) {
         const q = searchQuery.toLowerCase();
-        if (!u.username.toLowerCase().includes(q) && !u.displayName.toLowerCase().includes(q)) return false;
+        const phone = (u.phone || "").toLowerCase();
+        if (!u.username.toLowerCase().includes(q) && !u.displayName.toLowerCase().includes(q) && !phone.includes(q)) return false;
       }
       if (filterRole !== "all" && u.role !== filterRole) return false;
       return true;
@@ -285,7 +292,7 @@ export default function UsersPage() {
 
       {/* 搜索 + 筛选 */}
       <div className="mb-4 flex flex-wrap items-center gap-2">
-        <SearchInput value={searchQuery} onChange={setSearchQuery} placeholder="搜索用户名或显示名..." className="max-w-xs" />
+        <SearchInput value={searchQuery} onChange={setSearchQuery} placeholder="搜索手机号/用户名/显示名..." className="max-w-xs" />
         <FilterSelect
           value={filterRole}
           onChange={setFilterRole}
@@ -352,13 +359,18 @@ export default function UsersPage() {
                         )}
                       </div>
                       <div className="mt-0.5 truncate text-xs text-muted-foreground">
+                        {user.phone ? (
+                          <span className="text-northstar/80">📱 {user.phone}</span>
+                        ) : (
+                          <span className="text-destructive/70">未绑定手机号</span>
+                        )}
                         {user.displayName ? (
-                          <span className="text-foreground/70">{user.displayName}</span>
+                          <span className="ml-2 text-foreground/70">{user.displayName}</span>
                         ) : null}
                         {user.email ? (
-                          <span className={user.displayName ? "ml-2" : ""}>{user.email}</span>
+                          <span className="ml-2">{user.email}</span>
                         ) : null}
-                        {!user.displayName && !user.email ? "-" : null}
+                        {!user.phone && !user.displayName && !user.email ? "-" : null}
                       </div>
                     </div>
                   </div>
@@ -451,10 +463,32 @@ export default function UsersPage() {
             </div>
 
             <form onSubmit={handleSubmit} className="space-y-4">
-              {/* 用户名 */}
+              {/* 手机号（必填，登录凭据） */}
               <div className="space-y-1.5">
                 <label className="text-xs font-medium text-foreground">
-                  用户名
+                  手机号 <span className="text-destructive">*</span>
+                </label>
+                <input
+                  type="tel"
+                  value={form.phone}
+                  onChange={(e) =>
+                    setForm({ ...form, phone: e.target.value })
+                  }
+                  required
+                  pattern="^1[3-9]\d{9}$"
+                  maxLength={11}
+                  className="w-full rounded-xl border border-border bg-background/50 px-3 py-2 text-sm text-foreground transition-colors focus:border-northstar/50 focus:outline-none focus:ring-2 focus:ring-northstar/20"
+                  placeholder="11 位手机号（登录用）"
+                />
+                <p className="text-[10px] text-muted-foreground">
+                  手机号是登录凭据，必须唯一
+                </p>
+              </div>
+
+              {/* 用户名（可选，不填自动生成 phone_xxx） */}
+              <div className="space-y-1.5">
+                <label className="text-xs font-medium text-foreground">
+                  用户名（可选）
                 </label>
                 <input
                   type="text"
@@ -463,9 +497,8 @@ export default function UsersPage() {
                     setForm({ ...form, username: e.target.value })
                   }
                   disabled={modalMode === "edit"}
-                  required
                   className="w-full rounded-xl border border-border bg-background/50 px-3 py-2 text-sm text-foreground transition-colors focus:border-northstar/50 focus:outline-none focus:ring-2 focus:ring-northstar/20 disabled:cursor-not-allowed disabled:opacity-60"
-                  placeholder="登录用户名"
+                  placeholder="留空则自动生成 phone_手机号"
                 />
                 {modalMode === "edit" && (
                   <p className="text-[10px] text-muted-foreground">
@@ -474,15 +507,13 @@ export default function UsersPage() {
                 )}
               </div>
 
-              {/* 密码 */}
+              {/* 密码（C 端用户可免密，留空自动生成） */}
               <div className="space-y-1.5">
                 <label className="text-xs font-medium text-foreground">
                   密码
-                  {modalMode === "edit" && (
-                    <span className="ml-1 text-muted-foreground/70">
-                      （留空则不修改）
-                    </span>
-                  )}
+                  <span className="ml-1 text-muted-foreground/70">
+                    {modalMode === "create" ? "（留空自动生成，C 端用户可免密）" : "（留空则不修改）"}
+                  </span>
                 </label>
                 <input
                   type="password"
@@ -490,12 +521,11 @@ export default function UsersPage() {
                   onChange={(e) =>
                     setForm({ ...form, password: e.target.value })
                   }
-                  required={modalMode === "create"}
-                  minLength={modalMode === "create" ? 6 : undefined}
+                  minLength={form.password ? 6 : undefined}
                   className="w-full rounded-xl border border-border bg-background/50 px-3 py-2 text-sm text-foreground transition-colors focus:border-northstar/50 focus:outline-none focus:ring-2 focus:ring-northstar/20"
                   placeholder={
                     modalMode === "create"
-                      ? "至少 6 位"
+                      ? "留空自动生成，或输入至少 6 位"
                       : "输入新密码以修改"
                   }
                 />
@@ -517,7 +547,7 @@ export default function UsersPage() {
                 />
               </div>
 
-              {/* 邮箱 */}
+              {/* 邮箱（可选） */}
               <div className="space-y-1.5">
                 <label className="text-xs font-medium text-foreground">
                   邮箱（可选）

@@ -10,6 +10,7 @@ import { prisma } from "@/lib/db";
 import { signToken } from "@/lib/jwt";
 import { getEffectiveMasterCode } from "@/lib/auth-config";
 import { getLogger } from "@/lib/logger";
+import { rateLimit, getClientKey } from "@/lib/rate-limit";
 
 const logger = getLogger("auth-token");
 
@@ -19,6 +20,17 @@ function isValidPhone(p: unknown): p is string {
 
 export async function POST(req: NextRequest) {
   try {
+    // 速率限制：IP 维度 10 次/分钟，防暴力破解
+    const ip = getClientKey(req);
+    const ipLimit = rateLimit(`token-login:ip:${ip}`, 10, 60 * 1000);
+    if (!ipLimit.success) {
+      const waitSec = Math.ceil((ipLimit.resetAt - Date.now()) / 1000);
+      return NextResponse.json(
+        { error: `登录尝试过于频繁，请${waitSec}秒后再试` },
+        { status: 429 }
+      );
+    }
+
     const body = await req.json().catch(() => ({}));
 
     let user: Awaited<ReturnType<typeof prisma.user.findFirst>> = null;

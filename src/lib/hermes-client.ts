@@ -970,7 +970,7 @@ export async function installHermesAgent(): Promise<{
 
   // hermes-agent 不在 PyPI 上，从自建服务器下载 wheel 文件安装
   // 与桌面端 installer.rs 逻辑完全一致
-  const wheelFileName = "hermes_agent-0.17.0-py3-none-any.whl";
+  const wheelFileName = "hermes_agent-0.18.0-py3-none-any.whl";
   const downloadUrls = [
     `https://ai.lynxdo.com/downloads/${wheelFileName}`,
     `https://app.lynnhub.com/downloads/${wheelFileName}`,

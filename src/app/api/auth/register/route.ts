@@ -6,6 +6,7 @@ import { prisma } from "@/lib/db";
 import { getEffectiveMasterCode } from "@/lib/auth-config";
 import { signToken } from "@/lib/jwt";
 import { getLogger } from "@/lib/logger";
+import { rateLimit, getClientKey } from "@/lib/rate-limit";
 
 const logger = getLogger("auth-register");
 
@@ -15,6 +16,17 @@ function isValidPhone(p: unknown): p is string {
 
 export async function POST(req: NextRequest) {
   try {
+    // 速率限制：IP 维度 5 次/小时，防刷注册
+    const ip = getClientKey(req);
+    const ipLimit = rateLimit(`register:ip:${ip}`, 5, 60 * 60 * 1000);
+    if (!ipLimit.success) {
+      const waitMin = Math.ceil((ipLimit.resetAt - Date.now()) / 60000);
+      return NextResponse.json(
+        { error: `注册请求过于频繁，请${waitMin}分钟后再试` },
+        { status: 429 }
+      );
+    }
+
     const body = await req.json().catch(() => ({}));
     const { phone, code, inviteCode, password, displayName } = body as {
       phone?: string;
@@ -27,6 +39,14 @@ export async function POST(req: NextRequest) {
     // 基础校验
     if (!isValidPhone(phone)) {
       return NextResponse.json({ error: "手机号格式不正确" }, { status: 400 });
+    }
+    // 手机号维度速率限制：同一手机号 3 次/天
+    const phoneLimit = rateLimit(`register:phone:${phone}`, 3, 24 * 60 * 60 * 1000);
+    if (!phoneLimit.success) {
+      return NextResponse.json(
+        { error: "该手机号今日注册尝试次数过多，请明天再试" },
+        { status: 429 }
+      );
     }
     if (!code || !inviteCode) {
       return NextResponse.json(
