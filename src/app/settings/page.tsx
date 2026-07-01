@@ -1368,7 +1368,13 @@ function HermesConfigSection() {
         toast("停止失败：" + e.message, "error");
       }
     } else {
-      toast("HermesAgent 只能在您的本地电脑停止。请在 Lynx 桌面端客户端操作。", "error");
+      // Web 端：浏览器无法停止本地进程，提示命令行停止方式
+      toast(
+        "浏览器无法直接停止 HermesAgent。\n" +
+        "请在运行 Dashboard 的命令行按 Ctrl+C 停止，" +
+        "或在桌面端「设置 → Lynx Agent」点击「停止 Lynx Agent」。",
+        "error"
+      );
     }
   };
 

@@ -9,6 +9,7 @@
 
 | 迭代 | 日期 | 任务概要 |
 |------|------|----------|
+| [迭代 83](#迭代-83---2026-07-01) | 2026-07-01 | 桌面端v1.0.27 HermesAgent架构彻底修正：服务器禁止任何CLI/agent/pip install(findHermesExe/execHermes/installHermesAgent/startHermesAgent/stopHermesAgent全部改为返回错误不执行子进程)+抽取dispatchRemoteCommand共享函数到hermes-client.ts(tool-executor与flow-engine共用)+executeHermesTask重写为WS远程执行+executeHermesListSkills移除CLI回退+settings页Web端handleOpenDashboard探测本地127.0.0.1:9119在线直接打开(不再强制提示下载桌面端)+handleInstall/handleStart/handleStop Web端提示命令行方式+desktop-client installAiEnv/startHermesAgent加isDesktop检查+飞书任务警告改为中性提示(不强制桌面端) |
 | [迭代 82](#迭代-82---2026-07-01) | 2026-07-01 | 安卓端v0.1.2六项功能优化：主题切换面板(深色/浅色/跟随系统,ThemePickerDialog主题感知背景)+LynxAgent语音消息发送(ChatPanel接入AudioRecorder+VoiceApiClient,3态麦克风按钮idle/recording/transcribing)+飞书任务卡片展示(TasksScreen完全重写+独立TasksViewModel+SyncStateBar+AddLarkTaskDialog 4字段主题感知背景)+记忆搜索icon样式修复(圆形按钮容器+点击空白收起输入法detectTapGestures)+首页重新设计(时间流→今日工作台,3统计胶囊+3快捷入口+最近飞书任务Top3)+HomeViewModel并行加载Quad四元组 |
 | [迭代 81](#迭代-81---2026-07-01) | 2026-07-01 | 桌面端v1.0.26多设备共享HermesAgent：Web端WS设备注册hook(use-device-ws.ts,与桌面端相同协议注册到WS网关)+hermesExecute多设备支持(getOnlineDevices返回所有在线设备,优先选桌面端)+AppShell引入WS hook(Web端打开=PC在线)+跨设备操控(电脑A Web端+电脑B桌面端=两在线设备,AI助理可指定下发) |
 | [迭代 80](#迭代-80---2026-07-01) | 2026-07-01 | 桌面端v1.0.25两项关键修复：hermesExecute移除服务器端CLI路径(改为仅WS远程执行,无在线PC直接报错不再在服务器跑/usr/local/bin/hermes)+签名自动信任(NSIS installer-hooks.nsh安装后自动导入.cer证书到LocalMachine\Root根存储+resources打包.cer文件) |
@@ -123,6 +124,58 @@
 
 ### Commit hash
 `4181fb4d`
+
+---
+
+## 迭代 83 - 2026-07-01
+
+### 任务概要
+桌面端 v1.0.27 HermesAgent 架构彻底修正：恢复 Web 端独立使用 HermesAgent 的能力（不再强制提示下载桌面端），服务器彻底禁止任何 CLI / agent / pip install，所有任务通过 WS 网关下发到用户本地设备执行。
+
+### 背景问题
+1. 桌面端 Lynx 助理发送指令报错 `"未找到hermes可执行文件"` durationMs:18 —— 服务器端 hermes-client.ts 的 `execHermes()` 仍在服务器上查找 hermes 可执行文件，服务器没有安装 hermes 故返回 null 报错。
+2. Web 端仍报 pypi 错误 `ERROR: Could not find a version that satisfies the requirement hermes-agent` —— `installHermesAgent()` 仍包含 PyPI 镜像源 pip install 策略，在服务器上执行 `pip install`。
+3. **用户强烈反馈**：擅自把 Web 端逻辑改成"提示请使用桌面端"，违反"Web 端可独立使用 HermesAgent"的核心需求。只要本机 Dashboard（127.0.0.1:9119）在运行，Web 端就能直接使用；Web 端或桌面端打开状态即 PC 在线；电脑 A（Web）+ 电脑 B（桌面端）可互相操控 Agent 调用设备。
+
+### 完成内容
+
+#### 1. 服务器端 CLI 代码彻底移除（`src/lib/hermes-client.ts`）
+- **新增 `dispatchRemoteCommand` 共享函数**（line 91-185）：写入 RemoteCommand 记录 → 通过 WS 网关 POST /dispatch 下发到用户在线设备 → 轮询 RemoteCommand 表等待结果（每 1.5s）。被 tool-executor.ts 和 flow-engine 共用。
+- **重写 `executeHermesTask`**：移除 HTTP API + CLI 双路径，改为仅通过 `dispatchRemoteCommand` WS 远程执行（flow-engine.ts:312 自动修复）。
+- **重写 `execHermes`**：直接返回错误 `"服务器禁止执行 hermes CLI（安全架构）"`，不执行任何子进程。
+- **重写 `findHermesExe`**：返回 null（服务器不查找本地可执行文件）。
+- **重写 `detectHermesInstall`**：返回 `{ installed: false }`。
+- **重写 `installHermesAgent`**：返回错误消息，不执行 pip install。提示用户在本地电脑安装（桌面端一键安装或命令行 `pip install hermes-agent`）。
+- **重写 `startHermesAgent`**：返回错误消息，不 spawn 子进程。
+- **重写 `stopHermesAgent`**：返回错误消息，不执行 taskkill/lsof。
+- **重写 `testHermesConnection`**：仅通过 HTTP API 检测，移除 `hermes status` CLI 回退。
+- **重写 `listHermesSkills`**：仅通过 HTTP API 获取，移除 `hermes skills list` CLI 回退。
+
+#### 2. AI 助理工具执行器修复（`src/app/api/ai/assistant/tool-executor.ts`）
+- 删除本地 `dispatchRemoteCommand` 和 `getOnlinePcSession`，改为从 hermes-client.ts 动态 import 共享函数。
+- **`executeHermesExecute`**：改为通过 `dispatchRemoteCommand` WS 远程执行。
+- **`executeHermesListSkills`**：移除 CLI 回退，改为仅 WS 远程执行。
+
+#### 3. 设置页 Web 端独立使用恢复（`src/app/settings/page.tsx`）
+- **`handleOpenDashboard`**（Web 端分支）：探测本地 `http://127.0.0.1:9119`，在线则 `window.open` 直接打开；不在线则提示命令行启动方式（不再强制"请下载桌面端"）。
+- **`handleInstall`**（Web 端分支）：提示命令行 `pip install hermes-agent` 安装方式。
+- **`handleStart`**（Web 端分支）：提示命令行 `hermes dashboard --port 9119` 启动方式。
+- **`handleStop`**（Web 端分支）：提示命令行 Ctrl+C 停止方式（不再"请在 Lynx 桌面端客户端操作"）。
+
+#### 4. 桌面端客户端封装修复（`src/lib/desktop-client.ts`）
+- **`installAiEnv`**：添加 `isDesktop()` 检查，Web 端返回友好提示（不再调 invoke）。
+- **`startHermesAgent`**：添加 `isDesktop()` 检查，Web 端抛出友好错误。
+
+#### 5. 飞书任务警告修正（`src/app/api/lark-tasks/route.ts`）
+- `warning` 从"请使用桌面端客户端访问飞书任务"改为中性提示"请在您的电脑上打开 Lynx 桌面端或 Web 端并登录"（不强制桌面端）。
+
+### 自测结果
+- `npx tsc --noEmit --skipLibCheck`：通过，0 错误。
+- 全代码库扫描"请使用桌面端|请下载桌面端"残留：仅 lark-tasks 一处已修复，无其他残留。
+- 版本号 1.0.26 → 1.0.27（`desktop-native/src-tauri/tauri.conf.json`）。
+
+### Commit
+`19216071`
 
 ---
 

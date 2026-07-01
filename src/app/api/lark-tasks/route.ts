@@ -206,7 +206,7 @@ export async function GET(req: NextRequest) {
         subtaskMap: {},
         myOpenId: "",
         source: "lark-cli-unavailable",
-        warning: "飞书 Cli 不可用（服务器未安装或未认证）。请使用桌面端客户端访问飞书任务，或在本地开发环境运行。",
+        warning: "飞书任务暂不可用（服务器不运行 CLI）。请在您的电脑上打开 Lynx 桌面端或 Web 端并登录，飞书任务将通过您本地的在线设备执行。",
       });
     }
 
