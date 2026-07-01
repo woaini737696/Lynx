@@ -122,6 +122,10 @@ test_ui.xml
 /deploy/dist/
 /deploy/backup/
 __pycache__/
+# hermes-agent Python 打包产物（build/dist 不入版本控制）
+/desktop-native/hermes-agent-pkg/build/
+/desktop-native/hermes-agent-pkg/dist/
+/desktop-native/hermes-agent-pkg/*.egg-info/
 /npm-global/
 
 # 临时调试脚本（按项目规则不入版本控制）
