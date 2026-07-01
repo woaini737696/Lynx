@@ -122,6 +122,8 @@ test_ui.xml
 /deploy/dist/
 /deploy/backup/
 __pycache__/
+# 桌面端安装包（二进制大文件，不入版本控制）
+/downloads/
 # hermes-agent Python 打包产物（build/dist 不入版本控制）
 /desktop-native/hermes-agent-pkg/build/
 /desktop-native/hermes-agent-pkg/dist/

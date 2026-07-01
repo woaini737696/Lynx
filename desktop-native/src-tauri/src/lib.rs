@@ -264,6 +264,18 @@ async fn detect_ai_env() -> Result<serde_json::Value, String> {
     installer::detect_installation().await
 }
 
+/// 检查 HermesAgent 版本更新（对比本机版本与服务器 latest.json）
+#[tauri::command]
+async fn check_hermes_update() -> Result<serde_json::Value, String> {
+    installer::check_hermes_update().await
+}
+
+/// 强制升级 HermesAgent（使用 --force-reinstall 覆盖旧版本）
+#[tauri::command]
+async fn update_hermes_agent(app: tauri::AppHandle) -> Result<serde_json::Value, String> {
+    installer::update_hermes_agent(app).await
+}
+
 /// 启动 HermesAgent 本地进程（连接云端WS）
 #[tauri::command]
 async fn start_hermes_agent(
@@ -649,6 +661,8 @@ pub fn run() {
             rpa_shell_exec,
             install_ai_env,
             detect_ai_env,
+            check_hermes_update,
+            update_hermes_agent,
             start_hermes_agent,
             start_hermes_dashboard,
             stop_hermes_dashboard,

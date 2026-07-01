@@ -1,7 +1,7 @@
 {
   "name": "lynx-native-ui",
   "private": true,
-  "version": "1.0.26",
+  "version": "1.0.29",
   "type": "module",
   "scripts": {
     "dev": "vite --port 5177 --host 127.0.0.1",
