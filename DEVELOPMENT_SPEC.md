@@ -77,6 +77,28 @@ node scripts/compile-ws-gateway.mjs
 8. **账号保护原则**：严禁修改 lynn 账号（`lynn` / `ee9527ff`）的密码、角色、displayName、active 状态，除非用户在对话中明确指示。
 9. **设计确认原则**：任务中遇到不确定/待澄清的点，优先弹窗向用户确认，不自行决策。
 
+### 1.5 数据持久化规范
+
+> 本规范为前端配置类数据持久化的强制标准，违反任意一条均视为不合格。
+
+1. **数据库优先原则**：用户配置类数据（飞书机器人 webhook、AI 设置、通知设置、定时任务配置等）必须持久化到 MySQL 数据库，禁止仅依赖 localStorage 作为唯一存储。
+2. **localStorage 仅作缓存**：localStorage 仅用于前端首屏渲染缓存（避免登录态闪烁），不能替代数据库存储。读取流程：先读 localStorage 缓存立即渲染 → fetch DB 最新数据 → 更新缓存。
+3. **写入流程**：前端修改配置 → PUT 写入数据库 → 成功后同步更新 localStorage 缓存 → 失败回滚 UI 状态。
+4. **敏感数据禁入 localStorage**：禁止在 localStorage 存储密码、AUTH_SECRET、第三方 API Key、用户 token 等敏感信息。
+5. **旧键迁移**：旧版本若用 localStorage 存储配置，迭代时必须自动检测旧键、迁移到数据库、迁移成功后清除旧键，避免数据丢失。
+6. **schema 变更**：新增配置字段时，必须同步更新 `prisma/schema.prisma` 并执行 `npx prisma db push` 同步数据库结构。
+
+### 1.6 自测数据清理规范
+
+> 本规范为开发自测与 e2e 测试数据清理的强制标准，违反任意一条均视为不合格。
+
+1. **命名前缀约定**：自测创建的所有数据（Idea / Task / Memory / Cognition / Conversation / Skill 等）必须使用前缀 `E2E` / `E2E测试` / `测试灵感`，便于批量识别和清理。
+2. **清理脚本**：自测完成后必须运行 `npx tsx scripts/cleanup-e2e-data.ts` 清理 `E2E*` 前缀数据，输出清理数量统计。
+3. **e2e 用例清理**：所有 `e2e/*.spec.ts` 测试用例必须在 `afterEach` 钩子调用 `cleanupTestData(request, prefixes)` 清理本用例创建的数据，避免跨用例污染。
+4. **部署前核查**：部署到生产服务器前，必须确认数据库无 `E2E*` 前缀的脏数据残留。
+5. **保留数据例外**：lynn 账号及其真实业务数据不在清理范围内，禁止误删。
+6. **localStorage 清理**：自测完成后清理本地 localStorage 中的测试缓存键（如 `lynx-test-*`、`e2e-*`），避免影响下次开发。
+
 ---
 
 ## 二、本地开发环境

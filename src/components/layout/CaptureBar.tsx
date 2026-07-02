@@ -1,13 +1,36 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useMemo } from "react";
 import { createPortal } from "react-dom";
+import Image from "next/image";
+import { usePathname } from "next/navigation";
 import { useLightningStore } from "@/store/lightning";
 import { ThemeToggle } from "@/components/theme/ThemeToggle";
 import { Search, Download, Monitor, X, Check } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { FastLink } from "./FastLink";
+import { NAV_ITEMS } from "./Sidebar";
+import { UserMenu } from "./UserMenu";
 import { usePollWhenVisible } from "@/lib/use-poll-when-visible";
+
+// 未在侧边栏导航中的子路由 → 标题映射（如个人资料设置页）
+const EXTRA_ROUTE_TITLES: Record<string, string> = {
+  "/settings/profile": "个人资料",
+  "/login": "登录",
+};
+
+/** 根据 pathname 解析当前页面标题（精确匹配优先，其次最长前缀匹配） */
+function resolvePageTitle(pathname: string): string {
+  if (EXTRA_ROUTE_TITLES[pathname]) return EXTRA_ROUTE_TITLES[pathname];
+  const exact = NAV_ITEMS.find((i) => !i.disabled && i.href === pathname);
+  if (exact) return exact.label;
+  // 前缀匹配（按长度倒序，取最长匹配），用于 /settings/profile 等子路由
+  const prefix = NAV_ITEMS
+    .filter((i) => !i.disabled && i.href !== "/" && pathname.startsWith(i.href + "/"))
+    .sort((a, b) => b.href.length - a.href.length)[0];
+  if (prefix) return prefix.label;
+  return "Lynx";
+}
 
 /** 桌面版下载引导弹窗（Portal 渲染到 body，避免被 sticky header 的堆叠上下文遮挡） */
 function DesktopDownloadModal({ open, onClose }: { open: boolean; onClose: () => void }) {
@@ -82,6 +105,8 @@ function DesktopDownloadModal({ open, onClose }: { open: boolean; onClose: () =>
 
 export function CaptureBar() {
   const { open } = useLightningStore();
+  const pathname = usePathname();
+  const pageTitle = useMemo(() => resolvePageTitle(pathname), [pathname]);
   const [count, setCount] = useState(0);
   const [showDownload, setShowDownload] = useState(false);
 
@@ -102,10 +127,22 @@ export function CaptureBar() {
 
   return (
     <header className="glass-topbar sticky top-0 z-20 flex h-14 shrink-0 items-center justify-between px-4 lg:px-6">
-      {/* 左侧：留空（Logo 已移至侧边栏顶部） */}
-      <div className="flex-1" />
+      {/* 左侧：Lynx 品牌 logo + 当前页面标题（usePathname 映射） */}
+      <div className="flex min-w-0 flex-1 items-center gap-2.5">
+        <Image
+          src="/lynx-icon-128.png"
+          alt="Lynx"
+          width={24}
+          height={24}
+          className="shrink-0 rounded-md"
+          priority
+        />
+        <h1 className="truncate text-sm font-semibold text-foreground">
+          {pageTitle}
+        </h1>
+      </div>
 
-      {/* 右侧：搜索 + Inbox + 闪电输入 + 桌面下载 + 主题切换 */}
+      {/* 右侧：搜索 + Inbox + 闪电输入 + 桌面下载 + 主题切换 + 用户菜单 */}
       <div className="flex items-center gap-2 sm:gap-3">
         {/* 搜索 */}
         <button
@@ -164,6 +201,10 @@ export function CaptureBar() {
         <div className="sm:hidden">
           <ThemeToggle variant="icon" />
         </div>
+
+        {/* 分隔线 + 用户菜单（头像 / 昵称 / 角色徽标 / 退出登录） */}
+        <div className="mx-1 h-5 w-px bg-border/40" aria-hidden="true" />
+        <UserMenu />
       </div>
 
       <DesktopDownloadModal open={showDownload} onClose={() => setShowDownload(false)} />
