@@ -58,24 +58,25 @@ jobs:
           grep -o '<title>[^<]*</title>' deploy-pkg/index.html || true
           grep -o 'href="[^"]*lynx-logo[^"]*"' deploy-pkg/index.html || true
 
-      - name: Upload to server via SSH
-        # 用 scp 上传到服务器临时目录，再原子切换
+      - name: Prepare remote directory
         uses: appleboy/ssh-action@v1
         with:
           host: ${{ secrets.SSH_HOST }}
           username: ${{ secrets.SSH_USER }}
           password: ${{ secrets.SSH_PASSWORD }}
           script: |
-            mkdir -p /opt/lynx/website-new /opt/lynx/website-bak
+            rm -rf /opt/lynx/website-new
+            mkdir -p /opt/lynx/website-new
 
       - name: Sync files to server
-        uses: horochx/deploy-via-scp@v1.0.3
+        uses: appleboy/scp-action@v0.1.7
         with:
           host: ${{ secrets.SSH_HOST }}
-          user: ${{ secrets.SSH_USER }}
+          username: ${{ secrets.SSH_USER }}
           password: ${{ secrets.SSH_PASSWORD }}
-          local: deploy-pkg/*
-          remote: /opt/lynx/website-new/
+          source: "deploy-pkg/*"
+          target: "/opt/lynx/website-new/"
+          strip_components: 1
 
       - name: Atomic switch & reload nginx
         uses: appleboy/ssh-action@v1
