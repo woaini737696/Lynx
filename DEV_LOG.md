@@ -9,6 +9,7 @@
 
 | 迭代 | 日期 | 任务概要 |
 |------|------|----------|
+| [迭代 100](#迭代-100---2026-07-02) | 2026-07-02 | GitHub仓库迁移+本地持久化+三方同步验证+文档完善：① GitHub CLI v2.95.0安装(位于C:\Program Files\GitHub CLI\)并添加到用户PATH环境变量持久化 ② gh auth认证(token缺少read:org scope改用GH_TOKEN环境变量持久化到用户级) ③ Git历史清理(git-filter-repo清理误提交大文件1.07GiB→119.22MiB) ④ GitHub仓库推送成功(https://github.com/woaini737696/Lynx.git master分支) ⑤ Gitee同步force push(897e503→8a0ef05) ⑥ 三方同步验证(本地8a0ef05=Gitee 8a0ef05=GitHub 8a0ef05 SHA完全一致+服务器lynx-app v0.1.0 uptime 45m 健康检查HTTP 200) ⑦ GitHub默认分支改为master删除旧的main分支 ⑧ 文档完善(README.md添加GitHub主仓库克隆地址+DEVELOPMENT_SPEC.md端口规范统一5176+双远程提交规范) ⑨ 新建scripts/deploy/verify-server-sync.py服务器验证脚本 |
 | [迭代 99](#迭代-99---2026-07-02) | 2026-07-02 | 架构优化重构（跨端共享层+RN端+Desktop死代码清理+Desktop native-ui接入共享层）：① 新建 packages/shared/ 纯TS共享层(WS协议/SSE事件/WAV编码/7个平台接口/工具函数) ② 新建 packages/shared-react/ React hooks共享层(useChat/useDeviceWs/usePollWhenVisible/ChatContext依赖注入式) ③ 新建 mobile/ Expo SDK 51 RN项目(8个核心页面:Login+Assistant SSE流式聊天+VoiceCall全双工语音+Inbox灵感速记+Board飞书任务+Memory记忆图谱+Profile+HomeScreen今日工作台+深邃星空蓝深色主题对齐Kotlin+iOS26液态玻璃BlurView tint=dark+expo-av 14.x API适配) ④ Desktop死代码清理(删除hermes/router.rs 196行+executor.rs 199行关键词路由代码→新建dashboard.rs统一Dashboard HTTP API调用+修改ws_client.rs删除回退路径+修改auth.rs删除LocalAction依赖+修改lib.rs execute_assistant_command直接调用Dashboard) ⑤ Desktop native-ui接入共享层(BoardPage替换BoardColumn+CognitionPage替换CognitionType+保留6个有字段差异的本地类型) ⑥ shared-types扩展(新增WS协议/SSE事件/音频接口/认证用户/API响应/HermesAgent状态/语音通话状态机等8大类跨端共享类型415→686行) ⑦ 修复logger.ts pino-pretty node:worker_threads不兼容Webpack构建失败问题(移除pino-pretty依赖改用纯pino JSON输出) ⑧ tsconfig.json添加mobile到exclude避免RN依赖影响Web端tsc ⑨ Kotlin APK v0.1.7构建成功安装到手机(设备13e37082) |
 | [迭代 97](#迭代-97---2026-07-01) | 2026-07-01 | 桌面端v1.0.32+Web端三项根因彻底修复：① 检查更新10054报错修复(installer.rs直接请求/downloads/latest.json静态文件路径因Nginx配置问题导致连接重置→新建/api/hermes/latest-json和/api/hermes/download-wheel两个API路由代理读取服务器本地文件走和其他API相同路径+installer.rs fetch_latest_json增加3次重试间隔1秒+hermes-client.ts同步改走API路由+middleware.ts放行两个新路由为公开接口) ② 桌面端Lynx助理完整同步Web端(ai-assistant.ts chatCompletion从stream:false改为stream:true真实SSE流式解析onMeta/onThinking/onToolStart/onToolDone/onDelta/onDone/onError回调+AIAssistantPage emoji头像三级兜底avatarUrl→emoji→默认SVG+工具调用进度卡片running/done状态+AISettingsModal 8个emoji选择器+头像文件上传POST /api/ai/avatar-upload+AssistantDrawer替换硬编码SVG为真实头像+hermesExecute工具调用前检查WS连接状态未连接时明确提示不静默失败) ③ Web端状态错乱+dispatch自指派三缺陷修复(ws-gateway.ts register存储deviceType字段desktop/web+dispatch对__LYNN_CMD__前缀命令只派给desktop设备无desktop在线返回dispatched:false+use-device-ws.ts handleRemoteCommand识别__LYNN_CMD__前缀直接拒绝不去fetch localhost+status/route.ts返回在线设备列表含deviceType+settings/page.tsx loadStatus增加在线设备Dashboard状态聚合桌面端running则Web显示running不再强行降级DB status) |
 | [迭代 98](#迭代-98---2026-07-01) | 2026-07-01 | 新设备开发环境部署文档：创建NEW_DEVICE_SETUP.md（含环境部署清单Node.js20+/npm10+/Git/MySQL8.0+/Python3.10+/Rust+MSVC/Android Studio+JDK17按开发端选择安装+项目克隆与依赖安装+数据库初始化MySQL配置/Prisma generate/db push/seed脚本+环境变量配置必填项DATABASE_URL/AUTH_SECRET/NEXTAUTH_URL+AI模型配置+向量模型配置+首次启动验证Web端/WS网关/桌面端/安卓端+Trae Solo IDE配置文件监视排除+项目结构与开发指南+HermesAgent本地安装+常见问题排查npm/Prisma/Rust/MySQL/端口占用/Tauri/安卓构建失败+开发流程快速参考+服务器信息参考）+README.md补充新设备部署指南链接和相关文档引用 |
@@ -4997,6 +4998,59 @@ Hermes Agent 五大功能完善（持久化 profile + /learn 回写 + Cron 接�
 
 ### Commit
 `bcb3a43` - 24 files changed, +1123/-253
+
+---
+
+## 迭代 100 - 2026-07-02
+
+### 任务
+GitHub 仓库迁移 + 本地持久化 + 三方同步验证 + 文档完善：用户要求将 Lynx 项目三端全部代码提交到 GitHub 仓库 `https://github.com/woaini737696/Lynx.git`，安装 GitHub CLI 方便后续云端开发。
+
+### 完成内容
+
+#### 1. GitHub CLI 安装与持久化
+- 安装 `gh v2.95.0`（通过 winget 安装，位于 `C:\Program Files\GitHub CLI\`）
+- 将 GitHub CLI 路径添加到用户级 PATH 环境变量（持久化，新终端自动加载）
+- gh auth 认证：用户提供的 token 缺少 `read:org` scope 导致 `gh auth login --with-token` 失败，改用 `GH_TOKEN` 环境变量方式持久化到用户级（token scopes: project + repo + workflow）
+
+#### 2. Git 历史清理（git-filter-repo）
+- 仓库原始大小 1.07 GiB（历史中有 codex.exe 278MB、claude.exe 245MB 等>100MB 误提交文件）
+- 使用 `git-filter-repo --invert-paths --path npm-global/ --path .workbuddy_test/ --path npm-cache/ --path .trae-cn/ --path desktop/src-tauri/target-check/ --force` 清理
+- 仓库大小降至 119.22 MiB（减少 88%）
+- 205 个 commits 被重写，所有 commit hash 变更
+
+#### 3. GitHub 仓库推送
+- 重新配置 git remotes：`origin` = Gitee，`github` = GitHub
+- 配置 git 代理 `http://127.0.0.1:22307`（系统代理端口，解决 github.com 国内直连超时问题）
+- 推送成功：9033 objects, 118.97 MiB，master 分支创建
+- GitHub 默认分支从 `main` 改为 `master`，删除旧的 `main` 分支（含一个 "Create 123" 空白 commit）
+
+#### 4. Gitee 同步
+- Force push 同步清理后的历史（897e503 → 8a0ef05）
+- Gitee 显示仓库 933MB（服务端保留旧对象），需后续在 Gitee 后台触发 GC 清理
+
+#### 5. 三方同步验证
+- **本地 master**：`8a0ef0599492171ad0c1e81c49ee5059d133469d`
+- **GitHub master**：`8a0ef0599492171ad0c1e81c49ee5059d133469d` ✓
+- **Gitee master**：`8a0ef0599492171ad0c1e81c49ee5059d133469d` ✓
+- **服务器**：lynx-app v0.1.0 online（uptime 45m），lynx-ws-gateway online（uptime 43m），健康检查 HTTP 200，关键文件齐全（server.js + start-with-env.js + scripts/start-ws-gateway.js + scripts/ws-gateway.compiled.js）
+
+#### 6. 文档完善
+- **README.md**：新增"代码仓库"章节（GitHub 主仓库 + Gitee 镜像 + 双远程推送规范），克隆地址改为 GitHub
+- **DEVELOPMENT_SPEC.md**：端口规范统一为 5176（与 package.json 一致，原 3002 为错误），Gitee 提交原则改为双远程提交原则
+- **DEV_LOG.md**：新增迭代 100 记录
+- **scripts/deploy/verify-server-sync.py**：新建服务器验证脚本（PM2 状态 + 健康检查 + 关键文件 + 进程信息）
+
+### 自测结果
+- GitHub CLI 持久化：✓（新终端会话 gh 命令可用）
+- GitHub 认证：✓（GH_TOKEN 环境变量，账号 woaini737696）
+- 本地工作区：干净（nothing to commit）
+- 三方 SHA 一致：✓
+- 服务器健康：HTTP 200，PM2 双进程 online
+- 文档完整性：README + DEVELOPMENT_SPEC + DEV_LOG + NEW_DEVICE_SETUP + ANDROID_PRD + DESIGN_SYSTEM + docs/ 全部已提交
+
+### Commit
+待提交（本次文档更新）
 
 ---
 

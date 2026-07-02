@@ -75,11 +75,20 @@ Lynx 是一个会自主学习、成长、进化的超级 AI 助理平台。它�
 - npm 10+
 - Rust + MSVC 工具链（桌面端开发）
 
+### 代码仓库
+
+| 平台 | 地址 | 用途 |
+|------|------|------|
+| **GitHub**（主仓库） | https://github.com/woaini737696/Lynx.git | 后续主开发仓库，支持云端开发 |
+| Gitee（镜像） | https://gitee.com/shenzhens-emotions-are-booming_0/lynn-hub.git | 国内访问加速镜像 |
+
+> 双远程推送规范：`git push origin master`（Gitee）+ `git push github master`（GitHub）
+
 ### 安装
 ```bash
-# 克隆项目
-git clone https://gitee.com/shenzhens-emotions-are-booming_0/lynn-hub.git
-cd lynn-hub
+# 克隆项目（推荐从 GitHub 克隆）
+git clone https://github.com/woaini737696/Lynx.git
+cd Lynx
 
 # 安装依赖
 npm install
@@ -98,8 +107,8 @@ npx tsx prisma/seed-roles.ts          # 初始化角色权限（admin/editor/vie
 npx tsx prisma/seed-skills.ts         # 注入 60 个预置技能（12 岗位）
 npx tsx prisma/seed-patrol-rules.ts   # 注入默认巡检规则
 
-# 启动开发服务器（端口必须 5176）
-npx next dev -p 5176
+# 启动开发服务器（端口固定 5176，禁止修改）
+npm run dev
 ```
 
 ### 默认账号
