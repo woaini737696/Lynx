@@ -14,13 +14,19 @@ function ConvergeReminder() {
   const [mounted, setMounted] = useState(false);
   const [visible, setVisible] = useState(false);
   const [remaining, setRemaining] = useState(30);
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
 
   useEffect(() => {
     setMounted(true);
+    // 登录态检查：未登录用户不弹灵感收敛提示
+    fetch("/api/auth/session")
+      .then((r) => r.json())
+      .then((s) => setIsLoggedIn(Boolean(s?.user?.id)))
+      .catch(() => setIsLoggedIn(false));
   }, []);
 
   useEffect(() => {
-    if (!mounted) return;
+    if (!mounted || !isLoggedIn) return;
     const check = () => {
       const h = new Date().getHours();
       const isConvergeTime = h >= 23 || h < 6;
@@ -30,7 +36,7 @@ function ConvergeReminder() {
     check();
     const id = setInterval(check, 60000);
     return () => clearInterval(id);
-  }, [pathname, mounted]);
+  }, [pathname, mounted, isLoggedIn]);
 
   useEffect(() => {
     if (!visible) return;

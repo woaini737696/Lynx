@@ -36,9 +36,26 @@ export function ReminderManager() {
   const [reviveSuggestions, setReviveSuggestions] = useState<ReviveSuggestion[]>([]);
   const [mode, setMode] = useState<"icon" | "hint" | "list">("icon");
   const [entering, setEntering] = useState(false);
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
   const checkIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const prevCountRef = useRef(0);
   const toastRef = useRef<HTMLDivElement>(null);
+
+  // 登录态检查：未登录用户不启动任何通知检查（避免无意义 401 请求和浏览器通知权限申请）
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/auth/session")
+      .then((r) => r.json())
+      .then((s) => {
+        if (!cancelled) setIsLoggedIn(Boolean(s?.user?.id));
+      })
+      .catch(() => {
+        if (!cancelled) setIsLoggedIn(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   // 列表态点击外部自动收回图标态
   useEffect(() => {
@@ -79,24 +96,28 @@ export function ReminderManager() {
     return items;
   }, [history, reviveSuggestions]);
 
-  // 初始化
+  // 初始化（仅加载本地数据，不涉及鉴权/通知权限）
   useEffect(() => {
     const loadedRules = loadReminderRules();
     setRules(loadedRules);
     const loadedHistory = loadReminderHistory();
     setHistory(loadedHistory);
 
-    if (typeof window !== "undefined" && "Notification" in window) {
-      if (Notification.permission === "default") {
-        requestNotificationPermission();
-      }
-    }
-
     const latestRevive = loadedHistory.find((h) => h.ruleId === "revive-check" && h.details?.length);
     if (latestRevive?.details) {
       setReviveSuggestions(latestRevive.details);
     }
   }, []);
+
+  // 浏览器通知权限申请 —— 仅登录用户触发，避免未登录用户被弹出权限申请
+  useEffect(() => {
+    if (!isLoggedIn) return;
+    if (typeof window !== "undefined" && "Notification" in window) {
+      if (Notification.permission === "default") {
+        requestNotificationPermission();
+      }
+    }
+  }, [isLoggedIn]);
 
   // 新通知自动弹出提示（icon -> hint）
   useEffect(() => {
@@ -112,8 +133,9 @@ export function ReminderManager() {
     prevCountRef.current = count;
   }, [notifications.length, mode]);
 
-  // 定时检查（每分钟）
+  // 定时检查（每分钟）—— 仅登录用户启动
   useEffect(() => {
+    if (!isLoggedIn) return;
     const check = async () => {
       const currentRules = loadReminderRules();
       const { results, updatedRules } = await runReminderCheck(currentRules);
@@ -160,7 +182,7 @@ export function ReminderManager() {
         clearInterval(checkIntervalRef.current);
       }
     };
-  }, []);
+  }, [isLoggedIn]);
 
   const expandToList = () => {
     setMode("list");
@@ -204,6 +226,9 @@ export function ReminderManager() {
   };
 
   const count = notifications.length;
+
+  // 未登录用户不渲染任何通知 UI
+  if (!isLoggedIn) return null;
 
   return (
     <>

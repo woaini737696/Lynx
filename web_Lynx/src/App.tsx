@@ -1,17 +1,24 @@
-import { useEffect, useState } from 'react'
+import { lazy, Suspense, useEffect, useState } from 'react'
 import Lenis from 'lenis'
 import Navbar from './sections/Navbar'
 import Hero from './sections/Hero'
-import CoreNarrative from './sections/CoreNarrative'
-import Capabilities from './sections/Capabilities'
-import SuperAssistant from './sections/SuperAssistant'
-import CrossPlatform from './sections/CrossPlatform'
-import OutOfBox from './sections/OutOfBox'
-import Team from './sections/Team'
-import Scenarios from './sections/Scenarios'
-import Terminal from './sections/Terminal'
-import Footer from './sections/Footer'
-import MobileBanner from './sections/MobileBanner'
+
+// 首屏以下 sections 懒加载，降低 TTFB/FCP 体积
+const CoreNarrative = lazy(() => import('./sections/CoreNarrative'))
+const Capabilities = lazy(() => import('./sections/Capabilities'))
+const SuperAssistant = lazy(() => import('./sections/SuperAssistant'))
+const CrossPlatform = lazy(() => import('./sections/CrossPlatform'))
+const OutOfBox = lazy(() => import('./sections/OutOfBox'))
+const Team = lazy(() => import('./sections/Team'))
+const Scenarios = lazy(() => import('./sections/Scenarios'))
+const Terminal = lazy(() => import('./sections/Terminal'))
+const Footer = lazy(() => import('./sections/Footer'))
+const MobileBanner = lazy(() => import('./sections/MobileBanner'))
+
+// 简易占位（避免懒加载 sections 在网络抖动时出现空白闪烁）
+function SectionFallback() {
+  return <div style={{ minHeight: '60vh' }} />
+}
 
 export default function App() {
   const [isMobile, setIsMobile] = useState(false)
@@ -23,11 +30,12 @@ export default function App() {
       wheelMultiplier: 1,
     })
 
+    let rafId = 0
     function raf(time: number) {
       lenis.raf(time)
-      requestAnimationFrame(raf)
+      rafId = requestAnimationFrame(raf)
     }
-    const rafId = requestAnimationFrame(raf)
+    rafId = requestAnimationFrame(raf)
 
     const checkMobile = () => {
       const ua = navigator.userAgent.toLowerCase()
@@ -43,18 +51,22 @@ export default function App() {
 
   return (
     <div className="relative">
-      {isMobile && <MobileBanner />}
+      <Suspense fallback={null}>
+        {isMobile && <MobileBanner />}
+      </Suspense>
       <Navbar />
       <Hero />
-      <CoreNarrative />
-      <Capabilities />
-      <SuperAssistant />
-      <CrossPlatform />
-      <OutOfBox />
-      <Team />
-      <Scenarios />
-      <Terminal />
-      <Footer />
+      <Suspense fallback={<SectionFallback />}>
+        <CoreNarrative />
+        <Capabilities />
+        <SuperAssistant />
+        <CrossPlatform />
+        <OutOfBox />
+        <Team />
+        <Scenarios />
+        <Terminal />
+        <Footer />
+      </Suspense>
     </div>
   )
 }

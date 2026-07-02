@@ -112,6 +112,8 @@ const fragmentShader = `
 export default function PerspectiveGridWarp() {
   const containerRef = useRef<HTMLDivElement>(null)
   const rafRef = useRef<number>(0)
+  // isActiveRef 同时受标签页可见性 + 视口可见性控制
+  // 滚出 Hero 后立即停止 RAF，避免持续 GPU 占用
   const isActiveRef = useRef(true)
 
   useEffect(() => {
@@ -122,6 +124,7 @@ export default function PerspectiveGridWarp() {
     const camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1)
 
     const renderer = new THREE.WebGLRenderer({ antialias: false, alpha: true })
+    // 像素比封顶 1.5，移动端高分屏也能保持流畅
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5))
     renderer.setSize(container.offsetWidth, container.offsetHeight)
     renderer.domElement.style.width = '100%'
@@ -174,12 +177,25 @@ export default function PerspectiveGridWarp() {
 
     const clock = new THREE.Clock()
 
-    const onVisibility = () => {
-      isActiveRef.current = document.visibilityState === 'visible'
+    // 视口检测：Hero 滚出可视区时立即停止 RAF
+    // 阈值设为 0 即可（任意像素可见就渲染），但离开视口必须停
+    const inViewportRef = { current: true }
+    const updateActive = () => {
+      isActiveRef.current = inViewportRef.current && document.visibilityState === 'visible'
     }
+    const onVisibility = () => updateActive()
     document.addEventListener('visibilitychange', onVisibility)
 
-    // Full 60fps
+    const viewportObserver = new IntersectionObserver(
+      ([entry]) => {
+        inViewportRef.current = entry.isIntersecting
+        updateActive()
+      },
+      { threshold: 0 }
+    )
+    viewportObserver.observe(container)
+
+    // Full 60fps，但仅在视口内 + 标签页可见时渲染
     const animate = () => {
       rafRef.current = requestAnimationFrame(animate)
       if (!isActiveRef.current) return
@@ -199,6 +215,7 @@ export default function PerspectiveGridWarp() {
       window.removeEventListener('wheel', onWheel)
       window.removeEventListener('resize', onResize)
       document.removeEventListener('visibilitychange', onVisibility)
+      viewportObserver.disconnect()
       renderer.dispose()
       geometry.dispose()
       material.dispose()

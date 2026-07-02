@@ -124,14 +124,14 @@ try {
     Pop-Location
 }
 
-# Tauri NSIS output: D:\cargo-target-native\release\bundle\nsis\Lynx_1.0.32_x64-setup.exe
-$nsisOutput = "D:\cargo-target-native\release\bundle\nsis\Lynx_1.0.32_x64-setup.exe"
+# Tauri NSIS output: D:\cargo-target-native\release\bundle\nsis\Lynx_1.0.33_x64-setup.exe
+$nsisOutput = "D:\cargo-target-native\release\bundle\nsis\Lynx_1.0.33_x64-setup.exe"
 if (-not (Test-Path $nsisOutput)) { throw "NSIS output not found at $nsisOutput" }
 
 # Copy to dist dir
 $distDir = Join-Path $root "dist"
 New-Item -ItemType Directory -Path $distDir -Force | Out-Null
-$exe = Join-Path $distDir "Lynx_1.0.32_x64-setup.exe"
+$exe = Join-Path $distDir "Lynx_1.0.33_x64-setup.exe"
 Copy-Item -Path $nsisOutput -Destination $exe -Force
 
 if (Test-Path $exe) {

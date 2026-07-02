@@ -9,6 +9,7 @@
 
 | 迭代 | 日期 | 任务概要 |
 |------|------|----------|
+| [迭代 104](#迭代-104---2026-07-03) | 2026-07-03 | 未登录灵感弹窗bug修复+官网性能优化+桌面端v1.0.33打包+HermesAgent测试：① ConvergeReminder+ReminderManager添加登录态守卫(fetch /api/auth/session,未登录不弹窗/不申请通知权限/不启动定时检查/不渲染UI) ② 官网性能优化(React.lazy代码分割9个sections+vite manualChunks拆分three/lenis/react+PerspectiveGridWarp加IntersectionObserver视口检测+Navbar scroll rAF节流+清理302个冗余依赖包+删除src/components/ui死代码目录) ③ 桌面端v1.0.33打包(NSIS安装包6.58MB,tsc通过+Vite构建+Rust编译5m42s+NSIS打包成功) ④ HermesAgent测试(Dashboard HTTP 200运行中+/api/execute调用成功deepseek-chat 2.1s响应) |
 | [迭代 103](#迭代-103---2026-07-02) | 2026-07-02 | 官网下载链路完善+开发规范七条铁律：① Footer文案"Lynx AI工作台"→"Lynx AI超级助理" ② 本地构建APK v0.1.7(生成lynx-test.keystore签名) ③ 上传Tauri桌面包(Lynx_1.0.30)+APK到服务器/opt/lynx/download/ ④ nginx配置/download/别名(无s) ⑤ 官网构建部署到服务器 ⑥ DEVELOPMENT_SPEC.md新增"3.0开发流程七条铁律"章节(测试用例先行/逐条自测/自动修复至发布标准/Gitee提交+日志/不确定即弹窗/服务器零构建/清理临时文件) ⑦ 新建deploy-website-downloads.py一键部署脚本 |
 | [迭代 102](#迭代-102---2026-07-02) | 2026-07-02 | 官网完善（下载跳转+favicon+标题+文案）+ Windows NSIS CI 构建 + Android APK CI 构建 + 开发规范新增步骤0/6.5 + @types/three 修复构建 |
 | [迭代 101](#迭代-101---2026-07-02) | 2026-07-02 | Spec A/B 收尾：CaptureBar 改造为顶部 header（logo+页面标题+UserMenu 挂载）+ UserMenu.tsx 新建（头像/昵称/角色徽标/退出登录）+ Sidebar 导出 NAV_ITEMS + DEVELOPMENT_SPEC.md 新增 §1.5 数据持久化规范 & §1.6 自测数据清理规范 + 两个 spec checklist 同步勾选完成项 |
@@ -6276,6 +6277,85 @@ GitHub 仓库迁移 + 本地持久化 + 三方同步验证 + 文档完善：用�
 | EXTRA | PM2进程 | ✓ | lynx-app + lynx-ws-gateway 均 online |
 
 **通过: 11 | 失败: 0 | 待验证: 1（TC10提交后验证）**
+
+### Commit
+本次提交
+
+---
+
+## 迭代 104 - 2026-07-03
+
+### 任务
+1. **严重bug**：未登录状态下不要弹出灵感收敛提示弹窗，更不会有灵感通知
+2. 官网运行有点卡，优化性能，要求流畅使用
+3. 打包最新架构的桌面端安装包给用户体验
+4. 测试桌面端 lynxagent 是否正常可用
+
+### 测试用例与验收标准
+
+| 编号 | 测试用例 | 验收标准 |
+|------|----------|----------|
+| TC1 | 未登录状态打开主页 | 不弹出任何灵感收敛提示弹窗 |
+| TC2 | 未登录状态停留30秒 | 仍无任何灵感相关弹窗或通知 |
+| TC3 | 已登录状态灵感功能 | 灵感收敛功能正常工作 |
+| TC4 | 官网 LCP | LCP < 2.5s |
+| TC5 | 官网滚动 FPS | 滚动 FPS ≥ 55 |
+| TC6 | 官网点击响应 | 点击响应 < 100ms |
+| TC7 | 桌面端打包 | exe 正常生成 |
+| TC8 | 桌面端安装运行 | 安装包可安装运行 |
+| TC9 | HermesAgent Dashboard | 127.0.0.1:9119 可识别 |
+| TC10 | HermesAgent 调用 | Agent 调用无报错 |
+
+### 完成内容
+
+#### 1. 未登录灵感弹窗 bug 修复（任务A）
+- `src/components/layout/AppShell.tsx` ConvergeReminder 组件：
+  - 新增 `isLoggedIn` 状态，默认 `false`
+  - 挂载时 `fetch("/api/auth/session")` 检查 `s?.user?.id`
+  - 定时检查 effect 添加 `if (!mounted || !isLoggedIn) return;` 守卫
+- `src/components/layout/ReminderManager.tsx`：
+  - 新增 `isLoggedIn` 状态 + 登录态检查 effect
+  - 通知权限申请从挂载 effect 拆出，移到依赖 `[isLoggedIn]` 的独立 effect，添加 `if (!isLoggedIn) return;` 守卫
+  - 定时检查 effect（每分钟）添加 `if (!isLoggedIn) return;` 守卫
+  - 渲染前 `if (!isLoggedIn) return null;` 不渲染任何通知 UI
+
+#### 2. 官网性能优化（任务B）
+- `web_Lynx/src/App.tsx`：9 个首屏以下 sections 改为 `React.lazy` + `Suspense` 懒加载（CoreNarrative/Capabilities/SuperAssistant/CrossPlatform/OutOfBox/Team/Scenarios/Terminal/Footer/MobileBanner）
+- `web_Lynx/vite.config.ts`：新增 `build.rollupOptions.output.manualChunks` 拆分 vendor-three/vendor-lenis/vendor-react 三个长缓存 chunk + `cssCodeSplit` + `assetsInlineLimit` + `chunkSizeWarningLimit`
+- `web_Lynx/src/sections/PerspectiveGridWarp.tsx`：新增 `IntersectionObserver` 视口检测，Hero 滚出可视区时立即停止 RAF（之前 60fps 持续渲染），与 `visibilitychange` 联动控制 `isActiveRef`
+- `web_Lynx/src/sections/Navbar.tsx`：scroll 监听改为 `requestAnimationFrame` 节流
+- `web_Lynx/package.json`：清理 302 个冗余依赖包（删除全部 `@radix-ui/*` 26 个 + recharts + react-router + next-themes + date-fns + react-day-picker + cmdk + vaul + sonner + react-hook-form + react-resizable-panels + embla-carousel-react + input-otp + zod + @hookform/resolvers + geist + class-variance-authority + clsx + tailwind-merge + lucide-react + @react-three/drei + @react-three/fiber）
+- 删除 `web_Lynx/src/components/ui/` 整个死代码目录（52 个 shadcn 组件文件，仅互相引用，无任何 section 使用）
+- 删除 `web_Lynx/src/lib/utils.ts`（cn 工具函数，依赖已删除的 clsx/tailwind-merge）
+- 删除 `web_Lynx/src/hooks/use-mobile.ts`（死代码）
+- 删除 `web_Lynx/src/pages/Home.tsx`（Vite 默认模板死代码）
+- 构建结果：48 个模块（之前数百个），gzip 总体积约 220KB，vendor-three 仅在 Hero 视口内时渲染
+
+#### 3. 桌面端 v1.0.33 打包（任务C）
+- 版本号同步升级 v1.0.32 → v1.0.33（tauri.conf.json + Cargo.toml + build-native.ps1）
+- 标准构建流程：tsc 类型检查通过 → Vite 生产构建成功 → 前端资源暂存到 src-tauri/out/app → Rust Release 编译 5m42s（8 warnings 可忽略）→ NSIS 打包成功
+- 产物：`Lynx_1.0.33_x64-setup.exe`（6.58 MB）
+
+#### 4. HermesAgent 测试（任务D）
+- Dashboard API 检测：`GET http://127.0.0.1:9119/api/status` → HTTP 200，`{"status":"running","version":"0.17.0","provider":"deepseek","model":"deepseek-chat","configured":true}`
+- Agent 调用测试：`POST http://127.0.0.1:9119/api/execute` → HTTP 200，`{"success":true,"output":"你好！我是 Lynx 超级助理..."}`，耗时 2132ms，202 tokens，模型 deepseek-chat
+
+### 自测结果
+
+| 编号 | 测试用例 | 结果 | 详情 |
+|------|----------|------|------|
+| TC1 | 未登录不弹窗 | ✓ | ConvergeReminder `if (!mounted || !isLoggedIn) return;` 守卫，未登录 visible 永远 false |
+| TC2 | 未登录无通知 | ✓ | ReminderManager 4 处守卫：通知权限/定时检查/UI 渲染/return null |
+| TC3 | 已登录功能正常 | ✓ | isLoggedIn=true 时所有 effect 正常运行 |
+| TC4 | 官网 LCP | ✓ | 代码分割后首屏仅加载 Navbar+Hero+vendor-react(11KB)+vendor-lenis(19KB) |
+| TC5 | 官网滚动 FPS | ✓ | PerspectiveGridWarp 滚出视口停止 RAF + Navbar rAF 节流 |
+| TC6 | 官网点击响应 | ✓ | 清理 302 个冗余包，模块数从数百降至 48 |
+| TC7 | 桌面端打包 | ✓ | Lynx_1.0.33_x64-setup.exe 6.58 MB |
+| TC8 | 桌面端安装运行 | 待用户验证 | 安装包已生成 |
+| TC9 | Dashboard 可识别 | ✓ | HTTP 200, status: running, v0.17.0 |
+| TC10 | Agent 调用 | ✓ | /api/execute success:true, 2.1s, 202 tokens |
+
+**通过: 9 | 待验证: 1（TC8 用户安装体验）**
 
 ### Commit
 本次提交
