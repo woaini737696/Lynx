@@ -61,21 +61,23 @@ jobs:
         # certificateThumbprint 找不到证书时会自动跳过签名（warning 不报错）
         run: npx tauri build --bundles nsis
 
-      - name: Locate installer
-        id: locate
+      - name: Rename installer to fixed name
+        # 重命名为固定文件名，配合 releases/latest/download/ 实现永久下载链接
+        # 官网"下载桌面版"按钮指向 latest/download/Lynx-windows-setup.exe
         shell: pwsh
         run: |
           $exe = Get-ChildItem -Path desktop-native/src-tauri/target/release/bundle/nsis/*.exe -ErrorAction Stop | Select-Object -First 1
-          Write-Host "Installer: $($exe.FullName)"
+          Write-Host "Original installer: $($exe.FullName)"
           Write-Host "Size: $([math]::Round($exe.Length / 1MB, 2)) MB"
-          "path=$($exe.FullName)" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
-          "name=$($exe.Name)" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+          $fixed = Join-Path $exe.DirectoryName "Lynx-windows-setup.exe"
+          Copy-Item $exe.FullName -Destination $fixed -Force
+          Write-Host "Fixed-name installer: $fixed"
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: Lynx-windows-nsis-installer
-          path: desktop-native/src-tauri/target/release/bundle/nsis/*.exe
+          name: Lynx-windows-setup
+          path: desktop-native/src-tauri/target/release/bundle/nsis/Lynx-windows-setup.exe
           retention-days: 30
           if-no-files-found: error
 
@@ -85,7 +87,7 @@ jobs:
         with:
           tag_name: ${{ github.ref_name || format('desktop-{0}', github.run_number) }}
           name: Lynx Desktop ${{ github.ref_name || github.run_number }}
-          files: desktop-native/src-tauri/target/release/bundle/nsis/*.exe
+          files: desktop-native/src-tauri/target/release/bundle/nsis/Lynx-windows-setup.exe
           draft: false
           prerelease: false
           generate_release_notes: true
