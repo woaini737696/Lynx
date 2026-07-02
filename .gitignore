@@ -53,6 +53,13 @@ next-env.d.ts
 # IDE
 .idea/
 .vscode/
+.trae-cn/
+
+# Rust 编译产物（所有 target 变体）
+/desktop-native/src-tauri/target/
+/desktop/src-tauri/target*/
+target/
+
 
 # lark-cli local state
 .lark-sync-state.json
