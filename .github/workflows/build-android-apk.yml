@@ -1,0 +1,136 @@
+name: Build Android APK
+
+# 在 GitHub 提供的 Ubuntu runner 上构建 Android APK
+# 不占用开发服务器（2核2G）任何资源，完全在 GitHub Actions 上执行
+# 触发方式：
+#   1. 手动触发（workflow_dispatch）
+#   2. 推送 v*-android 标签自动触发（同时上传到最新 Release）
+
+on:
+  workflow_dispatch:
+    inputs:
+      upload_to_release:
+        description: '是否上传 APK 到最新 Release（releases/latest/download/Lynx-android.apk）'
+        type: boolean
+        default: true
+  push:
+    tags:
+      - 'v*-android'
+
+permissions:
+  contents: write
+
+jobs:
+  build-android-apk:
+    name: Build Android Release APK
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+        with:
+          packages: |
+            platforms;android-34
+            build-tools;34.0.0
+
+      - name: Setup Gradle 8.7
+        # gradle-wrapper.jar 不在仓库中，直接安装 Gradle 8.7
+        run: |
+          wget -q https://services.gradle.org/distributions/gradle-8.7-bin.zip
+          unzip -q gradle-8.7-bin.zip -d /opt
+          echo "/opt/gradle-8.7/bin" >> $GITHUB_PATH
+
+      - name: Generate test signing keystore
+        # 生成测试签名 keystore（正式发布前需替换为正式 release keystore）
+        env:
+          KEYSTORE_PATH: ${{ github.workspace }}/android/lynx-test.keystore
+        run: |
+          keytool -genkeypair -v \
+            -keystore "$KEYSTORE_PATH" \
+            -alias lynx-test \
+            -keyalg RSA -keysize 2048 \
+            -validity 10000 \
+            -storepass lynxtest123 \
+            -keypass lynxtest123 \
+            -dname "CN=Lynx Test, OU=Dev, O=Lynn, L=SZ, ST=GD, C=CN"
+
+      - name: Write local.properties
+        working-directory: android
+        run: echo "sdk.dir=$ANDROID_HOME" > local.properties
+
+      - name: Remove sandbox proxy config from gradle.properties
+        # sandbox 代理配置（127.0.0.1:18080）在 CI 上无法连接，需移除
+        working-directory: android
+        run: |
+          sed -i '/systemProp\.http\.proxy/d; /systemProp\.https\.proxy/d' gradle.properties
+          echo "=== gradle.properties after cleanup ==="
+          cat gradle.properties
+
+      - name: Build release APK
+        working-directory: android
+        run: gradle --no-daemon --stacktrace assembleRelease
+
+      - name: Rename APK to fixed name
+        # 重命名为固定文件名，配合 releases/latest/download/ 实现永久下载链接
+        run: |
+          mkdir -p dist
+          APK=$(find android/app/build/outputs/apk/release/*.apk | head -1)
+          echo "Original APK: $APK"
+          cp "$APK" dist/Lynx-android.apk
+          echo "Fixed-name APK: dist/Lynx-android.apk"
+          ls -lh dist/Lynx-android.apk
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Lynx-android-apk
+          path: dist/Lynx-android.apk
+          retention-days: 30
+          if-no-files-found: error
+
+      - name: Upload APK to latest Release
+        if: github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.upload_to_release)
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # 获取最新 Release ID
+          LATEST=$(curl -sS -H "Authorization: token $GH_TOKEN" \
+            "https://api.github.com/repos/${{ github.repository }}/releases/latest")
+          REL_ID=$(echo "$LATEST" | python3 -c "import json,sys; print(json.load(sys.stdin)['id'])")
+          REL_TAG=$(echo "$LATEST" | python3 -c "import json,sys; print(json.load(sys.stdin)['tag_name'])")
+          UPLOAD_URL=$(echo "$LATEST" | python3 -c "import json,sys; print(json.load(sys.stdin)['upload_url'].split('{')[0])")
+          echo "Latest Release: $REL_TAG (ID: $REL_ID)"
+
+          # 检查是否已有同名 asset，有则先删除
+          ASSETS=$(curl -sS -H "Authorization: token $GH_TOKEN" \
+            "https://api.github.com/repos/${{ github.repository }}/releases/$REL_ID/assets")
+          OLD_ID=$(echo "$ASSETS" | python3 -c "
+          import json,sys
+          d=json.load(sys.stdin)
+          for a in d:
+              if a['name']=='Lynx-android.apk':
+                  print(a['id'])
+                  break
+          ")
+          if [ -n "$OLD_ID" ]; then
+            echo "Deleting old Lynx-android.apk asset (ID: $OLD_ID)"
+            curl -sS -X DELETE -H "Authorization: token $GH_TOKEN" \
+              "https://api.github.com/repos/${{ github.repository }}/releases/assets/$OLD_ID"
+          fi
+
+          # 上传新 APK
+          curl -sS -X POST \
+            -H "Authorization: token $GH_TOKEN" \
+            -H "Content-Type: application/vnd.android.package-archive" \
+            --data-binary @dist/Lynx-android.apk \
+            "${UPLOAD_URL}?name=Lynx-android.apk" \
+            | python3 -c "import json,sys; d=json.load(sys.stdin); print(f\"Uploaded: {d.get('name','?')} | {d.get('size',0)/1024/1024:.2f} MB\")"
