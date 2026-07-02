@@ -49,7 +49,7 @@ export default function Hero() {
               textWrap: 'balance',
             }}
           >
-            Lynx AI 工作台
+            Lynx AI 超级助理
           </h1>
 
           <p
@@ -106,12 +106,13 @@ export default function Hero() {
                   }}
                 >
                   {[
-                    { label: 'Web 版', desc: '浏览器直接使用' },
-                    { label: 'Windows 桌面版', desc: '下载安装包' },
-                    { label: '安卓 APP', desc: '下载 APK' },
+                    { label: 'Web 版', desc: '浏览器直接使用', href: 'https://ai.lynxdo.com/' },
+                    { label: 'Windows 桌面版', desc: '下载安装包', href: 'https://github.com/woaini737696/Lynx/releases/latest/download/Lynx-windows-setup.exe' },
+                    { label: '安卓 APP', desc: '下载 APK', href: 'https://github.com/woaini737696/Lynx/releases/latest/download/Lynx-android.apk' },
                   ].map((p) => (
-                    <button
+                    <a
                       key={p.label}
+                      href={p.href}
                       className="w-full flex items-center gap-3 px-4 py-3.5 text-left transition-colors"
                       style={{ color: '#F0F4F8' }}
                       onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(255,255,255,0.08)' }}
@@ -121,7 +122,7 @@ export default function Hero() {
                         <div className="text-[13px] font-medium">{p.label}</div>
                         <div className="text-[11px]" style={{ color: 'rgba(240, 244, 248, 0.4)' }}>{p.desc}</div>
                       </div>
-                    </button>
+                    </a>
                   ))}
                 </div>
               </div>
