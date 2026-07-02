@@ -15,7 +15,7 @@ on:
         default: false
   push:
     tags:
-      - 'v*'
+      - 'v*-desktop*'
 
 # contents: write 允许 GITHUB_TOKEN 创建 Release 和上传 asset
 permissions:
