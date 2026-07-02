@@ -36,11 +36,18 @@ jobs:
           java-version: '17'
 
       - name: Setup Android SDK
+        # 不指定 packages，让 setup-android 默认装好 cmdline-tools + platform-tools
+        # platforms/build-tools 在 gradle build 时由 Android Gradle Plugin 按需下载
         uses: android-actions/setup-android@v3
-        with:
-          packages: |
-            platforms;android-34
-            build-tools;34.0.0
+
+      - name: Accept Android licenses & pre-install SDK
+        # 显式接受所有 Android 许可，避免 build 时因 license 未接受而失败
+        # 同时预装 compileSdk 对应的 platform 和 build-tools，减少 build 时下载
+        run: |
+          yes | sdkmanager --licenses >/dev/null 2>&1 || true
+          sdkmanager "platforms;android-34" "build-tools;34.0.0" "platform-tools"
+          echo "ANDROID_HOME=$ANDROID_HOME"
+          sdkmanager --list_installed 2>/dev/null || true
 
       - name: Setup Gradle 8.7
         # gradle-wrapper.jar 不在仓库中，直接安装 Gradle 8.7
