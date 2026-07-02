@@ -74,13 +74,18 @@ jobs:
         working-directory: android
         run: echo "sdk.dir=$ANDROID_HOME" > local.properties
 
-      - name: Remove sandbox proxy config from gradle.properties
-        # sandbox 代理配置（127.0.0.1:18080）在 CI 上无法连接，需移除
+      - name: Remove sandbox proxy & aliyun mirrors for CI
+        # 1) sandbox 代理（127.0.0.1:18080）在 CI 上无法连接，需移除
+        # 2) 阿里云镜像是国内加速用，CI runner 在国外，访问阿里云镜像不稳定/超时
+        #    会导致 KSP/Hilt 等插件 "not found"，故 CI 上移除阿里云镜像，优先官方仓库
         working-directory: android
         run: |
           sed -i '/systemProp\.http\.proxy/d; /systemProp\.https\.proxy/d' gradle.properties
+          sed -i '/aliyun/d' settings.gradle.kts
           echo "=== gradle.properties after cleanup ==="
           cat gradle.properties
+          echo "=== settings.gradle.kts after cleanup ==="
+          cat settings.gradle.kts
 
       - name: Build release APK
         working-directory: android
