@@ -1,4 +1,0 @@
-[build]
-# 必须使用纯 ASCII 路径，避免链接器无法处理 Unicode 路径
-# D:/cargo-target-native 是真实目录（非 junction），确保链接器能找到 rlib 文件
-target-dir = "D:/cargo-target-native"
