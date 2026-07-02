@@ -1,5 +1,5 @@
 // 飞书任务同步逻辑：lark-cli 调用封装 + 同步状态管理 + 数据库持久化
-import { execSync, exec } from "child_process";
+import { execSync, exec, execFileSync, execFile } from "child_process";
 import { promisify } from "util";
 import * as fs from "fs";
 import * as path from "path";
@@ -8,6 +8,7 @@ import { getLogger } from "@/lib/logger";
 
 const logger = getLogger("lark-sync");
 const execAsync = promisify(exec);
+const execFileAsync = promisify(execFile);
 
 const LARK_CLI_TIMEOUT = 30000; // 30 秒超时
 const SYNC_STATE_FILE = path.join(process.cwd(), ".lark-sync-state.json");
@@ -28,7 +29,10 @@ const TASKLISTS_CACHE_TTL = 5 * 60 * 1000; // 5 分钟
 // 模块级缓存：当前用户信息
 let currentUserCache: { openId: string; name: string } | null = null;
 // 模块级缓存：全量任务数据 + TTL（30秒），避免短时间内重复拉取
-let allTasksCache: { data: NormalizedTask[]; myOpenId: string; expiresAt: number } | null = null;
+let allTasksCache: { data: NormalizedTask[]; myOpenId: string; expiresAt: number; generation: number } | null = null;
+// 缓存代次：invalidateTasksCache 自增，fetchAllTasksFromSourceAsync 完成时校验代次
+// 防止「invalidate 后在途请求完成又写回旧数据」的竞态
+let cacheGeneration = 0;
 const ALL_TASKS_CACHE_TTL = 30 * 1000; // 30 秒
 
 // ==================== 类型定义 ====================
@@ -203,8 +207,37 @@ export interface SyncState {
 // ==================== 工具函数 ====================
 
 /**
+ * 解析 lark-cli 参数字符串为参数数组，正确处理双引号包裹的值。
+ *
+ * 例：`+create --summary "hello world" --due "2026-01-01"`
+ *   → ["+create", "--summary", "hello world", "--due", "2026-01-01"]
+ *
+ * 兼容旧版 shellQuote 生成的字符串（外层双引号 + 内部 \" 转义）。
+ * 兼容无引号的纯 token（如 `+create`、`--summary`）。
+ */
+function parseArgsString(args: string): string[] {
+  const result: string[] = [];
+  // 正则：匹配 "..."（内部 \" 转义）或 非空格连续 token
+  const re = /"((?:[^"\\]|\\.)*)"|(\S+)/g;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(args)) !== null) {
+    if (m[1] !== undefined) {
+      // 引号包裹的值：去掉外层引号，反转义 \" → "，\\ → \
+      result.push(m[1].replace(/\\"/g, '"').replace(/\\\\/g, "\\"));
+    } else {
+      result.push(m[2]);
+    }
+  }
+  return result;
+}
+
+/**
  * 将参数用双引号包裹，用于 execSync 字符串命令的安全传参。
  * 内部双引号转义为 \"，避免破坏命令结构。
+ *
+ * @deprecated 已不再用于 execSync。保留仅为向后兼容；新代码应直接传数组参数。
+ * 内部已被 execFileSync 数组参数模式替代，shellQuote 仅用于构造 args 字符串，
+ * 最终由 parseArgsString 解析回数组后传给 execFileSync，不经 shell。
  */
 export function shellQuote(s: string): string {
   return '"' + s.replace(/\\/g, "\\\\").replace(/"/g, '\\"') + '"';
@@ -213,18 +246,22 @@ export function shellQuote(s: string): string {
 /**
  * 调用 lark-cli 并解析 JSON 输出（通用版，可指定 service）。
  * 返回 { ok, data } 或 { ok: false, error }。
+ *
+ * 安全说明：使用 execFileSync 数组参数模式，不经 shell 解析，
+ * 彻底杜绝命令注入（即使参数含 $(cmd)、`cmd`、; rm 等元字符也只作字面字符串）。
  */
 export function runLarkCliService(
   service: string,
   args: string
 ): { ok: boolean; data?: any; error?: string } {
   try {
-    const cmd = `lark-cli ${service} ${args} --format json`;
-    const output = execSync(cmd, {
+    const argArray = [service, ...parseArgsString(args), "--format", "json"];
+    const output = execFileSync("lark-cli", argArray, {
       timeout: LARK_CLI_TIMEOUT,
       encoding: "utf-8",
       maxBuffer: 10 * 1024 * 1024,
       windowsHide: true,
+      shell: false, // 显式禁用 shell，双重保险
     });
     const parsed = JSON.parse(output);
     return { ok: true, data: parsed };
@@ -263,11 +300,12 @@ export async function runLarkCliServiceAsync(
   args: string
 ): Promise<{ ok: boolean; data?: any; error?: string }> {
   try {
-    const cmd = `lark-cli ${service} ${args} --format json`;
-    const { stdout } = await execAsync(cmd, {
+    const argArray = [service, ...parseArgsString(args), "--format", "json"];
+    const { stdout } = await execFileAsync("lark-cli", argArray, {
       timeout: LARK_CLI_TIMEOUT,
       maxBuffer: 10 * 1024 * 1024,
       windowsHide: true,
+      shell: false, // 显式禁用 shell，与 runLarkCliService 一致
     });
     const parsed = JSON.parse(stdout);
     return { ok: true, data: parsed };
@@ -635,6 +673,9 @@ function fetchAllTasksFromSource(forceRefresh = false): { ok: boolean; tasks: No
     return { ok: true, tasks: allTasksCache.data, myOpenId: allTasksCache.myOpenId };
   }
 
+  // 记录开始时的代次，完成后校验是否被 invalidate 过
+  const startGeneration = cacheGeneration;
+
   // 确保当前用户已知
   const me = getCurrentUser();
   if (!me) {
@@ -750,12 +791,15 @@ function fetchAllTasksFromSource(forceRefresh = false): { ok: boolean; tasks: No
   // 第五步：归一化
   const tasks = allItemsWithSubs.map(normalizeTask);
 
-  // 写入缓存
-  allTasksCache = {
-    data: tasks,
-    myOpenId: me.openId,
-    expiresAt: Date.now() + ALL_TASKS_CACHE_TTL,
-  };
+  // 写入缓存（仅当代次未变才写，避免在途请求被 invalidate 后又写回旧数据）
+  if (startGeneration === cacheGeneration) {
+    allTasksCache = {
+      data: tasks,
+      myOpenId: me.openId,
+      expiresAt: Date.now() + ALL_TASKS_CACHE_TTL,
+      generation: startGeneration,
+    };
+  }
 
   return { ok: true, tasks, myOpenId: me.openId };
 }
@@ -837,6 +881,9 @@ async function fetchAllTasksFromSourceAsync(forceRefresh = false): Promise<{ ok:
   if (!forceRefresh && allTasksCache && Date.now() < allTasksCache.expiresAt) {
     return { ok: true, tasks: allTasksCache.data, myOpenId: allTasksCache.myOpenId };
   }
+
+  // 记录开始时的代次，完成后校验是否被 invalidate 过（防止在途请求写回旧缓存）
+  const startGeneration = cacheGeneration;
 
   const me = getCurrentUser();
   if (!me) {
@@ -947,11 +994,15 @@ async function fetchAllTasksFromSourceAsync(forceRefresh = false): Promise<{ ok:
 
   const tasks = allItemsWithSubs.map(normalizeTask);
 
-  allTasksCache = {
-    data: tasks,
-    myOpenId: me.openId,
-    expiresAt: Date.now() + ALL_TASKS_CACHE_TTL,
-  };
+  // 写入缓存（仅当代次未变才写，避免在途请求被 invalidate 后又写回旧数据）
+  if (startGeneration === cacheGeneration) {
+    allTasksCache = {
+      data: tasks,
+      myOpenId: me.openId,
+      expiresAt: Date.now() + ALL_TASKS_CACHE_TTL,
+      generation: startGeneration,
+    };
+  }
 
   return { ok: true, tasks, myOpenId: me.openId };
 }
@@ -1019,6 +1070,8 @@ export function invalidateTasksCache(): void {
   allTasksCache = null;
   tasklistsCache = null;
   currentUserCache = null;
+  // 自增代次，使在途的 fetchAllTasksFromSourceAsync 完成时检测到代次变更，不再写回缓存
+  cacheGeneration++;
 }
 
 /** 我的任务（我是负责人的）- 基于缓存的全量数据过滤 */

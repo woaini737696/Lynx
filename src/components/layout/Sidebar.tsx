@@ -221,11 +221,21 @@ function SidebarUserProfile() {
       refreshSession();
     };
     window.addEventListener("auth:login-success", onLoginSuccess);
-    return () => window.removeEventListener("auth:login-success", onLoginSuccess);
+    // 4. 监听登出事件（UserMenu 登出时派发），同步清理 Sidebar 本地 state
+    const onLogout = () => {
+      setUser(null);
+      setMenuOpen(false);
+    };
+    window.addEventListener("auth:logout", onLogout);
+    return () => {
+      window.removeEventListener("auth:login-success", onLoginSuccess);
+      window.removeEventListener("auth:logout", onLogout);
+    };
   }, []);
 
-  // 点击外部或按 Esc 收起菜单
+  // 点击外部或按 Esc 收起菜单（仅菜单展开时注册，关闭时不浪费监听）
   useEffect(() => {
+    if (!menuOpen) return;
     const handleClickOutside = (e: MouseEvent) => {
       if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
         setMenuOpen(false);
@@ -240,7 +250,7 @@ function SidebarUserProfile() {
       document.removeEventListener("mousedown", handleClickOutside);
       document.removeEventListener("keydown", handleKeyDown);
     };
-  }, []);
+  }, [menuOpen]);
 
   const handleSignOut = async () => {
     if (signingOut) return;
@@ -256,16 +266,22 @@ function SidebarUserProfile() {
     } catch {
       // ignore
     } finally {
-      // 清除本地缓存的用户信息，避免下次访问仍显示已登出用户
-      try {
-        localStorage.removeItem("lynx-sidebar-user");
-      } catch {
-        // ignore
+      // 清理所有用户态 localStorage 缓存（含 UserMenu 的 key），避免登出后顶部菜单仍显示旧用户
+      ["lynx-sidebar-user", "lynx-user-menu-cache"].forEach((k) => {
+        try {
+          localStorage.removeItem(k);
+        } catch {
+          // ignore
+        }
+      });
+      // 派发登出事件，让 UserMenu 等组件感知并重置本地 state
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new Event("auth:logout"));
       }
       setUser(null);
       setSigningOut(false);
       setMenuOpen(false);
-      router.push("/");
+      router.push("/login");
       router.refresh();
     }
   };

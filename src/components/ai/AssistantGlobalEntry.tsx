@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import dynamic from "next/dynamic";
 import { usePathname } from "next/navigation";
+import { X } from "lucide-react";
 import { AssistantFloatingButton } from "./AssistantFloatingButton";
 import { usePollWhenVisible } from "@/lib/use-poll-when-visible";
 
@@ -56,6 +57,16 @@ export function AssistantGlobalEntry() {
       cancelled = true;
     };
   }, []);
+
+  // 登录弹窗打开时按 Esc 关闭（a11y）
+  useEffect(() => {
+    if (!showLoginModal) return;
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setShowLoginModal(false);
+    };
+    document.addEventListener("keydown", handler);
+    return () => document.removeEventListener("keydown", handler);
+  }, [showLoginModal]);
 
   // 未读消息数 = 当前会话总数 - 上次已读会话数
   // 使用 usePollWhenVisible：tab 不可见时暂停轮询，节省 CPU/网络
@@ -152,29 +163,50 @@ export function AssistantGlobalEntry() {
       {/* 首次打开后才挂载 AssistantDrawer，保留 slide-out 动画与会话状态；关闭时仅 translate-x 隐藏 */}
       {hasOpened && <AssistantDrawer open={open} onClose={close} />}
 
-      {/* 未登录引导弹窗 */}
+      {/* 未登录引导弹窗（支持遮罩点击/Esc/关闭按钮关闭） */}
       {showLoginModal && (
         <div
           className="fixed inset-0 z-[80] flex items-center justify-center bg-black/30 px-4"
           role="dialog"
           aria-modal="true"
           aria-label="登录提示"
+          onClick={() => setShowLoginModal(false)}
         >
-          <div className="w-full max-w-sm rounded-xl bg-background p-6 shadow-2xl">
-            <h3 className="text-base font-semibold text-foreground">
-              请先登录
-            </h3>
+          <div
+            className="w-full max-w-sm rounded-xl bg-background p-6 shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-start justify-between">
+              <h3 className="text-base font-semibold text-foreground">
+                请先登录
+              </h3>
+              <button
+                type="button"
+                onClick={() => setShowLoginModal(false)}
+                aria-label="关闭"
+                className="-mr-1 -mt-1 rounded-md p-1 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
             <p className="mt-2 text-sm text-muted-foreground">
               使用 Lynx 超级助理需要先登录账号
             </p>
-            <div className="mt-5 flex justify-end gap-2">
+            <div className="mt-5 flex gap-2">
+              <button
+                type="button"
+                onClick={() => setShowLoginModal(false)}
+                className="flex-1 rounded-lg border border-border px-4 py-2.5 text-sm font-medium text-foreground transition-colors hover:bg-muted focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                稍后
+              </button>
               <button
                 type="button"
                 onClick={() => {
                   setShowLoginModal(false);
                   window.location.href = "/?login=1";
                 }}
-                className="w-full rounded-lg bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground transition-colors hover:opacity-90 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                className="flex-1 rounded-lg bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground transition-colors hover:opacity-90 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               >
                 去登录
               </button>

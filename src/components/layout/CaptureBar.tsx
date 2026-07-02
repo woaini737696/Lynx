@@ -13,10 +13,12 @@ import { NAV_ITEMS } from "./Sidebar";
 import { UserMenu } from "./UserMenu";
 import { usePollWhenVisible } from "@/lib/use-poll-when-visible";
 
-// 未在侧边栏导航中的子路由 → 标题映射（如个人资料设置页）
+// 未在侧边栏导航中的子路由 → 标题映射（如个人资料设置页/订阅/帮助）
 const EXTRA_ROUTE_TITLES: Record<string, string> = {
   "/settings/profile": "个人资料",
   "/login": "登录",
+  "/subscription": "订阅与账单",
+  "/help": "帮助中心",
 };
 
 /** 根据 pathname 解析当前页面标题（精确匹配优先，其次最长前缀匹配） */

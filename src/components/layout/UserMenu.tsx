@@ -118,10 +118,17 @@ export function UserMenu() {
     } catch {
       // ignore
     } finally {
-      try {
-        localStorage.removeItem(CACHE_KEY);
-      } catch {
-        // ignore
+      // 清理所有用户态 localStorage 缓存（含 Sidebar 的 key），避免登出后侧边栏仍显示旧用户
+      ["lynx-user-menu-cache", "lynx-sidebar-user"].forEach((k) => {
+        try {
+          localStorage.removeItem(k);
+        } catch {
+          // ignore
+        }
+      });
+      // 派发登出事件，让 Sidebar 等组件感知并重置本地 state
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new Event("auth:logout"));
       }
       setUser(null);
       setSigningOut(false);

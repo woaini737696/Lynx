@@ -29,6 +29,11 @@ export function AssistantFloatingButton({ open, onToggle, unreadCount = 0 }: Ass
   const [dragging, setDragging] = useState(false);
   const dragStartRef = useRef<{ x: number; y: number; moved: boolean } | null>(null);
   const btnRef = useRef<HTMLButtonElement>(null);
+  // 同步最新 pos 到 ref，避免 onPointerUp 闭包捕获过期 pos
+  const posRef = useRef(pos);
+  useEffect(() => {
+    posRef.current = pos;
+  }, [pos]);
 
   // 加载保存的位置
   useEffect(() => {
@@ -90,7 +95,8 @@ export function AssistantFloatingButton({ open, onToggle, unreadCount = 0 }: Ass
     // 保存位置（仅当真正拖动过时）
     if (wasMoved) {
       try {
-        localStorage.setItem(POSITION_KEY, JSON.stringify(pos));
+        // 用 posRef 读最新位置，避免闭包过期 pos 导致保存旧坐标
+        localStorage.setItem(POSITION_KEY, JSON.stringify(posRef.current));
       } catch {
         // ignore
       }
@@ -98,7 +104,7 @@ export function AssistantFloatingButton({ open, onToggle, unreadCount = 0 }: Ass
       // 未拖动：视为点击
       onToggle?.();
     }
-  }, [pos, onToggle]);
+  }, [onToggle]);
 
   // 定位样式：默认右下角，拖动后使用保存的位置
   const positionStyle: React.CSSProperties =

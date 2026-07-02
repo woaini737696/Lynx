@@ -66,6 +66,23 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    // SSRF 防护：仅允许飞书/Lark 官方域名，拒绝内网/回环/元数据地址
+    const ALLOWED_HOSTS = [
+      "open.feishu.cn",
+      "open.larksuite.com",
+      "applink.feishu.cn",
+      "applink.larksuite.com",
+    ];
+    const host = parsedUrl.hostname.toLowerCase();
+    if (!ALLOWED_HOSTS.includes(host)) {
+      return NextResponse.json(
+        {
+          error: `webhookUrl 域名不被允许（仅允许飞书官方域名：${ALLOWED_HOSTS.join(", ")}）`,
+        },
+        { status: 400 }
+      );
+    }
+
     // 发送测试消息（飞书自定义机器人消息格式）
     const text = message || "✅ Lynx 飞书机器人测试消息：连接成功！";
     const payload: Record<string, unknown> = {

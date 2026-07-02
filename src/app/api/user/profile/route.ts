@@ -50,17 +50,28 @@ export async function PUT(req: NextRequest) {
   try {
     const body = await req.json().catch(() => ({}));
 
-    const displayName = validateString(body?.displayName, 100);
-    const profession = validateString(body?.profession, 100);
-    const avatarUrl = validateString(body?.avatarUrl, 500);
+    // 仅更新 body 中实际存在的字段，缺失字段保持原值（支持部分更新）
+    // 避免客户端只传 profession 时把 displayName/avatarUrl 清空
+    const data: { displayName?: string; profession?: string | null; avatarUrl?: string | null } = {};
+    if (body?.displayName !== undefined) {
+      data.displayName = validateString(body.displayName, 100);
+    }
+    if (body?.profession !== undefined) {
+      const profession = validateString(body.profession, 100);
+      data.profession = profession || null;
+    }
+    if (body?.avatarUrl !== undefined) {
+      const avatarUrl = validateString(body.avatarUrl, 500);
+      data.avatarUrl = avatarUrl || null;
+    }
+
+    if (Object.keys(data).length === 0) {
+      return NextResponse.json({ error: "无更新字段（请至少传 displayName/profession/avatarUrl 之一）" }, { status: 400 });
+    }
 
     const updated = await prisma.user.update({
       where: { id: auth.user.id },
-      data: {
-        displayName,
-        profession: profession || null,
-        avatarUrl: avatarUrl || null,
-      },
+      data,
       select: {
         id: true,
         username: true,
