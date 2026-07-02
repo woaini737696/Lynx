@@ -57,11 +57,6 @@ export function isDesktop(): boolean {
   return typeof window !== "undefined" && !!window.__TAURI__;
 }
 
-/** 是否运行在浏览器（Web端）环境 */
-export function isWeb(): boolean {
-  return !isDesktop();
-}
-
 /** 调用 Tauri 命令（仅桌面端可用） */
 export async function invoke<T = unknown>(cmd: string, args?: Record<string, unknown>): Promise<T> {
   const fn = getInvokeFn();
@@ -139,15 +134,8 @@ export async function onWindowResized(handler: () => void): Promise<(() => void)
 
 // ============ 桌面端能力封装 ============
 
-export interface AgentStatus {
-  version: string;
-  wsConnected: boolean;
-  cloudEndpoint: string;
-  authMode: "approve" | "once" | "free";
-  authorizedDirs: string[];
-  capabilities: string[];
-  hasToken: boolean;
-}
+import type { AgentStatus } from "@lynnhub/shared-types";
+export type { AgentStatus };
 
 /** 获取 HermesAgent 本地状态 */
 export async function getAgentStatus(): Promise<AgentStatus | null> {
@@ -171,12 +159,6 @@ export async function addAuthorizedDir(dir: string): Promise<string[]> {
   return invoke<string[]>("add_authorized_dir", { dir });
 }
 
-/** 获取授权目录列表 */
-export async function getAuthorizedDirs(): Promise<string[] | null> {
-  if (!isDesktop()) return null;
-  return invoke<string[]>("get_authorized_dirs");
-}
-
 /** 移除授权目录 */
 export async function removeAuthorizedDir(dir: string): Promise<string[]> {
   return invoke<string[]>("remove_authorized_dir", { dir });
@@ -185,11 +167,6 @@ export async function removeAuthorizedDir(dir: string): Promise<string[]> {
 /** 触发紧急停止 */
 export async function emergencyStop(): Promise<string> {
   return invoke<string>("emergency_stop");
-}
-
-/** 检查紧急停止状态 */
-export async function isEmergencyStop(): Promise<boolean> {
-  return invoke<boolean>("is_emergency_stop");
 }
 
 /** 设置用户 Token（登录后调用） */
@@ -204,14 +181,6 @@ export async function setCloudEndpoint(endpoint: string): Promise<void> {
   if (isDesktop()) {
     await invoke<void>("set_cloud_endpoint", { endpoint });
   }
-}
-
-/** 执行 AI 助理指令（核心入口） */
-export async function executeAssistantCommand(
-  command: string,
-  targetDevice?: string
-): Promise<unknown> {
-  return invoke("execute_assistant_command", { command, targetDevice });
 }
 
 /** 一键安装 AI 环境（仅桌面端可用） */
@@ -242,15 +211,6 @@ export async function startHermesAgent(): Promise<void> {
     throw new Error("浏览器无法直接启动 HermesAgent。请在命令行运行 `hermes dashboard --port 9119` 启动 Dashboard。");
   }
   return invoke<void>("start_hermes_agent");
-}
-
-/** 打开外部链接 */
-export async function openExternal(url: string): Promise<void> {
-  if (isDesktop()) {
-    await invoke<void>("open_external", { url });
-  } else {
-    window.open(url, "_blank");
-  }
 }
 
 // ============ 审批事件监听 ============
@@ -304,24 +264,6 @@ export async function onWsConnected(handler: () => void): Promise<(() => void) |
 
 export async function onWsDisconnected(handler: () => void): Promise<(() => void) | null> {
   return listen("ws-disconnected", handler);
-}
-
-export async function onRemoteCommand(
-  handler: (r: { commandId: string; command: string }) => void
-): Promise<(() => void) | null> {
-  return listen("remote-command-received", handler);
-}
-
-export async function onCommandProgress(
-  handler: (r: { commandId: string; step: string; percent: number }) => void
-): Promise<(() => void) | null> {
-  return listen("command-progress", handler);
-}
-
-export async function onCommandComplete(
-  handler: (r: { commandId: string; result: unknown }) => void
-): Promise<(() => void) | null> {
-  return listen("command-complete", handler);
 }
 
 export async function onEmergencyStop(handler: () => void): Promise<(() => void) | null> {

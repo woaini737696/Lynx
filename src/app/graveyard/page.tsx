@@ -23,17 +23,7 @@ import { Pagination, useClientPagination } from "@/components/ui/ListControls";
 import { cn } from "@/lib/utils";
 import { fetcher } from "@/components/providers/SWRProvider";
 import { openContextMenu, type ContextMenuItem } from "@/components/ui/ContextMenu";
-
-interface GraveyardItem {
-  id: string;
-  ideaId: string;
-  content: string;
-  reason: string;
-  reviveCondition: string;
-  revivedAt?: string;
-  createdAt: string;
-  abandonedAt: string;
-}
+import type { GraveyardItem } from "@lynnhub/shared-types";
 
 type SortBy = "abandonedAt" | "createdAt";
 

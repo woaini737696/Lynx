@@ -6,14 +6,7 @@ import { Zap, X, Loader2, Check, Paperclip, FileText } from "lucide-react";
 import { useLightningStore } from "@/store/lightning";
 import { cn } from "@/lib/utils";
 import { toast } from "@/components/ui/toast";
-
-/** 已上传的附件信息（与后端 /api/upload 返回一致） */
-interface Attachment {
-  url: string;
-  name: string;
-  size: number;
-  type: "image" | "file";
-}
+import type { Attachment } from "@lynnhub/shared-types";
 
 /** 格式化文件大小 */
 function formatSize(bytes: number): string {
@@ -328,7 +321,7 @@ export function LightningInput() {
                       {att.name}
                     </div>
                     <div className="text-[9px] text-muted-foreground/60">
-                      {formatSize(att.size)}
+                      {formatSize(att.size ?? 0)}
                     </div>
                   </div>
                   <button

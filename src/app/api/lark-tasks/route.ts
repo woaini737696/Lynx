@@ -21,6 +21,9 @@ import {
   type LarkTasklistRef,
 } from "@/lib/lark-sync";
 import { getCurrentUser, requireAuth } from "@/lib/auth-utils";
+import { getLogger } from "@/lib/logger";
+
+const logger = getLogger("lark-tasks-api");
 
 /** 构建子任务映射：parentGuid → 子任务数组（从全量任务中提取） */
 function buildSubtaskMap(allTasks: NormalizedTask[]): Record<string, NormalizedTask[]> {
@@ -41,11 +44,11 @@ async function refreshTasksInBackground() {
     const result = await getAllTasksAsync({ refresh: true });
     if (result.ok && result.allTasks.length > 0) {
       await upsertTasksToDb(result.allTasks).catch((e) => {
-        console.error("[lark-tasks] 后台同步写入数据库失败:", e);
+        logger.error({ err: e }, "[lark-tasks] 后台同步写入数据库失败");
       });
     }
   } catch (e) {
-    console.error("[lark-tasks] 后台刷新失败:", e);
+    logger.error({ err: e }, "[lark-tasks] 后台刷新失败");
   }
 }
 
@@ -124,7 +127,7 @@ export async function GET(req: NextRequest) {
         tasklists = extractTasklists(base.tasks);
         // 写入数据库缓存
         upsertTasksToDb(base.tasks).catch((e) => {
-          console.error("[lark-tasks] meta 写入数据库失败:", e);
+          logger.error({ err: e }, "[lark-tasks] meta 写入数据库失败");
         });
       }
     }
@@ -247,13 +250,13 @@ export async function GET(req: NextRequest) {
     // 同步后写入数据库（upsert，后台执行不阻塞响应）
     if (result.allTasks.length > 0) {
       upsertTasksToDb(result.allTasks).catch((e) => {
-        console.error("[lark-tasks] 同步写入数据库失败:", e);
+        logger.error({ err: e }, "[lark-tasks] 同步写入数据库失败");
       });
     }
 
     return NextResponse.json({ tasks, assignees: allAssignees, tasklists: allTasklists, subtaskMap, myOpenId: result.myOpenId, source: "lark" });
   } catch (e) {
-    console.error("获取飞书任务失败:", e);
+    logger.error({ err: e }, "获取飞书任务失败");
     // 异常时回退到数据库缓存
     const dbTasks = await getTasksFromDb({ complete, assignee, tasklist });
     if (dbTasks.length > 0) {
@@ -429,7 +432,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ error: "未知操作" }, { status: 400 });
   } catch (e) {
-    console.error("飞书任务操作失败:", e);
+    logger.error({ err: e }, "飞书任务操作失败");
     return NextResponse.json({ error: "服务器错误" }, { status: 500 });
   }
 }

@@ -8,20 +8,7 @@ import { toast } from "@/components/ui/toast";
 import { PageHeader, Card, Badge, Button, LoadingState } from "@/components/layout/PageHeader";
 import { EmptyState } from "@/components/layout/EmptyState";
 import { HelpButton } from "@/components/layout/HelpButton";
-
-interface FocusItem {
-  id: string;
-  taskId: string;
-  title: string;
-  column: BoardColumn;
-  completed: boolean;
-}
-
-interface DailyFocus {
-  id: string;
-  date: string;
-  status: string;
-}
+import type { FocusItem, DailyFocus } from "@lynnhub/shared-types";
 
 export default function FocusPage() {
   const [focus, setFocus] = useState<DailyFocus | null>(null);

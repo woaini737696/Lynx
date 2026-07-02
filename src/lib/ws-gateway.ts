@@ -62,38 +62,55 @@ function broadcastToUser(userId: string, message: unknown) {
   }
 }
 
-/** 验证 token 并返回 userId
+/** 验证 JWT token 并返回 userId
  *
- * 支持两种 token 格式：
- * 1. JWT（三段式，由 /api/auth/token 签发）—— 用 verifyToken 解析，拿到 payload.id
- * 2. 简易格式 "user:<userId>" 或裸 userId —— 仅开发期兼容
+ * 仅接受 JWT（三段式，由 /api/auth/token 签发），用 verifyToken 解析拿到 payload.id
+ * 不再接受裸 userId / "user:<id>" 等简易格式（安全风险）
  */
 async function authenticate(token: string): Promise<string | null> {
   if (!token) return null;
-
-  // 1. JWT（三段式）
-  if (token.split(".").length === 3) {
-    try {
-      // 动态导入，避免 esbuild 预编译时路径解析问题
-      const { verifyToken } = await import("./jwt");
-      const payload = await verifyToken(token);
-      if (payload && payload.id) {
-        return payload.id;
-      }
-      return null;
-    } catch (e) {
-      console.warn("[ws-gateway] JWT 验证失败:", (e as Error).message);
-      return null;
-    }
+  if (token.split(".").length !== 3) return null;
+  try {
+    const { verifyToken } = await import("./jwt");
+    const payload = await verifyToken(token);
+    return payload?.id ?? null;
+  } catch (e) {
+    console.warn("[ws-gateway] JWT 验证失败:", (e as Error).message);
+    return null;
   }
+}
 
-  // 2. 简易格式 "user:<userId>"（仅开发期兼容）
-  if (token.startsWith("user:")) {
-    return token.slice(5);
+/** 从 HTTP 请求头提取并验证 Bearer token，返回 userId 或 null */
+async function authenticateHttpRequest(req: import("http").IncomingMessage): Promise<string | null> {
+  const authHeader = req.headers.authorization;
+  if (authHeader?.startsWith("Bearer ")) {
+    return authenticate(authHeader.slice(7));
   }
+  return null;
+}
 
-  // 3. 裸 userId（仅开发期兼容）
-  return token;
+/** 验证内部服务间调用（Next.js API → WS 网关），使用 X-Internal-Key */
+function authenticateInternal(req: import("http").IncomingMessage): boolean {
+  const key = req.headers["x-internal-key"];
+  const expected = process.env.INTERNAL_API_KEY;
+  return !!(key && expected && key === expected);
+}
+
+/** CORS 白名单：仅允许配置的域名 + Tauri 桌面端 */
+const ALLOWED_ORIGINS = (process.env.WS_CORS_ORIGINS || "https://ai.lynxdo.com")
+  .split(",")
+  .map((s) => s.trim())
+  .filter(Boolean);
+
+function getCorsHeaders(origin: string | null): Record<string, string> {
+  const headers: Record<string, string> = {
+    "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+    "Access-Control-Allow-Headers": "Content-Type, Authorization",
+  };
+  if (origin && (ALLOWED_ORIGINS.includes(origin) || origin.startsWith("tauri://"))) {
+    headers["Access-Control-Allow-Origin"] = origin;
+  }
+  return headers;
 }
 
 /** 注册 PC 上线 */
@@ -341,47 +358,60 @@ async function handleCommandUpdate(
 // ============ HTTP 端点（用于安卓端/Web端发起指令） ============
 
 const server = createServer(async (req, res) => {
+  const corsHeaders = getCorsHeaders(req.headers.origin ?? null);
+
   if (req.method === "OPTIONS") {
-    res.writeHead(204, {
-      "Access-Control-Allow-Origin": "*",
-      "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-      "Access-Control-Allow-Headers": "Content-Type, Authorization",
-    });
+    res.writeHead(204, corsHeaders);
     res.end();
     return;
   }
 
-  // POST /dispatch - 发起远程指令
+  // POST /dispatch - 发起远程指令（JWT 或内部 Key 认证）
   if (req.method === "POST" && req.url === "/dispatch") {
     let body = "";
     for await (const chunk of req) body += chunk;
     try {
-      const { userId, command, commandId, targetDeviceId } = JSON.parse(body);
-      if (!userId || !command || !commandId) {
-        res.writeHead(400, { "Content-Type": "application/json" });
-        res.end(JSON.stringify({ error: "缺少 userId/command/commandId" }));
+      const parsed = JSON.parse(body);
+      // 认证：优先 JWT，其次内部服务间调用
+      let authUserId = await authenticateHttpRequest(req);
+      if (!authUserId && authenticateInternal(req) && parsed.userId) {
+        authUserId = parsed.userId;
+      }
+      if (!authUserId) {
+        res.writeHead(401, { "Content-Type": "application/json", ...corsHeaders });
+        res.end(JSON.stringify({ error: "未认证或 token 无效" }));
         return;
       }
-      const result = await dispatchRemoteCommand(userId, commandId, command, targetDeviceId);
-      res.writeHead(200, { "Content-Type": "application/json" });
+      const { command, commandId, targetDeviceId } = parsed;
+      if (!command || !commandId) {
+        res.writeHead(400, { "Content-Type": "application/json", ...corsHeaders });
+        res.end(JSON.stringify({ error: "缺少 command/commandId" }));
+        return;
+      }
+      const result = await dispatchRemoteCommand(authUserId, commandId, command, targetDeviceId);
+      res.writeHead(200, { "Content-Type": "application/json", ...corsHeaders });
       res.end(JSON.stringify(result));
     } catch (e) {
-      res.writeHead(400, { "Content-Type": "application/json" });
+      res.writeHead(400, { "Content-Type": "application/json", ...corsHeaders });
       res.end(JSON.stringify({ error: (e as Error).message }));
     }
     return;
   }
 
-  // GET /devices?userId=xxx - 查询用户在线设备
+  // GET /devices - 查询当前认证用户的在线设备（JWT 或内部 Key 认证）
   if (req.method === "GET" && req.url?.startsWith("/devices")) {
     const url = new URL(req.url, `http://localhost:${PORT}`);
-    const userId = url.searchParams.get("userId");
-    if (!userId) {
-      res.writeHead(400, { "Content-Type": "application/json" });
-      res.end(JSON.stringify({ error: "缺少 userId" }));
+    let authUserId = await authenticateHttpRequest(req);
+    if (!authUserId && authenticateInternal(req)) {
+      authUserId = url.searchParams.get("userId");
+    }
+    if (!authUserId) {
+      res.writeHead(401, { "Content-Type": "application/json", ...corsHeaders });
+      res.end(JSON.stringify({ error: "未认证或 token 无效" }));
       return;
     }
-    const channels = userDevices.get(userId) || new Set<string>();
+    // 仅返回当前认证用户的设备（防止越权查询他人设备）
+    const channels = userDevices.get(authUserId) || new Set<string>();
     const devices: Array<{ channelId: string; deviceName?: string; deviceType?: string }> = [];
     for (const channelId of channels) {
       const ws = connections.get(channelId) as (WebSocket & { deviceName?: string; deviceType?: string }) | undefined;
@@ -391,12 +421,12 @@ const server = createServer(async (req, res) => {
         deviceType: ws?.deviceType,
       });
     }
-    res.writeHead(200, { "Content-Type": "application/json" });
+    res.writeHead(200, { "Content-Type": "application/json", ...corsHeaders });
     res.end(JSON.stringify({ devices }));
     return;
   }
 
-  res.writeHead(404, { "Content-Type": "application/json" });
+  res.writeHead(404, { "Content-Type": "application/json", ...corsHeaders });
   res.end(JSON.stringify({ error: "Not found" }));
 });
 

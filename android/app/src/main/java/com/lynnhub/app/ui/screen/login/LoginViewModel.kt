@@ -73,8 +73,8 @@ class LoginViewModel @Inject constructor(
         viewModelScope.launch {
             _uiState.value = state.copy(isLoading = true, error = null)
             try {
-                // 先保存 baseUrl 并同步到拦截器
-                val baseUrl = normalizeUrl(state.baseUrl)
+                // 先保存 baseUrl 并同步到拦截器（本地调试允许 http 默认协议）
+                val baseUrl = dynamicBaseUrlInterceptor.normalizeUrl(state.baseUrl, "http")
                 userPreferences.setBaseUrl(baseUrl)
                 dynamicBaseUrlInterceptor.setBaseUrl(baseUrl)
 
@@ -101,16 +101,5 @@ class LoginViewModel @Inject constructor(
                 )
             }
         }
-    }
-
-    /** 确保 URL 以 http:// 或 https:// 开头且以 / 结尾 */
-    private fun normalizeUrl(url: String): String {
-        var normalized = url.trim()
-        if (normalized.isEmpty()) return com.lynnhub.app.util.Constants.DEFAULT_BASE_URL
-        if (!normalized.startsWith("http://") && !normalized.startsWith("https://")) {
-            normalized = "http://$normalized"
-        }
-        if (!normalized.endsWith("/")) normalized = "$normalized/"
-        return normalized
     }
 }

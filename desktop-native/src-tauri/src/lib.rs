@@ -171,27 +171,29 @@ async fn get_agent_status(state: tauri::State<'_, Arc<AppState>>) -> Result<serd
     }))
 }
 
-/// 执行 AI 助理指令（核心入口：路由到云端/本地/混合）
+/// 执行 AI 助理指令（核心入口：统一走 HermesAgent Dashboard HTTP API）
 #[tauri::command]
 async fn execute_assistant_command(
-    state: tauri::State<'_, Arc<AppState>>,
+    _state: tauri::State<'_, Arc<AppState>>,
     app: tauri::AppHandle,
     command: String,
-    target_device: Option<String>,
+    _target_device: Option<String>,
 ) -> Result<serde_json::Value, String> {
-    let token = state.user_token.lock().map_err(|e| e.to_string())?.clone();
-    let cloud = state.cloud_endpoint.lock().map_err(|e| e.to_string())?.clone();
-    let auth_mode = state.auth_mode.lock().map_err(|e| e.to_string())?.clone();
-
-    let result = hermes::router::route_and_execute(
-        &command,
-        &cloud,
-        token.as_deref(),
-        &auth_mode,
-        state.inner().clone(),
-        app.clone(),
-    ).await;
-
+    let result = if command.starts_with("__LYNN_CMD__:") {
+        hermes::dashboard::handle_special_command(&command, app).await
+    } else {
+        match hermes::dashboard::execute_via_dashboard(&command).await {
+            Ok(r) => r,
+            Err(e) => {
+                log::warn!("Dashboard 不可用: {}", e);
+                hermes::dashboard::ExecResult::err(
+                    format!("HermesAgent Dashboard 不可用，请先启动 Dashboard。错误: {}", e),
+                    "dashboard",
+                    0,
+                )
+            }
+        }
+    };
     Ok(serde_json::to_value(&result).map_err(|e| e.to_string())?)
 }
 

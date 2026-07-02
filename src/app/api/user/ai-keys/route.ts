@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { requireAuth } from "@/lib/auth-utils";
 import { getLogger } from "@/lib/logger";
+import { encrypt, decrypt } from "@/lib/crypto";
 
 const logger = getLogger("user-ai-keys-api");
 
@@ -45,8 +46,8 @@ export async function GET() {
     }
 
     return NextResponse.json({
-      deepseekApiKey: maskKey(dbUser.userDeepseekApiKey),
-      mimoApiKey: maskKey(dbUser.userMimoApiKey),
+      deepseekApiKey: maskKey(decrypt(dbUser.userDeepseekApiKey)),
+      mimoApiKey: maskKey(decrypt(dbUser.userMimoApiKey)),
       preferredProvider: dbUser.userAiProvider || null,
       allowedProviders, // null = 不限制
       hasDeepseekKey: Boolean(dbUser.userDeepseekApiKey),
@@ -115,10 +116,12 @@ export async function PUT(req: NextRequest) {
     // 构造更新数据（只更新传入的字段）
     const updateData: Record<string, unknown> = {};
     if (deepseekApiKey !== undefined) {
-      updateData.userDeepseekApiKey = deepseekApiKey.trim() || null;
+      const trimmed = deepseekApiKey.trim();
+      updateData.userDeepseekApiKey = trimmed ? encrypt(trimmed) : null;
     }
     if (mimoApiKey !== undefined) {
-      updateData.userMimoApiKey = mimoApiKey.trim() || null;
+      const trimmed = mimoApiKey.trim();
+      updateData.userMimoApiKey = trimmed ? encrypt(trimmed) : null;
     }
     if (preferredProvider !== undefined) {
       updateData.userAiProvider = preferredProvider || null;

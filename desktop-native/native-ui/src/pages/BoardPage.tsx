@@ -21,9 +21,7 @@ import { cn } from "@/lib/utils";
 import { cloudApi } from "@/lib/cloud-api";
 import { toast } from "@/lib/toast";
 import { HelpButton } from "@/components/ui/HelpButton";
-import type { BoardTask } from "@/types/api";
-
-type BoardColumn = "northstar" | "campaign" | "task";
+import type { BoardTask, BoardColumn } from "@/types/api";
 
 interface ColumnData {
   key: BoardColumn;

@@ -5,11 +5,13 @@
 
 // ============ 焦点 / 看板 ============
 
+export type BoardColumn = "northstar" | "campaign" | "task";
+
 export interface FocusItem {
   id: string;
   taskId: string;
   title: string;
-  column: "northstar" | "campaign" | "task";
+  column: BoardColumn;
   completed: boolean;
   /** 后端可能返回关联的任务对象（含 content/column） */
   task?: { content: string; column: string };
@@ -25,7 +27,7 @@ export interface DailyFocus {
 export interface BoardTask {
   id: string;
   content: string;
-  column: "northstar" | "campaign" | "task";
+  column: BoardColumn;
   status: "active" | "done" | "dropped";
   position: number;
   sourceId?: string | null;
@@ -34,7 +36,7 @@ export interface BoardTask {
 }
 
 export interface ColumnData {
-  id: "northstar" | "campaign" | "task";
+  id: BoardColumn;
   title: string;
   color: string;
   bg: string;
@@ -44,11 +46,13 @@ export interface ColumnData {
 
 // ============ Agent 状态 ============
 
+export type AgentAuthMode = "approve" | "once" | "free";
+
 export interface AgentStatus {
   version: string;
   wsConnected: boolean;
   cloudEndpoint: string;
-  authMode: string;
+  authMode: AgentAuthMode;
   authorizedDirs: string[];
   capabilities: string[];
   hasToken: boolean;
@@ -68,7 +72,7 @@ export interface Idea {
   content: string;
   source: string;
   status?: "inbox" | "board" | "graveyard";
-  tags: string[];
+  tags?: string[];
   attachments?: Attachment[];
   createdAt: string;
 }
@@ -80,6 +84,7 @@ export interface ReviveSuggestion {
   reason: string;
   matchedContent?: string;
   matchedIdeaId?: string;
+  ideaId?: string;
 }
 
 export interface FinalizeResult {
@@ -98,12 +103,14 @@ export interface ChatMessage {
 
 // ============ 认知库 ============
 
+export type CognitionType = "method" | "experience" | "prompt";
+
 export interface Cognition {
   id: string;
-  type: "method" | "experience" | "prompt";
+  type: CognitionType;
   content: string;
   source: string;
-  tags: string[];
+  tags?: string[];
   createdAt: string;
 }
 
@@ -143,6 +150,11 @@ export interface Skill {
   usageCount: number;
   createdAt: string;
   updatedAt: string;
+  /** 公共技能市场字段 */
+  isPublic?: boolean;
+  publicId?: string;
+  /** Hermes 技能的原始 ID（source=hermes 时使用） */
+  originalId?: string;
 }
 
 // ============ AI 工作流 ============
@@ -206,6 +218,9 @@ export interface CanvasEdge {
   condition?: "true" | "false";
 }
 
+/** FlowEdge 是 CanvasEdge 的别名，统一两端命名 */
+export type FlowEdge = CanvasEdge;
+
 export interface Flow {
   id: string;
   name: string;
@@ -214,6 +229,10 @@ export interface Flow {
   edges?: CanvasEdge[];
   lastRun: string;
   enabled: boolean;
+  /** 服务端字段（DB 层） */
+  userId?: string;
+  createdAt?: Date | string;
+  updatedAt?: Date | string;
 }
 
 export interface ExecutionResult {
@@ -325,6 +344,10 @@ export interface SCoinTx {
   type: string;
   description: string;
   createdAt: string;
+  /** 钱包扩展字段（后端权威 schema） */
+  balanceAfter?: number;
+  reason?: string;
+  metadata?: Record<string, unknown>;
 }
 
 export interface TxPage<T> {
@@ -390,3 +413,274 @@ export interface UploadItem {
   progress: number;
   error?: string;
 }
+
+// ============ WebSocket 协议（跨端共享） ============
+
+/** 设备类型 */
+export type DeviceType = "web" | "desktop" | "mobile";
+
+/** 授权模式 */
+export type WSAuthMode = "approve" | "once" | "free";
+
+/** 设备注册消息（客户端 → 服务端） */
+export interface WSRegisterMessage {
+  type: "register";
+  token: string;
+  agentVersion: string;
+  deviceName: string;
+  capabilities: string[];
+  authMode: WSAuthMode;
+  deviceType: DeviceType;
+}
+
+/** 心跳消息（客户端 → 服务端） */
+export interface WSHeartbeatMessage {
+  type: "heartbeat";
+}
+
+/** 指令状态更新（执行端 → 网关 → 发起方） */
+export interface WSCommandUpdateMessage {
+  type: "command-update";
+  commandId: string;
+  status: "executing" | "completed" | "failed";
+  percent?: number;
+  error?: string;
+  result?: {
+    success: boolean;
+    output: string;
+    error?: string;
+    route?: string;
+    durationMs?: number;
+  };
+}
+
+/** 注册成功响应（服务端 → 客户端） */
+export interface WSRegisteredMessage {
+  type: "registered";
+  deviceId: string;
+  devices?: WSDeviceInfo[];
+}
+
+/** 远程指令下发（服务端 → 客户端） */
+export interface WSRemoteCommandMessage {
+  type: "remote-command";
+  commandId: string;
+  command: string;
+  timestamp: number;
+}
+
+/** 设备列表变更（服务端 → 客户端） */
+export interface WSDevicesChangedMessage {
+  type: "devices-changed";
+  devices: WSDeviceInfo[];
+}
+
+/** 在线设备信息 */
+export interface WSDeviceInfo {
+  deviceId: string;
+  userId: string;
+  deviceName: string;
+  deviceType: DeviceType;
+  capabilities: string[];
+  authMode: WSAuthMode;
+  agentVersion: string;
+  lastSeen: string;
+}
+
+// ============ SSE 流式事件（跨端共享） ============
+
+/** SSE 元信息事件 */
+export interface SSEMetaEvent {
+  type: "meta";
+  model: string;
+  provider: string;
+  usage?: {
+    prompt_tokens?: number;
+    completion_tokens?: number;
+    total_tokens?: number;
+  };
+}
+
+/** SSE 思考过程事件 */
+export interface SSEThinkingEvent {
+  type: "thinking";
+  content: string;
+}
+
+/** SSE 工具调用开始事件 */
+export interface SSEToolStartEvent {
+  type: "tool_start";
+  tool: string;
+  args: Record<string, unknown>;
+}
+
+/** SSE 工具调用完成事件 */
+export interface SSEToolDoneEvent {
+  type: "tool_done";
+  tool: string;
+  result: unknown;
+  durationMs?: number;
+}
+
+/** SSE 增量内容事件 */
+export interface SSEDeltaEvent {
+  type: "delta";
+  content: string;
+}
+
+/** SSE 流结束事件 */
+export interface SSEDoneEvent {
+  type: "done";
+  fullContent?: string;
+  usage?: {
+    prompt_tokens?: number;
+    completion_tokens?: number;
+    total_tokens?: number;
+  };
+  finishReason?: string;
+  provider?: string;
+  model?: string;
+}
+
+/** SSE 错误事件 */
+export interface SSEErrorEvent {
+  type: "error";
+  message: string;
+  code?: string;
+}
+
+/** 所有 SSE 事件联合类型 */
+export type SSEEvent =
+  | SSEMetaEvent
+  | SSEThinkingEvent
+  | SSEToolStartEvent
+  | SSEToolDoneEvent
+  | SSEDeltaEvent
+  | SSEDoneEvent
+  | SSEErrorEvent;
+
+// ============ 平台音频接口（跨端共享协议） ============
+
+/** 可播放的音频资源（各端不同） */
+export type AudioPlayable =
+  | { type: "url"; url: string }
+  | { type: "base64"; data: string; format: string }
+  | { type: "blob"; blob: Blob }
+  | { type: "arraybuffer"; buffer: ArrayBuffer };
+
+/** 音频采集配置 */
+export interface AudioCaptureConfig {
+  sampleRate: number;
+  channelCount: number;
+  bitsPerSample: number;
+}
+
+/** VAD 状态 */
+export type VADState = "idle" | "listening" | "speaking" | "silence";
+
+/** ASR 识别结果 */
+export interface ASRResult {
+  text: string;
+  isFinal: boolean;
+  confidence?: number;
+}
+
+/** TTS 合成请求 */
+export interface TTSRequest {
+  text: string;
+  model?: string;
+  voiceId?: string;
+  speed?: number;
+  pitch?: number;
+}
+
+/** 可见性状态 */
+export type VisibilityState = "visible" | "hidden" | "background";
+
+// ============ 用户 / 认证（跨端共享） ============
+
+/** 登录用户信息（与后端 /api/auth/token 返回一致） */
+export interface AuthUser {
+  id: string;
+  username: string;
+  role: string;
+  displayName: string;
+  phone?: string;
+  avatarUrl?: string;
+}
+
+/** /api/auth/token 成功响应 */
+export interface TokenResponse {
+  token: string;
+  user: AuthUser;
+}
+
+/** /api/auth/sms-code 成功响应 */
+export interface SmsCodeResponse {
+  ok: boolean;
+  message: string;
+  masterCodeEnabled: boolean;
+}
+
+// ============ 统一 API 响应格式（跨端共享） ============
+
+/** 标准成功响应 */
+export interface ApiSuccessResponse<T> {
+  success: true;
+  data: T;
+}
+
+/** 标准失败响应 */
+export interface ApiErrorResponse {
+  success: false;
+  error: {
+    code: number;
+    message: string;
+  };
+}
+
+/** 标准响应联合类型 */
+export type ApiResponse<T> = ApiSuccessResponse<T> | ApiErrorResponse;
+
+// ============ 设备 / HermesAgent（跨端共享） ============
+
+/** HermesAgent Dashboard 状态 */
+export interface HermesStatus {
+  installed: boolean;
+  running: boolean;
+  version?: string;
+  lastError?: string;
+  /** Dashboard HTTP API 端口（默认 9119） */
+  port?: number;
+}
+
+/** HermesAgent 更新信息 */
+export interface HermesUpdateInfo {
+  currentVersion: string;
+  latestVersion: string;
+  hasUpdate: boolean;
+  wheelFile: string;
+  releaseNotes?: string;
+}
+
+// ============ 语音通话状态机（跨端共享） ============
+
+/** 语音通话状态 */
+export type VoiceCallState = "idle" | "listening" | "thinking" | "speaking";
+
+// ============ 协议常量（跨端共享） ============
+
+/** WS 心跳间隔（毫秒） */
+export const WS_HEARTBEAT_INTERVAL_MS = 30_000;
+
+/** WS 断线重连延迟（毫秒） */
+export const WS_RECONNECT_DELAY_MS = 10_000;
+
+/** WS 系统命令前缀（只有桌面端可执行） */
+export const SYSTEM_COMMAND_PREFIX = "__LYNN_CMD__:";
+
+/** 判断命令是否为系统命令 */
+export function isSystemCommand(command: string): boolean {
+  return command.startsWith(SYSTEM_COMMAND_PREFIX);
+}
+

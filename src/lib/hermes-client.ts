@@ -11,6 +11,7 @@ import { createHmac } from "crypto";
 import { prisma } from "@/lib/db";
 import { getLogger } from "@/lib/logger";
 import { embedText, float32ToBuffer } from "@/lib/embedding";
+import { decrypt } from "@/lib/crypto";
 
 const logger = getLogger("hermes-client");
 
@@ -122,7 +123,10 @@ export async function dispatchRemoteCommand(
   try {
     const resp = await fetch(`${WS_GATEWAY_URL}/dispatch`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        "X-Internal-Key": process.env.INTERNAL_API_KEY || "",
+      },
       body: JSON.stringify({ userId, command, commandId, targetDeviceId }),
       signal: AbortSignal.timeout(8000),
     });
@@ -738,7 +742,7 @@ export async function configureHermesModel(
     let modelName = "";
 
     if (actualProvider === "deepseek") {
-      apiKey = process.env.DEEPSEEK_API_KEY || setting?.deepseekApiKey || "";
+      apiKey = process.env.DEEPSEEK_API_KEY || decrypt(setting?.deepseekApiKey) || "";
       baseUrl =
         process.env.DEEPSEEK_BASE_URL ||
         setting?.deepseekBaseUrl ||
@@ -746,7 +750,7 @@ export async function configureHermesModel(
       modelName =
         process.env.DEEPSEEK_MODEL || setting?.deepseekModel || "deepseek-chat";
     } else {
-      apiKey = process.env.MIMO_API_KEY || setting?.mimoApiKey || "";
+      apiKey = process.env.MIMO_API_KEY || decrypt(setting?.mimoApiKey) || "";
       baseUrl =
         process.env.MIMO_BASE_URL ||
         setting?.mimoBaseUrl ||
@@ -2153,7 +2157,7 @@ async function pushToLarkWebhook(text: string): Promise<{
   try {
     const settings = await prisma.aISetting.findFirst();
     webhookUrl = (settings?.larkWebhookUrl || "").trim();
-    webhookToken = (settings?.larkWebhookToken || "").trim();
+    webhookToken = (decrypt(settings?.larkWebhookToken) || "").trim();
   } catch (e) {
     logger.warn({ err: e }, "飞书 Webhook 推送：读取 AISetting 失败，跳过");
     return { ok: false, skipped: true, error: (e as Error).message };

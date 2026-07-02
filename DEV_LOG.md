@@ -9,7 +9,7 @@
 
 | 迭代 | 日期 | 任务概要 |
 |------|------|----------|
-| [迭代 96](#迭代-96---2026-07-01) | 2026-07-01 | 桌面端v1.0.31+Web端HermesAgent四项根因彻底修复：① hermesExecute假成功终极根因修复(executor.py第352行无条件return导致第364-403行<action>标签执行代码成为死代码永远不执行→改为if not actions条件块+ws_client.rs fake_keywords从6个扩展到9个对齐executor.py+hermes-client.ts fakeSuccessKeywords同步9个+use-device-ws.ts handleRemoteCommand新增假成功检测逻辑之前完全没有校验) ② app.lynnhub.com DNS失败修复(installer.rs删除3处fallback URL+hermes-client.ts删除3处fallback URL全局统一ai.lynxdo.com) ③ Web端状态架构彻底重构(settings/page.tsx loadStatus重写为浏览器直连127.0.0.1:9119/api/status探测本机真实状态不走服务器DB+dashboard.py _send_html加CORS头之前只有_send_json有+dashboard.py新增/api/shutdown端点供Web端浏览器直连停止+install/route.ts删除服务器spawn hermes进程违反架构约束改为返回400指向dispatch路由+status/route.ts移除detectHermesInstall和testHermesConnection仅返回DB配置+dispatch/route.ts增加操作后回写DB status逻辑+handleStop增加本地直连停止路径) ④ 发布者LynnHub→Lynn完整改名(tauri.conf.json identifier com.lynnhub.native→com.lynx.app+Cargo.toml name lynnhub-desktop-native→lynx-desktop lib name同步+main.rs lynnhub_desktop_lib::run→lynx_desktop_lib::run+build-native.ps1进程名3处+App Paths注册表+编译产物路径+NSIS编译方式从手动makensis改为npx tauri build --bundles nsis+证书文件lynnhub-code-sign.cer→lynx-code-sign.cer+installer-hooks.nsh证书引用+Cargo.lock同步) + 重新打包hermes_agent-0.18.0 wheel(executor.py已改死代码) + 更新latest.json发布说明 |
+| [迭代 99](#迭代-99---2026-07-02) | 2026-07-02 | 架构优化重构（跨端共享层+RN端+Desktop死代码清理+Desktop native-ui接入共享层）：① 新建 packages/shared/ 纯TS共享层(WS协议/SSE事件/WAV编码/7个平台接口/工具函数) ② 新建 packages/shared-react/ React hooks共享层(useChat/useDeviceWs/usePollWhenVisible/ChatContext依赖注入式) ③ 新建 mobile/ Expo SDK 51 RN项目(8个核心页面:Login+Assistant SSE流式聊天+VoiceCall全双工语音+Inbox灵感速记+Board飞书任务+Memory记忆图谱+Profile+HomeScreen今日工作台+深邃星空蓝深色主题对齐Kotlin+iOS26液态玻璃BlurView tint=dark+expo-av 14.x API适配) ④ Desktop死代码清理(删除hermes/router.rs 196行+executor.rs 199行关键词路由代码→新建dashboard.rs统一Dashboard HTTP API调用+修改ws_client.rs删除回退路径+修改auth.rs删除LocalAction依赖+修改lib.rs execute_assistant_command直接调用Dashboard) ⑤ Desktop native-ui接入共享层(BoardPage替换BoardColumn+CognitionPage替换CognitionType+保留6个有字段差异的本地类型) ⑥ shared-types扩展(新增WS协议/SSE事件/音频接口/认证用户/API响应/HermesAgent状态/语音通话状态机等8大类跨端共享类型415→686行) ⑦ 修复logger.ts pino-pretty node:worker_threads不兼容Webpack构建失败问题(移除pino-pretty依赖改用纯pino JSON输出) ⑧ tsconfig.json添加mobile到exclude避免RN依赖影响Web端tsc ⑨ Kotlin APK v0.1.7构建成功安装到手机(设备13e37082) |
 | [迭代 97](#迭代-97---2026-07-01) | 2026-07-01 | 桌面端v1.0.32+Web端三项根因彻底修复：① 检查更新10054报错修复(installer.rs直接请求/downloads/latest.json静态文件路径因Nginx配置问题导致连接重置→新建/api/hermes/latest-json和/api/hermes/download-wheel两个API路由代理读取服务器本地文件走和其他API相同路径+installer.rs fetch_latest_json增加3次重试间隔1秒+hermes-client.ts同步改走API路由+middleware.ts放行两个新路由为公开接口) ② 桌面端Lynx助理完整同步Web端(ai-assistant.ts chatCompletion从stream:false改为stream:true真实SSE流式解析onMeta/onThinking/onToolStart/onToolDone/onDelta/onDone/onError回调+AIAssistantPage emoji头像三级兜底avatarUrl→emoji→默认SVG+工具调用进度卡片running/done状态+AISettingsModal 8个emoji选择器+头像文件上传POST /api/ai/avatar-upload+AssistantDrawer替换硬编码SVG为真实头像+hermesExecute工具调用前检查WS连接状态未连接时明确提示不静默失败) ③ Web端状态错乱+dispatch自指派三缺陷修复(ws-gateway.ts register存储deviceType字段desktop/web+dispatch对__LYNN_CMD__前缀命令只派给desktop设备无desktop在线返回dispatched:false+use-device-ws.ts handleRemoteCommand识别__LYNN_CMD__前缀直接拒绝不去fetch localhost+status/route.ts返回在线设备列表含deviceType+settings/page.tsx loadStatus增加在线设备Dashboard状态聚合桌面端running则Web显示running不再强行降级DB status) |
 | [迭代 98](#迭代-98---2026-07-01) | 2026-07-01 | 新设备开发环境部署文档：创建NEW_DEVICE_SETUP.md（含环境部署清单Node.js20+/npm10+/Git/MySQL8.0+/Python3.10+/Rust+MSVC/Android Studio+JDK17按开发端选择安装+项目克隆与依赖安装+数据库初始化MySQL配置/Prisma generate/db push/seed脚本+环境变量配置必填项DATABASE_URL/AUTH_SECRET/NEXTAUTH_URL+AI模型配置+向量模型配置+首次启动验证Web端/WS网关/桌面端/安卓端+Trae Solo IDE配置文件监视排除+项目结构与开发指南+HermesAgent本地安装+常见问题排查npm/Prisma/Rust/MySQL/端口占用/Tauri/安卓构建失败+开发流程快速参考+服务器信息参考）+README.md补充新设备部署指南链接和相关文档引用 |
 | [迭代 95](#迭代-95---2026-07-01) | 2026-07-01 | 桌面端v1.0.30+Web端HermesAgent六项彻底修复：① hermesExecute假成功根因彻底修复(executor.py SYSTEM_PROMPT强化强制要求操作类任务输出<action>标签+禁止教程式文本"无法直接控制你的设备"+无action时检测假成功关键词返回success=False+hermes-client.ts dispatchRemoteCommand检查executed/actions_executed字段+ws_client.rs execute_via_dashboard同样检查executed字段) ② Web端HermesAgent方案A委托桌面端(撤回迭代91的.bat脚本方案+Web端settings/page.tsx handleInstall/handleStart/handleStop/handleUpdate改为通过WS网关委托在线桌面端执行+新建/api/devices和/api/hermes/dispatch路由+ws_client.rs新增handle_special_command处理__LYNN_CMD__:前缀命令分发到installer.rs的start/stop/install/update/check_update函数) ③ NSIS卸载"Error launching installer"修复(installer-hooks.nsh新增NSIS_HOOK_PREINSTALL宏安装前taskkill /IM Lynx.exe /F强制终止进程+Sleep 1000等待句柄释放避免文件占用) ④ NSIS updater.pubkey空字符串修复(tauri signer generate生成签名密钥对+tauri.conf.json pubkey填入真实公钥) ⑤ 发布者信息全局LynnHub→Lynn(Cargo.toml authors+pyproject.toml authors+__init__.py __author__+dashboard.py页脚+LICENSE.txt+main.rs/lib.rs注释+capabilities/default.json description+README.md版权+NotificationSettingsPage.tsx+SettingsPage.tsx placeholder共12处) ⑥ 安装包Slogan修改(generate-installer-assets.py "不用学"/"直接干"→"用Lynx AI"/"人人都是超级个体"+版本号v1.0.12→v1.0.30+版权© 2026 LynnHub→© 2026 Lynn+重新生成nsis-header.bmp/nsis-sidebar.bmp) + 重新打包hermes_agent-0.18.0 wheel(executor.py已改) + 更新latest.json发布说明 |
@@ -4924,6 +4924,76 @@ Hermes Agent 五大功能完善（持久化 profile + /learn 回写 + Cron 接�
 - E2E 测试：19/19 全部通过（18.7s）
 - API 验证：`/api/health` 返回 200
 - Dev server：`http://localhost:3000` 正常运行
+
+---
+
+## 迭代 99 - 2026-07-02
+
+### 任务
+架构优化重构：从全球顶尖技术架构师角度，考虑 iOS 端适配性、长期迭代便捷性、代码性能、迭代不易出错、迭代快又轻松，对三端架构进行重构优化。
+
+### 完成内容
+
+#### 1. 跨端共享层 packages/shared/（新建，纯 TS，零平台依赖）
+- `protocols/ws-protocol.ts`：WS 消息协议三端共享（WSRegisterMessage/WSHeartbeatMessage/WSCommandUpdateMessage 等 7 个类型 + WSDeviceInfo + 常量 + isSystemCommand 工具函数）
+- `protocols/sse-events.ts`：SSE 流式事件协议（7 类事件 + parseSSELine + readSSEStream 异步迭代器，平台无关）
+- `audio/wav-encoder.ts`：WAV 编码纯 TS（encodeWav/concatInt16Pcm/float32ToInt16）
+- `interfaces/`：7 个平台适配接口（IAudioPlayer/IAudioCapture/IVisibilityProvider/IVADProvider/IASRProvider/ITTSProvider/IHttpClient）
+- `utils/`：cursor-pagination.ts（游标分页）+ sentence-splitter.ts（句子分割）
+
+#### 2. React hooks 共享层 packages/shared-react/（新建，依赖注入式）
+- `hooks/useChat.ts`：聊天 hook，使用 readSSEStream，依赖注入 httpPost/notify/endpoints
+- `hooks/useDeviceWs.ts`：设备 WS hook，依赖注入 getUserId/wsBaseUrl/deviceName/executeLocalCommand
+- `hooks/usePollWhenVisible.ts`：轮询 hook，依赖注入 IVisibilityProvider
+- `hooks/useAsyncLoading.ts`：异步 loading hook，Context 模式
+- `contexts/ChatContext.tsx`：聊天上下文 Provider
+
+#### 3. RN 端 mobile/（新建，Expo SDK 51）
+- 8 个核心页面：LoginScreen + AssistantScreen（SSE 流式聊天，7 类事件处理）+ VoiceCallScreen（全双工语音通话状态机）+ InboxScreen（灵感速记）+ BoardScreen（飞书任务）+ MemoryScreen（记忆图谱）+ ProfileScreen + HomeScreen（今日工作台）
+- `theme/colors.ts`：深邃星空蓝深色主题（Void #02040C + Primary #4B9FFF + Agent #30D6B5 + 液态玻璃色板），对齐 Kotlin 端
+- `navigation/AppNavigator.tsx`：4 核心 Tab（Home/Assistant/Tasks/Memory）+ 灵感速记和语音通话为浮层
+- `adapters/index.ts`：RN 适配器（expo-av 14.x API：Audio.Sound/Recording + AppState）
+- `lib/api-client.ts`：fetch 封装，自动 Bearer token，统一 {success,data} 响应解析
+- `lib/auth.ts`：zustand + AsyncStorage 登录状态管理
+- expo-av 14.x API 适配（AndroidOutputFormat/AndroidAudioEncoder/IOSOutputFormat/IOSAudioQuality 枚举 + stopAndUnloadAsync + staysActiveInBackground）
+
+#### 4. Desktop 死代码清理（删除双轨制，统一走 Dashboard HTTP API）
+- 删除 `hermes/router.rs`（196 行关键词路由代码）+ `hermes/executor.rs`（199 行本地执行器代码）
+- 新建 `hermes/dashboard.rs`：统一 Dashboard HTTP API 调用模块（ExecResult + execute_via_dashboard + handle_special_command + 假成功校验 9 个 fake_keywords 完整保留）
+- 修改 `ws_client.rs`：删除 route_and_execute 回退路径，Dashboard 不可用直接返回错误
+- 修改 `lib.rs`：execute_assistant_command 改为直接调用 dashboard 模块
+- 修改 `auth.rs`：删除 LocalAction 依赖，保留 check_permission_by_level 通用入口
+- 净减少 ~175 行代码，消除双轨制复杂性
+
+#### 5. Desktop native-ui 接入共享层（渐进式共享）
+- BoardPage.tsx：删除本地 BoardColumn 定义，改为从 @lynnhub/shared-types 导入
+- CognitionPage.tsx：删除本地 CognitionType 定义，改为从 @lynnhub/shared-types 导入
+- 保留 6 个有字段差异的本地类型（Conversation/UploadItem/ColumnData/MemoryNode/MembershipPlan/KeywordResult 等）
+
+#### 6. shared-types 扩展（415→686 行）
+- 新增 8 大类跨端共享类型：WS 协议、SSE 事件、平台音频接口、用户认证、统一 API 响应、HermesAgent 状态、语音通话状态机、协议常量
+
+#### 7. 修复 logger.ts 构建失败
+- 问题：pino-pretty 使用 node:worker_threads 不兼容 Webpack 打包
+- 修复：移除 pino-pretty 依赖，改用纯 pino JSON 输出
+
+#### 8. tsconfig.json 配置
+- 添加 mobile 到 exclude，避免 RN 依赖影响 Web 端 tsc
+
+#### 9. Kotlin APK 构建安装
+- gradlew assembleDebug 构建成功（1m 2s）
+- adb install 到设备 13e37082 成功
+
+### 自测结果
+- Web 端 tsc --noEmit：通过（0 错误）
+- Web 端 npm run build：通过（standalone 构建成功）
+- Desktop cargo check：通过（0 错误，8 个 pre-existing warnings）
+- RN tsc --noEmit：通过（0 错误）
+- Desktop native-ui tsc --noEmit：通过（0 错误）
+- Kotlin APK 构建安装：成功
+- 假成功校验：9 个 fake_keywords 完整保留（对齐迭代 96）
+- iOS26 液态玻璃：RN 端深邃星空蓝深色主题完全对齐 Kotlin 端
+- 多设备架构：WS 网关 + deviceType + dispatch 逻辑不受影响
 
 ### Commit
 `bcb3a43` - 24 files changed, +1123/-253

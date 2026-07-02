@@ -6,75 +6,28 @@ import path from "path";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { getLogger } from "@/lib/logger";
+import type {
+  NodeConfig as SharedNodeConfig,
+  FlowNode as SharedFlowNode,
+  Flow as SharedFlow,
+  CanvasEdge,
+} from "@lynnhub/shared-types";
 
 const logger = getLogger("flow-store");
 
 // ============ 类型定义 ============
+// 类型来自 @lynnhub/shared-types，此处仅定义 DB 层扩展（status 必填、createdAt/updatedAt 为 Date）
 
-/** 节点配置（按节点类型使用不同字段） */
-export interface NodeConfig {
-  // trigger 节点
-  triggerType?: "manual" | "schedule" | "event";
-  schedule?: string;
-  eventType?: string;
-  // action 节点
-  prompt?: string;
-  model?: string;
-  // condition 节点
-  expression?: string;
-  // output 节点
-  outputTarget?: string;
-  // hermes 节点：调用本地 Hermes Agent 执行任务
-  hermesMode?: "computer_use" | "shell" | "auto";
-  hermesPrompt?: string;
-  workDir?: string;
-  timeout?: number;
-  // http 节点：发起 HTTP 请求
-  httpMethod?: "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
-  httpUrl?: string;
-  httpHeaders?: Record<string, string>;
-  httpBody?: string;
-  // database 节点：数据库查询/写入
-  dbOperation?: "query" | "create" | "update" | "delete";
-  dbModel?: string; // idea | task | memory | cognition | skill
-  dbQuery?: string; // query 操作的 SQL/条件
-  dbData?: Record<string, unknown>; // create/update 的数据
-  // transform 节点：数据转换/格式化
-  transformType?: "jsonpath" | "template" | "regex" | "javascript";
-  transformExpression?: string;
-  transformTemplate?: string;
-  // delay 节点：延时
-  delayMs?: number;
-}
+export type NodeConfig = SharedNodeConfig;
+export type FlowEdge = CanvasEdge;
 
-export interface FlowNode {
-  id: string;
-  type: "trigger" | "action" | "condition" | "output" | "hermes" | "http" | "database" | "transform" | "delay";
-  label: string;
+export interface FlowNode extends SharedFlowNode {
   status: "idle" | "running" | "done" | "error";
-  /** 节点配置参数 */
-  config?: NodeConfig;
 }
 
-export interface FlowEdge {
-  id: string;
-  from: string;
-  to: string;
-  /** 条件分支标记：condition 节点求值为 true 时走 "true" 分支，false 时走 "false" 分支；未标记则为普通顺序连线 */
-  condition?: "true" | "false";
-}
-
-/** Flow 接口（适配 Prisma model，lastRun 保留为 string 供前端展示） */
-export interface Flow {
-  id: string;
-  name: string;
-  description: string;
+/** Flow 接口（适配 Prisma model，DB 记录的 createdAt/updatedAt 为 Date） */
+export interface Flow extends Omit<SharedFlow, "createdAt" | "updatedAt" | "nodes"> {
   nodes: FlowNode[];
-  edges?: FlowEdge[];
-  enabled: boolean;
-  /** 最后运行时间（相对描述，如 "刚刚"、"10分钟前"、"未运行"） */
-  lastRun: string;
-  userId?: string;
   createdAt: Date;
   updatedAt: Date;
 }

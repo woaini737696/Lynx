@@ -4,6 +4,7 @@ import { hasAIEmbedding } from "@/lib/ai";
 import { requireAdmin } from "@/lib/auth-utils";
 import { refreshAISettings } from "@/lib/ai-provider";
 import { getLogger } from "@/lib/logger";
+import { encrypt, decrypt } from "@/lib/crypto";
 
 const logger = getLogger("settings-api");
 
@@ -113,7 +114,7 @@ export async function GET() {
           },
           deepseekApiKey: {
             configured: Boolean(setting.deepseekApiKey),
-            value: maskApiKey(setting.deepseekApiKey || ""),
+            value: maskApiKey(decrypt(setting.deepseekApiKey) || ""),
           },
           deepseekBaseUrl: {
             configured: Boolean(setting.deepseekBaseUrl),
@@ -125,7 +126,7 @@ export async function GET() {
           },
           mimoApiKey: {
             configured: Boolean(setting.mimoApiKey),
-            value: maskApiKey(setting.mimoApiKey || ""),
+            value: maskApiKey(decrypt(setting.mimoApiKey) || ""),
           },
           mimoBaseUrl: {
             configured: Boolean(setting.mimoBaseUrl),
@@ -137,7 +138,7 @@ export async function GET() {
           },
           embeddingApiKey: {
             configured: Boolean(setting.embeddingApiKey),
-            value: maskApiKey(setting.embeddingApiKey || ""),
+            value: maskApiKey(decrypt(setting.embeddingApiKey) || ""),
           },
           embeddingBaseUrl: {
             configured: Boolean(setting.embeddingBaseUrl),
@@ -210,13 +211,13 @@ export async function PUT(req: NextRequest) {
 
     const data = {
       defaultProvider,
-      deepseekApiKey: pickStr("deepseekApiKey"),
+      deepseekApiKey: encrypt(pickStr("deepseekApiKey")),
       deepseekBaseUrl: pickStr("deepseekBaseUrl"),
       deepseekModel: pickStr("deepseekModel"),
-      mimoApiKey: pickStr("mimoApiKey"),
+      mimoApiKey: encrypt(pickStr("mimoApiKey")),
       mimoBaseUrl: pickStr("mimoBaseUrl"),
       mimoModel: pickStr("mimoModel"),
-      embeddingApiKey: pickStr("embeddingApiKey"),
+      embeddingApiKey: encrypt(pickStr("embeddingApiKey")),
       embeddingBaseUrl: pickStr("embeddingBaseUrl"),
       embeddingModel: pickStr("embeddingModel"),
     };

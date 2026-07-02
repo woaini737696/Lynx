@@ -53,6 +53,7 @@ import { cn } from "@/lib/utils";
 import { SearchInput, Pagination, useClientPagination } from "@/components/ui/ListControls";
 import { openContextMenu } from "@/components/ui/ContextMenu";
 import dynamic from "next/dynamic";
+import type { ChatMessage } from "@lynnhub/shared-types";
 
 // RichTextEditor（TipTap）体积大，仅在 SkillEditModal 弹窗内使用
 // 改为 dynamic 懒加载 + ssr:false，只在用户打开"新建/编辑"弹窗时才下载
@@ -2068,11 +2069,6 @@ function ImportModal({
 }
 
 // ============ AI 生成弹窗 ============
-
-interface ChatMessage {
-  role: "user" | "assistant";
-  content: string;
-}
 
 function AIGenerateModal({
   onClose,

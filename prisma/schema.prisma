@@ -281,7 +281,7 @@ model Cognition {
 // 今日聚焦
 model DailyFocus {
   id          String   @id @default(cuid())
-  date        DateTime @unique
+  date        DateTime
   cardIds     Json     @default("[]") // [taskId, taskId, taskId]
   generatedAt DateTime @default(now())
   status      String   @default("pending") // pending | completed
@@ -292,6 +292,7 @@ model DailyFocus {
   user  User?            @relation(fields: [userId], references: [id], onDelete: Cascade)
   items DailyFocusItem[]
 
+  @@unique([userId, date])
   @@index([date])
   @@index([userId])
 }
@@ -307,6 +308,9 @@ model DailyFocusItem {
 
   dailyFocus DailyFocus @relation(fields: [dailyFocusId], references: [id], onDelete: Cascade)
   task       Task       @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  @@index([dailyFocusId])
+  @@index([taskId])
 }
 
 // Skill - 可复用技能模板
@@ -431,6 +435,7 @@ model LarkTask {
   @@index([dueAt])
   @@index([parentTaskGuid])
   @@index([completedAt])
+  @@index([userId, completed])
 }
 
 // 飞书任务评论（数据库持久化，替代本地文件存储）
@@ -628,6 +633,7 @@ model PatrolLog {
 
   @@index([ruleId])
   @@index([startedAt])
+  @@index([ruleId, startedAt])
 }
 
 // Embedding 缓存：避免重复计算相同文本的向量

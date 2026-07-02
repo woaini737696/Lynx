@@ -26,6 +26,15 @@
     "paths": {
       "@/*": [
         "./src/*"
+      ],
+      "@lynnhub/shared": [
+        "./packages/shared/index.ts"
+      ],
+      "@lynnhub/shared-react": [
+        "./packages/shared-react/index.ts"
+      ],
+      "@lynnhub/shared-types": [
+        "./packages/shared-types/index.ts"
       ]
     }
   },
@@ -45,6 +54,7 @@
     "android",
     "dist",
     "e2e",
-    "desktop-native"
+    "desktop-native",
+    "mobile"
   ]
 }

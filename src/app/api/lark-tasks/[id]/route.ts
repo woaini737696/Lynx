@@ -11,6 +11,9 @@ import {
   enrichDetailMemberNames,
   getTasklists,
 } from "@/lib/lark-sync";
+import { getLogger } from "@/lib/logger";
+
+const logger = getLogger("lark-tasks-detail-api");
 
 // GET /api/lark-tasks/[id] - 获取单个任务详情
 // 优先从 DB 缓存返回（快速），后台异步刷新 lark-cli
@@ -59,7 +62,7 @@ export async function GET(
       getTasklists();
       const task = normalizeTask(detail);
       upsertTaskToDb(task).catch((e) => {
-        console.error("[lark-tasks] GET 写入数据库失败:", e);
+        logger.error({ err: e }, "[lark-tasks] GET 写入数据库失败");
       });
       return NextResponse.json({ task, source: "lark" });
     }
@@ -69,7 +72,7 @@ export async function GET(
       { status: 404 }
     );
   } catch (e) {
-    console.error("获取飞书任务详情失败:", e);
+    logger.error({ err: e }, "获取飞书任务详情失败");
     const { id: taskId } = params;
     const dbTask = await getTaskFromDb(taskId);
     if (dbTask) {
@@ -167,7 +170,7 @@ export async function PATCH(
 
     return NextResponse.json({ error: "未知操作" }, { status: 400 });
   } catch (e) {
-    console.error("飞书任务操作失败:", e);
+    logger.error({ err: e }, "飞书任务操作失败");
     return NextResponse.json({ error: "服务器错误" }, { status: 500 });
   }
 }
@@ -184,6 +187,6 @@ async function syncTaskToDb(taskId: string): Promise<void> {
     const task = normalizeTask(detail);
     await upsertTaskToDb(task);
   } catch (e) {
-    console.error(`[lark-tasks] 同步任务到数据库失败 guid=${taskId}:`, e);
+    logger.error({ err: e }, `[lark-tasks] 同步任务到数据库失败 guid=${taskId}`);
   }
 }
