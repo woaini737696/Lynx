@@ -4,6 +4,8 @@
 // - lynx-app: 直接运行 standalone/server.js（Next.js 本地构建产物）
 // - lynx-ws-gateway: 直接运行预编译的 ws-gateway.compiled.js（本地 esbuild 编译产物）
 // - 服务器严禁执行 npm install / npx / tsc / esbuild / 任何构建命令
+//
+// 部署：本地构建后上传 /opt/lynx/app/，服务器执行 `pm2 start /opt/lynx/app/ecosystem.config.cjs`
 
 module.exports = {
   apps: [
@@ -22,6 +24,11 @@ module.exports = {
       autorestart: true,
       max_restarts: 10,
       restart_delay: 5000,
+      // 优雅关闭：给 Next.js 足够时间处理完在途请求
+      kill_timeout: 10000,
+      listen_timeout: 30000,
+      // 启动后等待 5 秒确认进程稳定
+      min_uptime: '5s',
     },
     {
       name: 'lynx-ws-gateway',
@@ -38,6 +45,10 @@ module.exports = {
       autorestart: true,
       max_restarts: 10,
       restart_delay: 5000,
+      // WS 网关需要更长优雅关闭时间（等待客户端重连）
+      kill_timeout: 15000,
+      listen_timeout: 10000,
+      min_uptime: '5s',
     },
   ],
 };

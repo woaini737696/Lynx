@@ -15,8 +15,11 @@ const SYNC_STATE_FILE = path.join(process.cwd(), ".lark-sync-state.json");
 const LARK_TASK_URL_PREFIX =
   process.env.LARK_TASK_URL_PREFIX || "https://applink.feishu.cn/client/todo/detail";
 
-// 模块级缓存：open_id → 昵称，避免重复调用 contact +get-user
-const memberNameCache = new Map<string, string>();
+// 模块级缓存：成员信息双向查找（openId ↔ name），避免重复调用 contact +get-user
+const memberCache = {
+  byOpenId: new Map<string, string>(),  // openId → name
+  byName: new Map<string, string>(),    // name → openId
+};
 // 模块级缓存：tasklist_guid → 清单名称，避免重复调用 tasklists list
 const tasklistNameCache = new Map<string, string>();
 // 模块级缓存：tasklists 列表 + TTL（5分钟），避免频繁调用 lark-cli
@@ -297,8 +300,8 @@ export async function runLarkCliAsync(args: string): Promise<{
 export function resolveMemberName(openId: string): string | null {
   if (!openId) return null;
   // 命中缓存直接返回
-  if (memberNameCache.has(openId)) {
-    return memberNameCache.get(openId) || null;
+  if (memberCache.byOpenId.has(openId)) {
+    return memberCache.byOpenId.get(openId) || null;
   }
   const res = runLarkCliService(
     "contact",
@@ -310,7 +313,7 @@ export function resolveMemberName(openId: string): string | null {
   }
   const name = res.data?.data?.user?.name;
   if (name) {
-    memberNameCache.set(openId, name);
+    memberCache.byOpenId.set(openId, name);
     return name;
   }
   return null;
@@ -364,7 +367,7 @@ export function getCurrentUser(): { openId: string; name: string } | null {
   if (!user?.open_id) return null;
   const name = user.name || user.en_name || "我";
   currentUserCache = { openId: user.open_id, name };
-  memberNameCache.set(user.open_id, name);
+  memberCache.byOpenId.set(user.open_id, name);
   return currentUserCache;
 }
 
@@ -718,13 +721,13 @@ function fetchAllTasksFromSource(forceRefresh = false): { ok: boolean; tasks: No
       for (const m of item.members) {
         const id = m.open_id || m.id;
         if (id && !m.name) {
-          m.name = memberNameCache.get(id) || undefined;
+          m.name = memberCache.byOpenId.get(id) || undefined;
         }
       }
     }
     // 填充 creator 姓名
     if (item.creator?.id && !item.creator.name) {
-      item.creator.name = memberNameCache.get(item.creator.id) || undefined;
+      item.creator.name = memberCache.byOpenId.get(item.creator.id) || undefined;
     }
     // 构造 URL（tasklists tasks 不返回 url，subtasks 有 url）
     if (!item.url && item.guid) {
@@ -921,12 +924,12 @@ async function fetchAllTasksFromSourceAsync(forceRefresh = false): Promise<{ ok:
       for (const m of item.members) {
         const id = m.open_id || m.id;
         if (id && !m.name) {
-          m.name = memberNameCache.get(id) || undefined;
+          m.name = memberCache.byOpenId.get(id) || undefined;
         }
       }
     }
     if (item.creator?.id && !item.creator.name) {
-      item.creator.name = memberNameCache.get(item.creator.id) || undefined;
+      item.creator.name = memberCache.byOpenId.get(item.creator.id) || undefined;
     }
     if (!item.url && item.guid) {
       item.url = `${LARK_TASK_URL_PREFIX}?guid=${item.guid}`;
@@ -1107,9 +1110,6 @@ export function createTask(opts: {
 
 // ==================== AI 助理：姓名解析 + 创建任务 ====================
 
-/** 模块级缓存：姓名 → open_id，避免重复调用 contact +get-user --query */
-const memberOpenIdCache = new Map<string, string>();
-
 /**
  * 通过姓名解析 open_id。
  * 调用 `lark-cli contact +get-user --query <name>`，解析返回的 `data.user.open_id`。
@@ -1118,8 +1118,8 @@ const memberOpenIdCache = new Map<string, string>();
 export function resolveOpenIdByName(name: string): string | null {
   const trimmed = name?.trim();
   if (!trimmed) return null;
-  if (memberOpenIdCache.has(trimmed)) {
-    return memberOpenIdCache.get(trimmed) || null;
+  if (memberCache.byName.has(trimmed)) {
+    return memberCache.byName.get(trimmed) || null;
   }
   const res = runLarkCliService(
     "contact",
@@ -1128,9 +1128,9 @@ export function resolveOpenIdByName(name: string): string | null {
   if (!res.ok) return null;
   const openId = res.data?.data?.user?.open_id;
   if (openId) {
-    memberOpenIdCache.set(trimmed, openId);
+    memberCache.byName.set(trimmed, openId);
     // 顺便填充反向缓存
-    memberNameCache.set(openId, trimmed);
+    memberCache.byOpenId.set(openId, trimmed);
     return openId;
   }
   return null;

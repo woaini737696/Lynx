@@ -5,6 +5,7 @@ import { chat, type LLMProvider } from "@/lib/ai-provider";
 import type { Flow, FlowNode } from "@/lib/flow-store";
 import { prisma } from "@/lib/db";
 import { sendPushNotification } from "@/lib/push";
+import { evaluateBool, evaluateStr } from "@/lib/safe-expr";
 
 // ============ 类型定义 ============
 
@@ -39,34 +40,14 @@ export interface FlowExecutionResult {
 // ============ 表达式求值器 ============
 
 /**
- * 简单表达式求值器（安全沙箱）。
- * 支持 ==、!=、>、<、>=、<=、&&、||、!、字符串/数字字面量、变量引用。
+ * 安全表达式求值（委托给 safe-expr 模块，替代 new Function）。
+ * 支持 ==、!=、>、<、>=、<=、&&、||、!、?:、字符串/数字字面量、变量引用、成员访问。
  */
 function evaluateExpression(
   expression: string,
   context: Record<string, unknown>
 ): { ok: boolean; value: boolean; error?: string } {
-  if (!expression || !expression.trim()) {
-    return { ok: true, value: true };
-  }
-  try {
-    const sanitized = expression.trim();
-    if (!/^[\w\s"'().,!&|=<>-]+$/.test(sanitized)) {
-      return { ok: false, value: false, error: "表达式包含非法字符" };
-    }
-    const keys = Object.keys(context);
-    const values = Object.values(context);
-    // eslint-disable-next-line no-new-func
-    const fn = new Function(...keys, `"use strict"; return (${sanitized});`);
-    const result = fn(...values);
-    return { ok: true, value: Boolean(result) };
-  } catch (e) {
-    return {
-      ok: false,
-      value: false,
-      error: "表达式求值失败：" + (e as Error).message,
-    };
-  }
+  return evaluateBool(expression, context);
 }
 
 // ============ 节点执行器 ============
@@ -382,6 +363,41 @@ async function executeHttpNode(
     };
   }
 
+  // SSRF 防护：禁止访问内网地址
+  try {
+    const parsed = new URL(url);
+    const hostname = parsed.hostname;
+    if (
+      hostname === "localhost" ||
+      hostname === "127.0.0.1" ||
+      hostname === "0.0.0.0" ||
+      hostname.startsWith("10.") ||
+      hostname.startsWith("172.16.") ||
+      hostname.startsWith("192.168.") ||
+      hostname.startsWith("169.254.") ||  // 云元数据服务
+      hostname === "::1" ||
+      hostname === "[::1]"
+    ) {
+      return {
+        nodeId: node.id,
+        nodeLabel: node.label,
+        status: "error",
+        durationMs: Date.now() - start,
+        error: "SSRF 防护：不允许访问内网地址",
+        message: `HTTP 节点拒绝访问内网地址: ${hostname}`,
+      };
+    }
+  } catch {
+    return {
+      nodeId: node.id,
+      nodeLabel: node.label,
+      status: "error",
+      durationMs: 0,
+      error: "URL 格式无效",
+      message: "HTTP 节点 URL 解析失败",
+    };
+  }
+
   try {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), (node.config?.timeout || 30) * 1000);
@@ -415,6 +431,12 @@ async function executeHttpNode(
   }
 }
 
+/** Database 节点允许操作的模型白名单（防止任意模型访问） */
+const ALLOWED_DB_MODELS = new Set([
+  "idea", "task", "skill", "cognition", "memory",
+  "chatMessage", "inspiration", "dailyFocus",
+]);
+
 /** Database 节点：数据库操作 */
 async function executeDatabaseNode(
   node: FlowNode,
@@ -425,6 +447,18 @@ async function executeDatabaseNode(
   const operation = node.config?.dbOperation || "query";
   const model = node.config?.dbModel || "idea";
 
+  // 模型白名单校验
+  if (!ALLOWED_DB_MODELS.has(model)) {
+    return {
+      nodeId: node.id,
+      nodeLabel: node.label,
+      status: "error",
+      durationMs: Date.now() - start,
+      error: `不允许的模型: ${model}`,
+      message: `数据库操作被拒绝：模型 ${model} 不在白名单中`,
+    };
+  }
+
   try {
     let result: unknown;
     const data = node.config?.dbData
@@ -434,12 +468,12 @@ async function executeDatabaseNode(
     switch (operation) {
       case "query": {
         const take = Math.min(parseInt(node.config?.dbQuery || "10", 10) || 10, 100);
-        result = await (prisma as any)[model]?.findMany({ take, orderBy: { createdAt: "desc" } });
+        result = await (prisma as unknown as Record<string, { findMany: (args: unknown) => Promise<unknown[]> }>)[model]?.findMany({ take, orderBy: { createdAt: "desc" } });
         break;
       }
       case "create": {
         if (userId) data.userId = userId;
-        result = await (prisma as any)[model]?.create({ data });
+        result = await (prisma as unknown as Record<string, { create: (args: unknown) => Promise<unknown> }>)[model]?.create({ data });
         break;
       }
       default:
@@ -506,13 +540,10 @@ function executeTransformNode(
         break;
       }
       case "javascript": {
-        // 安全沙箱：仅允许表达式，不允许语句
-        if (!/^[\w\s"'().,!&|=<>?:[\]{}+-]+$/.test(expr)) {
-          throw new Error("表达式包含非法字符");
-        }
-        // eslint-disable-next-line no-new-func
-        const fn = new Function("upstream", `"use strict"; return (${expr});`);
-        output = String(fn(upstreamOutput));
+        // 安全求值（使用 safe-expr，替代 new Function）
+        const result = evaluateStr(expr, { upstream: upstreamOutput });
+        if (!result.ok) throw new Error(result.error);
+        output = result.value as string;
         break;
       }
     }

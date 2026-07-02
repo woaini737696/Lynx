@@ -104,19 +104,35 @@ export function rateLimit(
 
 /**
  * 从 NextRequest 提取客户端标识（IP 或 fallback）
- * 优先级：x-forwarded-for > x-real-ip > cf-connecting-ip > unknown
+ *
+ * 安全策略：
+ * - 默认仅信任 req.socket.remoteAddress（真实 TCP 来源）
+ * - 仅在 TRUST_PROXY=true 时才信任 x-forwarded-for / x-real-ip
+ *   （适用于 Nginx 反向代理后端，且 Nginx 已配置 real_ip_recursive 覆盖客户端伪造的头）
+ * - cf-connecting-ip 仅在 Cloudflare 环境下可信
  */
 export function getClientKey(req: Request): string {
-  const headers = req.headers;
-  const xff = headers.get("x-forwarded-for");
-  if (xff) {
-    // 取第一个 IP
-    return xff.split(",")[0].trim();
+  const trustProxy = process.env.TRUST_PROXY === "true";
+
+  if (trustProxy) {
+    const xff = req.headers.get("x-forwarded-for");
+    if (xff) {
+      // 取最后一个 IP（最接近服务端的代理添加的，最不可伪造）
+      const ips = xff.split(",").map((s) => s.trim());
+      return ips[ips.length - 1] || "unknown";
+    }
+    const xri = req.headers.get("x-real-ip");
+    if (xri) return xri.trim();
   }
-  const xri = headers.get("x-real-ip");
-  if (xri) return xri.trim();
-  const cf = headers.get("cf-connecting-ip");
+
+  // Cloudflare 环境（cf-connecting-ip 由 CF 边缘设置，无法伪造）
+  const cf = req.headers.get("cf-connecting-ip");
   if (cf) return cf.trim();
+
+  // 真实 TCP 连接地址（最可靠）
+  const remoteAddr = (req as Request & { socket?: { remoteAddress?: string } }).socket?.remoteAddress;
+  if (remoteAddr) return remoteAddr.replace(/^::ffff:/, "");
+
   return "unknown";
 }
 

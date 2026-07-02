@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { requireAuth, requireAdmin } from "@/lib/auth-utils";
+import { encrypt, decrypt } from "@/lib/crypto";
 
 // GET /api/ai/settings - 获取AI助理设置（需登录；敏感字段仅 admin 可见）
 export async function GET() {
@@ -13,12 +14,21 @@ export async function GET() {
       settings = await prisma.aISetting.create({ data: {} });
     }
 
+    // 解密敏感字段后返回
+    const decryptedSettings = {
+      ...settings,
+      deepseekApiKey: decrypt(settings.deepseekApiKey),
+      mimoApiKey: decrypt(settings.mimoApiKey),
+      embeddingApiKey: decrypt(settings.embeddingApiKey),
+      larkWebhookToken: decrypt(settings.larkWebhookToken),
+    };
+
     // 非 admin 用户过滤敏感字段（larkWebhookToken 等）
     if (auth.user.role !== "admin") {
-      const { larkWebhookToken, ...safeSettings } = settings;
+      const { larkWebhookToken, ...safeSettings } = decryptedSettings;
       return NextResponse.json({ settings: safeSettings });
     }
-    return NextResponse.json({ settings });
+    return NextResponse.json({ settings: decryptedSettings });
   } catch (e) {
     return NextResponse.json(
       { error: "获取设置失败：" + (e as Error).message },
@@ -135,6 +145,11 @@ export async function PUT(req: NextRequest) {
         const maxLen = larkField === "larkWebhookUrl" ? 500 : 255;
         updateData[larkField] = updateData[larkField].trim().slice(0, maxLen) || null;
       }
+    }
+
+    // 加密 larkWebhookToken（非空时加密后存储）
+    if (typeof updateData.larkWebhookToken === "string") {
+      updateData.larkWebhookToken = encrypt(updateData.larkWebhookToken);
     }
 
     let settings = await prisma.aISetting.findFirst();

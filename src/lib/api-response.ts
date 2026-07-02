@@ -1,5 +1,7 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { Prisma } from "@prisma/client";
+import { requireAuth, type AuthUser } from "@/lib/auth-utils";
+import { getLogger } from "@/lib/logger";
 
 // 统一 API 响应格式封装
 // 所有响应使用 { success: boolean, ... } 结构，错误使用 { success: false, error: { code, message } }
@@ -116,4 +118,92 @@ export function nextCursorFrom<T extends Record<string, unknown>>(
   // Date 转为 ISO 字符串
   const fieldStr = fieldVal instanceof Date ? fieldVal.toISOString() : String(fieldVal);
   return encodeCursor({ [sortField]: fieldStr, id: String(idVal) });
+}
+
+// ============ withApi 高阶函数 ============
+
+/** withApi handler 的上下文 */
+export interface ApiContext {
+  req: NextRequest;
+  user: AuthUser;
+  logger: ReturnType<typeof getLogger>;
+}
+
+/** withApi handler 返回值：data 会被包装为 { success: true, data } */
+export type ApiHandler<T = unknown> = (ctx: ApiContext) => Promise<T>;
+
+/**
+ * 统一 API 路由高阶函数。
+ *
+ * 自动处理：
+ * 1. 认证（requireAuth，失败返回 401）
+ * 2. 错误捕获（try/catch，Prisma 已知错误映射为 400，其余为 500）
+ * 3. 结构化日志（自动记录错误）
+ * 4. 响应格式统一（成功返回 { success: true, data }，失败返回 { success: false, error }）
+ *
+ * 用法：
+ *   export const POST = withApi(async ({ req, user }) => {
+ *     const body = await req.json();
+ *     return { ok: true };
+ *   });
+ *
+ *   // 不需要认证的路由：
+ *   export const GET = withApi.public(async ({ req }) => {
+ *     return { items: [] };
+ *   });
+ */
+export function withApi<T = unknown>(
+  handler: ApiHandler<T>,
+  options?: { logName?: string }
+) {
+  return async (req: NextRequest): Promise<NextResponse | Response> => {
+    const logger = getLogger(options?.logName ?? "api");
+    const auth = await requireAuth();
+    if (auth.user === null) return auth.error;
+
+    try {
+      const data = await handler({ req, user: auth.user, logger });
+      return successResponse(data);
+    } catch (e) {
+      return handleApiError(e, logger);
+    }
+  };
+}
+
+/** 不需要认证的路由版本 */
+withApi.public = function <T = unknown>(
+  handler: ApiHandler<T>,
+  options?: { logName?: string }
+) {
+  return async (req: NextRequest): Promise<NextResponse> => {
+    const logger = getLogger(options?.logName ?? "api");
+    // 公开路由使用空用户上下文
+    const emptyUser = { id: "", username: "", role: "guest" } as AuthUser;
+    try {
+      const data = await handler({ req, user: emptyUser, logger });
+      return successResponse(data);
+    } catch (e) {
+      return handleApiError(e, logger);
+    }
+  };
+};
+
+/** 统一错误处理：Prisma 已知错误 → 400，其余 → 500 */
+function handleApiError(e: unknown, logger: ReturnType<typeof getLogger>): NextResponse {
+  if (e instanceof Prisma.PrismaClientKnownRequestError) {
+    const messages = new Map<string, string>([
+      ["P2002", "记录已存在"],
+      ["P2025", "记录不存在"],
+      ["P2003", "记录不存在"],
+    ]);
+    const msg = messages.get(e.code) || `数据库错误: ${e.code}`;
+    logger.warn({ err: e, code: e.code }, msg);
+    return errorResponse(400, msg);
+  }
+  if (e instanceof Prisma.PrismaClientValidationError) {
+    logger.warn({ err: e }, "参数校验失败");
+    return badRequest("请求参数校验失败");
+  }
+  logger.error({ err: e }, "未预期错误");
+  return errorResponse(500, "服务器内部错误");
 }

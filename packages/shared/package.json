@@ -1,0 +1,19 @@
+{
+  "name": "@lynnhub/shared",
+  "version": "1.0.0",
+  "private": true,
+  "description": "纯 TypeScript 共享层：WS 协议、SSE 事件、WAV 编码、平台适配接口。零平台依赖，Web/RN/Tauri 三端通用。",
+  "main": "index.ts",
+  "types": "index.ts",
+  "files": [
+    "index.ts",
+    "protocols",
+    "audio",
+    "interfaces",
+    "utils"
+  ],
+  "dependencies": {},
+  "peerDependencies": {
+    "typescript": ">=5.0.0"
+  }
+}

@@ -111,23 +111,3 @@ pub async fn list_dir(dir: &str, authorized_dirs: &[String]) -> Result<Value, St
         "count": entries.len(),
     }))
 }
-
-/// 删除文件（仅授权目录内）
-pub async fn delete_file(path: &str, authorized_dirs: &[String]) -> Result<(), String> {
-    if !is_path_authorized(path, authorized_dirs) {
-        return Err(format!("路径不在授权目录内: {}", path));
-    }
-    tokio::fs::remove_file(path)
-        .await
-        .map_err(|e| format!("删除文件失败: {}", e))
-}
-
-/// 创建目录
-pub async fn create_dir(path: &str, authorized_dirs: &[String]) -> Result<(), String> {
-    if !is_path_authorized(path, authorized_dirs) {
-        return Err(format!("路径不在授权目录内: {}", path));
-    }
-    tokio::fs::create_dir_all(path)
-        .await
-        .map_err(|e| format!("创建目录失败: {}", e))
-}

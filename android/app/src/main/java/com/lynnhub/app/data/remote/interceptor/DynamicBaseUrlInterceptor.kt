@@ -45,11 +45,16 @@ class DynamicBaseUrlInterceptor : Interceptor {
         return chain.proceed(builder.build())
     }
 
-    private fun normalizeUrl(url: String): String {
+    /**
+     * 规范化 URL：确保以 [defaultScheme]:// 开头且以 / 结尾。
+     *
+     * @param defaultScheme 缺省协议，生产环境用 "https"，本地调试可用 "http"。
+     */
+    internal fun normalizeUrl(url: String, defaultScheme: String = "https"): String {
         var normalized = url.trim()
         if (normalized.isEmpty()) return Constants.DEFAULT_BASE_URL
         if (!normalized.startsWith("http://") && !normalized.startsWith("https://")) {
-            normalized = "https://$normalized"
+            normalized = "$defaultScheme://$normalized"
         }
         if (!normalized.endsWith("/")) normalized = "$normalized/"
         return normalized

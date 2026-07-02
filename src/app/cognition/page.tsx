@@ -13,14 +13,7 @@ import { useAsyncLoading } from "@/lib/use-async-loading";
 import { useCognitions } from "@/lib/use-api";
 import { AnimatedList } from "@/components/ui/AnimatedList";
 import { openContextMenu } from "@/components/ui/ContextMenu";
-
-interface Cognition {
-  id: string;
-  type: CognitionType;
-  content: string;
-  source: string;
-  createdAt: string;
-}
+import type { Cognition } from "@lynnhub/shared-types";
 
 export default function CognitionPage() {
   const { data, error, isLoading, mutate } = useCognitions();

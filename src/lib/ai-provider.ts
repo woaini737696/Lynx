@@ -2,6 +2,8 @@
 // 支持 DeepSeek 和小米 MiMo 两个 LLM 的动态切换
 // 全部走 OpenAI 兼容协议（/chat/completions、/embeddings）
 
+import { decrypt } from "@/lib/crypto";
+
 // ============ 类型定义 ============
 
 /** LLM Provider 标识 */
@@ -237,13 +239,13 @@ export async function refreshAISettings(): Promise<void> {
     if (setting) {
       _dbSettingsCache = {
         defaultProvider: setting.defaultProvider || undefined,
-        deepseekApiKey: setting.deepseekApiKey || undefined,
+        deepseekApiKey: decrypt(setting.deepseekApiKey) || undefined,
         deepseekBaseUrl: setting.deepseekBaseUrl || undefined,
         deepseekModel: setting.deepseekModel || undefined,
-        mimoApiKey: setting.mimoApiKey || undefined,
+        mimoApiKey: decrypt(setting.mimoApiKey) || undefined,
         mimoBaseUrl: setting.mimoBaseUrl || undefined,
         mimoModel: setting.mimoModel || undefined,
-        embeddingApiKey: setting.embeddingApiKey || undefined,
+        embeddingApiKey: decrypt(setting.embeddingApiKey) || undefined,
         embeddingBaseUrl: setting.embeddingBaseUrl || undefined,
         embeddingModel: setting.embeddingModel || undefined,
       };
@@ -343,8 +345,8 @@ export async function getLLMConfigForUser(
       },
     });
     if (user) {
-      userDeepseekKey = user.userDeepseekApiKey || null;
-      userMimoKey = user.userMimoApiKey || null;
+      userDeepseekKey = decrypt(user.userDeepseekApiKey) || null;
+      userMimoKey = decrypt(user.userMimoApiKey) || null;
       userPreferredProvider = user.userAiProvider || null;
 
       // 检查职业空间的 allowedProviders 限制

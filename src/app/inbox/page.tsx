@@ -14,37 +14,12 @@ import type { ReviveSuggestion } from "@/lib/reminder-scheduler";
 import { openContextMenu } from "@/components/ui/ContextMenu";
 import { RetryState } from "@/components/ui/RetryState";
 import { useLightningStore } from "@/store/lightning";
-
-/** 附件结构（与 Idea.attachments 字段一致） */
-interface Attachment {
-  type: "image" | "file";
-  name: string;
-  url: string;
-  size?: number;
-}
-
-interface Idea {
-  id: string;
-  content: string;
-  source: string;
-  tags: string[];
-  attachments?: Attachment[];
-  createdAt: string;
-}
-
-interface ChatMessage {
-  role: "user" | "assistant";
-  content: string;
-}
-
-interface FinalizeResult {
-  idea: Idea;
-  cognition?: { id: string; type: string; content: string } | null;
-  summary: string;
-  tags: string[];
-  suggestedColumn: string;
-  reason: string;
-}
+import type {
+  Attachment,
+  Idea,
+  ChatMessage,
+  FinalizeResult,
+} from "@lynnhub/shared-types";
 
 const COLUMNS = [
   { key: "northstar", label: "北极星", color: "text-northstar", bg: "bg-northstar/10", border: "border-northstar/30" },

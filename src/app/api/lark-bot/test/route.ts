@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createHmac } from "crypto";
 import { requireAuth } from "@/lib/auth-utils";
 import { prisma } from "@/lib/db";
+import { decrypt } from "@/lib/crypto";
 
 // 生成飞书自定义机器人签名校验
 // 算法：sign = base64(hmac_sha256(timestamp + "\n" + secret, ""))
@@ -36,7 +37,7 @@ export async function POST(req: NextRequest) {
       const settings = await prisma.aISetting.findFirst();
       finalUrl = (settings?.larkWebhookUrl || "").trim();
       if (!finalToken) {
-        finalToken = (settings?.larkWebhookToken || "").trim();
+        finalToken = (decrypt(settings?.larkWebhookToken) || "").trim();
       }
     }
 

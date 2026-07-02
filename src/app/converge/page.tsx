@@ -7,13 +7,7 @@ import { PageHeader, Card, Button, LoadingState } from "@/components/layout/Page
 import { HelpButton } from "@/components/layout/HelpButton";
 import { EmptyState } from "@/components/layout/EmptyState";
 import { SearchInput, FilterSelect, Pagination, useClientPagination } from "@/components/ui/ListControls";
-
-interface Idea {
-  id: string;
-  content: string;
-  source: string;
-  createdAt: string;
-}
+import type { Idea } from "@lynnhub/shared-types";
 
 const COLUMNS = [
   { key: "northstar", label: "北极星", color: "text-northstar", bg: "bg-northstar/10", border: "border-northstar/30" },

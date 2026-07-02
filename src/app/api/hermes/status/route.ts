@@ -22,7 +22,10 @@ export async function GET() {
     try {
       const resp = await fetch(
         `${WS_GATEWAY_URL}/devices?userId=${auth.user.id}`,
-        { signal: AbortSignal.timeout(3000) }
+        {
+          headers: { "X-Internal-Key": process.env.INTERNAL_API_KEY || "" },
+          signal: AbortSignal.timeout(3000),
+        }
       );
       if (resp.ok) {
         const data = await resp.json();

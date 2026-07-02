@@ -46,75 +46,28 @@ import { HelpButton } from "@/components/layout/HelpButton";
 import { Modal } from "@/components/ui/Modal";
 import { cn } from "@/lib/utils";
 import { toast } from "@/components/ui/toast";
+import type {
+  NodeConfig,
+  FlowNode as SharedFlowNode,
+  Flow as SharedFlow,
+  CanvasEdge,
+} from "@lynnhub/shared-types";
 
 // ============ 类型定义 ============
 
-/** 节点配置（按节点类型使用不同字段） */
-interface NodeConfig {
-  // trigger 节点
-  triggerType?: "manual" | "schedule" | "event";
-  schedule?: string;
-  eventType?: string;
-  // action 节点
-  prompt?: string;
-  model?: string;
-  // condition 节点
-  expression?: string;
-  // output 节点
-  outputTarget?: string;
-  // hermes 节点
-  hermesMode?: "computer_use" | "shell" | "auto";
-  hermesPrompt?: string;
-  workDir?: string;
-  timeout?: number;
-  // http 节点
-  httpMethod?: "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
-  httpUrl?: string;
-  httpHeaders?: Record<string, string>;
-  httpBody?: string;
-  // database 节点
-  dbOperation?: "query" | "create" | "update" | "delete";
-  dbModel?: string;
-  dbQuery?: string;
-  dbData?: Record<string, unknown>;
-  // transform 节点
-  transformType?: "jsonpath" | "template" | "regex" | "javascript";
-  transformExpression?: string;
-  transformTemplate?: string;
-  // delay 节点
-  delayMs?: number;
-}
-
-interface FlowNode {
-  id: string;
-  type: "trigger" | "action" | "condition" | "output" | "hermes" | "http" | "database" | "transform" | "delay";
-  label: string;
+interface FlowNode extends SharedFlowNode {
   status: "idle" | "running" | "done" | "error";
-  config?: NodeConfig;
 }
 
-interface Flow {
-  id: string;
-  name: string;
-  description: string;
-  nodes: FlowNode[];
-  edges?: CanvasEdge[];
-  lastRun: string;
-  enabled: boolean;
-}
-
-// 画布节点（在 FlowNode 基础上增加坐标）
+/** 画布节点：FlowNode + 坐标（status 必填） */
 interface CanvasNode extends FlowNode {
   x: number;
   y: number;
 }
 
-interface CanvasEdge {
-  id: string;
-  from: string;
-  to: string;
-  /** 条件分支标记：condition 节点求值为 true 时走 "true" 分支，false 时走 "false" 分支；未标记则为普通顺序连线 */
-  condition?: "true" | "false";
+/** 页面用 Flow：nodes 使用本地 FlowNode（status 必填） */
+interface Flow extends Omit<SharedFlow, "nodes"> {
+  nodes: FlowNode[];
 }
 
 // 运行日志条目

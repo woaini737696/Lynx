@@ -21,16 +21,18 @@ import { cloudApi } from "@/lib/cloud-api";
 import { toast } from "@/lib/toast";
 import { HelpButton } from "@/components/ui/HelpButton";
 import { Modal } from "@/components/ui/Modal";
-import type { Cognition } from "@/types/api";
+import type { Cognition, CognitionType } from "@/types/api";
 
 // 认知类型元信息（与 Web 端 COGNITION_TYPES 对齐）
-const COGNITION_TYPE_META = {
+// 类型 CognitionType 来自共享层，此处用 Record 约束确保常量键与类型一致
+const COGNITION_TYPE_META: Record<
+  CognitionType,
+  { label: string; color: string; bg: string; border: string }
+> = {
   method: { label: "方法论", color: "text-cognition", bg: "bg-cognition/10", border: "border-cognition/30" },
   experience: { label: "经验", color: "text-campaign", bg: "bg-campaign/10", border: "border-campaign/30" },
   prompt: { label: "提示词", color: "text-northstar", bg: "bg-northstar/10", border: "border-northstar/30" },
-} as const;
-
-type CognitionType = keyof typeof COGNITION_TYPE_META;
+};
 
 // 来源图标映射
 const SOURCE_ICON: Record<string, typeof Lightbulb> = {

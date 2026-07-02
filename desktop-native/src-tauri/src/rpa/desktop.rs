@@ -1,5 +1,4 @@
-// 桌面应用 RPA 操作（启动应用、截图、模拟键鼠）
-// 集成 enigo（键鼠模拟）+ screenshots（截图）
+// 桌面应用 RPA 操作（启动应用、截图）
 
 use tauri::Manager;
 
@@ -82,26 +81,4 @@ pub async fn take_screenshot(app_handle: &tauri::AppHandle) -> Result<String, St
     }
 
     Err("截图失败：当前平台不支持".to_string())
-}
-
-/// 模拟键盘输入（使用 enigo 0.2 API）
-pub fn type_text(text: &str) -> Result<(), String> {
-    use enigo::{Enigo, Keyboard, Settings};
-    let mut enigo = Enigo::new(&Settings::default())
-        .map_err(|e| format!("Enigo初始化失败: {}", e))?;
-    enigo.text(text)
-        .map_err(|e| format!("键盘输入失败: {}", e))?;
-    Ok(())
-}
-
-/// 模拟鼠标点击（使用 enigo 0.2 API）
-pub fn mouse_click(x: i32, y: i32) -> Result<(), String> {
-    use enigo::{Enigo, Mouse, Button, Coordinate, Direction, Settings};
-    let mut enigo = Enigo::new(&Settings::default())
-        .map_err(|e| format!("Enigo初始化失败: {}", e))?;
-    enigo.move_mouse(x, y, Coordinate::Abs)
-        .map_err(|e| format!("鼠标移动失败: {}", e))?;
-    enigo.button(Button::Left, Direction::Click)
-        .map_err(|e| format!("鼠标点击失败: {}", e))?;
-    Ok(())
 }

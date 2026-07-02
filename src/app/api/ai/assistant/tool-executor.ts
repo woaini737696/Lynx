@@ -1320,6 +1320,7 @@ async function executeHermesExecute(
   let devices: Array<{ channelId: string; deviceName: string }> = [];
   try {
     const resp = await fetch(`${WS_GATEWAY_URL}/devices?userId=${user.id}`, {
+      headers: { "X-Internal-Key": process.env.INTERNAL_API_KEY || "" },
       signal: AbortSignal.timeout(5000),
     });
     const data = await resp.json().catch(() => ({}));

@@ -77,7 +77,10 @@ export async function POST(req: NextRequest) {
     try {
       const resp = await fetch(`${WS_GATEWAY_URL}/dispatch`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          "X-Internal-Key": process.env.INTERNAL_API_KEY || "",
+        },
         body: JSON.stringify({ userId: auth.user.id, command, commandId }),
         signal: AbortSignal.timeout(8000),
       });

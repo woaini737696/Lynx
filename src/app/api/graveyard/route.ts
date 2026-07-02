@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { requireAuth, buildUserFilter } from "@/lib/auth-utils";
+import { getLogger } from "@/lib/logger";
+
+const logger = getLogger("graveyard-api");
 
 // 获取灵感墓地（通过 Idea 关联过滤用户数据）
 export async function GET() {
@@ -31,7 +34,7 @@ export async function GET() {
       })),
     });
   } catch (e) {
-    console.error("获取墓地失败:", e);
+    logger.error({ err: e }, "获取墓地失败");
     return NextResponse.json({ error: "服务器错误" }, { status: 500 });
   }
 }
@@ -67,7 +70,7 @@ export async function PATCH(req: NextRequest) {
     });
     return NextResponse.json({ success: true });
   } catch (e) {
-    console.error("复活失败:", e);
+    logger.error({ err: e }, "复活失败");
     return NextResponse.json({ error: "服务器错误" }, { status: 500 });
   }
 }
@@ -101,7 +104,7 @@ export async function DELETE(req: NextRequest) {
 
     return NextResponse.json({ success: true });
   } catch (e) {
-    console.error("删除墓地失败:", e);
+    logger.error({ err: e }, "删除墓地失败");
     return NextResponse.json({ error: "服务器错误" }, { status: 500 });
   }
 }
@@ -148,7 +151,7 @@ export async function PUT(req: NextRequest) {
 
     return NextResponse.json({ success: true });
   } catch (e) {
-    console.error("编辑墓地失败:", e);
+    logger.error({ err: e }, "编辑墓地失败");
     return NextResponse.json({ error: "服务器错误" }, { status: 500 });
   }
 }

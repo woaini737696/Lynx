@@ -540,13 +540,3 @@ export const HELP_CONTENT: Record<string, VersionedHelpContent> = {
     ],
   },
 };
-
-/** 获取指定 key 的使用说明（带版本信息） */
-export function getHelpContent(key: string): VersionedHelpContent | undefined {
-  return HELP_CONTENT[key];
-}
-
-/** 获取所有使用说明的 key 列表 */
-export function getHelpContentKeys(): string[] {
-  return Object.keys(HELP_CONTENT);
-}

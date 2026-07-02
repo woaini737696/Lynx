@@ -16,7 +16,6 @@ import {
   ShieldCheck,
   AlertCircle,
   X,
-  Sparkles,
   UserPlus,
   KeyRound,
 } from "lucide-react";
@@ -62,7 +61,6 @@ export function LoginModal({
   const [codeSent, setCodeSent] = useState(false);
   // 万能码状态（从 API 动态读取）
   const [masterCodeEnabled, setMasterCodeEnabled] = useState<boolean | null>(null);
-  const [masterCodeHint, setMasterCodeHint] = useState<string | null>(null);
 
   const firstInputRef = useRef<HTMLInputElement | null>(null);
   // 跟踪 mousedown 目标，防止鼠标在弹窗内按下拖到遮罩层松开时误关闭
@@ -126,9 +124,8 @@ export function LoginModal({
       }
       setCodeSent(true);
       setCountdown(60);
-      // 同步万能码启用状态与提示
+      // 同步万能码启用状态
       setMasterCodeEnabled(Boolean(data.masterCodeEnabled));
-      setMasterCodeHint(data.devHint || null);
     } catch {
       setError("网络错误，请重试");
     } finally {
@@ -389,13 +386,7 @@ export function LoginModal({
                 />
               )}
 
-              {/* 万能码提示（从 API 动态读取，仅在启用且已发送验证码后显示） */}
-              {mode === "phone-code" && codeSent && masterCodeEnabled && masterCodeHint && (
-                <div className="flex items-center gap-1.5 rounded-lg bg-primary/5 px-2.5 py-1.5 text-[11px] text-primary/80">
-                  <Sparkles className="h-3 w-3 shrink-0" />
-                  <span>{masterCodeHint}</span>
-                </div>
-              )}
+              {/* 万能码未启用提示（从 API 动态读取，仅在已发送验证码后显示） */}
               {mode === "phone-code" && codeSent && masterCodeEnabled === false && (
                 <div className="flex items-center gap-1.5 rounded-lg bg-muted-foreground/5 px-2.5 py-1.5 text-[11px] text-muted-foreground">
                   <AlertCircle className="h-3 w-3 shrink-0" />
@@ -496,13 +487,7 @@ export function LoginModal({
                 </div>
               </div>
 
-              {/* 万能码提示 */}
-              {codeSent && masterCodeEnabled && masterCodeHint && (
-                <div className="flex items-center gap-1.5 rounded-lg bg-primary/5 px-2.5 py-1.5 text-[11px] text-primary/80">
-                  <Sparkles className="h-3 w-3 shrink-0" />
-                  <span>{masterCodeHint}</span>
-                </div>
-              )}
+              {/* 万能码未启用提示 */}
               {codeSent && masterCodeEnabled === false && (
                 <div className="flex items-center gap-1.5 rounded-lg bg-muted-foreground/5 px-2.5 py-1.5 text-[11px] text-muted-foreground">
                   <AlertCircle className="h-3 w-3 shrink-0" />

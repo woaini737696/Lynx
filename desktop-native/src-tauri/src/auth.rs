@@ -4,8 +4,10 @@
 // L1 低 - 云端数据CRUD：直接执行
 // L2 中 - 本地文件读写、浏览器自动化：首次弹窗授权
 // L3 高 - 系统命令执行、桌面应用RPA、删除文件：每次审批
+//
+// 通用入口 check_permission_by_level 不依赖具体操作类型，
+// 调用方自行判断权限等级后传入 level 字符串（"L1"/"L2"/"L3"）。
 
-use crate::hermes::router::LocalAction;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 use tauri::{AppHandle, Emitter, Listener};
@@ -57,24 +59,6 @@ pub async fn check_permission_by_level(
         }
         _ => request_approval(app, desc, command, level).await,
     }
-}
-
-/// 检查权限：根据 auth_mode 和 action 等级决定是否需要弹窗
-pub async fn check_permission(
-    action: &LocalAction,
-    auth_mode: &str,
-    app: &AppHandle,
-    command: &str,
-) -> bool {
-    let (level, desc) = match action {
-        LocalAction::FileRead | LocalAction::FileList => ("L2", "读取本地文件"),
-        LocalAction::FileWrite => ("L3", "写入本地文件"),
-        LocalAction::BrowserOpen | LocalAction::BrowserExtract => ("L2", "浏览器自动化"),
-        LocalAction::DesktopOpenApp => ("L3", "启动本地应用"),
-        LocalAction::DesktopScreenshot => ("L2", "屏幕截图"),
-        LocalAction::ShellExec => ("L3", "执行系统命令"),
-    };
-    check_permission_by_level(level, desc, auth_mode, app, command).await
 }
 
 /// 请求用户审批（通过 Tauri 事件触发前端弹窗）
@@ -155,10 +139,4 @@ pub async fn request_approval(
             false
         }
     }
-}
-
-/// 重置会话授权（用户切换模式或手动重置时调用）
-pub fn reset_session_approval() {
-    L2_APPROVED_THIS_SESSION.store(false, Ordering::SeqCst);
-    L3_APPROVED_THIS_SESSION.store(false, Ordering::SeqCst);
 }
