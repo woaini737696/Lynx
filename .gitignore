@@ -139,6 +139,20 @@ __pycache__/
 /desktop-native/hermes-agent-pkg/*.egg-info/
 /npm-global/
 
+# Android 签名 keystore（安全敏感文件，禁止提交）
+/android/*.keystore
+/android/app/build/
+/android/.gradle/
+/android/local.properties
+
+# 官网构建产物与依赖（本地构建，不入版本控制）
+/web_Lynx/node_modules/
+/web_Lynx/dist/
+
+# 桌面端 Electron 构建产物
+/desktop-electron/dist/
+/desktop-electron/node_modules/
+
 # 临时调试脚本（按项目规则不入版本控制）
 /scripts/deploy/check_*.py
 /scripts/deploy/e2e_test*.py

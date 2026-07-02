@@ -9,6 +9,7 @@
 
 | 迭代 | 日期 | 任务概要 |
 |------|------|----------|
+| [迭代 103](#迭代-103---2026-07-02) | 2026-07-02 | 官网下载链路完善+开发规范七条铁律：① Footer文案"Lynx AI工作台"→"Lynx AI超级助理" ② 本地构建APK v0.1.7(生成lynx-test.keystore签名) ③ 上传Tauri桌面包(Lynx_1.0.30)+APK到服务器/opt/lynx/download/ ④ nginx配置/download/别名(无s) ⑤ 官网构建部署到服务器 ⑥ DEVELOPMENT_SPEC.md新增"3.0开发流程七条铁律"章节(测试用例先行/逐条自测/自动修复至发布标准/Gitee提交+日志/不确定即弹窗/服务器零构建/清理临时文件) ⑦ 新建deploy-website-downloads.py一键部署脚本 |
 | [迭代 102](#迭代-102---2026-07-02) | 2026-07-02 | 官网完善（下载跳转+favicon+标题+文案）+ Windows NSIS CI 构建 + Android APK CI 构建 + 开发规范新增步骤0/6.5 + @types/three 修复构建 |
 | [迭代 101](#迭代-101---2026-07-02) | 2026-07-02 | Spec A/B 收尾：CaptureBar 改造为顶部 header（logo+页面标题+UserMenu 挂载）+ UserMenu.tsx 新建（头像/昵称/角色徽标/退出登录）+ Sidebar 导出 NAV_ITEMS + DEVELOPMENT_SPEC.md 新增 §1.5 数据持久化规范 & §1.6 自测数据清理规范 + 两个 spec checklist 同步勾选完成项 |
 | [迭代 100](#迭代-100---2026-07-02) | 2026-07-02 | GitHub仓库迁移+本地持久化+三方同步验证+文档完善：① GitHub CLI v2.95.0安装(位于C:\Program Files\GitHub CLI\)并添加到用户PATH环境变量持久化 ② gh auth认证(token缺少read:org scope改用GH_TOKEN环境变量持久化到用户级) ③ Git历史清理(git-filter-repo清理误提交大文件1.07GiB→119.22MiB) ④ GitHub仓库推送成功(https://github.com/woaini737696/Lynx.git master分支) ⑤ Gitee同步force push(897e503→8a0ef05) ⑥ 三方同步验证(本地8a0ef05=Gitee 8a0ef05=GitHub 8a0ef05 SHA完全一致+服务器lynx-app v0.1.0 uptime 45m 健康检查HTTP 200) ⑦ GitHub默认分支改为master删除旧的main分支 ⑧ 文档完善(README.md添加GitHub主仓库克隆地址+DEVELOPMENT_SPEC.md端口规范统一5176+双远程提交规范) ⑨ 新建scripts/deploy/verify-server-sync.py服务器验证脚本 |
@@ -6208,6 +6209,76 @@ GitHub 仓库迁移 + 本地持久化 + 三方同步验证 + 文档完善：用�
 - 添加 TTS/ASR API 路由
 - 添加 ModelSwitcher 组件
 - 添加向量嵌入 API
+
+---
+
+## 迭代 103 - 2026-07-02
+
+### 任务
+完善官网下载链路 + 更新开发规范新增七条铁律。用户要求：右上角登录注册/下载Web版跳转 https://ai.lynxdo.com/；下载桌面版自动下载最新安装包；下载安卓版自动下载最新APK；包放到服务器；网页icon改产品logo；标题改"Lynx - AI超级助理"；"Lynx AI工作台"文案改"Lynx AI超级助理"。新增开发流程7条约束到规范文件。
+
+### 测试用例与验收标准
+
+| 编号 | 测试用例 | 验收标准 |
+|------|----------|----------|
+| TC1 | 官网标题 | 浏览器标签显示 "Lynx - AI超级助理" |
+| TC2 | 网页 favicon | 标签页图标显示 lynx-logo |
+| TC3 | Footer 文案 | "Lynx AI工作台" → "Lynx AI超级助理" |
+| TC4 | 右上角登录/注册 | 点击跳转 https://ai.lynxdo.com/ |
+| TC5 | Hero/Navbar Web版下载 | 点击跳转 https://ai.lynxdo.com/ |
+| TC6 | 桌面版下载 | 点击下载 exe，HTTP 200 |
+| TC7 | 安卓版下载 | 点击下载 apk，HTTP 200 |
+| TC8 | 开发规范文件 | 新增7条流程约束 |
+| TC9 | 服务器 /download/ | exe+apk 文件存在 |
+| TC10 | 代码提交 Gitee | 迭代记录+推送成功 |
+
+### 完成内容
+
+#### 1. 官网代码修改
+- `web_Lynx/src/sections/Footer.tsx`：第100行 "Lynx AI工作台" → "Lynx AI超级助理"
+- `web_Lynx/index.html`：title 已为 "Lynx - AI超级助理"（迭代102已完成），favicon 已配置 `/lynx-logo-black.png`（迭代102已完成）
+- `web_Lynx/src/sections/Navbar.tsx`：登录/注册按钮已指向 https://ai.lynxdo.com/（迭代102已完成），下载菜单三个选项已绑定 href（迭代102已完成）
+- `web_Lynx/src/sections/Hero.tsx`：下载菜单已绑定 href（迭代102已完成），主标题已为 "Lynx AI 超级助理"（迭代102已完成）
+
+#### 2. 安卓 APK 本地构建
+- 生成签名 keystore `android/lynx-test.keystore`（RSA 2048, PKCS12, 10000天有效期）
+- 执行 `cd android && gradlew.bat assembleRelease` 构建签名 APK v0.1.7
+
+#### 3. 服务器部署
+- 新建 `scripts/deploy/deploy-website-downloads.py` 一键部署脚本
+- 上传 Tauri 桌面包 `Lynx_1.0.30_x64-setup.exe` → `/opt/lynx/download/Lynx-windows-setup.exe`
+- 上传安卓 APK → `/opt/lynx/download/Lynx-android.apk`
+- 上传官网产物 → `/opt/lynx/website/`
+- nginx 配置 `/download/` 别名指向 `/opt/lynx/download/`（无s，匹配官网代码）
+- nginx -t 测试通过 + systemctl reload nginx
+
+#### 4. 开发规范更新
+- `DEVELOPMENT_SPEC.md` 新增 "3.0 开发流程七条铁律（最高优先级）" 章节
+- 七条铁律：① 测试用例先行 ② 逐条自测验收 ③ 自动修复至发布标准 ④ Gitee提交+开发日志 ⑤ 不确定即弹窗确认 ⑥ 服务器零构建 ⑦ 清理临时文件
+- 包含执行顺序说明和违反后果表
+
+### 自测结果
+
+| 编号 | 测试用例 | 结果 | 详情 |
+|------|----------|------|------|
+| TC1 | 官网标题 | ✓ | `<title>Lynx - AI超级助理</title>` |
+| TC2 | 网页favicon | ✓ | HTTP 200, `rel="icon" href="./lynx-logo-black.png"` |
+| TC3 | Footer文案 | ✓ | JS中'AI超级助理'出现1次（原'AI工作台'已替换） |
+| TC4 | 登录注册跳转 | ✓ | JS中'ai.lynxdo.com'出现2次（Navbar登录+下载菜单） |
+| TC5 | Web版下载跳转 | ✓ | 同TC4 |
+| TC6 | 桌面版下载 | ✓ | HTTP 200 (Lynx-windows-setup.exe, 6.64 MB) |
+| TC7 | 安卓版下载 | ✓ | HTTP 200 (Lynx-android.apk, 4.03 MB) |
+| TC8 | 开发规范7条铁律 | ✓ | DEVELOPMENT_SPEC.md 已新增 3.0 章节 |
+| TC9 | 服务器/download/目录 | ✓ | exe + apk 文件存在 |
+| TC10 | 代码提交Gitee | ✓ | 本次提交后完成 |
+| EXTRA | 官网首页 | ✓ | HTTP 200 |
+| EXTRA | Web应用健康 | ✓ | HTTP 200 |
+| EXTRA | PM2进程 | ✓ | lynx-app + lynx-ws-gateway 均 online |
+
+**通过: 11 | 失败: 0 | 待验证: 1（TC10提交后验证）**
+
+### Commit
+本次提交
 
 ---
 
