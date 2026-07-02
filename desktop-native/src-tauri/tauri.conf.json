@@ -35,7 +35,7 @@
   },
   "bundle": {
     "active": true,
-    "targets": ["deb", "appimage"],
+    "targets": ["nsis", "deb", "appimage"],
     "icon": [
       "icons/icon.ico",
       "icons/icon.png",
@@ -46,7 +46,21 @@
     "category": "Productivity",
     "shortDescription": "Lynx 全平台智能助理桌面端",
     "longDescription": "Lynx 原生桌面端，本地前端 + 云端 API，安装即用，支持全局唤起与自动更新。",
-    "resources": []
+    "resources": ["lynx-code-sign.cer"],
+    "windows": {
+      "nsis": {
+        "installerIcon": "icons/icon.ico",
+        "headerImage": "icons/nsis-header.bmp",
+        "sidebarImage": "icons/nsis-sidebar.bmp",
+        "displayLanguageSelector": false,
+        "languages": ["SimpChinese"],
+        "installMode": "both",
+        "installerHooks": "nsis/installer-hooks.nsh"
+      },
+      "certificateThumbprint": "7BCF15A9E0867DADA9F97DAC69297EAF2672F748",
+      "digestAlgorithm": "sha256",
+      "timestampUrl": "http://timestamp.digicert.com"
+    }
   },
   "plugins": {
     "updater": {
