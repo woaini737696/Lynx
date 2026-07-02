@@ -9,6 +9,7 @@
 
 | 迭代 | 日期 | 任务概要 |
 |------|------|----------|
+| [迭代 101](#迭代-101---2026-07-02) | 2026-07-02 | Spec A/B 收尾：CaptureBar 改造为顶部 header（logo+页面标题+UserMenu 挂载）+ UserMenu.tsx 新建（头像/昵称/角色徽标/退出登录）+ Sidebar 导出 NAV_ITEMS + DEVELOPMENT_SPEC.md 新增 §1.5 数据持久化规范 & §1.6 自测数据清理规范 + 两个 spec checklist 同步勾选完成项 |
 | [迭代 100](#迭代-100---2026-07-02) | 2026-07-02 | GitHub仓库迁移+本地持久化+三方同步验证+文档完善：① GitHub CLI v2.95.0安装(位于C:\Program Files\GitHub CLI\)并添加到用户PATH环境变量持久化 ② gh auth认证(token缺少read:org scope改用GH_TOKEN环境变量持久化到用户级) ③ Git历史清理(git-filter-repo清理误提交大文件1.07GiB→119.22MiB) ④ GitHub仓库推送成功(https://github.com/woaini737696/Lynx.git master分支) ⑤ Gitee同步force push(897e503→8a0ef05) ⑥ 三方同步验证(本地8a0ef05=Gitee 8a0ef05=GitHub 8a0ef05 SHA完全一致+服务器lynx-app v0.1.0 uptime 45m 健康检查HTTP 200) ⑦ GitHub默认分支改为master删除旧的main分支 ⑧ 文档完善(README.md添加GitHub主仓库克隆地址+DEVELOPMENT_SPEC.md端口规范统一5176+双远程提交规范) ⑨ 新建scripts/deploy/verify-server-sync.py服务器验证脚本 |
 | [迭代 99](#迭代-99---2026-07-02) | 2026-07-02 | 架构优化重构（跨端共享层+RN端+Desktop死代码清理+Desktop native-ui接入共享层）：① 新建 packages/shared/ 纯TS共享层(WS协议/SSE事件/WAV编码/7个平台接口/工具函数) ② 新建 packages/shared-react/ React hooks共享层(useChat/useDeviceWs/usePollWhenVisible/ChatContext依赖注入式) ③ 新建 mobile/ Expo SDK 51 RN项目(8个核心页面:Login+Assistant SSE流式聊天+VoiceCall全双工语音+Inbox灵感速记+Board飞书任务+Memory记忆图谱+Profile+HomeScreen今日工作台+深邃星空蓝深色主题对齐Kotlin+iOS26液态玻璃BlurView tint=dark+expo-av 14.x API适配) ④ Desktop死代码清理(删除hermes/router.rs 196行+executor.rs 199行关键词路由代码→新建dashboard.rs统一Dashboard HTTP API调用+修改ws_client.rs删除回退路径+修改auth.rs删除LocalAction依赖+修改lib.rs execute_assistant_command直接调用Dashboard) ⑤ Desktop native-ui接入共享层(BoardPage替换BoardColumn+CognitionPage替换CognitionType+保留6个有字段差异的本地类型) ⑥ shared-types扩展(新增WS协议/SSE事件/音频接口/认证用户/API响应/HermesAgent状态/语音通话状态机等8大类跨端共享类型415→686行) ⑦ 修复logger.ts pino-pretty node:worker_threads不兼容Webpack构建失败问题(移除pino-pretty依赖改用纯pino JSON输出) ⑧ tsconfig.json添加mobile到exclude避免RN依赖影响Web端tsc ⑨ Kotlin APK v0.1.7构建成功安装到手机(设备13e37082) |
 | [迭代 97](#迭代-97---2026-07-01) | 2026-07-01 | 桌面端v1.0.32+Web端三项根因彻底修复：① 检查更新10054报错修复(installer.rs直接请求/downloads/latest.json静态文件路径因Nginx配置问题导致连接重置→新建/api/hermes/latest-json和/api/hermes/download-wheel两个API路由代理读取服务器本地文件走和其他API相同路径+installer.rs fetch_latest_json增加3次重试间隔1秒+hermes-client.ts同步改走API路由+middleware.ts放行两个新路由为公开接口) ② 桌面端Lynx助理完整同步Web端(ai-assistant.ts chatCompletion从stream:false改为stream:true真实SSE流式解析onMeta/onThinking/onToolStart/onToolDone/onDelta/onDone/onError回调+AIAssistantPage emoji头像三级兜底avatarUrl→emoji→默认SVG+工具调用进度卡片running/done状态+AISettingsModal 8个emoji选择器+头像文件上传POST /api/ai/avatar-upload+AssistantDrawer替换硬编码SVG为真实头像+hermesExecute工具调用前检查WS连接状态未连接时明确提示不静默失败) ③ Web端状态错乱+dispatch自指派三缺陷修复(ws-gateway.ts register存储deviceType字段desktop/web+dispatch对__LYNN_CMD__前缀命令只派给desktop设备无desktop在线返回dispatched:false+use-device-ws.ts handleRemoteCommand识别__LYNN_CMD__前缀直接拒绝不去fetch localhost+status/route.ts返回在线设备列表含deviceType+settings/page.tsx loadStatus增加在线设备Dashboard状态聚合桌面端running则Web显示running不再强行降级DB status) |
@@ -4998,6 +4999,47 @@ Hermes Agent 五大功能完善（持久化 profile + /learn 回写 + Cron 接�
 
 ### Commit
 `bcb3a43` - 24 files changed, +1123/-253
+
+---
+
+## 迭代 101 - 2026-07-02
+
+**任务**：收尾两个 spec（data-integrity-and-voice / global-experience-lark-task）的剩余开发项
+
+**完成内容**：
+
+1. **CaptureBar 改造为顶部 header**（Spec B 任务 3.5）
+   - 左侧空 div 替换为 Lynx logo + 当前页面标题（usePathname + NAV_ITEMS 映射，支持精确匹配和最长前缀匹配）
+   - 右侧 ThemeToggle 后新增分隔线 + UserMenu 组件挂载
+   - 涉及文件：src/components/layout/CaptureBar.tsx
+
+2. **UserMenu.tsx 新建**（Spec B 任务 3.2）
+   - 三态：loading 骨架 / 未登录"登录"按钮 / 已登录头像+昵称+角色徽标
+   - localStorage 缓存（key=`lynx-user-menu-cache`）+ fetch `/api/auth/session` 刷新 + `auth:login-success` 事件无感刷新
+   - 下拉菜单：个人资料设置（跳 `/settings/profile`）+ 退出登录（复用 Sidebar 的 csrf signout 流程）
+   - 点击外部 / Esc 收起
+   - 角色徽标：admin→管理员 / editor→编辑 / viewer→访客
+   - 涉及文件：src/components/layout/UserMenu.tsx
+
+3. **Sidebar.tsx 导出 NAV_ITEMS**（供 CaptureBar 做 pathname→标题映射复用，无需重复维护导航清单）
+   - 涉及文件：src/components/layout/Sidebar.tsx
+
+4. **DEVELOPMENT_SPEC.md 新增两节强制规范**（Spec A 任务 2.5）
+   - §1.5 数据持久化规范（6 条：数据库优先/localStorage 仅作缓存/写入流程/敏感数据禁入/旧键迁移/schema 变更）
+   - §1.6 自测数据清理规范（6 条：命名前缀约定/清理脚本/e2e afterEach/部署前核查/保留数据例外/localStorage 清理）
+   - 涉及文件：DEVELOPMENT_SPEC.md
+
+5. **两个 spec checklist 同步勾选**
+   - `.trae/specs/data-integrity-and-voice/checklist.md`：任务1/2/3 已完成项勾选
+   - `.trae/specs/global-experience-lark-task/checklist.md`：任务1-5 已完成项勾选
+
+**架构决策**：Spec B 任务 3.5 原文要求"AppShell 新增顶部 h-14 header"，但 CaptureBar 已是 main 内的 h-14 sticky header（左侧原本空置），改造 CaptureBar 比新增第二层 header 更合理，避免冗余。TitleBar 在桌面端独立保留。
+
+**自测结果**：
+- `npx tsc --noEmit`：逻辑层无新增错误（CaptureBar/UserMenu/Sidebar 三个改动文件无类型错误）；环境性错误全部为 node_modules 缺失导致（TS2307 找不到 react/next-auth 模块、TS7026 找不到 JSX.IntrinsicElements），非本次改动引入
+- 待手动验证（需浏览器/e2e 环境）：header 显示、菜单 hover、资料保存、退出跳转、技能 12 岗位分类、e2e 脏数据清理、全双工语音端到端延迟
+
+**Commit hash**：待提交
 
 ---
 

@@ -156,6 +156,9 @@ const NAV_GROUPS: NavGroup[] = [
   },
 ];
 
+/** 扁平化的导航项列表（供顶部 header 等组件做 pathname→标题映射复用） */
+export const NAV_ITEMS: NavItem[] = NAV_GROUPS.flatMap((g) => g.items);
+
 function findActiveGroup(pathname: string) {
   return NAV_GROUPS.find((g) => g.items.some((i) => !i.disabled && i.href === pathname))?.id || null;
 }
