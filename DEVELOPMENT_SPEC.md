@@ -69,8 +69,8 @@ node scripts/compile-ws-gateway.mjs
 
 1. **本地构建原则**：阿里云 ECS 2C2G 服务器禁止任何形式的编译/构建操作。所有构建产物在本地完成，仅同步产物到服务器。（详见第零章）
 2. **D 盘存储原则**：所有项目数据、依赖、构建产物必须存放在 D 盘，C 盘禁止写入。
-3. **端口固定原则**：本地开发服务固定端口 3002，禁止修改（详见 service-runtime.md）。
-4. **Gitee 提交原则**：每次迭代完成后必须自动提交并推送到 Gitee 仓库 `Admin/LynnHub`。
+3. **端口固定原则**：本地开发服务固定端口 5176，禁止修改（与 `package.json` 的 `npm run dev` 一致，详见 service-runtime.md）。
+4. **双远程提交原则**：每次迭代完成后必须自动提交并推送到 Gitee（`origin`）和 GitHub（`github`）两个远程仓库。GitHub 主仓库地址 `https://github.com/woaini737696/Lynx.git`，Gitee 镜像仓库 `https://gitee.com/shenzhens-emotions-are-booming_0/lynn-hub.git`。
 5. **开发日志原则**：每次迭代必须更新 `DEV_LOG.md`，记录迭代号、任务、完成内容、commit hash。
 6. **使用说明原则**：每个功能模块右上角必须有使用说明入口，新增模块需在规范文件中补充。
 7. **测试数据清理原则**：自测后必须清理 E2E 看板测试数据，避免脏数据。
@@ -95,7 +95,7 @@ node scripts/compile-ws-gateway.mjs
 
 ### 2.2 端口分配
 
-- **Web 端开发服务器**：`http://localhost:3002`（生产为 5176）
+- **Web 端开发服务器**：`http://localhost:5176`（开发与生产一致，端口固定禁止修改）
 - **官网开发服务器**：`http://localhost:5177`
 - **MySQL**：3306
 - **HermesAgent Dashboard**：9119
@@ -116,7 +116,7 @@ npx prisma generate
 npx prisma db push
 
 # 5. 启动开发服务器
-npm run dev  # 默认 http://localhost:3002
+npm run dev  # 默认 http://localhost:5176
 ```
 
 ---
@@ -147,7 +147,7 @@ npx tsc --noEmit
 # Web 端 ESLint
 npm run lint
 
-# 本地启动开发服务器，端口 3002
+# 本地启动开发服务器，端口 5176
 npm run dev
 
 # 桌面端构建（如涉及）
@@ -544,7 +544,7 @@ location / {
 每次迭代完成前，逐项检查：
 
 - [ ] TypeScript 类型检查通过（`npx tsc --noEmit`）
-- [ ] 本地开发服务器启动正常（端口 3002）
+- [ ] 本地开发服务器启动正常（端口 5176）
 - [ ] 涉及的 UI 页面在浏览器中功能正常
 - [ ] 桌面端构建成功（如涉及）
 - [ ] 部署产物已构建（`build.ps1`）
