@@ -219,6 +219,8 @@ export function AssistantChat({ onClose, open }: AssistantChatProps = {}) {
   const voiceModeActiveRef = useRef(false);
   const voiceCallPhaseRef = useRef<VoicePhase>("listening");
   const voiceSendLockRef = useRef(false);
+  // stopVoiceCall 的 ref 副本，供声明顺序在前面的 useEffect 安全调用（避免 TDZ）
+  const stopVoiceCallRef = useRef<() => void>(() => {});
   // 防止 stale closure：用 ref 持有最新的 sendVoice / handleSpeechEnd / sendText
   const sendVoiceRef = useRef<(text: string) => Promise<void>>(async () => {});
   const handleSpeechEndRef = useRef<() => void>(() => {});
@@ -377,6 +379,7 @@ export function AssistantChat({ onClose, open }: AssistantChatProps = {}) {
 
   // 抽屉打开时刷新会话列表 + 当前会话消息（与主页面 /ai/assistant 完全同步信息）
   // 解决：在主页面发消息后关闭抽屉，再次打开抽屉时数据是旧的
+  // 同时处理：抽屉关闭时若语音通话进行中，立即挂断（避免麦克风持续监听的隐私问题）
   const openRef = useRef(open);
   useEffect(() => {
     if (open === undefined) return; // 非抽屉场景（主页面）不触发
@@ -398,8 +401,12 @@ export function AssistantChat({ onClose, open }: AssistantChatProps = {}) {
           }
         }
       })();
+    } else if (!open && wasOpen && voiceCallActive) {
+      // 抽屉从打开→关闭且语音通话进行中：立即挂断，释放麦克风
+      // 用 ref 调用避免 TDZ（stopVoiceCall 声明在此 effect 之后）
+      stopVoiceCallRef.current();
     }
-  }, [open, fetchSessions, loadSession]);
+  }, [open, fetchSessions, loadSession, voiceCallActive]);
 
   // 点击会话下拉外部时关闭
   useEffect(() => {
@@ -622,8 +629,10 @@ export function AssistantChat({ onClose, open }: AssistantChatProps = {}) {
           });
         }
       } catch (e) {
-        if ((e as Error).name === "AbortError") return;
-        setError((e as Error).message || "发送失败，请重试");
+        // abort 时也要清理占位空 assistant 消息（避免界面残留空气泡）
+        const isAbort = (e as Error).name === "AbortError";
+        if (!isAbort) setError((e as Error).message || "发送失败，请重试");
+        else setError("");
         setMessages((prev) => {
           const next = [...prev];
           const last = next[next.length - 1];
@@ -858,8 +867,10 @@ export function AssistantChat({ onClose, open }: AssistantChatProps = {}) {
           });
         }
       } catch (e) {
-        if ((e as Error).name === "AbortError") return;
-        setError((e as Error).message || "发送失败，请重试");
+        // abort 时也要清理占位空 assistant 消息（避免界面残留空气泡）
+        const isAbort = (e as Error).name === "AbortError";
+        if (!isAbort) setError((e as Error).message || "发送失败，请重试");
+        else setError("");
         setMessages((prev) => {
           const next = [...prev];
           const last = next[next.length - 1];
@@ -1019,6 +1030,8 @@ export function AssistantChat({ onClose, open }: AssistantChatProps = {}) {
     voiceSendLockRef.current = false;
     setInput("");
   }, [setPhase]);
+  // 同步到 ref，供声明在前面的 useEffect 安全调用
+  stopVoiceCallRef.current = stopVoiceCall;
 
   // ===== 快捷技能：点击把内容填入输入框（不发送），与主页面 /ai/assistant 一致 =====
   const handleQuickCommand = useCallback((cmd: QuickCommand) => {

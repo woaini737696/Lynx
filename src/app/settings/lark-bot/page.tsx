@@ -61,10 +61,13 @@ export default function LarkBotSettingsPage() {
             setWebhookUrl((legacyUrl || "").trim());
             setWebhookToken((legacyToken || "").trim());
             toast("已迁移旧配置到数据库", "success");
+            // 迁移成功才清除旧 key，避免失败导致配置丢失
+            localStorage.removeItem(LEGACY_WEBHOOK_URL_KEY);
+            localStorage.removeItem(LEGACY_WEBHOOK_TOKEN_KEY);
+          } else if (!migrateRes.ok && !cancelled) {
+            toast("迁移失败，旧配置已保留，请重试", "error");
+            // 迁移失败保留旧 key，下次访问时再次尝试迁移
           }
-          // 无论迁移成功与否，都清除旧 key，避免反复迁移
-          localStorage.removeItem(LEGACY_WEBHOOK_URL_KEY);
-          localStorage.removeItem(LEGACY_WEBHOOK_TOKEN_KEY);
           if (cancelled) return;
           setLoading(false);
           return;
