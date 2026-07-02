@@ -1,0 +1,114 @@
+name: Deploy Website to Server
+
+# 构建 web_Lynx 官网并部署到阿里云服务器 /opt/lynx/website/
+# 不在服务器执行任何构建操作（符合规范第零章：本地/CI 构建后仅同步产物）
+# 触发方式：
+#   1. 手动触发（workflow_dispatch）
+#   2. push 到 master 且 web_Lynx/ 有变更
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - master
+    paths:
+      - 'web_Lynx/**'
+      - '.github/workflows/deploy-website.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  deploy-website:
+    name: Build & Deploy Website
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'pnpm'
+          cache-dependency-path: web_Lynx/pnpm-lock.yaml
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: Install dependencies
+        working-directory: web_Lynx
+        run: pnpm install --frozen-lockfile
+
+      - name: Build website
+        working-directory: web_Lynx
+        run: pnpm build
+
+      - name: Prepare deploy package
+        # 将 dist 产物整理为待上传目录
+        run: |
+          mkdir -p deploy-pkg
+          cp -r web_Lynx/dist/* deploy-pkg/
+          echo "=== Deploy package contents ==="
+          ls -la deploy-pkg/
+          echo "=== Verify title/favicon ==="
+          grep -o '<title>[^<]*</title>' deploy-pkg/index.html || true
+          grep -o 'href="[^"]*lynx-logo[^"]*"' deploy-pkg/index.html || true
+
+      - name: Upload to server via SSH
+        # 用 scp 上传到服务器临时目录，再原子切换
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          password: ${{ secrets.SSH_PASSWORD }}
+          script: |
+            mkdir -p /opt/lynx/website-new /opt/lynx/website-bak
+
+      - name: Sync files to server
+        uses: horochx/deploy-via-scp@v1.0.3
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          user: ${{ secrets.SSH_USER }}
+          password: ${{ secrets.SSH_PASSWORD }}
+          local: deploy-pkg/*
+          remote: /opt/lynx/website-new/
+
+      - name: Atomic switch & reload nginx
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          password: ${{ secrets.SSH_PASSWORD }}
+          script: |
+            set -e
+            # 备份旧版本（如存在）
+            if [ -d /opt/lynx/website ]; then
+              rm -rf /opt/lynx/website-bak
+              mv /opt/lynx/website /opt/lynx/website-bak
+            fi
+            # 切换新版本
+            mv /opt/lynx/website-new /opt/lynx/website
+            # reload nginx
+            nginx -t && systemctl reload nginx
+            echo "=== /opt/lynx/website 当前内容 ==="
+            ls -la /opt/lynx/website/ | head -10
+            echo "=== index.html 验证 ==="
+            grep -o '<title>[^<]*</title>' /opt/lynx/website/index.html || echo "title not found"
+
+      - name: Health check
+        # 部署后验证线上官网可访问且内容正确
+        run: |
+          sleep 5
+          echo "=== 线上 title 验证 ==="
+          TITLE=$(curl -sS -L https://www.lynxdo.com/ | grep -o '<title>[^<]*</title>' || echo "FAILED")
+          echo "title: $TITLE"
+          if echo "$TITLE" | grep -q "AI超级助理"; then
+            echo "✓ 线上官网部署成功，标题正确"
+          else
+            echo "✗ 线上官网标题不正确，部署可能失败"
+            exit 1
+          fi

@@ -132,8 +132,8 @@ export default function Navbar() {
               >
                 {[
                   { label: 'Web 版', desc: '浏览器直接使用', href: 'https://ai.lynxdo.com/' },
-                  { label: 'Windows 桌面版', desc: '下载安装包', href: 'https://github.com/woaini737696/Lynx/releases/latest/download/Lynx-windows-setup.exe' },
-                  { label: '安卓 APP', desc: '下载 APK', href: 'https://github.com/woaini737696/Lynx/releases/latest/download/Lynx-android.apk' },
+                  { label: 'Windows 桌面版', desc: '下载安装包', href: 'https://www.lynxdo.com/download/Lynx-windows-setup.exe' },
+                  { label: '安卓 APP', desc: '下载 APK', href: 'https://www.lynxdo.com/download/Lynx-android.apk' },
                 ].map((opt) => (
                   <a
                     key={opt.label}

@@ -146,3 +146,28 @@ jobs:
             --data-binary @dist/Lynx-android.apk \
             "${UPLOAD_URL}?name=Lynx-android.apk" \
             | python3 -c "import json,sys; d=json.load(sys.stdin); print(f\"Uploaded: {d.get('name','?')} | {d.get('size',0)/1024/1024:.2f} MB\")"
+
+      - name: Deploy APK to server
+        # 部署到阿里云服务器 /opt/lynx/downloads/ 供官网下载
+        # 官网"下载安卓版"指向：https://www.lynxdo.com/download/Lynx-android.apk
+        if: github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.upload_to_release)
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          password: ${{ secrets.SSH_PASSWORD }}
+          source: dist/Lynx-android.apk
+          target: /opt/lynx/downloads/
+
+      - name: Verify server download
+        if: github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.upload_to_release)
+        run: |
+          sleep 5
+          echo "=== 验证服务器 APK 下载链接 ==="
+          CODE=$(curl -sS -o /dev/null -w "%{http_code}" -I https://www.lynxdo.com/download/Lynx-android.apk)
+          echo "HTTP status: $CODE"
+          if [ "$CODE" = "200" ] || [ "$CODE" = "302" ]; then
+            echo "✓ 服务器 APK 下载链接可用"
+          else
+            echo "✗ 服务器 APK 下载链接不可用 (HTTP $CODE)"
+          fi
