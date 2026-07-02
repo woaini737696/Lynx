@@ -131,12 +131,13 @@ export default function Navbar() {
                 }}
               >
                 {[
-                  { label: 'Web 版', desc: '浏览器直接使用' },
-                  { label: 'Windows 桌面版', desc: 'Windows 10/11' },
-                  { label: '安卓 APP', desc: 'Android 8+' },
+                  { label: 'Web 版', desc: '浏览器直接使用', href: 'https://ai.lynxdo.com/' },
+                  { label: 'Windows 桌面版', desc: '下载安装包', href: 'https://github.com/woaini737696/Lynx/releases/latest/download/Lynx-windows-setup.exe' },
+                  { label: '安卓 APP', desc: '下载 APK', href: 'https://github.com/woaini737696/Lynx/releases/latest/download/Lynx-android.apk' },
                 ].map((opt) => (
-                  <button
+                  <a
                     key={opt.label}
+                    href={opt.href}
                     className="w-full flex items-center gap-3 px-4 py-3.5 text-left transition-colors"
                     style={{ color: '#F0F4F8' }}
                     onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(255,255,255,0.08)' }}
@@ -146,14 +147,14 @@ export default function Navbar() {
                       <div className="text-[13px] font-medium">{opt.label}</div>
                       <div className="text-[11px]" style={{ color: 'rgba(240, 244, 248, 0.4)' }}>{opt.desc}</div>
                     </div>
-                  </button>
+                  </a>
                 ))}
               </div>
             </div>
           </div>
 
           {/* Login */}
-          <a href="/login" className="ios-pill hidden sm:inline-flex">
+          <a href="https://ai.lynxdo.com/" className="ios-pill hidden sm:inline-flex">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
               <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
               <circle cx="12" cy="7" r="4" />
