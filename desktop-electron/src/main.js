@@ -196,7 +196,7 @@ async function checkAppUpdate() {
         mainWindow.webContents.send('app-update-available', {
           current: currentVersion,
           latest: data.version,
-          downloadUrl: data.downloadUrl || 'https://www.lynxdo.com/download/Lynx-windows-setup.exe',
+          downloadUrl: data.downloadUrl || 'https://gitee.com/shenzhens-emotions-are-booming_0/lynn-hub-release/releases/download/v1.0.2/Lynx_1.0.2_x64-setup.exe',
           releaseNotes: data.releaseNotes || '',
         });
       }
@@ -210,7 +210,7 @@ async function checkAppUpdate() {
 
 // 手动触发：下载并安装更新（通过 IPC 调用）
 async function downloadAndInstallUpdate(downloadUrl) {
-  const url = downloadUrl || 'https://www.lynxdo.com/download/Lynx-windows-setup.exe';
+  const url = downloadUrl || 'https://gitee.com/shenzhens-emotions-are-booming_0/lynn-hub-release/releases/download/v1.0.2/Lynx_1.0.2_x64-setup.exe';
   console.log(`[update] 开始下载: ${url}`);
 
   // 通知前端下载进度
@@ -359,7 +359,7 @@ function registerIPC() {
       hasUpdate,
       current: currentVersion,
       latest: data.version,
-      downloadUrl: data.downloadUrl || 'https://www.lynxdo.com/download/Lynx-windows-setup.exe',
+      downloadUrl: data.downloadUrl || 'https://gitee.com/shenzhens-emotions-are-booming_0/lynn-hub-release/releases/download/v1.0.2/Lynx_1.0.2_x64-setup.exe',
       releaseNotes: data.releaseNotes || '',
     };
   });

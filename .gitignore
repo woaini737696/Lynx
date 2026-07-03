@@ -169,3 +169,6 @@ __pycache__/
 /scripts/deploy/verify_all.py
 /scripts/deploy/diag_server.py
 /scripts/deploy/_*.py
+
+# Git 历史清理前原始仓库备份（117MB，仅本地保留）
+/backup-original-history.bundle

@@ -102,7 +102,7 @@ export async function POST(req: NextRequest) {
         error:
           "未检测到在线的桌面端。请在您的电脑上启动 Lynx 桌面端客户端并登录，确保 HermesAgent 已启动。\n\n" +
           "AI 助理通过桌面端执行本地操作（如打开浏览器、操作文件等），服务器不执行 RPA 动作（安全架构）。\n" +
-          "下载桌面端：https://ai.lynxdo.com/downloads",
+          "下载桌面端：https://gitee.com/shenzhens-emotions-are-booming_0/lynn-hub-release/releases",
         durationMs: Date.now() - startMs,
       });
     }
