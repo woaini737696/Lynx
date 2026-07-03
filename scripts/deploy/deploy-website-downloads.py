@@ -15,7 +15,7 @@ SSH_USER = "root"
 SSH_PASSWORD = "Ee9527ffss"
 
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-DESKTOP_EXE = os.path.join(PROJECT_ROOT, "downloads", "Lynx_1.0.30_x64-setup.exe")
+DESKTOP_EXE = os.path.join(PROJECT_ROOT, "downloads", "Lynx_1.0.1_x64-setup.exe")
 ANDROID_APK_DIR = os.path.join(PROJECT_ROOT, "android", "app", "build", "outputs", "apk", "release")
 WEBSITE_DIST = os.path.join(PROJECT_ROOT, "web_Lynx", "dist")
 
@@ -149,9 +149,9 @@ def main():
 
     apk_path = find_apk()
     if not apk_path:
-        log("安卓APK未找到，请先构建: cd android && gradlew assembleRelease", "ERR")
-        sys.exit(1)
-    log(f"  安卓APK: {os.path.getsize(apk_path) / 1024 / 1024:.2f} MB ({os.path.basename(apk_path)})", "OK")
+        log("安卓APK未找到，跳过APK上传", "WARN")
+    else:
+        log(f"  安卓APK: {os.path.getsize(apk_path) / 1024 / 1024:.2f} MB ({os.path.basename(apk_path)})", "OK")
 
     if not os.path.isdir(WEBSITE_DIST):
         log(f"官网产物不存在: {WEBSITE_DIST}", "ERR")
@@ -173,7 +173,8 @@ def main():
     # 上传安装包
     log("[3/6] 上传安装包到 /opt/lynx/download/ ...")
     upload_file(client, DESKTOP_EXE, "/opt/lynx/download", "Lynx-windows-setup.exe")
-    upload_file(client, apk_path, "/opt/lynx/download", "Lynx-android.apk")
+    if apk_path:
+        upload_file(client, apk_path, "/opt/lynx/download", "Lynx-android.apk")
 
     # 上传官网
     log("[4/6] 上传官网到 /opt/lynx/website/ ...")

@@ -3,8 +3,12 @@ import react from '@vitejs/plugin-react';
 import { resolve } from 'path';
 
 // https://vitejs.dev/config/
+// Electron 构建模式：VITE_ELECTRON_BUILD=1 时输出到 desktop-electron/renderer，base 设为相对路径
+const isElectronBuild = !!process.env.VITE_ELECTRON_BUILD;
+
 export default defineConfig({
   plugins: [react()],
+  base: isElectronBuild ? './' : '/',
   resolve: {
     alias: {
       '@': resolve(__dirname, './src'),
@@ -12,9 +16,9 @@ export default defineConfig({
     },
   },
   build: {
-    outDir: '../out/app',
+    outDir: isElectronBuild ? '../../desktop-electron/renderer' : '../out/app',
     emptyOutDir: true,
-    sourcemap: true,
+    sourcemap: !isElectronBuild,
   },
   server: {
     port: 5177,

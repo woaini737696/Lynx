@@ -1,16 +1,24 @@
 {
   "name": "lynx-desktop",
-  "version": "1.0.0",
-  "description": "Lynx AI 超级助理 - 桌面端",
+  "version": "1.0.1",
+  "description": "Lynx AI 超级助理 - 桌面端（Electron 主架构）",
   "main": "src/main.js",
   "author": "Lynn",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/woaini737696/Lynx.git"
+  },
   "scripts": {
     "start": "electron .",
     "dev": "electron . --dev",
-    "build:win": "electron-builder --win nsis",
-    "build:mac": "electron-builder --mac",
-    "build": "electron-builder --win nsis"
+    "build:renderer": "node scripts/build-renderer.mjs",
+    "build:win": "npm run build:renderer && electron-builder --win nsis",
+    "build:mac": "npm run build:renderer && electron-builder --mac",
+    "build": "npm run build:win"
+  },
+  "dependencies": {
+    "ws": "^8.18.0"
   },
   "devDependencies": {
     "electron": "^31.0.0",
@@ -21,11 +29,13 @@
     "productName": "Lynx",
     "copyright": "© 2026 Lynn. All rights reserved.",
     "directories": {
-      "output": "dist",
+      "output": "release",
       "buildResources": "build"
     },
+    "publish": null,
     "files": [
       "src/**/*",
+      "renderer/**/*",
       "package.json"
     ],
     "win": {
@@ -35,7 +45,9 @@
           "target": "nsis",
           "arch": ["x64"]
         }
-      ]
+      ],
+      "signAndEditExecutable": false,
+      "forceCodeSigning": false
     },
     "nsis": {
       "oneClick": false,

@@ -24,6 +24,8 @@ ENV_PRODUCTION = os.path.join(PROJECT_ROOT, ".env.production")
 # 同时含 Windows 和 Linux 引擎，需一并上传，否则服务器报 PrismaClientInitializationError）
 PRISMA_CLIENT_DIR = os.path.join(PROJECT_ROOT, "node_modules", ".prisma", "client")
 AT_PRISMA_CLIENT_DIR = os.path.join(PROJECT_ROOT, "node_modules", "@prisma", "client")
+# PM2 启动入口（start-with-env.js 加载 .env 后启动 server.js）
+START_WITH_ENV = os.path.join(PROJECT_ROOT, "scripts", "deploy", "start-with-env.js")
 
 TS = time.strftime("%Y%m%d-%H%M%S")
 REMOTE_TMP = f"/tmp/lynx-deploy-{TS}"
@@ -88,6 +90,9 @@ def pack_standalone():
         # Prisma 引擎（本地 binaryTargets 配置生成，含 Linux 引擎，standalone 不含需补齐）
         tar.add(PRISMA_CLIENT_DIR, arcname="standalone/node_modules/.prisma/client")
         tar.add(AT_PRISMA_CLIENT_DIR, arcname="standalone/node_modules/@prisma/client")
+        # start-with-env.js（PM2 启动入口）
+        if os.path.exists(START_WITH_ENV):
+            tar.add(START_WITH_ENV, arcname="standalone/start-with-env.js")
     size_mb = buf.tell() / 1024 / 1024
     buf.seek(0)
     log(f"打包完成: {size_mb:.2f} MB（含 Linux Prisma 引擎）", "OK")

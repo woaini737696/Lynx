@@ -3,30 +3,49 @@ import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { Minus, Square, X, Maximize2 } from "lucide-react";
 import { Logo } from "@/components/ui/Logo";
 import { cn } from "@/lib/utils";
-import { isTauri } from "@/lib/tauri";
+import { isTauri, isElectron } from "@/lib/tauri";
 
 export function TitleBar() {
   const [isMaximized, setIsMaximized] = useState(false);
   const appWindow = isTauri() ? getCurrentWebviewWindow() : null;
+  const electronWindow = isElectron() ? (window as any).electronAPI.window : null;
 
   useEffect(() => {
-    if (!appWindow) return;
-    let unlisten: (() => void) | undefined;
-    appWindow.onResized(async () => {
-      setIsMaximized(await appWindow.isMaximized());
-    }).then((fn) => {
-      unlisten = fn;
-    });
-    return () => unlisten?.();
-  }, [appWindow]);
+    if (appWindow) {
+      let unlisten: (() => void) | undefined;
+      appWindow.onResized(async () => {
+        setIsMaximized(await appWindow.isMaximized());
+      }).then((fn) => {
+        unlisten = fn;
+      });
+      return () => unlisten?.();
+    }
+    if (electronWindow) {
+      const unlisten = electronWindow.onMaximizeChange((maximized: boolean) => {
+        setIsMaximized(maximized);
+      });
+      return () => unlisten?.();
+    }
+  }, [appWindow, electronWindow]);
 
-  const handleMinimize = () => appWindow?.minimize();
-  const handleMaximize = async () => {
-    if (!appWindow) return;
-    await appWindow.toggleMaximize();
-    setIsMaximized(await appWindow.isMaximized());
+  const handleMinimize = () => {
+    appWindow?.minimize() ?? electronWindow?.minimize();
   };
-  const handleClose = () => appWindow?.close();
+  const handleMaximize = async () => {
+    if (appWindow) {
+      await appWindow.toggleMaximize();
+      setIsMaximized(await appWindow.isMaximized());
+    } else if (electronWindow) {
+      electronWindow.toggleMaximize();
+      setIsMaximized(await electronWindow.isMaximized());
+    }
+  };
+  const handleClose = () => {
+    appWindow?.close() ?? electronWindow?.close();
+  };
+
+  // 非 Tauri 且非 Electron 环境不显示窗口控制按钮（纯 Web 模式）
+  const showWindowControls = appWindow || electronWindow;
 
   return (
     <header
@@ -38,17 +57,19 @@ export function TitleBar() {
         <span className="text-sm font-semibold tracking-tight text-foreground/90">Lynx</span>
       </div>
 
-      <div className="flex items-center" data-tauri-drag-region>
-        <WindowControlButton onClick={handleMinimize} label="最小化">
-          <Minus className="h-4 w-4" />
-        </WindowControlButton>
-        <WindowControlButton onClick={handleMaximize} label={isMaximized ? "还原" : "最大化"}>
-          {isMaximized ? <Square className="h-3.5 w-3.5" /> : <Maximize2 className="h-3.5 w-3.5" />}
-        </WindowControlButton>
-        <WindowControlButton onClick={handleClose} label="关闭" className="hover:bg-destructive hover:text-destructive-foreground">
-          <X className="h-4 w-4" />
-        </WindowControlButton>
-      </div>
+      {showWindowControls && (
+        <div className="flex items-center" data-tauri-drag-region>
+          <WindowControlButton onClick={handleMinimize} label="最小化">
+            <Minus className="h-4 w-4" />
+          </WindowControlButton>
+          <WindowControlButton onClick={handleMaximize} label={isMaximized ? "还原" : "最大化"}>
+            {isMaximized ? <Square className="h-3.5 w-3.5" /> : <Maximize2 className="h-3.5 w-3.5" />}
+          </WindowControlButton>
+          <WindowControlButton onClick={handleClose} label="关闭" className="hover:bg-destructive hover:text-destructive-foreground">
+            <X className="h-4 w-4" />
+          </WindowControlButton>
+        </div>
+      )}
     </header>
   );
 }

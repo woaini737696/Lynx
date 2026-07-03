@@ -25,7 +25,7 @@ import {
 import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { useAuthStore } from "@/stores/authStore";
 import { saveAuth } from "@/lib/auth-persistence";
-import { invoke } from "@/lib/tauri";
+import { invoke, isTauri, isElectron } from "@/lib/tauri";
 import { cloudApi } from "@/lib/cloud-api";
 import { cn } from "@/lib/utils";
 
@@ -95,17 +95,26 @@ export function LoginPage() {
   const [masterCodeHint, setMasterCodeHint] = useState<string | null>(null);
 
   const firstInputRef = useRef<HTMLInputElement | null>(null);
-  const appWindow = getCurrentWebviewWindow();
+  const appWindow = isTauri() ? getCurrentWebviewWindow() : null;
 
   // 窗口状态监听
   useEffect(() => {
-    let unlisten: (() => void) | undefined;
-    appWindow.onResized(async () => {
-      setIsMaximized(await appWindow.isMaximized());
-    }).then((fn) => {
-      unlisten = fn;
-    });
-    return () => unlisten?.();
+    if (appWindow) {
+      let unlisten: (() => void) | undefined;
+      appWindow.onResized(async () => {
+        setIsMaximized(await appWindow.isMaximized());
+      }).then((fn) => {
+        unlisten = fn;
+      });
+      return () => unlisten?.();
+    }
+    // Electron 模式：监听 maximize 事件
+    if (isElectron()) {
+      const unlisten = (window as any).electronAPI.window.onMaximizeChange((maximized: boolean) => {
+        setIsMaximized(maximized);
+      });
+      return () => unlisten?.();
+    }
   }, [appWindow]);
 
   // 切换模式时清空错误并聚焦
@@ -122,12 +131,23 @@ export function LoginPage() {
     return () => clearInterval(id);
   }, [countdown]);
 
-  const handleMinimize = () => appWindow.minimize();
-  const handleMaximize = async () => {
-    await appWindow.toggleMaximize();
-    setIsMaximized(await appWindow.isMaximized());
+  const handleMinimize = () => {
+    if (appWindow) appWindow.minimize();
+    else if (isElectron()) (window as any).electronAPI.window.minimize();
   };
-  const handleClose = () => appWindow.close();
+  const handleMaximize = async () => {
+    if (appWindow) {
+      await appWindow.toggleMaximize();
+      setIsMaximized(await appWindow.isMaximized());
+    } else if (isElectron()) {
+      (window as any).electronAPI.window.toggleMaximize();
+      setIsMaximized(await (window as any).electronAPI.window.isMaximized());
+    }
+  };
+  const handleClose = () => {
+    if (appWindow) appWindow.close();
+    else if (isElectron()) (window as any).electronAPI.window.close();
+  };
 
   const handleOpenWebSite = async () => {
     try {

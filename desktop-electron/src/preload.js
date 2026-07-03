@@ -1,14 +1,35 @@
 // Lynx AI 超级助理 - Electron preload
-// 通过 contextBridge 安全地暴露少量能力给页面
-// 兼容原 Tauri 的 isTauri() 判断（返回 false，让前端走 Web 模式）
-const { contextBridge } = require('electron');
+// 通过 contextBridge 安全暴露 IPC 能力给渲染层
+// 兼容 native-ui 的 invoke/listen 接口（与 Tauri 接口同构）
+const { contextBridge, ipcRenderer } = require('electron');
 
-contextBridge.exposeInMainWorld('lynxDesktop', {
-  // 平台标识，前端可据此判断是否运行在桌面端
+contextBridge.exposeInMainWorld('electronAPI', {
+  // IPC 调用（与 Tauri invoke 同构）
+  invoke: (cmd, args) => ipcRenderer.invoke(cmd, args),
+
+  // 事件监听（与 Tauri listen 同构，返回取消监听函数）
+  on: (event, handler) => {
+    const listener = (_e, payload) => handler(payload);
+    ipcRenderer.on(event, listener);
+    return () => ipcRenderer.removeListener(event, listener);
+  },
+
+  // 窗口控制（供 TitleBar 组件使用）
+  window: {
+    minimize: () => ipcRenderer.send('window-minimize'),
+    toggleMaximize: () => ipcRenderer.send('window-toggle-maximize'),
+    close: () => ipcRenderer.send('window-close'),
+    isMaximized: () => ipcRenderer.invoke('window-is-maximized'),
+    onMaximizeChange: (cb) => {
+      const listener = (_e, maximized) => cb(maximized);
+      ipcRenderer.on('window-maximize-changed', listener);
+      return () => ipcRenderer.removeListener('window-maximize-changed', listener);
+    },
+  },
+
+  // 平台标识
   platform: 'electron',
   isDesktop: true,
-  // 兼容 native-ui 的 isTauri() 判断：桌面端不是 Tauri 环境
   isTauri: false,
-  // 版本信息
-  version: process.env.npm_package_version || '1.0.0',
+  version: process.env.npm_package_version || '1.0.1',
 });
