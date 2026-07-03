@@ -1,9 +1,13 @@
 # dependencies
 /node_modules
 /mobile/node_modules
+/desktop/node_modules
 /.pnp
 .pnp.js
 /.pnpm-store/
+
+# Maven 本地缓存（误提交过一次，禁止再次入版本控制）
+/.m2/
 
 # next.js
 /.next/
