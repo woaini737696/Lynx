@@ -9,6 +9,7 @@
 
 | 迭代 | 日期 | 任务概要 |
 |------|------|----------|
+| [迭代 107](#迭代-107---2026-07-03) | 2026-07-03 | 下载方案切换Gitee Release+Git历史彻底清理+E2E框架完善：① 下载方案从服务器直存切换到Gitee Release公开仓库附件(lynn-hub-release仓库改公开+绑定微信完成安全认证+附件无token HTTP 200验证+更新官网Hero/Navbar下载链接+Electron自动更新回退URL+API提示) ② 新增/api/hermes/app-version端点(供Electron自动更新检查+动态从desktop-electron/package.json读取版本号构造Gitee下载URL) ③ Git历史彻底清理(117.37MiB→17.82MiB减少85% / git-filter-repo清理.m2(93MB)+desktop/src-tauri/vendor(30MB)+desktop-native/src-tauri/vendor+node_modules+旧whl+非法路径D:/cargo-target-native / 设置core.protectNTFS=false解决filter-branch returncode 123崩溃 / 原始历史备份backup-original-history.bundle本地保留) ④ Gitee force push成功(948e139→11fe381) GitHub失败(GH_TOKEN过期已知问题) ⑤ E2E框架完善(playwright已存在5 spec/19 tests覆盖auth+board+idea+search+backup / 新增test:e2e+test:e2e:ui npm脚本 / 启用webServer自动启动dev server) |
 | [迭代 106](#迭代-106---2026-07-03) | 2026-07-03 | git仓库清理+P0/P1优化全部完成：① git清理(移除.m2/Maven缓存1543文件93.91MB+添加.gitignore+desktop/node_modules排除) ② P0-1 IPC try/catch(safeHandle包装器统一14个handler错误处理) ③ P0-2 store防抖写入(500ms防抖+flush退出落盘) ④ P0-3 WS优雅关闭(stopWSGateway返回Promise+2秒超时+before-quit await 3秒) ⑤ P1-1 Electron自动更新(fetchLatestVersion+downloadInstaller重定向+进度通知+dialog确认+shell.openPath启动安装+2个IPC handler) ⑥ P1-2 安装包瘦身(electronLanguages限定zh-CN/en-US+compression:maximum / 75.82MB→69.17MB减少6.65MB-8.8%) ⑦ P1-3 GPU加速(enable-gpu-rasterization+enable-zero-copy+gpu-process-crashed自动回退) ⑧ v1.0.2打包+部署(www.lynxdo.com HTTP 200) |
 | [迭代 105](#迭代-105---2026-07-03) | 2026-07-03 | Electron主架构实现+HermesAgent自测+部署完成：① Electron完整本地能力架构(main.js窗口+托盘+全局快捷键Ctrl+Shift+L+自动更新检查+14个IPC处理器 / preload.js contextBridge桥接 / hermes.js复刻Tauri installer.rs全功能 / ws-gateway.js复刻ws_client.rs / store.js JSON持久化) ② native-ui双轨兼容(tauri.ts isElectron检测+invoke/listen优先Electron回退Tauri / auth-persistence localStorage回退 / LoginPage+TitleBar窗口控制适配) ③ Vite多目标构建(VITE_ELECTRON_BUILD切换输出目录+base路径) ④ Electron打包v1.0.1(signAndEditExecutable跳过签名+npmmirror镜像下载nsis-resources / Lynx Setup 1.0.1.exe 75.82MB) ⑤ HermesAgent自测12项全通过(detectAIEnv检测Python3.13.7/pip/node22.19/hermes0.17 + startDashboard + getDashboardStatus + executeViaDashboard RPA文件列表 + WS网关代码审查 + 托盘快捷键代码审查) ⑥ 部署完成(官网+Electron安装包→www.lynxdo.com HTTP 200 / Next.js重新构建+部署→ai.lynxdo.com HTTP 200 / 修复deploy-password.py缺少start-with-env.js) ⑦ 开发规范3.0.1八条原则已验证 ⑧ 架构师4维度分析(健壮性7/10扩展性8/10迭代性7/10性能7/10)+P0-P2迭代建议 |
 | [迭代 103](#迭代-103---2026-07-02) | 2026-07-02 | 官网下载链路完善+开发规范七条铁律：① Footer文案"Lynx AI工作台"→"Lynx AI超级助理" ② 本地构建APK v0.1.7(生成lynx-test.keystore签名) ③ 上传Tauri桌面包(Lynx_1.0.30)+APK到服务器/opt/lynx/download/ ④ nginx配置/download/别名(无s) ⑤ 官网构建部署到服务器 ⑥ DEVELOPMENT_SPEC.md新增"3.0开发流程七条铁律"章节(测试用例先行/逐条自测/自动修复至发布标准/Gitee提交+日志/不确定即弹窗/服务器零构建/清理临时文件) ⑦ 新建deploy-website-downloads.py一键部署脚本 |
@@ -6281,6 +6282,95 @@ GitHub 仓库迁移 + 本地持久化 + 三方同步验证 + 文档完善：用�
 
 ### Commit
 本次提交
+
+---
+
+## 迭代 107 - 2026-07-03
+
+### 任务概要
+1. 下载方案从服务器直存切换到 Gitee Release 公开仓库附件
+2. Git 历史彻底清理（Gitee 仓库 936MB 超 80% 配额）
+3. E2E 自动化测试框架完善
+
+### 详细变更
+
+#### 1. 下载方案切换到 Gitee Release 附件
+- **问题**：两个安装包（Electron 69MB + APK 4MB）放服务器下载速度慢，且消耗服务器流量
+- **方案**：新建 Gitee 公开仓库 `lynn-hub-release`，通过 Release 附件托管安装包
+- **Gitee 安全认证**：绑定微信完成第三方账号认证（公开仓库前置条件）
+- **仓库切换为公开**：`PATCH /api/v5/repos/{owner}/{repo}` → `private: false`
+- **附件验证**：无 token HEAD 请求返回 HTTP 200，公开下载正常
+- **下载链接更新**（6 处）：
+  - `web_Lynx/src/sections/Hero.tsx` — 官网 Hero 区下载按钮
+  - `web_Lynx/src/sections/Navbar.tsx` — 导航栏下载下拉菜单
+  - `desktop-electron/src/main.js` — Electron 自动更新 3 处回退 URL
+  - `src/app/api/hermes/execute/route.ts` — AI 助理无桌面端时提示文案
+- **下载地址**：
+  - Windows: `https://gitee.com/shenzhens-emotions-are-booming_0/lynn-hub-release/releases/download/v1.0.2/Lynx_1.0.2_x64-setup.exe`
+  - Android: `https://gitee.com/shenzhens-emotions-are-booming_0/lynn-hub-release/releases/download/v1.0.2/Lynx-android.apk`
+
+#### 2. 新增 /api/hermes/app-version 端点
+- **背景**：Electron `main.js` 的 `fetchLatestVersion()` 调用 `/api/hermes/app-version`，但该端点不存在，导致自动更新检查一直静默失败
+- **实现**：`src/app/api/hermes/app-version/route.ts`
+  - 读取 `desktop-electron/package.json` 版本号
+  - 动态构造 Gitee Release 下载 URL（`v{version}/Lynx_v{version}_x64-setup.exe`）
+  - 支持环境变量覆盖（`DESKTOP_LATEST_VERSION`、`DESKTOP_RELEASE_NOTES`）
+  - 返回 `{ version, downloadUrl, androidDownloadUrl, releaseNotes, publishedAt }`
+
+#### 3. Git 历史彻底清理
+- **清理前**：117.37 MiB（Gitee 远程仓库 936MB 超 80% 配额）
+- **清理后**：17.82 MiB（减少 85%）
+- **清理工具**：git-filter-repo（Python 包 v2.47.0）
+- **清理路径**：
+  - `.m2/` — Maven 本地缓存（93MB，1543 文件）
+  - `desktop/src-tauri/vendor/` — WebView2Loader 静态库（30MB）
+  - `desktop-native/src-tauri/vendor/` — 同上
+  - `desktop/node_modules/` — Tauri CLI 原生模块（14.5MB）
+  - `public/downloads/hermes_agent-0.17.0-py3-none-any.whl` — 旧版 wheel（8.2MB）
+  - `desktop-native/src-tauri/D:/cargo-target-native/` — 非法路径（含盘符 D:）
+- **关键问题解决**：
+  - `git filter-branch` 返回 returncode 123（Windows ERROR_INVALID_NAME）— 原因：历史中存在非法路径 `desktop-native/src-tauri/D:/cargo-target-native/.rustc_info.json`（含盘符 D:）
+  - 解决：`git config core.protectNTFS false` + 使用 git-filter-repo（基于 fast-export/import，不受 Windows 路径限制）
+- **备份**：`backup-original-history.bundle`（117.1MB，本地保留，已加入 .gitignore）
+- **Force push**：Gitee 成功（948e139→11fe381），GitHub 失败（GH_TOKEN 过期，已知问题）
+- **注意**：Gitee 服务器端旧对象仍占用空间（954MB），需 Gitee 后台 GC 或等待自动清理
+
+#### 4. E2E 自动化测试框架完善
+- **已有基础**：Playwright 框架已搭建（5 spec 文件 / 19 个测试）
+  - `auth-flow.spec.ts`（5 tests）：登录页渲染、登录流程、认证重定向、API 鉴权
+  - `board-flow.spec.ts`（3 tests）：看板页面加载、任务 API、数量统计
+  - `idea-flow.spec.ts`（3 tests）：灵感创建、灵感转看板、API 结构
+  - `search-flow.spec.ts`（4 tests）：搜索 API、空查询、结果结构
+  - `backup-flow.spec.ts`（4 tests）：备份导出、类型过滤、版本字段
+  - `global-setup.ts`：全局登录一次，保存 storageState
+  - `helpers/auth.ts`：登录 + 测试数据清理（E2E 前缀）
+- **本次完善**：
+  - `package.json` 新增 `test:e2e` 和 `test:e2e:ui` 脚本
+  - `playwright.config.ts` 启用 `webServer` 自动启动 dev server（`reuseExistingServer: true`）
+- **运行方式**：`npm run test:e2e`（自动启动 dev server + 运行全部 19 个测试）
+
+### 自测结果
+| 测试项 | 结果 | 备注 |
+|--------|------|------|
+| Gitee 仓库切换公开 | ✅ | private=False，附件无 token HTTP 200 |
+| 下载链接更新 | ✅ | 6 处全部更新为 Gitee Release URL |
+| app-version 端点 | ✅ | 新建，动态构造下载 URL |
+| Git 历史清理 | ✅ | 117.37MiB→17.82MiB（-85%） |
+| Gitee force push | ✅ | 948e139→11fe381 |
+| GitHub force push | ❌ | GH_TOKEN 过期（已知问题） |
+| E2E 测试发现 | ✅ | 19 tests in 5 files 全部识别 |
+| 临时文件清理 | ✅ | 删除 4 个临时脚本，bundle 加入 .gitignore |
+
+### 待处理事项
+1. GitHub push 需刷新 GH_TOKEN
+2. Gitee 服务器端 GC（954MB→预期 ~20MB，需 Gitee 后台操作或等待自动清理）
+3. 官网重新构建部署（下载链接更新需部署到 www.lynxdo.com 才能生效）
+4. E2E 测试实际运行验证（需启动 dev server + MySQL + 数据库 seed）
+
+### P0-P2 下一迭代建议
+- **P0**：官网重新构建部署（Gitee 下载链接生效）+ Gitee 服务器端 GC 触发
+- **P1**：GitHub token 刷新 + push / E2E 测试 CI 集成（GitHub Actions）
+- **P2**：移除 Tauri 双轨代码（desktop-native 已弃用）/ E2E 覆盖扩展（memory + cognition + AI assistant 流程）
 
 ---
 

@@ -37,12 +37,11 @@ export default defineConfig({
       },
     },
   ],
-  // 复用已在 http://localhost:5176 运行的 dev server，不启动新进程
-  // 如需自动启动，可取消下方注释
-  // webServer: {
-  //   command: "npm run dev",
-  //   url: "http://localhost:5176",
-  //   reuseExistingServer: true,
-  //   timeout: 120_000,
-  // },
+  // 自动启动 dev server（如已在运行则复用），便于 CI/CD 和本地一键运行
+  webServer: {
+    command: "npm run dev",
+    url: "http://localhost:5176",
+    reuseExistingServer: true,
+    timeout: 120_000,
+  },
 });
