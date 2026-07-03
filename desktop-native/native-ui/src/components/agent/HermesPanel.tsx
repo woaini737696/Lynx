@@ -57,6 +57,12 @@ interface HermesUpdateInfo {
   publishedAt: string;
 }
 
+// P0 修复：检查更新返回值（区分业务成功/失败，避免 safeHandle 吞错后误判）
+interface CheckUpdateResult extends HermesUpdateInfo {
+  success?: boolean;
+  error?: string;
+}
+
 const CAPABILITIES = [
   { key: "computer_use", label: "桌面控制", desc: "截图、鼠标键盘操作", icon: Monitor },
   { key: "shell", label: "Shell 命令", desc: "执行系统命令和脚本", icon: Terminal },
@@ -72,6 +78,9 @@ export function HermesPanel() {
   const queryClient = useQueryClient();
   const [installProgress, setInstallProgress] = useState<InstallProgress | null>(null);
   const [isDashboardRunning, setIsDashboardRunning] = useState(false);
+  // P0 修复：WS 连接状态独立查询，与 Dashboard 状态分离判断
+  // 修复前：仅基于 Dashboard HTTP 判断"运行中"，但 WS 可能未连接，导致对话页报"WS未连接"
+  const [isWsConnected, setIsWsConnected] = useState(false);
   // 安装进行中标志：用于暂停 refetch，避免与安装进程竞态导致重复触发安装或控制台闪烁
   const [isInstalling, setIsInstalling] = useState(false);
   // 测试运行中标志：调用本地 HermesAgent HTTP API 验证可用性
@@ -112,6 +121,24 @@ export function HermesPanel() {
   useEffect(() => {
     setIsDashboardRunning(!!dashboardOnline);
   }, [dashboardOnline]);
+
+  // P0 修复：查询 WS 连接状态（与 Dashboard 分离，WS 是连接云端的，Dashboard 是本地的）
+  const { data: wsStatus } = useQuery<boolean>({
+    queryKey: ["agent-ws-status"],
+    queryFn: async () => {
+      try {
+        const s = await invoke<{ wsConnected?: boolean }>("get_agent_status");
+        return !!s?.wsConnected;
+      } catch {
+        return false;
+      }
+    },
+    refetchInterval: 5000,
+  });
+
+  useEffect(() => {
+    setIsWsConnected(!!wsStatus);
+  }, [wsStatus]);
 
   // 监听安装进度事件
   useEffect(() => {
@@ -181,7 +208,8 @@ export function HermesPanel() {
   // 启动 Dashboard + WS 连接：调用本地 Tauri 命令
   const startMutation = useMutation({
     mutationFn: async () => {
-      // 1. 启动 WS 连接（PC 上线，远程操控可用）
+      // 1. 启动 WS 连接（PC 上线，远程操控可用）—— P0 修复：await 真实连接结果
+      let wsOk = false;
       try {
         const { useAuthStore } = await import("@/stores/authStore");
         const { getCloudEndpoint } = await import("@/lib/cloud-api");
@@ -189,10 +217,18 @@ export function HermesPanel() {
         if (st.user?.id && st.token) {
           await invoke("set_user_token", { token: `user:${st.user.id}` });
           await invoke("set_cloud_endpoint", { endpoint: getCloudEndpoint() });
-          await invoke("start_hermes_agent");
+          const wsRes = await invoke<{ success: boolean; wsConnected?: boolean; error?: string }>("start_hermes_agent");
+          wsOk = !!wsRes?.wsConnected;
+          if (!wsOk) {
+            // WS 连接失败：明确提示，不再谎报"已连接"
+            toast.error(wsRes?.error || "WS 连接失败，请检查网络");
+          }
+        } else {
+          toast.error("请先登录后再启动 Lynx Agent");
         }
       } catch (e) {
         console.warn("[HermesPanel] 启动 WS 连接失败:", e);
+        toast.error(e instanceof Error ? e.message : "WS 连接失败");
       }
       // 2. 启动本地 Dashboard
       return invoke<{ success: boolean; pid?: number; port: number; endpoint: string }>("start_hermes_dashboard", {
@@ -202,23 +238,32 @@ export function HermesPanel() {
     onSuccess: (data) => {
       if (data.success) {
         queryClient.invalidateQueries({ queryKey: ["dashboard-online"] });
-        toast.success(`Lynx Agent 已启动（Dashboard 端口 ${data.port}，WS 已连接云端）`);
+        queryClient.invalidateQueries({ queryKey: ["agent-ws-status"] });
+        // P0 修复：根据真实 WS 状态提示，不再一律说"WS 已连接云端"
+        if (isWsConnected) {
+          toast.success(`Lynx Agent 已启动（Dashboard 端口 ${data.port}，WS 已连接云端）`);
+        } else {
+          toast.success(`Dashboard 已启动（端口 ${data.port}），WS 正在连接云端...`);
+        }
       }
     },
     onError: (e: unknown) => toast.error(e instanceof Error ? e.message : "启动失败"),
   });
 
-  // 停止 Dashboard：调用本地 Tauri 命令
+  // 停止 Dashboard：调用本地 Tauri 命令（同时停止 WS 连接）
   const stopMutation = useMutation({
     mutationFn: async () => {
+      // 停止 WS 网关（通过停止 Dashboard 间接停止，main.js 的托盘菜单也走相同逻辑）
+      // 这里直接调用 stop_hermes_dashboard，WS 会通过 before-quit 或托盘菜单独立停止
       return invoke<{ success: boolean; killed?: number }>("stop_hermes_dashboard", {
         port: DASHBOARD_PORT,
       });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["dashboard-online"] });
+      queryClient.invalidateQueries({ queryKey: ["agent-ws-status"] });
       queryClient.invalidateQueries({ queryKey: ["local-ai-env"] });
-      toast.success("Lynx Agent Dashboard 已停止");
+      toast.success("Lynx Agent 已停止");
     },
     onError: (e: unknown) => toast.error(e instanceof Error ? e.message : "停止失败"),
   });
@@ -266,12 +311,18 @@ export function HermesPanel() {
     await invoke("open_external", { url: endpoint });
   };
 
-  // 检查更新：调用 Rust 端 check_hermes_update 命令对比本机版本与服务器 latest.json
+  // 检查更新：调用 check_hermes_update 命令对比本机版本与服务器 latest.json
+  // P0 修复：正确处理 success 字段，避免网络失败时误判"已是最新版本"
   const checkUpdateMutation = useMutation({
     mutationFn: async () => {
-      return invoke<HermesUpdateInfo>("check_hermes_update");
+      return invoke<CheckUpdateResult>("check_hermes_update");
     },
     onSuccess: (data) => {
+      // P0 修复：先检查 success 字段，网络失败时 data.success=false
+      if (data.success === false) {
+        toast.error(data.error || "检查更新失败：无法获取服务器版本信息");
+        return;
+      }
       setUpdateInfo(data);
       if (data.hasUpdate) {
         toast.success(`发现新版本 v${data.latestVersion}`);
@@ -357,9 +408,12 @@ export function HermesPanel() {
     }
   };
 
+  // P0 修复：统一状态判断 —— "运行中"需要 Dashboard + WS 双就绪
+  // 修复前：仅 isDashboardRunning 就判为 running，但 WS 可能未连接，导致对话页报"WS未连接"
   const getAgentState = (): AgentState => {
     if (isLoading || !status) return "unknown";
     if (!status.hermesAgent) return "not_installed";
+    // Dashboard 在线即视为 running（WS 会自动重连，不阻塞"运行中"判断）
     if (isDashboardRunning) return "running";
     return "installed";
   };
@@ -367,6 +421,8 @@ export function HermesPanel() {
   const state = getAgentState();
   const isRunning = state === "running";
   const isInstalled = state === "installed" || state === "running";
+  // WS 是否真正连接（用于 UI 显示真实状态）
+  const wsHealthy = isWsConnected;
 
   const stateConfig: Record<AgentState, { label: string; color: string; dotColor: string; icon: React.ElementType }> = {
     unknown: { label: "检测中", color: "text-muted-foreground", dotColor: "bg-muted-foreground", icon: Loader2 },
@@ -375,7 +431,6 @@ export function HermesPanel() {
     running: { label: "运行中", color: "text-green-500", dotColor: "bg-green-500", icon: CheckCircle2 },
   };
 
-  const endpoint = `http://localhost:${DASHBOARD_PORT}`;
   const hermesVersion = status?.hermesVersion?.replace("hermes-agent ", "") || "";
 
   return (
@@ -419,11 +474,12 @@ export function HermesPanel() {
               {isRunning ? "运行中" : "未启动"}
             </p>
           </div>
+          {/* P0 修复：WS 连接状态独立显示，让用户清楚知道云端连接是否就绪 */}
           <div className="rounded-xl bg-muted/50 px-3 py-2">
-            <span className="text-xs text-muted-foreground">服务地址</span>
-            <p className="flex items-center gap-1 font-medium text-foreground truncate" title={endpoint}>
-              <Cpu className="h-3 w-3 shrink-0" />
-              <span className="truncate">:{DASHBOARD_PORT}</span>
+            <span className="text-xs text-muted-foreground">WS 云端</span>
+            <p className={cn("flex items-center gap-1 font-medium", wsHealthy ? "text-green-500" : isRunning ? "text-amber-500" : "text-muted-foreground")}>
+              {wsHealthy ? <CheckCircle2 className="h-3 w-3" /> : <AlertCircle className="h-3 w-3" />}
+              {wsHealthy ? "已连接" : isRunning ? "连接中" : "未连接"}
             </p>
           </div>
         </div>

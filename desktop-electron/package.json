@@ -1,6 +1,6 @@
 {
   "name": "lynx-desktop",
-  "version": "1.0.2",
+  "version": "1.0.4",
   "description": "Lynx AI 超级助理 - 桌面端（Electron 主架构）",
   "main": "src/main.js",
   "author": "Lynn",

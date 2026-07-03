@@ -68,7 +68,7 @@ export default function Hero() {
           </p>
 
           <div ref={ctaRef} className="mt-8 md:mt-10 flex flex-col sm:flex-row items-center gap-3 md:gap-4" style={{ pointerEvents: 'auto' }}>
-            {/* Download with hover dropdown + bridge gap */}
+            {/* "开始使用" with hover dropdown: 第一个下载桌面应用（高亮），第二个使用网页版 */}
             <div
               className="relative"
               onMouseEnter={() => setShowMenu(true)}
@@ -76,16 +76,16 @@ export default function Hero() {
             >
               <button className="btn-primary" style={{ fontSize: '15px', padding: '12px 28px' }}>
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3" />
+                  <path d="M5 12h14M12 5l7 7-7 7" />
                 </svg>
-                免费下载
+                开始使用
               </button>
 
               {/* Dropdown with bridge padding-top */}
               <div
                 className="absolute left-1/2 -translate-x-1/2 top-full z-50"
                 style={{
-                  width: '220px',
+                  width: '240px',
                   paddingTop: '10px',
                   opacity: showMenu ? 1 : 0,
                   visibility: showMenu ? 'visible' : 'hidden',
@@ -105,25 +105,46 @@ export default function Hero() {
                     boxShadow: '0 16px 48px rgba(0,0,0,0.4), inset 0 1px 1px rgba(255,255,255,0.08)',
                   }}
                 >
-                  {[
-                    { label: 'Web 版', desc: '浏览器直接使用', href: 'https://ai.lynxdo.com/' },
-                    { label: 'Windows 桌面版', desc: '下载安装包', href: 'https://gitee.com/shenzhens-emotions-are-booming_0/lynn-hub-release/releases/download/v1.0.2/Lynx_1.0.2_x64-setup.exe' },
-                    { label: '安卓 APP', desc: '下载 APK', href: 'https://gitee.com/shenzhens-emotions-are-booming_0/lynn-hub-release/releases/download/v1.0.2/Lynx-android.apk' },
-                  ].map((p) => (
-                    <a
-                      key={p.label}
-                      href={p.href}
-                      className="w-full flex items-center gap-3 px-4 py-3.5 text-left transition-colors"
-                      style={{ color: '#F0F4F8' }}
-                      onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(255,255,255,0.08)' }}
-                      onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent' }}
-                    >
-                      <div>
-                        <div className="text-[13px] font-medium">{p.label}</div>
-                        <div className="text-[11px]" style={{ color: 'rgba(240, 244, 248, 0.4)' }}>{p.desc}</div>
-                      </div>
-                    </a>
-                  ))}
+                  {/* 第一个：下载桌面应用（高亮显示） */}
+                  <a
+                    href="https://www.lynxdo.com/download/Lynx-windows-setup.exe"
+                    className="w-full flex items-center gap-3 px-4 py-3.5 text-left transition-colors"
+                    style={{
+                      color: '#F0F4F8',
+                      background: 'linear-gradient(135deg, rgba(15, 98, 254, 0.15) 0%, rgba(15, 98, 254, 0.05) 100%)',
+                      borderLeft: '3px solid #0F62FE',
+                    }}
+                    onMouseEnter={(e) => { e.currentTarget.style.background = 'linear-gradient(135deg, rgba(15, 98, 254, 0.25) 0%, rgba(15, 98, 254, 0.1) 100%)' }}
+                    onMouseLeave={(e) => { e.currentTarget.style.background = 'linear-gradient(135deg, rgba(15, 98, 254, 0.15) 0%, rgba(15, 98, 254, 0.05) 100%)' }}
+                  >
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#4d8aff" strokeWidth="2">
+                      <rect x="2" y="3" width="20" height="14" rx="2" />
+                      <line x1="8" y1="21" x2="16" y2="21" />
+                      <line x1="12" y1="17" x2="12" y2="21" />
+                    </svg>
+                    <div>
+                      <div className="text-[13px] font-semibold" style={{ color: '#4d8aff' }}>下载桌面应用</div>
+                      <div className="text-[11px]" style={{ color: 'rgba(240, 244, 248, 0.5)' }}>Windows 安装包 · 推荐</div>
+                    </div>
+                  </a>
+                  {/* 第二个：使用网页版 */}
+                  <a
+                    href="https://ai.lynxdo.com/"
+                    className="w-full flex items-center gap-3 px-4 py-3.5 text-left transition-colors"
+                    style={{ color: '#F0F4F8' }}
+                    onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(255,255,255,0.08)' }}
+                    onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent' }}
+                  >
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="rgba(240, 244, 248, 0.6)" strokeWidth="2">
+                      <circle cx="12" cy="12" r="10" />
+                      <line x1="2" y1="12" x2="22" y2="12" />
+                      <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
+                    </svg>
+                    <div>
+                      <div className="text-[13px] font-medium">使用网页版</div>
+                      <div className="text-[11px]" style={{ color: 'rgba(240, 244, 248, 0.4)' }}>浏览器直接使用</div>
+                    </div>
+                  </a>
                 </div>
               </div>
             </div>

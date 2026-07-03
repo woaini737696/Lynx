@@ -312,10 +312,24 @@ async function getLocalVersion() {
 
 async function checkUpdate() {
   const localVersion = await getLocalVersion();
-  const latest = await httpGetJSON(LATEST_JSON_URL);
+  let latest;
+  try {
+    latest = await httpGetJSON(LATEST_JSON_URL);
+  } catch (e) {
+    // P0 修复：网络请求失败时返回明确错误
+    // 修复前：异常被 safeHandle 吞掉，返回 {success:false}，前端误判"已是最新版本"
+    return {
+      success: false,
+      error: `无法获取服务器版本信息: ${e.message}`,
+      currentVersion: localVersion,
+      latestVersion: 'unknown',
+      hasUpdate: false,
+    };
+  }
   const latestVersion = latest.version || '';
   const hasUpdate = localVersion ? compareVersions(localVersion, latestVersion) < 0 : true;
   return {
+    success: true,
     hasUpdate,
     currentVersion: localVersion,
     latestVersion,

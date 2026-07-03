@@ -1,16 +1,26 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
+
+// 平台检测：PC → 下载桌面客户端，移动 → 下载安卓 APK
+function detectPlatform(): 'desktop' | 'mobile' {
+  if (typeof navigator === 'undefined') return 'desktop'
+  const ua = navigator.userAgent.toLowerCase()
+  return /android|webos|iphone|ipad|ipod|blackberry|iemobile|opera mini/i.test(ua) ? 'mobile' : 'desktop'
+}
+
+const DESKTOP_DOWNLOAD_URL = 'https://www.lynxdo.com/download/Lynx-windows-setup.exe'
+const MOBILE_DOWNLOAD_URL = 'https://www.lynxdo.com/download/Lynx-android.apk'
 
 export default function Navbar() {
   const [scrolled, setScrolled] = useState(false)
-  const [showDownloadMenu, setShowDownloadMenu] = useState(false)
-  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const [platform, setPlatform] = useState<'desktop' | 'mobile'>('desktop')
 
   useEffect(() => {
+    setPlatform(detectPlatform())
     let rafId = 0
     const onScroll = () => {
       if (rafId) return
       rafId = requestAnimationFrame(() => {
-        setScrolled(window.scrollY > 60)
+        setScrolled(window.scrollY > 40)
         rafId = 0
       })
     }
@@ -26,54 +36,48 @@ export default function Navbar() {
     if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' })
   }
 
-  const handleMouseEnter = () => {
-    if (timerRef.current) clearTimeout(timerRef.current)
-    setShowDownloadMenu(true)
-  }
-
-  const handleMouseLeave = () => {
-    timerRef.current = setTimeout(() => setShowDownloadMenu(false), 180)
-  }
+  const downloadUrl = platform === 'mobile' ? MOBILE_DOWNLOAD_URL : DESKTOP_DOWNLOAD_URL
+  const downloadLabel = platform === 'mobile' ? '下载 APK' : '下载桌面端'
 
   return (
-    <nav
-      className="fixed top-0 left-0 right-0 z-50 h-16 flex items-center transition-all duration-500"
-      style={{
-        background: scrolled ? 'rgba(3, 8, 22, 0.65)' : 'transparent',
-        backdropFilter: scrolled ? 'saturate(180%) blur(24px)' : 'none',
-        WebkitBackdropFilter: scrolled ? 'saturate(180%) blur(24px)' : 'none',
-        borderBottom: scrolled ? '1px solid rgba(255,255,255,0.06)' : '1px solid transparent',
-      }}
-    >
-      {/* Inner container with fixed proportional padding */}
-      <div
-        className="w-full flex items-center justify-between"
-        style={{ padding: '0 clamp(16px, 4vw, 48px)' }}
+    <div className="fixed top-0 left-0 right-0 z-50 flex justify-center" style={{ padding: '12px clamp(16px, 4vw, 48px)' }}>
+      <nav
+        className="w-full flex items-center justify-between transition-all duration-500"
+        style={{
+          maxWidth: '1200px',
+          height: '56px',
+          padding: '0 20px',
+          borderRadius: '18px',
+          // 豆包风格液态玻璃：悬浮、圆角、半透明、高斯模糊
+          background: scrolled
+            ? 'linear-gradient(135deg, rgba(255,255,255,0.08) 0%, rgba(255,255,255,0.03) 100%)'
+            : 'linear-gradient(135deg, rgba(255,255,255,0.05) 0%, rgba(255,255,255,0.02) 100%)',
+          backdropFilter: 'saturate(200%) blur(24px)',
+          WebkitBackdropFilter: 'saturate(200%) blur(24px)',
+          border: scrolled ? '1px solid rgba(255,255,255,0.12)' : '1px solid rgba(255,255,255,0.06)',
+          boxShadow: scrolled
+            ? 'inset 0 1px 1px rgba(255,255,255,0.15), 0 8px 32px rgba(0,0,0,0.3)'
+            : 'inset 0 0.5px 1px rgba(255,255,255,0.08), 0 2px 12px rgba(0,0,0,0.15)',
+        }}
       >
-        {/* Brand Logo - flash effect */}
+        {/* Brand Logo */}
         <button
           onClick={() => scrollTo('hero')}
-          className="logo-flash-container flex items-center gap-3 cursor-pointer relative"
+          className="flex items-center gap-2.5 cursor-pointer relative group"
         >
-          {/* Flash overlay */}
-          <span className="logo-flash-overlay" />
-
           <div
-            className="logo-icon-inner rounded-xl flex items-center justify-center"
+            className="rounded-xl flex items-center justify-center transition-transform group-hover:scale-105"
             style={{
-              width: '48px',
-              height: '48px',
-              background: 'linear-gradient(135deg, rgba(255,255,255,0.08) 0%, rgba(255,255,255,0.03) 100%)',
-              backdropFilter: 'saturate(200%) blur(12px)',
-              WebkitBackdropFilter: 'saturate(200%) blur(12px)',
+              width: '36px',
+              height: '36px',
+              background: 'linear-gradient(135deg, rgba(255,255,255,0.1) 0%, rgba(255,255,255,0.04) 100%)',
               border: '1px solid rgba(255, 255, 255, 0.1)',
-              boxShadow: 'inset 0 0.5px 1px rgba(255,255,255,0.12), 0 4px 16px rgba(0,0,0,0.2)',
             }}
           >
-            <img src="/lynx-logo-black.png" alt="" style={{ width: '32px', height: '32px', borderRadius: '8px' }} />
+            <img src="/lynx-logo-black.png" alt="Lynx" style={{ width: '24px', height: '24px', borderRadius: '6px' }} />
           </div>
           <span
-            className="text-xl font-semibold tracking-tight hidden sm:block"
+            className="text-lg font-semibold tracking-tight hidden sm:block"
             style={{ color: '#F0F4F8', letterSpacing: '-0.01em' }}
           >
             Lynx
@@ -81,9 +85,9 @@ export default function Navbar() {
         </button>
 
         {/* Center nav */}
-        <div className="hidden md:flex items-center gap-8">
+        <div className="hidden md:flex items-center gap-7">
           {[
-            { label: '核心能力', id: 'capabilities' },
+            { label: '核心功能', id: 'features' },
             { label: '超级助理', id: 'assistant' },
             { label: '三端互通', id: 'crossplatform' },
             { label: '团队版', id: 'team' },
@@ -92,14 +96,12 @@ export default function Navbar() {
               key={item.label}
               onClick={() => scrollTo(item.id)}
               className="font-medium transition-all duration-200 cursor-pointer"
-              style={{ fontSize: '16px', color: 'rgba(240, 244, 248, 0.65)' }}
+              style={{ fontSize: '14px', color: 'rgba(240, 244, 248, 0.6)' }}
               onMouseEnter={(e) => {
                 e.currentTarget.style.color = '#F0F4F8'
-                e.currentTarget.style.transform = 'scale(1.08)'
               }}
               onMouseLeave={(e) => {
-                e.currentTarget.style.color = 'rgba(240, 244, 248, 0.65)'
-                e.currentTarget.style.transform = 'scale(1)'
+                e.currentTarget.style.color = 'rgba(240, 244, 248, 0.6)'
               }}
             >
               {item.label}
@@ -107,72 +109,18 @@ export default function Navbar() {
           ))}
         </div>
 
-        {/* Right actions */}
-        <div className="flex items-center gap-3">
-          {/* Download — hover dropdown */}
-          <div className="relative" onMouseEnter={handleMouseEnter} onMouseLeave={handleMouseLeave}>
-            <button className="btn-primary text-[13px] py-2.5 px-5">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3" />
-              </svg>
-              下载
-            </button>
-
-            <div
-              className="absolute right-0 top-full z-50"
-              style={{
-                width: '224px',
-                paddingTop: '10px',
-                opacity: showDownloadMenu ? 1 : 0,
-                visibility: showDownloadMenu ? 'visible' : 'hidden',
-                pointerEvents: showDownloadMenu ? 'auto' : 'none',
-                transform: showDownloadMenu ? 'translateY(0)' : 'translateY(-4px)',
-                transition: 'opacity 0.2s ease, transform 0.2s ease, visibility 0.2s',
-              }}
-            >
-              <div
-                className="rounded-2xl overflow-hidden"
-                style={{
-                  background: 'rgba(8, 15, 40, 0.95)',
-                  backdropFilter: 'saturate(180%) blur(24px)',
-                  WebkitBackdropFilter: 'saturate(180%) blur(24px)',
-                  border: '1px solid rgba(255,255,255,0.1)',
-                  boxShadow: '0 16px 48px rgba(0,0,0,0.4)',
-                }}
-              >
-                {[
-                  { label: 'Web 版', desc: '浏览器直接使用', href: 'https://ai.lynxdo.com/' },
-                  { label: 'Windows 桌面版', desc: '下载安装包', href: 'https://gitee.com/shenzhens-emotions-are-booming_0/lynn-hub-release/releases/download/v1.0.2/Lynx_1.0.2_x64-setup.exe' },
-                  { label: '安卓 APP', desc: '下载 APK', href: 'https://gitee.com/shenzhens-emotions-are-booming_0/lynn-hub-release/releases/download/v1.0.2/Lynx-android.apk' },
-                ].map((opt) => (
-                  <a
-                    key={opt.label}
-                    href={opt.href}
-                    className="w-full flex items-center gap-3 px-4 py-3.5 text-left transition-colors"
-                    style={{ color: '#F0F4F8' }}
-                    onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(255,255,255,0.08)' }}
-                    onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent' }}
-                  >
-                    <div>
-                      <div className="text-[13px] font-medium">{opt.label}</div>
-                      <div className="text-[11px]" style={{ color: 'rgba(240, 244, 248, 0.4)' }}>{opt.desc}</div>
-                    </div>
-                  </a>
-                ))}
-              </div>
-            </div>
-          </div>
-
-          {/* Login */}
-          <a href="https://ai.lynxdo.com/" className="ios-pill hidden sm:inline-flex">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-              <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
-              <circle cx="12" cy="7" r="4" />
-            </svg>
-            登录 / 注册
-          </a>
-        </div>
-      </div>
-    </nav>
+        {/* Right: 只保留一个下载按钮（PC→桌面客户端，移动→安卓APK） */}
+        <a
+          href={downloadUrl}
+          className="btn-primary"
+          style={{ fontSize: '13px', padding: '8px 18px' }}
+        >
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3" />
+          </svg>
+          {downloadLabel}
+        </a>
+      </nav>
+    </div>
   )
 }

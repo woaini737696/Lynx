@@ -2,10 +2,10 @@ import { lazy, Suspense, useEffect, useState } from 'react'
 import Lenis from 'lenis'
 import Navbar from './sections/Navbar'
 import Hero from './sections/Hero'
+import Features from './sections/Features'
 
 // 首屏以下 sections 懒加载，降低 TTFB/FCP 体积
 const CoreNarrative = lazy(() => import('./sections/CoreNarrative'))
-const Capabilities = lazy(() => import('./sections/Capabilities'))
 const SuperAssistant = lazy(() => import('./sections/SuperAssistant'))
 const CrossPlatform = lazy(() => import('./sections/CrossPlatform'))
 const OutOfBox = lazy(() => import('./sections/OutOfBox'))
@@ -56,9 +56,9 @@ export default function App() {
       </Suspense>
       <Navbar />
       <Hero />
+      <Features />
       <Suspense fallback={<SectionFallback />}>
         <CoreNarrative />
-        <Capabilities />
         <SuperAssistant />
         <CrossPlatform />
         <OutOfBox />

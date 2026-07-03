@@ -1,4 +1,4 @@
-import { cloudApi, getCloudEndpoint } from "./cloud-api";
+import { cloudApi, getCloudEndpoint, LOGIN_REQUIRED_EVENT } from "./cloud-api";
 import { useAuthStore } from "@/stores/authStore";
 
 // ============ 类型定义（对齐 Web 端） ============
@@ -213,6 +213,15 @@ export async function chatCompletion(
     headers["Authorization"] = `Bearer ${token}`;
   }
 
+  // P0 修复：添加 60 秒超时保护，防止网络挂起导致"无回复、无反应"
+  // 修复前：fetch 无超时，网络异常时永久挂起，用户看到"思考中..."但永远等不到回复
+  const timeoutCtrl = new AbortController();
+  const timeoutId = setTimeout(() => timeoutCtrl.abort(), 60000);
+  // 合并外部 signal 和超时 signal
+  const combinedSignal = params.signal
+    ? AbortSignal.any([params.signal, timeoutCtrl.signal])
+    : timeoutCtrl.signal;
+
   let res: Response;
   try {
     res = await fetch(url, {
@@ -224,15 +233,22 @@ export async function chatCompletion(
         assistantMode: true, // 启用 Function Calling + 22 工具
         sessionId: params.sessionId,
       }),
-      signal: params.signal,
+      signal: combinedSignal,
     });
   } catch (err) {
-    const e = err instanceof Error
-      ? new Error(`网络请求失败: ${err.message}`)
-      : new Error("网络请求失败，请检查网络连接");
-    callbacks?.onError?.(e);
+    clearTimeout(timeoutId);
+    // 区分用户主动中止 vs 超时中止
+    const isUserAbort = params.signal?.aborted;
+    const isTimeout = timeoutCtrl.signal.aborted && !isUserAbort;
+    const e = isTimeout
+      ? new Error("请求超时（60秒），请检查网络后重试")
+      : err instanceof Error
+        ? new Error(`网络请求失败: ${err.message}`)
+        : new Error("网络请求失败，请检查网络连接");
+    if (!isUserAbort) callbacks?.onError?.(e);
     throw e;
   }
+  clearTimeout(timeoutId);
 
   if (!res.ok || !res.body) {
     let errMsg = `请求失败（${res.status}）`;
@@ -241,6 +257,19 @@ export async function chatCompletion(
       errMsg = errData?.error || errData?.message || errMsg;
     } catch {
       // 非 JSON 错误响应
+    }
+    // P0 修复：401 时触发登录弹窗（与 cloudApi 行为一致）
+    // 修复前：裸 fetch 不走 cloudApi 的 401 统一处理，导致 LoginModal 弹出遮盖聊天区，表现为"无回复"
+    if (res.status === 401) {
+      if (token) {
+        // 已登录但 token 过期：清除登录态
+        useAuthStore.getState().signOut();
+      }
+      // 触发登录弹窗（有防抖，不会重复弹）
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new CustomEvent(LOGIN_REQUIRED_EVENT));
+      }
+      errMsg = token ? "登录已过期，请重新登录" : "请先登录后再使用 AI 助理";
     }
     const e = new Error(errMsg);
     callbacks?.onError?.(e);

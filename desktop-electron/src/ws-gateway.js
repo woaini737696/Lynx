@@ -119,66 +119,82 @@ async function handleSpecialCommand(command) {
   }
 }
 
-// 启动 WS 网关客户端
+// 启动 WS 网关客户端（P0 修复：返回 Promise，等待首次连接成功/失败）
+// 修复前：startWSGateway 是同步的，不等待 WS 实际连接就返回，导致"已启动"但 WS 未连接
 function startWSGateway(cloudEndpoint, userToken) {
-  if (isStarted) { console.log('[ws-gateway] 已启动，跳过'); return; }
+  if (isStarted) {
+    console.log('[ws-gateway] 已启动，返回当前状态:', global.wsConnected);
+    return Promise.resolve(global.wsConnected);
+  }
   isStarted = true;
 
   const wsUrl = buildWsUrl(cloudEndpoint);
   console.log(`[ws-gateway] 连接: ${wsUrl.replace(/token=[^&]+/, 'token=***')}`);
 
-  function connect() {
-    if (!isStarted) return;
+  return new Promise((resolve) => {
+    let settled = false;
+    const done = (success) => { if (!settled) { settled = true; resolve(success); } };
+    // 首次连接超时：8 秒（超时后仍后台重连，但告知前端"未连接"）
+    const firstConnTimeout = setTimeout(() => {
+      console.warn('[ws-gateway] 首次连接超时（8秒），将后台重连');
+      done(false);
+    }, 8000);
 
-    wsClient = new WebSocket(wsUrl);
+    function connect() {
+      if (!isStarted) { clearTimeout(firstConnTimeout); done(false); return; }
 
-    wsClient.on('open', () => {
-      console.log('[ws-gateway] 已连接，发送注册消息');
-      global.wsConnected = true;
+      wsClient = new WebSocket(wsUrl);
 
-      // 发送注册消息
-      wsClient.send(JSON.stringify({
-        type: 'register',
-        token: userToken,
-        agentVersion: getAgentVersion(),
-        deviceName: getDeviceName(),
-        capabilities: ['browser', 'desktop', 'file', 'shell'],
-        authMode: store.get('authMode', 'approve'),
-        deviceType: 'desktop',
-      }));
+      wsClient.on('open', () => {
+        clearTimeout(firstConnTimeout);
+        console.log('[ws-gateway] 已连接，发送注册消息');
+        global.wsConnected = true;
 
-      // 心跳：每 30 秒
-      heartbeatTimer = setInterval(() => {
-        if (wsClient && wsClient.readyState === WebSocket.OPEN) {
-          wsClient.send(JSON.stringify({ type: 'heartbeat' }));
+        wsClient.send(JSON.stringify({
+          type: 'register',
+          token: userToken,
+          agentVersion: getAgentVersion(),
+          deviceName: getDeviceName(),
+          capabilities: ['browser', 'desktop', 'file', 'shell'],
+          authMode: store.get('authMode', 'approve'),
+          deviceType: 'desktop',
+        }));
+
+        heartbeatTimer = setInterval(() => {
+          if (wsClient && wsClient.readyState === WebSocket.OPEN) {
+            wsClient.send(JSON.stringify({ type: 'heartbeat' }));
+          }
+        }, 30000);
+
+        done(true);
+      });
+
+      wsClient.on('message', (data) => {
+        handleCloudMessage(data.toString(), (msg) => {
+          if (wsClient && wsClient.readyState === WebSocket.OPEN) {
+            wsClient.send(JSON.stringify(msg));
+          }
+        }).catch((e) => console.warn('[ws-gateway] 处理消息失败:', e));
+      });
+
+      wsClient.on('close', () => {
+        console.log('[ws-gateway] 连接关闭');
+        global.wsConnected = false;
+        if (heartbeatTimer) { clearInterval(heartbeatTimer); heartbeatTimer = null; }
+        if (isStarted) {
+          reconnectTimer = setTimeout(connect, 5000);
         }
-      }, 30000);
-    });
+        done(false);
+      });
 
-    wsClient.on('message', (data) => {
-      handleCloudMessage(data.toString(), (msg) => {
-        if (wsClient && wsClient.readyState === WebSocket.OPEN) {
-          wsClient.send(JSON.stringify(msg));
-        }
-      }).catch((e) => console.warn('[ws-gateway] 处理消息失败:', e));
-    });
+      wsClient.on('error', (e) => {
+        console.warn(`[ws-gateway] 连接错误: ${e.message}`);
+        // error 后会触发 close，done(false) 在 close 中调用
+      });
+    }
 
-    wsClient.on('close', () => {
-      console.log('[ws-gateway] 连接关闭');
-      global.wsConnected = false;
-      if (heartbeatTimer) { clearInterval(heartbeatTimer); heartbeatTimer = null; }
-      // 5 秒后重连
-      if (isStarted) {
-        reconnectTimer = setTimeout(connect, 5000);
-      }
-    });
-
-    wsClient.on('error', (e) => {
-      console.warn(`[ws-gateway] 连接错误: ${e.message}`);
-    });
-  }
-
-  connect();
+    connect();
+  });
 }
 
 // 停止 WS 网关客户端（异步，等待 close 完成 - P0-3 优雅关闭）

@@ -36,7 +36,9 @@ function createWindow() {
     title: 'Lynx - AI超级助理',
     backgroundColor: '#f5f5f7',
     icon: path.join(__dirname, '..', 'build', 'icon.ico'),
-    titleBarStyle: process.platform === 'darwin' ? 'hiddenInset' : 'default',
+    // 去掉默认外框，全自定义标题栏（用户需求：不需要默认外框）
+    frame: false,
+    titleBarStyle: 'hidden',
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
@@ -89,6 +91,43 @@ function createWindow() {
 
 // ============ 系统托盘 ============
 
+// 动态更新托盘菜单（根据 WS 连接状态显示开启/停止）
+function updateTrayMenu() {
+  if (!tray) return;
+  const wsConnected = global.wsConnected || false;
+  const contextMenu = Menu.buildFromTemplate([
+    { label: '显示主窗口', click: () => { if (mainWindow) { mainWindow.show(); mainWindow.focus(); } } },
+    { type: 'separator' },
+    {
+      label: wsConnected ? '停止 Lynx Agent 本地操控能力' : '开启 Lynx Agent 本地操控能力',
+      click: async () => {
+        if (wsConnected) {
+          try { await hermes.stopDashboard(9119); } catch (e) { console.error(e); }
+          await wsGateway.stopWSGateway();
+        } else {
+          const endpoint = store.get('cloudEndpoint', 'https://ai.lynxdo.com');
+          const token = store.get('userToken', '');
+          if (!token) {
+            if (mainWindow) {
+              mainWindow.show();
+              dialog.showMessageBox(mainWindow, { type: 'warning', message: '请先登录后再开启 Lynx Agent 本地操控能力' });
+            }
+            return;
+          }
+          try { await hermes.startDashboard(9119); } catch (e) { console.error(e); }
+          await wsGateway.startWSGateway(endpoint, token);
+        }
+        setTimeout(updateTrayMenu, 500);
+      },
+    },
+    { type: 'separator' },
+    { label: '检查更新', click: () => checkAppUpdate() },
+    { label: '退出', click: () => { isQuiting = true; app.quit(); } },
+  ]);
+  tray.setContextMenu(contextMenu);
+  tray.setToolTip(`Lynx - AI超级助理${wsConnected ? '（运行中）' : ''}`);
+}
+
 function createTray() {
   const iconPath = path.join(__dirname, '..', 'build', 'icon.ico');
   const icon = nativeImage.createFromPath(iconPath);
@@ -96,18 +135,11 @@ function createTray() {
   icon.resize({ width: 16, height: 16 });
 
   tray = new Tray(icon);
-  const contextMenu = Menu.buildFromTemplate([
-    { label: '显示主窗口', click: () => { if (mainWindow) { mainWindow.show(); mainWindow.focus(); } } },
-    { label: '启动 HermesAgent Dashboard', click: async () => { try { await hermes.startDashboard(9119); } catch (e) { console.error(e); } } },
-    { label: '停止 HermesAgent Dashboard', click: async () => { try { await hermes.stopDashboard(9119); } catch (e) { console.error(e); } } },
-    { type: 'separator' },
-    { label: '检查更新', click: () => checkAppUpdate() },
-    { label: '退出', click: () => { isQuiting = true; app.quit(); } },
-  ]);
-
+  updateTrayMenu();
   tray.setToolTip('Lynx - AI超级助理');
-  tray.setContextMenu(contextMenu);
   tray.on('click', () => { if (mainWindow) { mainWindow.isVisible() ? mainWindow.hide() : mainWindow.show(); } });
+  // 每 3 秒刷新托盘菜单，同步 WS 连接状态
+  setInterval(updateTrayMenu, 3000);
 }
 
 // ============ 全局快捷键 ============
@@ -196,7 +228,7 @@ async function checkAppUpdate() {
         mainWindow.webContents.send('app-update-available', {
           current: currentVersion,
           latest: data.version,
-          downloadUrl: data.downloadUrl || 'https://gitee.com/shenzhens-emotions-are-booming_0/lynn-hub-release/releases/download/v1.0.2/Lynx_1.0.2_x64-setup.exe',
+          downloadUrl: data.downloadUrl || 'https://www.lynxdo.com/download/Lynx-windows-setup.exe',
           releaseNotes: data.releaseNotes || '',
         });
       }
@@ -316,12 +348,18 @@ function registerIPC() {
     return { success: true };
   });
 
-  safeHandle('start_hermes_agent', () => {
+  // P0 修复：async/await WS 连接结果，返回真实连接状态给前端
+  // 修复前：同步返回 {success:true}，WS 尚未连接就告诉前端"已启动"，导致对话页报"WS未连接"
+  safeHandle('start_hermes_agent', async () => {
     const endpoint = store.get('cloudEndpoint', 'https://ai.lynxdo.com');
     const token = store.get('userToken', '');
     if (!token) return { success: false, error: '未设置用户 token' };
-    wsGateway.startWSGateway(endpoint, token);
-    return { success: true };
+    const wsOk = await wsGateway.startWSGateway(endpoint, token);
+    return {
+      success: wsOk,
+      wsConnected: wsOk,
+      error: wsOk ? undefined : 'WS 连接失败，请检查网络或重新登录',
+    };
   });
 
   safeHandle('set_auth_mode', (_e, args) => {
