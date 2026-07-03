@@ -64,7 +64,7 @@ export default function Scenarios() {
               color: '#F0F4F8',
             }}
           >
-            谁在用 Lynx
+            谁在用奇思
           </h2>
           <p
             className="mt-4 max-w-[480px] mx-auto"

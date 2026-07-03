@@ -74,13 +74,13 @@ export default function Navbar() {
               border: '1px solid rgba(255, 255, 255, 0.1)',
             }}
           >
-            <img src="/lynx-logo-black.png" alt="Lynx" style={{ width: '24px', height: '24px', borderRadius: '6px' }} />
+            <img src="/lynx-logo-black.png" alt="奇思" style={{ width: '24px', height: '24px', borderRadius: '6px' }} />
           </div>
           <span
             className="text-lg font-semibold tracking-tight hidden sm:block"
             style={{ color: '#F0F4F8', letterSpacing: '-0.01em' }}
           >
-            Lynx奇思
+            奇思
           </span>
         </button>
 

@@ -2,21 +2,21 @@ import { useEffect, useRef, useState } from 'react'
 
 const codeLines = [
   { text: '$ git clone git@gitee.com:Admin/Lynx.git', type: 'cmd' as const },
-  { text: '[Lynx] 检出三端工作台源码...', type: 'info' as const },
-  { text: '[Lynx] Web(Next.js) / Windows(Tauri) / Android(uni-app)', type: 'info' as const },
+  { text: '[奇思] 检出三端工作台源码...', type: 'info' as const },
+  { text: '[奇思] Web(Next.js) / Windows(Tauri) / Android(uni-app)', type: 'info' as const },
   { text: '$ npm install', type: 'cmd' as const },
-  { text: '[Lynx] 安装依赖...', type: 'info' as const },
+  { text: '[奇思] 安装依赖...', type: 'info' as const },
   { text: '  prisma@latest', type: 'ok' as const },
   { text: '  swr@latest', type: 'ok' as const },
   { text: '  framer-motion@latest', type: 'ok' as const },
   { text: '$ npx prisma db push', type: 'cmd' as const },
-  { text: '[Lynx] 同步数据库 schema...', type: 'info' as const },
+  { text: '[奇思] 同步数据库 schema...', type: 'info' as const },
   { text: '$ npm run seed:all', type: 'cmd' as const },
-  { text: '[Lynx] 初始化管理员 / 角色 / 60 技能 / 巡检规则', type: 'info' as const },
+  { text: '[奇思] 初始化管理员 / 角色 / 60 技能 / 巡检规则', type: 'info' as const },
   { text: '$ npx next dev -p 5176', type: 'cmd' as const },
   { text: '  Local:   http://localhost:5176', type: 'ok' as const },
   { text: '  MySQL:   localhost:3306', type: 'ok' as const },
-  { text: '[Lynx] Hermes Agent 已就绪，等待指令...', type: 'accent' as const },
+  { text: '[奇思] Hermes Agent 已就绪，等待指令...', type: 'accent' as const },
   { text: '$ _', type: 'cursor' as const },
 ]
 

@@ -65,7 +65,7 @@ export default function SuperAssistant() {
             className="mt-4 max-w-[560px] mx-auto"
             style={{ fontSize: '16px', lineHeight: 1.75, color: 'rgba(240, 244, 248, 0.45)' }}
           >
-            普通助理是"工具"，Lynx 是"会成长的同事"。它有记忆、会学习、能主动找你。
+            普通助理是"工具"，奇思是"会成长的同事"。它有记忆、会学习、能主动找你。
           </p>
         </div>
 

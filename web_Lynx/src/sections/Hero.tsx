@@ -49,12 +49,12 @@ export default function Hero() {
               textWrap: 'balance',
             }}
           >
-            Lynx奇思 - AI工作台
+            奇思 - AI工作台
           </h1>
 
           <p
             ref={subtitleRef}
-            className="text-center mt-4 md:mt-6 max-w-[640px]"
+            className="text-center mt-4 md:mt-6 max-w-[680px]"
             style={{
               fontSize: 'clamp(14px, 1.6vw, 18px)',
               lineHeight: 1.75,
@@ -64,20 +64,7 @@ export default function Hero() {
               padding: '0 16px',
             }}
           >
-            不用学AI，什么都能干。
-          </p>
-
-          <p
-            className="text-center mt-3 md:mt-4 max-w-[640px]"
-            style={{
-              fontSize: 'clamp(13px, 1.4vw, 16px)',
-              lineHeight: 1.7,
-              color: 'rgba(240, 244, 248, 0.4)',
-              textWrap: 'pretty',
-              padding: '0 16px',
-            }}
-          >
-            一个入口，覆盖全职业所有AI能力。零门槛，开箱即用。
+            不用学AI，什么都能干。一个入口，覆盖全职业所有AI能力。零门槛，开箱即用。
           </p>
 
           <div ref={ctaRef} className="mt-8 md:mt-10 flex flex-col sm:flex-row items-center gap-3 md:gap-4" style={{ pointerEvents: 'auto' }}>

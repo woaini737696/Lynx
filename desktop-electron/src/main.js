@@ -1,4 +1,4 @@
-// Lynx AI 超级助理 - Electron 主进程（新主架构）
+// 奇思 AI 超级助理 - Electron 主进程（新主架构）
 // 完整本地能力：HermesAgent管理 + WS网关 + 系统托盘 + 全局快捷键 + 自动更新检查
 const { app, BrowserWindow, shell, Menu, Tray, globalShortcut, ipcMain, nativeImage, dialog, session } = require('electron');
 const path = require('path');
@@ -115,7 +115,7 @@ function updateTrayMenu() {
     { label: '显示主窗口', click: () => { if (mainWindow) { mainWindow.show(); mainWindow.focus(); } } },
     { type: 'separator' },
     {
-      label: wsConnected ? '停止 Lynx Agent 本地操控能力' : '开启 Lynx Agent 本地操控能力',
+      label: wsConnected ? '停止奇思 Agent 本地操控能力' : '开启奇思 Agent 本地操控能力',
       click: async () => {
         if (wsConnected) {
           try { await hermes.stopDashboard(9119); } catch (e) { console.error(e); }
@@ -126,7 +126,7 @@ function updateTrayMenu() {
           if (!token) {
             if (mainWindow) {
               mainWindow.show();
-              dialog.showMessageBox(mainWindow, { type: 'warning', message: '请先登录后再开启 Lynx Agent 本地操控能力' });
+              dialog.showMessageBox(mainWindow, { type: 'warning', message: '请先登录后再开启奇思 Agent 本地操控能力' });
             }
             return;
           }

@@ -16,10 +16,10 @@ export default function MobileBanner() {
     >
       <div className="max-w-[1280px] mx-auto flex items-center justify-between gap-3">
         <div className="flex items-center gap-3 min-w-0">
-          <img src="/lynx-logo-black.png" alt="Lynx" className="w-8 h-8 flex-shrink-0" />
+          <img src="/lynx-logo-black.png" alt="奇思" className="w-8 h-8 flex-shrink-0" />
           <div className="min-w-0">
             <div className="text-[14px] font-medium truncate" style={{ color: '#F0F4F8' }}>
-              Lynx 安卓版
+              奇思安卓版
             </div>
             <div className="text-[12px] truncate" style={{ color: 'rgba(240, 244, 248, 0.45)' }}>
               下载 APP，随时随地使用 AI

@@ -9,6 +9,7 @@
 
 | 迭代 | 日期 | 任务概要 |
 |------|------|----------|
+| [迭代 111](#迭代-111---2026-07-03) | 2026-07-03 | 官网全局去Lynx改名+下载移动端按钮+Slogan同行+Electron v1.0.8+10/10自测通过：① 官网全局去Lynx改名(index.html标题→奇思-AI工作台 / Hero主标题→奇思-AI工作台 / Navbar品牌名→奇思 / Features标题Lynx Agent→奇思Agent / CoreNarrative Lynx是→奇思是 / Scenarios谁在用Lynx→谁在用奇思 / SuperAssistant Lynx是→奇思是 / Footer文案→奇思·奇思AI工作台 / MobileBanner→奇思安卓版 / Terminal [Lynx]→[奇思] / VideoModal→奇思AI工作台产品演示 / 图片alt全改奇思 共7文件21处) ② Slogan+副标题合并同一行(Hero.tsx合并为单个p标签maxWidth680 不用学AI什么都能干+一个入口覆盖全职业所有AI能力零门槛开箱即用) ③ Features底部新增下载移动端弱化按钮(btn-glass opacity0.7+Lynx-android.apk链接+与下载桌面端按钮flex同行布局) ④ 移动端APK下载验证(HTTP 200 4.1MB content-type application/octet-stream) ⑤ 桌面端HermesPanel.tsx全局改名(line448/538/686/720/723共5处Lynx Agent→奇思Agent+Lynx超级助理→奇思超级助理 / main.js注释Lynx→奇思 / 托盘菜单已改迭代109) ⑥ Electron v1.0.8构建(版本号1.0.7→1.0.8 / 奇思Setup1.0.8.exe 69.17MB / 安装包上传服务器替换Lynx-windows-setup.exe) ⑦ app-version API更新(nginx配置1.0.7→1.0.8 + releaseNotes更新 / nginx reload成功 / API返回v1.0.8) ⑧ 官网部署(8文件上传/opt/lynxwebsite / 10/10自测通过 TC1标题TC2无Lynx Agent残留TC3奇思7次TC4非URL Lynx无残留TC5 APK链接2处TC6 VideoModal文案TC7 Slogan TC8 app-version API TC9 APK下载200 TC10 Footer文案) ⑨ 视频生成暂时跳过(缺ARK_API_KEY 待用户提供后补充) |
 | [迭代 110](#迭代-110---2026-07-03) | 2026-07-03 | 官网改名奇思→Lynx奇思AI工作台+5导航锚点+滚动优化+app-version nginx部署：① 官网改名(奇思-AI超级助理→Lynx奇思-AI工作台 / Slogan→不用学AI，什么都能干 / 副标题→一个入口，覆盖全职业所有AI能力。零门槛，开箱即用 / Features描述奇思让AI→Lynx奇思让AI / 下载按钮→下载Lynx奇思桌面端 / 版本号v1.0.3→v1.0.7) ② Navbar 5导航锚点(本地操控→agent / 记忆图谱→memory / 灵感看板→kanban / AI对话→ai-chat / 三端互通→cross-platform + FeatureCard添加id+scroll-mt-24) ③ 滚动速度优化(lenis lerp 0.08→0.12 + wheelMultiplier 1→1.2) ④ app-version API nginx部署(nginx ai.lynxdo.com块添加location=/api/hermes/app-version直接返回JSON 200 避免上传route.js+routes-manifest / middleware.js回滚原版 / TC13验证HTTPS 200+版本1.0.7) ⑤ 官网部署(8文件上传/opt/lynx/website / TC1-TC13全通过) ⑥ Gitee仓库GC(远程已是清理后17.82MiB / 服务器端GC需Web界面手动触发) |
 | [迭代 109](#迭代-109---2026-07-03) | 2026-07-03 | 官网全局改名Lynx→奇思+桌面端11项修复+Electron v1.0.6打包：① 官网改名(标题/Lynx AI超级助理→奇思 - AI超级助理/Slogan→用奇思，实现你的奇妙思维/副标题文案更新/下载按钮→下载奇思桌面端/Navbar品牌名/Features描述/AIAssistantPage欢迎语/TitleBar品牌名/窗口title/托盘tooltip共10处) ② 官网性能优化+删除冗余内容(App.tsx删除8个懒加载sections仅保留Navbar+Hero+Features / 删除MobileBanner及isMobile相关代码修复TS6133 / Features下载链接改www.lynxdo.com/download/Lynx-windows-setup.exe) ③ 桌面端P0-CORS绕过(main.js onHeadersReceived为ai.lynxdo.com响应注入access-control-allow-origin头解决file:// origin fetch被CORS阻止导致助理不回复) ④ 桌面端P0-WS连接修复三连(nginx /api/ws/agent proxy_pass 3001→5176修复lynx-ws-gateway PM2崩溃4612次重启模块缺失+删除崩溃PM2进程 / HermesPanel.tsx token格式修复user:${id}→st.token JWT两处 / 服务器authenticate要求3段.分隔JWT) ⑤ 桌面端窗口拖动(TitleBar.tsx添加style WebkitAppRegion drag/no-drag Electron支持 / header和内部div拖动区+按钮no-drag区) ⑥ 桌面端托盘Logo修复(nativeImage.resize返回新对象赋值给smallIcon变量 / 16x16小图标适配系统托盘) ⑦ 桌面端检查更新readECONNRESET修复(hermes.js httpGet添加User-Agent: LynxDesktop/1.0.4 + Accept: application/json + family:4) ⑧ 桌面端NSIS自定义安装界面(installer-header.bmp 164x314纯白 + installer-sidebar.bmp 498x314纯白 / installerIcon/uninstallerIcon/installerHeaderIcon全用icon.ico) ⑨ 桌面端飞书任务同步按钮(LarkTasksPage.tsx新增同步飞书按钮调用云端POST /api/lark-tasks/sync触发lark-cli拉取任务入库+toast反馈+invalidateQueries刷新) ⑩ Lynx助理同步Web端已实现(cloudApi带Bearer token + /api/ai/settings拉取助理头像名称avatarUrl+resolveAvatarUrl拼接云端绝对路径 + 会话API全云端listSessions/createSession/getSession/deleteSession/appendMessage与Web端共用同一份数据) ⑪ winCodeSign下载超时解决(npmmirror镜像ELECTRON_BUILDER_BINARIES_MIRROR + 移除自签名证书配置signAndEditExecutable:false / 自签名证书无法消除SmartScreen警告需付费EV证书) ⑫ v1.0.5→v1.0.6版本号递增+构建成功69.17MB |
 | [迭代 108](#迭代-108---2026-07-03) | 2026-07-03 | P0严重bug修复+官网深度优化复刻豆包风格+Electron自定义外框+下载链接统一服务器直链：① P0-WS未连接严重bug(main.js start_hermes_agent改async/await返回真实wsConnected+ws-gateway.js startWSGateway返回Promise 8秒超时+HermesPanel.tsx新增agent-ws-status独立查询5秒轮询与Dashboard状态分离判断) ② P0-检查更新失败bug(hermes.js checkUpdate增加try-catch网络失败返回success:false+HermesPanel.tsx checkUpdateMutation正确检查success字段避免误判"已是最新版本" / 服务器latest.json确认0.18.0) ③ P0-非桌面指令无回复bug(ai-assistant.ts添加60秒超时保护AbortSignal.any+401统一处理signOut+LOGIN_REQUIRED_EVENT弹窗) ④ Electron去除默认外框(frame:false+titleBarStyle:hidden+自定义TitleBar) ⑤ 托盘菜单动态文案(根据global.wsConnected显示"开启/停止Lynx Agent本地操控能力"+每3秒刷新) ⑥ 官网深度优化(Navbar悬浮圆角液态玻璃导航+平台自动检测PC桌面/移动APK+Features 5块核心功能卡片左文右图交替布局IntersectionObserver入场动画+Hero"开始使用"hover下拉菜单) ⑦ 下载链接统一服务器直链(Hero/Navbar/Features/main.js 3处fallback URL全部改为www.lynxdo.com/download/Lynx-windows-setup.exe) ⑧ v1.0.4版本号递增+重新构建部署 |
@@ -6285,6 +6286,82 @@ GitHub 仓库迁移 + 本地持久化 + 三方同步验证 + 文档完善：用�
 
 ### Commit
 本次提交
+
+---
+
+## 迭代 111 - 2026-07-03
+
+### 任务概要
+
+官网全局去 Lynx 改名 + 下载移动端按钮 + Slogan 同行展示 + Electron v1.0.8 重新构建 + 10/10 自测全通过
+
+### 变更清单
+
+**官网改名（7 文件 21 处）**
+
+| 文件 | 变更 |
+|------|------|
+| `index.html` | `<title>Lynx奇思 - AI工作台</title>` → `<title>奇思 - AI工作台</title>` |
+| `Hero.tsx` | 主标题 `Lynx奇思 - AI工作台` → `奇思 - AI工作台`；Slogan+副标题合并为同一 `<p>` 标签 maxWidth 680 |
+| `Navbar.tsx` | 品牌名 `Lynx奇思` → `奇思`；图片 alt `Lynx` → `奇思` |
+| `Features.tsx` | 标题 `Lynx Agent 本地操控` → `奇思 Agent 本地操控`；底部新增下载移动端弱化按钮 |
+| `CoreNarrative.tsx` | `Lynx 是你的认知操作系统` → `奇思是你的认知操作系统` |
+| `Scenarios.tsx` | `谁在用 Lynx` → `谁在用奇思` |
+| `SuperAssistant.tsx` | `Lynx 是"会成长的同事"` → `奇思是"会成长的同事"` |
+| `Footer.tsx` | `Lynx · Lynx AI超级助理` → `奇思 · 奇思AI工作台`；图片 alt 改 `奇思` |
+| `MobileBanner.tsx` | `Lynx 安卓版` → `奇思安卓版`；图片 alt 改 `奇思` |
+| `Terminal.tsx` | 6 处 `[Lynx]` → `[奇思]`（git 仓库地址 `Admin/Lynx.git` 保留） |
+| `VideoModal.tsx` | `Lynx AI 产品演示` → `奇思AI工作台产品演示` |
+
+**桌面端改名**
+
+| 文件 | 变更 |
+|------|------|
+| `HermesPanel.tsx` | 5 处 `Lynx Agent` → `奇思 Agent`（line 448/538/686/720）；`Lynx 超级助理` → `奇思超级助理`（line 723） |
+| `main.js` | 注释 `Lynx AI 超级助理` → `奇思 AI 超级助理`（托盘菜单已改于迭代 109） |
+
+**Slogan + 副标题同行展示**
+
+`Hero.tsx` 中 Slogan 和副标题合并为同一个 `<p>` 标签：
+```
+不用学AI，什么都能干。一个入口，覆盖全职业所有AI能力。零门槛，开箱即用。
+```
+
+**Features 底部下载移动端弱化按钮**
+
+新增 `btn-glass` 弱化按钮（opacity 0.7），与下载桌面端按钮 flex 同行布局，链接到 `https://www.lynxdo.com/download/Lynx-android.apk`
+
+**Electron v1.0.8 构建**
+
+- `package.json` 版本号 `1.0.7` → `1.0.8`
+- 构建成功：`奇思 Setup 1.0.8.exe`（72,525,975 bytes ≈ 69.17MB）
+- 上传到服务器 `/opt/lynx/download/Lynx-windows-setup.exe` 替换旧版本
+
+**app-version API 更新**
+
+- nginx 配置 `1.0.7` → `1.0.8`，releaseNotes 更新为 `奇思 v1.0.8: 全局去Lynx改名+下载移动端按钮+Slogan同行展示`
+- nginx reload 成功
+- API 返回验证：`{"version":"1.0.8",...}`
+
+### 自测结果（10/10 PASS）
+
+| TC | 项目 | 结果 |
+|----|------|------|
+| TC1 | HTML 标题 `奇思 - AI工作台` | PASS |
+| TC2 | JS 中无 `Lynx Agent` 残留 | PASS |
+| TC3 | JS 中 `奇思` 出现 7 次 | PASS |
+| TC4 | 非URL的 Lynx 残留为空 | PASS |
+| TC5 | APK 下载链接出现 2 次 | PASS |
+| TC6 | `奇思AI工作台产品演示` 出现 1 次 | PASS |
+| TC7 | Slogan `不用学AI，什么都能干` 出现 1 次 | PASS |
+| TC8 | app-version API 返回 v1.0.8 | PASS |
+| TC9 | APK 下载 HTTP 200 (4.1MB) | PASS |
+| TC10 | Footer `奇思AI工作台` 出现 1 次 | PASS |
+
+### 待处理
+
+- 视频生成：缺 `ARK_API_KEY`，用户选择暂时跳过，待提供 Key 后补充
+- 迭代 109 桌面端 11 项修复的用户验证：TC5 窗口拖动 / TC6 托盘 Logo / TC7 检查更新 / TC8 助理回复 / TC9 WS 连接 / TC10 飞书同步 / TC11 安装界面
 
 ---
 

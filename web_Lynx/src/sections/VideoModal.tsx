@@ -100,7 +100,7 @@ export default function VideoModal({ isOpen, onClose }: VideoModalProps) {
         </div>
 
         <p className="text-center mt-4 text-[14px]" style={{ color: 'rgba(240, 244, 248, 0.4)' }}>
-          Lynx AI 产品演示 — 按 ESC 或点击外部关闭
+          奇思AI工作台产品演示 — 按 ESC 或点击外部关闭
         </p>
       </div>
     </div>

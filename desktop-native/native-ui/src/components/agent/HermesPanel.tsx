@@ -177,7 +177,7 @@ export function HermesPanel() {
       setIsInstalling(false);
       if (data.success) {
         queryClient.invalidateQueries({ queryKey: ["local-ai-env"] });
-        toast.success("Lynx Agent 安装成功");
+        toast.success("奇思 Agent 安装成功");
         // 安装成功后自动启动 WS 连接（PC 上线，远程操控可用）
         // 需要先 set_user_token + set_cloud_endpoint，再 start_hermes_agent
         (async () => {
@@ -226,7 +226,7 @@ export function HermesPanel() {
             toast.error(wsRes?.error || "WS 连接失败，请检查网络");
           }
         } else {
-          toast.error("请先登录后再启动 Lynx Agent");
+          toast.error("请先登录后再启动奇思 Agent");
         }
       } catch (e) {
         console.warn("[HermesPanel] 启动 WS 连接失败:", e);
@@ -243,7 +243,7 @@ export function HermesPanel() {
         queryClient.invalidateQueries({ queryKey: ["agent-ws-status"] });
         // P0 修复：根据真实 WS 状态提示，不再一律说"WS 已连接云端"
         if (isWsConnected) {
-          toast.success(`Lynx Agent 已启动（Dashboard 端口 ${data.port}，WS 已连接云端）`);
+          toast.success(`奇思 Agent 已启动（Dashboard 端口 ${data.port}，WS 已连接云端）`);
         } else {
           toast.success(`Dashboard 已启动（端口 ${data.port}），WS 正在连接云端...`);
         }
@@ -265,7 +265,7 @@ export function HermesPanel() {
       queryClient.invalidateQueries({ queryKey: ["dashboard-online"] });
       queryClient.invalidateQueries({ queryKey: ["agent-ws-status"] });
       queryClient.invalidateQueries({ queryKey: ["local-ai-env"] });
-      toast.success("Lynx Agent 已停止");
+      toast.success("奇思 Agent 已停止");
     },
     onError: (e: unknown) => toast.error(e instanceof Error ? e.message : "停止失败"),
   });
@@ -445,7 +445,7 @@ export function HermesPanel() {
               <Bot className="h-5 w-5" />
             </div>
             <div>
-              <h3 className="font-semibold text-foreground">Lynx Agent</h3>
+              <h3 className="font-semibold text-foreground">奇思 Agent</h3>
               <p className="text-xs text-muted-foreground">
                 本地 AI 代理 · 操控电脑 · 数据不出本机
                 {hermesVersion && (
@@ -535,7 +535,7 @@ export function HermesPanel() {
                 className="btn-primary-glass flex flex-1 items-center justify-center gap-2 py-2.5 text-sm"
               >
                 {startMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Power className="h-4 w-4" />}
-                {startMutation.isPending ? "启动中..." : "启动 Lynx Agent"}
+                {startMutation.isPending ? "启动中..." : "启动奇思 Agent"}
               </button>
               <button
                 onClick={() => testMutation.mutate()}
@@ -683,7 +683,7 @@ export function HermesPanel() {
           <h3 className="text-sm font-semibold text-foreground">核心能力</h3>
         </div>
         <p className="text-xs text-muted-foreground">
-          Lynx Agent 启动后可执行以下本地操作
+          奇思 Agent 启动后可执行以下本地操作
         </p>
         <div className="grid grid-cols-2 gap-2">
           {CAPABILITIES.map((cap) => {
@@ -717,10 +717,10 @@ export function HermesPanel() {
       <div className="ios-glass flex flex-col gap-2 p-5">
         <div className="flex items-center gap-2">
           <Shield className="h-4 w-4 text-primary" />
-          <h3 className="text-sm font-semibold text-foreground">关于 Lynx Agent</h3>
+          <h3 className="text-sm font-semibold text-foreground">关于奇思 Agent</h3>
         </div>
         <p className="text-xs leading-relaxed text-muted-foreground">
-          基于 Hermes Agent 技术深度定制开发，让 AI 助理升级为 Lynx 超级助理，可以直接操控你的电脑（桌面控制、Shell 命令、浏览器控制），并拥有自主学习与自我成长能力。所有操作在本地执行，数据不出本机。
+          基于 Hermes Agent 技术深度定制开发，让 AI 助理升级为奇思超级助理，可以直接操控你的电脑（桌面控制、Shell 命令、浏览器控制），并拥有自主学习与自我成长能力。所有操作在本地执行，数据不出本机。
         </p>
         <div className="mt-1 flex items-center gap-1.5 rounded-lg bg-amber-500/5 px-3 py-2 text-[11px] text-amber-600">
           <ShieldAlert className="h-3 w-3 shrink-0" />

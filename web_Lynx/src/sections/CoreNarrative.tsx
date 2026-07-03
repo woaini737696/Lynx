@@ -38,7 +38,7 @@ export default function CoreNarrative() {
               className="font-semibold tracking-tight mb-3"
               style={{ fontSize: 'clamp(18px, 2.4vw, 28px)', lineHeight: 1.3, color: '#F0F4F8' }}
             >
-              Lynx 是你的认知操作系统
+              奇思是你的认知操作系统
             </h2>
             <p style={{ fontSize: '15px', lineHeight: 1.75, color: 'rgba(240, 244, 248, 0.5)' }}>
               不是又一个 AI 聊天框，而是一个会自主学习、成长、进化的超级助理——它住在你的工作流里，三端互通，开箱即用。
