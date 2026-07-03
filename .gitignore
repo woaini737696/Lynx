@@ -172,3 +172,8 @@ __pycache__/
 
 # Git 历史清理前原始仓库备份（117MB，仅本地保留）
 /backup-original-history.bundle
+
+# 代码签名证书与生成脚本（含密码，禁止入库）
+/desktop-electron/build/cert.pfx
+/desktop-electron/build/*.pfx
+/scripts/deploy/gen-cert.ps1
