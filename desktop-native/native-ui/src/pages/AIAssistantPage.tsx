@@ -81,7 +81,7 @@ function buildWelcomeMessage(name: string): Message {
   return {
     id: "welcome",
     role: "assistant",
-    content: `你好，我是 ${name} · 你的 Lynx超级助理。\n\n我可以帮你查询任务、分析灵感、搜索记忆、执行技能，甚至通过 Lynx Agent 操控本地电脑。\n\n试试下方的快捷指令，或直接告诉我你想做什么。`,
+    content: `你好，我是 ${name} · 你的奇思超级助理。\n\n我可以帮你查询任务、分析灵感、搜索记忆、执行技能，甚至通过 Lynx Agent 操控本地电脑。\n\n试试下方的快捷指令，或直接告诉我你想做什么。`,
     time: new Date().toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit" }),
   };
 }

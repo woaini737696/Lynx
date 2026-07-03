@@ -1,7 +1,7 @@
 {
   "name": "lynx-desktop",
-  "version": "1.0.4",
-  "description": "Lynx AI 超级助理 - 桌面端（Electron 主架构）",
+  "version": "1.0.7",
+  "description": "奇思 - AI超级助理 - 桌面端（Electron 主架构）",
   "main": "src/main.js",
   "author": "Lynn",
   "license": "MIT",
@@ -26,7 +26,7 @@
   },
   "build": {
     "appId": "com.lynnhub.desktop",
-    "productName": "Lynx",
+    "productName": "奇思",
     "copyright": "© 2026 Lynn. All rights reserved.",
     "directories": {
       "output": "release",
@@ -50,8 +50,7 @@
           "arch": ["x64"]
         }
       ],
-      "signAndEditExecutable": false,
-      "forceCodeSigning": false
+      "signAndEditExecutable": false
     },
     "nsis": {
       "oneClick": false,
@@ -60,9 +59,11 @@
       "installerIcon": "build/icon.ico",
       "uninstallerIcon": "build/icon.ico",
       "installerHeaderIcon": "build/icon.ico",
+      "installerHeader": "build/installer-header.bmp",
+      "installerSidebar": "build/installer-sidebar.bmp",
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
-      "shortcutName": "Lynx"
+      "shortcutName": "奇思"
     },
     "compression": "maximum"
   }

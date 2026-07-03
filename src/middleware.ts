@@ -21,6 +21,8 @@ const publicPatterns = [
   // HermesAgent 版本检查/下载：公开接口（桌面端 installer.rs 无需登录即可检查更新）
   /^\/api\/hermes\/latest-json$/,
   /^\/api\/hermes\/download-wheel$/,
+  // 桌面端 Electron 自动更新检查：公开接口（fetchLatestVersion 无 token）
+  /^\/api\/hermes\/app-version$/,
 ];
 
 // 首页作为公开落地页：未登录用户可访问首页，由前端弹窗处理登录

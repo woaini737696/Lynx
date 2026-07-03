@@ -186,7 +186,7 @@ export function HermesPanel() {
             const { getCloudEndpoint } = await import("@/lib/cloud-api");
             const st = useAuthStore.getState();
             if (st.user?.id && st.token) {
-              await invoke("set_user_token", { token: `user:${st.user.id}` });
+              await invoke("set_user_token", { token: st.token });
               await invoke("set_cloud_endpoint", { endpoint: getCloudEndpoint() });
               await invoke("start_hermes_agent");
             }
@@ -215,7 +215,9 @@ export function HermesPanel() {
         const { getCloudEndpoint } = await import("@/lib/cloud-api");
         const st = useAuthStore.getState();
         if (st.user?.id && st.token) {
-          await invoke("set_user_token", { token: `user:${st.user.id}` });
+          // P0 修复：必须用 JWT token（st.token），不是 user:${userId}
+          // 服务器端 authenticate 要求 JWT 3 段格式，user:xxx 会被直接拒绝
+          await invoke("set_user_token", { token: st.token });
           await invoke("set_cloud_endpoint", { endpoint: getCloudEndpoint() });
           const wsRes = await invoke<{ success: boolean; wsConnected?: boolean; error?: string }>("start_hermes_agent");
           wsOk = !!wsRes?.wsConnected;

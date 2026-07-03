@@ -214,13 +214,20 @@ export async function chatCompletion(
   }
 
   // P0 修复：添加 60 秒超时保护，防止网络挂起导致"无回复、无反应"
-  // 修复前：fetch 无超时，网络异常时永久挂起，用户看到"思考中..."但永远等不到回复
+  // 简化实现：避免 AbortSignal.any() 兼容性问题，手动转发外部 signal
   const timeoutCtrl = new AbortController();
   const timeoutId = setTimeout(() => timeoutCtrl.abort(), 60000);
-  // 合并外部 signal 和超时 signal
-  const combinedSignal = params.signal
-    ? AbortSignal.any([params.signal, timeoutCtrl.signal])
-    : timeoutCtrl.signal;
+  // 如果外部传了 signal，转发 abort 事件
+  if (params.signal) {
+    if (params.signal.aborted) {
+      clearTimeout(timeoutId);
+      throw new Error("用户中止");
+    }
+    params.signal.addEventListener("abort", () => {
+      clearTimeout(timeoutId);
+      timeoutCtrl.abort();
+    });
+  }
 
   let res: Response;
   try {
@@ -229,15 +236,14 @@ export async function chatCompletion(
       headers,
       body: JSON.stringify({
         messages: params.messages,
-        stream: true, // 流式 SSE（WebView2 完全支持）
-        assistantMode: true, // 启用 Function Calling + 22 工具
+        stream: true,
+        assistantMode: true,
         sessionId: params.sessionId,
       }),
-      signal: combinedSignal,
+      signal: timeoutCtrl.signal,
     });
   } catch (err) {
     clearTimeout(timeoutId);
-    // 区分用户主动中止 vs 超时中止
     const isUserAbort = params.signal?.aborted;
     const isTimeout = timeoutCtrl.signal.aborted && !isUserAbort;
     const e = isTimeout

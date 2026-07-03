@@ -1,6 +1,6 @@
 // Lynx AI 超级助理 - Electron 主进程（新主架构）
 // 完整本地能力：HermesAgent管理 + WS网关 + 系统托盘 + 全局快捷键 + 自动更新检查
-const { app, BrowserWindow, shell, Menu, Tray, globalShortcut, ipcMain, nativeImage, dialog } = require('electron');
+const { app, BrowserWindow, shell, Menu, Tray, globalShortcut, ipcMain, nativeImage, dialog, session } = require('electron');
 const path = require('path');
 const https = require('https');
 const fs = require('fs');
@@ -12,16 +12,32 @@ const store = require('./store');
 let mainWindow = null;
 let tray = null;
 let isQuiting = false;
-let downloadedUpdatePath = null; // P1-1: 已下载的更新包路径
+let downloadedUpdatePath = null;
 
 // P1-3: GPU 加速配置
-// 默认启用 GPU 硬件加速（提升液态玻璃/动画流畅度）
-// 若检测到 GPU 进程崩溃则自动回退到软件渲染
 app.commandLine.appendSwitch('enable-gpu-rasterization');
 app.commandLine.appendSwitch('enable-zero-copy');
 app.on('gpu-process-crashed', () => {
   console.warn('[gpu] GPU 进程崩溃，回退到软件渲染');
   app.disableHardwareAcceleration();
+});
+
+// P0 修复：CORS 绕过——Electron renderer 加载 file:// 本地文件，fetch 到 ai.lynxdo.com 会被 CORS 阻止
+// 通过 onHeadersReceived 为云端 API 响应添加 CORS 头，让 renderer 的 fetch 正常工作
+// 仅对 ai.lynxdo.com 域名的响应生效，不影响其他网站
+app.whenReady().then(() => {
+  session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
+    const url = details.url || '';
+    if (url.includes('ai.lynxdo.com') || url.includes('127.0.0.1:5177') || url.includes('localhost:5177')) {
+      const headers = { ...details.responseHeaders };
+      headers['access-control-allow-origin'] = ['*'];
+      headers['access-control-allow-headers'] = ['Content-Type, Authorization'];
+      headers['access-control-allow-methods'] = ['GET, POST, PUT, PATCH, DELETE, OPTIONS'];
+      callback({ responseHeaders: headers });
+    } else {
+      callback({});
+    }
+  });
 });
 
 // ============ 窗口创建 ============
@@ -33,7 +49,7 @@ function createWindow() {
     minWidth: 960,
     minHeight: 600,
     show: false,
-    title: 'Lynx - AI超级助理',
+    title: '奇思 - AI超级助理',
     backgroundColor: '#f5f5f7',
     icon: path.join(__dirname, '..', 'build', 'icon.ico'),
     // 去掉默认外框，全自定义标题栏（用户需求：不需要默认外框）
@@ -125,18 +141,18 @@ function updateTrayMenu() {
     { label: '退出', click: () => { isQuiting = true; app.quit(); } },
   ]);
   tray.setContextMenu(contextMenu);
-  tray.setToolTip(`Lynx - AI超级助理${wsConnected ? '（运行中）' : ''}`);
+  tray.setToolTip(`奇思 - AI超级助理${wsConnected ? '（运行中）' : ''}`);
 }
 
 function createTray() {
   const iconPath = path.join(__dirname, '..', 'build', 'icon.ico');
   const icon = nativeImage.createFromPath(iconPath);
-  // 缩小图标用于托盘（16x16）
-  icon.resize({ width: 16, height: 16 });
+  // P0 修复：resize 返回新对象，必须赋值给新变量（原变量不变）
+  const smallIcon = icon.resize({ width: 16, height: 16 });
 
-  tray = new Tray(icon);
+  tray = new Tray(smallIcon);
   updateTrayMenu();
-  tray.setToolTip('Lynx - AI超级助理');
+  tray.setToolTip('奇思 - AI超级助理');
   tray.on('click', () => { if (mainWindow) { mainWindow.isVisible() ? mainWindow.hide() : mainWindow.show(); } });
   // 每 3 秒刷新托盘菜单，同步 WS 连接状态
   setInterval(updateTrayMenu, 3000);
@@ -242,7 +258,7 @@ async function checkAppUpdate() {
 
 // 手动触发：下载并安装更新（通过 IPC 调用）
 async function downloadAndInstallUpdate(downloadUrl) {
-  const url = downloadUrl || 'https://gitee.com/shenzhens-emotions-are-booming_0/lynn-hub-release/releases/download/v1.0.2/Lynx_1.0.2_x64-setup.exe';
+  const url = downloadUrl || 'https://www.lynxdo.com/download/Lynx-windows-setup.exe';
   console.log(`[update] 开始下载: ${url}`);
 
   // 通知前端下载进度

@@ -247,7 +247,7 @@ export default function Features() {
             margin: '0 auto',
           }}
         >
-          从本地操控到记忆图谱，从灵感看板到三端互通，Lynx 让 AI 真正成为你的超级助理
+          从本地操控到记忆图谱，从灵感看板到三端互通，奇思让 AI 真正成为你的超级助理
         </p>
       </div>
 
@@ -261,14 +261,14 @@ export default function Features() {
       {/* 最底部下载按钮 */}
       <div className="text-center mt-16 md:mt-20">
         <a
-          href="https://gitee.com/shenzhens-emotions-are-booming_0/lynn-hub-release/releases/download/v1.0.2/Lynx_1.0.2_x64-setup.exe"
+          href="https://www.lynxdo.com/download/Lynx-windows-setup.exe"
           className="btn-primary inline-flex"
           style={{ fontSize: '16px', padding: '14px 36px' }}
         >
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
             <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3" />
           </svg>
-          下载 Lynx 桌面端
+          下载奇思桌面端
         </a>
         <p
           className="mt-4"

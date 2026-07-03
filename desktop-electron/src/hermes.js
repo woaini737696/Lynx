@@ -111,7 +111,11 @@ async function detectAIEnv() {
 function httpGet(url, { timeout = 15000 } = {}) {
   return new Promise((resolve, reject) => {
     const mod = url.startsWith('https') ? httpsOrig : httpOrig;
-    const req = mod.get(url, { timeout }, (res) => {
+    const req = mod.get(url, {
+      timeout,
+      headers: { 'User-Agent': 'LynxDesktop/1.0.4', 'Accept': 'application/json' },
+      family: 4,
+    }, (res) => {
       if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
         return httpGet(res.headers.location, { timeout }).then(resolve, reject);
       }

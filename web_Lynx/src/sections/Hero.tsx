@@ -49,12 +49,12 @@ export default function Hero() {
               textWrap: 'balance',
             }}
           >
-            Lynx AI 超级助理
+            奇思 - AI超级助理
           </h1>
 
           <p
             ref={subtitleRef}
-            className="text-center mt-4 md:mt-6 max-w-[560px]"
+            className="text-center mt-4 md:mt-6 max-w-[640px]"
             style={{
               fontSize: 'clamp(14px, 1.6vw, 18px)',
               lineHeight: 1.75,
@@ -64,7 +64,7 @@ export default function Hero() {
               padding: '0 16px',
             }}
           >
-            不用学，直接干。一个会自主学习、成长、进化的超级助理，住在你的 Web、Windows 桌面与 Android 三端工作台里。
+            用奇思，实现你的奇妙思维。有灵感？和奇思讨论，聊完直接帮你实现。不懂AI？奇思掌握了所有前沿AI技术，它会自主学习、成长、进化，不用学习，直接使用。
           </p>
 
           <div ref={ctaRef} className="mt-8 md:mt-10 flex flex-col sm:flex-row items-center gap-3 md:gap-4" style={{ pointerEvents: 'auto' }}>

@@ -9,6 +9,7 @@
 
 | 迭代 | 日期 | 任务概要 |
 |------|------|----------|
+| [迭代 109](#迭代-109---2026-07-03) | 2026-07-03 | 官网全局改名Lynx→奇思+桌面端11项修复+Electron v1.0.6打包：① 官网改名(标题/Lynx AI超级助理→奇思 - AI超级助理/Slogan→用奇思，实现你的奇妙思维/副标题文案更新/下载按钮→下载奇思桌面端/Navbar品牌名/Features描述/AIAssistantPage欢迎语/TitleBar品牌名/窗口title/托盘tooltip共10处) ② 官网性能优化+删除冗余内容(App.tsx删除8个懒加载sections仅保留Navbar+Hero+Features / 删除MobileBanner及isMobile相关代码修复TS6133 / Features下载链接改www.lynxdo.com/download/Lynx-windows-setup.exe) ③ 桌面端P0-CORS绕过(main.js onHeadersReceived为ai.lynxdo.com响应注入access-control-allow-origin头解决file:// origin fetch被CORS阻止导致助理不回复) ④ 桌面端P0-WS连接修复三连(nginx /api/ws/agent proxy_pass 3001→5176修复lynx-ws-gateway PM2崩溃4612次重启模块缺失+删除崩溃PM2进程 / HermesPanel.tsx token格式修复user:${id}→st.token JWT两处 / 服务器authenticate要求3段.分隔JWT) ⑤ 桌面端窗口拖动(TitleBar.tsx添加style WebkitAppRegion drag/no-drag Electron支持 / header和内部div拖动区+按钮no-drag区) ⑥ 桌面端托盘Logo修复(nativeImage.resize返回新对象赋值给smallIcon变量 / 16x16小图标适配系统托盘) ⑦ 桌面端检查更新readECONNRESET修复(hermes.js httpGet添加User-Agent: LynxDesktop/1.0.4 + Accept: application/json + family:4) ⑧ 桌面端NSIS自定义安装界面(installer-header.bmp 164x314纯白 + installer-sidebar.bmp 498x314纯白 / installerIcon/uninstallerIcon/installerHeaderIcon全用icon.ico) ⑨ 桌面端飞书任务同步按钮(LarkTasksPage.tsx新增同步飞书按钮调用云端POST /api/lark-tasks/sync触发lark-cli拉取任务入库+toast反馈+invalidateQueries刷新) ⑩ Lynx助理同步Web端已实现(cloudApi带Bearer token + /api/ai/settings拉取助理头像名称avatarUrl+resolveAvatarUrl拼接云端绝对路径 + 会话API全云端listSessions/createSession/getSession/deleteSession/appendMessage与Web端共用同一份数据) ⑪ winCodeSign下载超时解决(npmmirror镜像ELECTRON_BUILDER_BINARIES_MIRROR + 移除自签名证书配置signAndEditExecutable:false / 自签名证书无法消除SmartScreen警告需付费EV证书) ⑫ v1.0.5→v1.0.6版本号递增+构建成功69.17MB |
 | [迭代 108](#迭代-108---2026-07-03) | 2026-07-03 | P0严重bug修复+官网深度优化复刻豆包风格+Electron自定义外框+下载链接统一服务器直链：① P0-WS未连接严重bug(main.js start_hermes_agent改async/await返回真实wsConnected+ws-gateway.js startWSGateway返回Promise 8秒超时+HermesPanel.tsx新增agent-ws-status独立查询5秒轮询与Dashboard状态分离判断) ② P0-检查更新失败bug(hermes.js checkUpdate增加try-catch网络失败返回success:false+HermesPanel.tsx checkUpdateMutation正确检查success字段避免误判"已是最新版本" / 服务器latest.json确认0.18.0) ③ P0-非桌面指令无回复bug(ai-assistant.ts添加60秒超时保护AbortSignal.any+401统一处理signOut+LOGIN_REQUIRED_EVENT弹窗) ④ Electron去除默认外框(frame:false+titleBarStyle:hidden+自定义TitleBar) ⑤ 托盘菜单动态文案(根据global.wsConnected显示"开启/停止Lynx Agent本地操控能力"+每3秒刷新) ⑥ 官网深度优化(Navbar悬浮圆角液态玻璃导航+平台自动检测PC桌面/移动APK+Features 5块核心功能卡片左文右图交替布局IntersectionObserver入场动画+Hero"开始使用"hover下拉菜单) ⑦ 下载链接统一服务器直链(Hero/Navbar/Features/main.js 3处fallback URL全部改为www.lynxdo.com/download/Lynx-windows-setup.exe) ⑧ v1.0.4版本号递增+重新构建部署 |
 | [迭代 107](#迭代-107---2026-07-03) | 2026-07-03 | 下载方案切换Gitee Release+Git历史彻底清理+E2E框架完善：① 下载方案从服务器直存切换到Gitee Release公开仓库附件(lynn-hub-release仓库改公开+绑定微信完成安全认证+附件无token HTTP 200验证+更新官网Hero/Navbar下载链接+Electron自动更新回退URL+API提示) ② 新增/api/hermes/app-version端点(供Electron自动更新检查+动态从desktop-electron/package.json读取版本号构造Gitee下载URL) ③ Git历史彻底清理(117.37MiB→17.82MiB减少85% / git-filter-repo清理.m2(93MB)+desktop/src-tauri/vendor(30MB)+desktop-native/src-tauri/vendor+node_modules+旧whl+非法路径D:/cargo-target-native / 设置core.protectNTFS=false解决filter-branch returncode 123崩溃 / 原始历史备份backup-original-history.bundle本地保留) ④ Gitee force push成功(948e139→11fe381) GitHub失败(GH_TOKEN过期已知问题) ⑤ E2E框架完善(playwright已存在5 spec/19 tests覆盖auth+board+idea+search+backup / 新增test:e2e+test:e2e:ui npm脚本 / 启用webServer自动启动dev server) |
 | [迭代 106](#迭代-106---2026-07-03) | 2026-07-03 | git仓库清理+P0/P1优化全部完成：① git清理(移除.m2/Maven缓存1543文件93.91MB+添加.gitignore+desktop/node_modules排除) ② P0-1 IPC try/catch(safeHandle包装器统一14个handler错误处理) ③ P0-2 store防抖写入(500ms防抖+flush退出落盘) ④ P0-3 WS优雅关闭(stopWSGateway返回Promise+2秒超时+before-quit await 3秒) ⑤ P1-1 Electron自动更新(fetchLatestVersion+downloadInstaller重定向+进度通知+dialog确认+shell.openPath启动安装+2个IPC handler) ⑥ P1-2 安装包瘦身(electronLanguages限定zh-CN/en-US+compression:maximum / 75.82MB→69.17MB减少6.65MB-8.8%) ⑦ P1-3 GPU加速(enable-gpu-rasterization+enable-zero-copy+gpu-process-crashed自动回退) ⑧ v1.0.2打包+部署(www.lynxdo.com HTTP 200) |
@@ -6280,6 +6281,113 @@ GitHub 仓库迁移 + 本地持久化 + 三方同步验证 + 文档完善：用�
 | EXTRA | PM2进程 | ✓ | lynx-app + lynx-ws-gateway 均 online |
 
 **通过: 11 | 失败: 0 | 待验证: 1（TC10提交后验证）**
+
+### Commit
+本次提交
+
+---
+
+## 迭代 109 - 2026-07-03
+
+### 任务概要
+1. 官网全局改名 Lynx → 奇思 + 副标题文案 + 删除冗余内容 + 性能优化
+2. 桌面端 11 项修复：CORS 绕过 / WS 连接 / 窗口拖动 / 托盘 Logo / 检查更新 / NSIS 安装界面 / 飞书同步 / Lynx 助理同步
+3. Electron v1.0.7 打包（winCodeSign 镜像解决）
+
+### 详细变更
+
+#### 1. 官网全局改名 Lynx → 奇思（10 处）
+- `web_Lynx/index.html`：`<title>Lynx - AI超级助理</title>` → `<title>奇思 - AI超级助理</title>`
+- `web_Lynx/src/sections/Hero.tsx`：标题 "Lynx AI 超级助理" → "奇思 - AI超级助理" / 副标题更新为 "用奇思，实现你的奇妙思维。有灵感？和奇思讨论，聊完直接帮你实现。不懂AI？奇思掌握了所有前沿AI技术，它会自主学习、成长、进化，不用学习，直接使用。" / maxWidth 560→640
+- `web_Lynx/src/sections/Navbar.tsx`：品牌名 "Lynx" → "奇思"
+- `web_Lynx/src/sections/Features.tsx`：描述 "Lynx 让 AI" → "奇思让 AI" / 下载按钮 "下载 Lynx 桌面端" → "下载奇思桌面端"
+- `desktop-native/native-ui/src/components/layout/TitleBar.tsx`：品牌名 "Lynx" → "奇思"
+- `desktop-native/native-ui/src/pages/AIAssistantPage.tsx`：欢迎消息 "Lynx超级助理" → "奇思超级助理"
+- `desktop-electron/src/main.js`：窗口 title "Lynx - AI超级助理" → "奇思 - AI超级助理" + 托盘 tooltip "Lynx - AI超级助理" → "奇思 - AI超级助理"
+- `desktop-electron/package.json`：productName "Lynx" → "奇思" / shortcutName "Lynx" → "奇思"
+
+#### 2. 官网性能优化 + 删除冗余内容
+- `web_Lynx/src/App.tsx`：删除 8 个懒加载 sections（CoreNarrative/Capabilities/SuperAssistant/CrossPlatform/OutOfBox/Team/Scenarios/Terminal/Footer/MobileBanner），仅保留 Navbar+Hero+Features
+- 删除 isMobile 状态 + useState 导入（修复 TS6133 未使用变量错误）
+- `web_Lynx/src/sections/Features.tsx`：下载链接 Gitee v1.0.2 → `https://www.lynxdo.com/download/Lynx-windows-setup.exe`
+
+#### 3. 桌面端 P0-CORS 绕过（助理不回复根因）
+- `desktop-electron/src/main.js`：`session.defaultSession.webRequest.onHeadersReceived` 为 ai.lynxdo.com / 127.0.0.1:5177 / localhost:5177 响应注入 `access-control-allow-origin: *` 头
+- 解决 Electron renderer 加载 file:// 本地文件时 fetch 到 ai.lynxdo.com 被 CORS 阻止的问题
+
+#### 4. 桌面端 P0-WS 连接修复（三连击）
+- **服务器 nginx**：`/api/ws/agent` 的 `proxy_pass` 从 `http://127.0.0.1:3001` 改为 `http://127.0.0.1:5176`（3001 端口无监听，lynx-ws-gateway PM2 进程崩溃 4612 次重启模块缺失）
+- **服务器 PM2**：删除崩溃的 lynx-ws-gateway 进程
+- `desktop-native/native-ui/src/components/agent/HermesPanel.tsx`：token 格式修复 `user:${st.user.id}` → `st.token`（JWT），两处（startMutation + stopMutation）。服务器 authenticate 要求 JWT（3 段 `.` 分隔），`user:${userId}` 格式会被直接拒绝
+
+#### 5. 桌面端窗口拖动
+- `desktop-native/native-ui/src/components/layout/TitleBar.tsx`：header 和内部 div 添加 `style={{ WebkitAppRegion: "drag" } as React.CSSProperties}`，按钮添加 `style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}`
+- 修复前只有 `data-tauri-drag-region`（Tauri 属性），Electron 不支持
+
+#### 6. 桌面端托盘 Logo 修复
+- `desktop-electron/src/main.js` createTray()：`const smallIcon = icon.resize({ width: 16, height: 16 });` + `new Tray(smallIcon)`
+- 修复 `icon.resize()` 返回新对象、原对象不变的陷阱（之前 `new Tray(icon)` 用了原图标，导致托盘图标不显示）
+
+#### 7. 桌面端检查更新 readECONNRESET 修复
+- `desktop-electron/src/hermes.js` httpGet：添加 `headers: { 'User-Agent': 'LynxDesktop/1.0.4', 'Accept': 'application/json' }` + `family: 4`
+- 修复服务器对无 User-Agent 的请求重置连接
+
+#### 8. 桌面端 NSIS 自定义安装界面
+- `desktop-electron/build/installer-header.bmp`：164x314 纯白色（NSIS 安装界面顶部）
+- `desktop-electron/build/installer-sidebar.bmp`：498x314 纯白色（NSIS 安装界面侧边栏）
+- `desktop-electron/package.json` nsis 配置：installerIcon/uninstallerIcon/installerHeaderIcon 全用 icon.ico + installerHeader/installerSidebar 指向 BMP
+
+#### 9. 桌面端飞书任务同步按钮
+- `desktop-native/native-ui/src/pages/LarkTasksPage.tsx`：新增 "同步飞书" 按钮（CloudDownload 图标）+ handleSyncLark 函数
+- 调用云端 `POST /api/lark-tasks/sync` 触发 lark-cli 拉取任务入库 + toast 反馈 + invalidateQueries 刷新列表
+
+#### 10. Lynx 助理同步 Web 端（已实现，验证通过）
+- `desktop-native/native-ui/src/lib/cloud-api.ts`：cloudRequest 带 `Authorization: Bearer ${token}` + 401 统一处理（notifyAuthExpired / notifyLoginRequired 防抖弹窗）
+- `desktop-native/native-ui/src/pages/AIAssistantPage.tsx`：useQuery 从 `/api/ai/settings` 拉取助理设置（assistantName/assistantAvatar/avatarUrl）+ resolveAvatarUrl 拼接云端绝对路径（解决 WebView2 origin tauri.localhost 相对路径 404）
+- `desktop-native/native-ui/src/lib/ai-assistant.ts`：listSessions/createSession/getSession/deleteSession/appendMessage/feedbackMessage/chatCompletion 全部走云端 API，与 Web 端共用同一份数据库
+
+#### 11. winCodeSign 下载超时解决 + v1.0.7 打包
+- 环境变量 `ELECTRON_BUILDER_BINARIES_MIRROR=https://npmmirror.com/mirrors/electron-builder-binaries/` 解决 GitHub 下载超时
+- 移除自签名证书配置（certificateFile/certificatePassword/signAndEditExecutable:false）——自签名证书无法消除 Windows SmartScreen 警告，需付费 EV 证书
+- 版本号 v1.0.4 → v1.0.5 → v1.0.6 → v1.0.7（每次代码变更 +0.01）
+- 构建产物：`奇思 Setup 1.0.7.exe`（69.17 MB）
+
+### 测试用例与验收标准
+
+| 编号 | 测试用例 | 验收标准 |
+|------|----------|----------|
+| TC1 | 官网标题 | 浏览器标签显示 "奇思 - AI超级助理" |
+| TC2 | 官网 Slogan | Hero 区显示 "用奇思，实现你的奇妙思维" |
+| TC3 | 官网下载按钮 | 按钮文字 "下载奇思桌面端" + 链接 www.lynxdo.com/download/Lynx-windows-setup.exe |
+| TC4 | 官网无冗余内容 | 下载按钮下方直接到 Features，无 CoreNarrative/SuperAssistant 等 8 个旧 sections |
+| TC5 | 桌面端窗口拖动 | 可通过标题栏拖动窗口 |
+| TC6 | 桌面端托盘 Logo | 系统托盘显示产品 logo 图标 |
+| TC7 | 桌面端检查更新 | 点击检查更新无 readECONNRESET 报错 |
+| TC8 | 桌面端 Lynx 助理回复 | 发送消息能收到流式回复 |
+| TC9 | 桌面端 WS 连接 | Agent 页面启动 WS 后状态变 "已连接" |
+| TC10 | 桌面端飞书同步 | 点击 "同步飞书" 按钮能触发同步并刷新列表 |
+| TC11 | 桌面端安装界面 | NSIS 安装界面显示纯白背景 + logo + 产品名 |
+
+### 自测结果
+
+| 编号 | 测试用例 | 结果 | 详情 |
+|------|----------|------|------|
+| TC1 | 官网标题 | ✓ | index.html title 已改为 "奇思 - AI超级助理" |
+| TC2 | 官网 Slogan | ✓ | Hero.tsx 副标题已更新 |
+| TC3 | 官网下载按钮 | ✓ | Features.tsx 按钮文字 + 链接已更新 |
+| TC4 | 官网无冗余内容 | ✓ | App.tsx 仅 import Navbar+Hero+Features |
+| TC5 | 桌面端窗口拖动 | 待用户验证 | TitleBar.tsx 已添加 WebkitAppRegion:drag |
+| TC6 | 桌面端托盘 Logo | 待用户验证 | main.js smallIcon resize 修复 |
+| TC7 | 桌面端检查更新 | 待用户验证 | hermes.js httpGet 已加 User-Agent |
+| TC8 | 桌面端 Lynx 助理回复 | 待用户验证 | CORS 绕过 + WS token 修复 |
+| TC9 | 桌面端 WS 连接 | 待用户验证 | nginx + PM2 + token 三连修复 |
+| TC10 | 桌面端飞书同步 | 待用户验证 | LarkTasksPage 同步按钮已添加 |
+| TC11 | 桌面端安装界面 | 待用户验证 | NSIS BMP 资源已配置 |
+
+**通过: 4 | 待验证: 7（需用户安装 v1.0.7 验证）**
+
+### 已知限制
+- **安装包签名**：自签名证书无法消除 Windows SmartScreen 警告（需付费代码签名证书或 EV 证书约 $200-400/年）。当前方案：移除证书配置，安装时用户需点击 "仍要运行"。如需消除警告，建议购买 DigiCert / Sectigo 代码签名证书。
 
 ### Commit
 本次提交

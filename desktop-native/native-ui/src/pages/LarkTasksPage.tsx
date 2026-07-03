@@ -1,5 +1,5 @@
 import { useState, useMemo } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   ListTodo,
   Search,
@@ -9,11 +9,13 @@ import {
   CheckCircle2,
   Clock,
   AlertCircle,
+  CloudDownload,
 } from "lucide-react";
 import { AnimatePresence, motion } from "framer-motion";
 import { cn, formatRelativeTime } from "@/lib/utils";
 import { cloudApi } from "@/lib/cloud-api";
 import { HelpButton } from "@/components/ui/HelpButton";
+import { toast } from "@/lib/toast";
 import type { LarkTask } from "@/types/api";
 
 // 状态映射：兼容后端返回的多种字段
@@ -71,8 +73,10 @@ function getPriorityMeta(priority?: string) {
 }
 
 export function LarkTasksPage() {
+  const queryClient = useQueryClient();
   const [searchQuery, setSearchQuery] = useState("");
   const [filterStatus, setFilterStatus] = useState<FilterKey>("all");
+  const [syncing, setSyncing] = useState(false);
 
   const { data: tasks = [], isLoading, isFetching, refetch, error } = useQuery<LarkTask[]>({
     queryKey: ["lark-tasks"],
@@ -102,6 +106,24 @@ export function LarkTasksPage() {
       })) as LarkTask[];
     },
   });
+
+  // 主动触发飞书任务同步（调用云端 /api/lark-tasks/sync，云端通过 lark-cli 拉取后入库）
+  const handleSyncLark = async () => {
+    setSyncing(true);
+    try {
+      const res = await cloudApi.post<{ success?: boolean; error?: string; state?: { lastSyncAt?: string } }>("/api/lark-tasks/sync");
+      if (res?.success) {
+        toast.success("飞书任务同步完成");
+        queryClient.invalidateQueries({ queryKey: ["lark-tasks"] });
+      } else {
+        toast.error(res?.error || "同步失败");
+      }
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "同步失败");
+    } finally {
+      setSyncing(false);
+    }
+  };
 
   // 过滤 + 搜索
   const filtered = useMemo(() => {
@@ -139,6 +161,19 @@ export function LarkTasksPage() {
           </p>
         </div>
         <div className="flex items-center gap-2">
+          <button
+            onClick={handleSyncLark}
+            disabled={syncing}
+            title="从飞书同步任务"
+            className="btn-primary-glass flex h-8 items-center gap-1.5 px-3 text-xs"
+          >
+            {syncing ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            ) : (
+              <CloudDownload className="h-3.5 w-3.5" />
+            )}
+            同步飞书
+          </button>
           <button
             onClick={() => refetch()}
             disabled={isFetching}

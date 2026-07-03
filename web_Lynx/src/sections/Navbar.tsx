@@ -80,7 +80,7 @@ export default function Navbar() {
             className="text-lg font-semibold tracking-tight hidden sm:block"
             style={{ color: '#F0F4F8', letterSpacing: '-0.01em' }}
           >
-            Lynx
+            奇思
           </span>
         </button>
 
