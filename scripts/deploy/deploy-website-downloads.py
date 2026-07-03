@@ -15,7 +15,7 @@ SSH_USER = "root"
 SSH_PASSWORD = "Ee9527ffss"
 
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-DESKTOP_EXE = os.path.join(PROJECT_ROOT, "downloads", "Lynx_1.0.1_x64-setup.exe")
+DESKTOP_EXE = os.path.join(PROJECT_ROOT, "downloads", "Lynx_1.0.2_x64-setup.exe")
 ANDROID_APK_DIR = os.path.join(PROJECT_ROOT, "android", "app", "build", "outputs", "apk", "release")
 WEBSITE_DIST = os.path.join(PROJECT_ROOT, "web_Lynx", "dist")
 

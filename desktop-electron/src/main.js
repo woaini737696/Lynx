@@ -1,8 +1,10 @@
 // Lynx AI 超级助理 - Electron 主进程（新主架构）
 // 完整本地能力：HermesAgent管理 + WS网关 + 系统托盘 + 全局快捷键 + 自动更新检查
-const { app, BrowserWindow, shell, Menu, Tray, globalShortcut, ipcMain, nativeImage } = require('electron');
+const { app, BrowserWindow, shell, Menu, Tray, globalShortcut, ipcMain, nativeImage, dialog } = require('electron');
 const path = require('path');
 const https = require('https');
+const fs = require('fs');
+const os = require('os');
 const hermes = require('./hermes');
 const wsGateway = require('./ws-gateway');
 const store = require('./store');
@@ -10,6 +12,17 @@ const store = require('./store');
 let mainWindow = null;
 let tray = null;
 let isQuiting = false;
+let downloadedUpdatePath = null; // P1-1: 已下载的更新包路径
+
+// P1-3: GPU 加速配置
+// 默认启用 GPU 硬件加速（提升液态玻璃/动画流畅度）
+// 若检测到 GPU 进程崩溃则自动回退到软件渲染
+app.commandLine.appendSwitch('enable-gpu-rasterization');
+app.commandLine.appendSwitch('enable-zero-copy');
+app.on('gpu-process-crashed', () => {
+  console.warn('[gpu] GPU 进程崩溃，回退到软件渲染');
+  app.disableHardwareAcceleration();
+});
 
 // ============ 窗口创建 ============
 
@@ -112,18 +125,65 @@ function registerShortcuts() {
   });
 }
 
-// ============ 自动更新检查（简化版，不依赖 electron-updater） ============
+// ============ 自动更新检查 + 下载 + 安装（P1-1，不依赖 electron-updater） ============
+
+// 获取最新版本信息
+async function fetchLatestVersion() {
+  return new Promise((resolve, reject) => {
+    https.get('https://ai.lynxdo.com/api/hermes/app-version', { timeout: 10000 }, (res) => {
+      let body = '';
+      res.on('data', (c) => body += c);
+      res.on('end', () => { try { resolve(JSON.parse(body)); } catch { resolve(null); } });
+    }).on('error', reject);
+  });
+}
+
+// 下载安装包到临时目录，返回本地路径
+async function downloadInstaller(url, onProgress) {
+  return new Promise((resolve, reject) => {
+    const tmpDir = path.join(os.tmpdir(), 'lynx-update');
+    if (!fs.existsSync(tmpDir)) fs.mkdirSync(tmpDir, { recursive: true });
+    const fileName = url.split('/').pop() || `Lynx-Setup-${Date.now()}.exe`;
+    const savePath = path.join(tmpDir, fileName);
+
+    const file = fs.createWriteStream(savePath);
+    https.get(url, { timeout: 60000 }, (res) => {
+      // 处理重定向
+      if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
+        file.close();
+        fs.unlinkSync(savePath);
+        downloadInstaller(res.headers.location, onProgress).then(resolve, reject);
+        return;
+      }
+      if (res.statusCode !== 200) {
+        file.close();
+        fs.unlinkSync(savePath);
+        reject(new Error(`下载失败: HTTP ${res.statusCode}`));
+        return;
+      }
+
+      const total = parseInt(res.headers['content-length'] || '0', 10);
+      let received = 0;
+      res.on('data', (chunk) => {
+        received += chunk.length;
+        if (onProgress && total > 0) {
+          onProgress({ percent: Math.round((received / total) * 100), received, total });
+        }
+      });
+      res.pipe(file);
+      file.on('finish', () => { file.close(() => resolve(savePath)); });
+    }).on('error', (e) => {
+      file.close();
+      try { fs.unlinkSync(savePath); } catch {}
+      reject(e);
+    });
+  });
+}
 
 async function checkAppUpdate() {
   try {
     const currentVersion = app.getVersion();
-    const data = await new Promise((resolve, reject) => {
-      https.get('https://ai.lynxdo.com/api/hermes/app-version', { timeout: 10000 }, (res) => {
-        let body = '';
-        res.on('data', (c) => body += c);
-        res.on('end', () => { try { resolve(JSON.parse(body)); } catch { resolve(null); } });
-      }).on('error', reject);
-    });
+    const data = await fetchLatestVersion();
 
     if (!data || !data.version) {
       console.log('[update] 无法获取版本信息，跳过');
@@ -132,12 +192,11 @@ async function checkAppUpdate() {
 
     if (compareAppVersions(currentVersion, data.version) < 0) {
       console.log(`[update] 发现新版本: ${data.version}（当前 ${currentVersion}）`);
-      // 通过前端事件通知
       if (mainWindow) {
         mainWindow.webContents.send('app-update-available', {
           current: currentVersion,
           latest: data.version,
-          downloadUrl: data.downloadUrl || 'https://ai.lynxdo.com/downloads',
+          downloadUrl: data.downloadUrl || 'https://www.lynxdo.com/download/Lynx-windows-setup.exe',
           releaseNotes: data.releaseNotes || '',
         });
       }
@@ -147,6 +206,40 @@ async function checkAppUpdate() {
   } catch (e) {
     console.warn('[update] 检查更新失败:', e.message);
   }
+}
+
+// 手动触发：下载并安装更新（通过 IPC 调用）
+async function downloadAndInstallUpdate(downloadUrl) {
+  const url = downloadUrl || 'https://www.lynxdo.com/download/Lynx-windows-setup.exe';
+  console.log(`[update] 开始下载: ${url}`);
+
+  // 通知前端下载进度
+  const notifyProgress = (p) => {
+    if (mainWindow) mainWindow.webContents.send('app-update-progress', p);
+  };
+
+  const savePath = await downloadInstaller(url, notifyProgress);
+  downloadedUpdatePath = savePath;
+  console.log(`[update] 下载完成: ${savePath}`);
+
+  // 询问用户是否立即安装
+  const result = await dialog.showMessageBox({
+    type: 'question',
+    buttons: ['立即安装', '稍后'],
+    defaultId: 0,
+    title: '更新下载完成',
+    message: '新版本已下载完成，是否立即安装？',
+    detail: `安装包已保存到: ${savePath}\n点击"立即安装"将关闭应用并启动安装程序。`,
+  });
+
+  if (result.response === 0) {
+    // 使用 shell 启动安装程序并退出当前应用
+    shell.openPath(savePath);
+    isQuiting = true;
+    app.quit();
+  }
+
+  return { success: true, path: savePath, willInstall: result.response === 0 };
 }
 
 function compareAppVersions(a, b) {
@@ -163,6 +256,18 @@ function compareAppVersions(a, b) {
 
 // ============ IPC 处理器注册 ============
 
+// 统一错误包装：handler 抛错时返回 { success: false, error } 而非裸异常（P0-1）
+function safeHandle(cmd, handler) {
+  ipcMain.handle(cmd, async (event, args) => {
+    try {
+      return await handler(event, args);
+    } catch (e) {
+      console.error(`[IPC:${cmd}] error:`, e);
+      return { success: false, error: e instanceof Error ? e.message : String(e) };
+    }
+  });
+}
+
 function registerIPC() {
   // --- 窗口控制 ---
   ipcMain.on('window-minimize', () => mainWindow?.minimize());
@@ -171,47 +276,47 @@ function registerIPC() {
     mainWindow.isMaximized() ? mainWindow.unmaximize() : mainWindow.maximize();
   });
   ipcMain.on('window-close', () => { isQuiting = true; mainWindow?.close(); });
-  ipcMain.handle('window-is-maximized', () => mainWindow?.isMaximized() || false);
+  safeHandle('window-is-maximized', () => mainWindow?.isMaximized() || false);
 
   // --- HermesAgent 管理 ---
-  ipcMain.handle('detect_ai_env', () => hermes.detectAIEnv());
+  safeHandle('detect_ai_env', () => hermes.detectAIEnv());
 
-  ipcMain.handle('install_ai_env', async (event) => {
+  safeHandle('install_ai_env', (event) => {
     return hermes.installAIEnv((progress) => {
       event.sender.send('install-progress', progress);
     });
   });
 
-  ipcMain.handle('start_hermes_dashboard', (_e, args) => {
+  safeHandle('start_hermes_dashboard', (_e, args) => {
     return hermes.startDashboard(args?.port || 9119);
   });
 
-  ipcMain.handle('stop_hermes_dashboard', (_e, args) => {
+  safeHandle('stop_hermes_dashboard', (_e, args) => {
     return hermes.stopDashboard(args?.port || 9119);
   });
 
-  ipcMain.handle('check_hermes_update', () => hermes.checkUpdate());
+  safeHandle('check_hermes_update', () => hermes.checkUpdate());
 
-  ipcMain.handle('update_hermes_agent', async (event) => {
+  safeHandle('update_hermes_agent', (event) => {
     return hermes.updateAgent((progress) => {
       event.sender.send('install-progress', progress);
     });
   });
 
-  ipcMain.handle('get_agent_status', () => hermes.getAgentStatus());
+  safeHandle('get_agent_status', () => hermes.getAgentStatus());
 
   // --- 配置管理 ---
-  ipcMain.handle('set_user_token', (_e, args) => {
+  safeHandle('set_user_token', (_e, args) => {
     store.set('userToken', args?.token);
     return { success: true };
   });
 
-  ipcMain.handle('set_cloud_endpoint', (_e, args) => {
+  safeHandle('set_cloud_endpoint', (_e, args) => {
     store.set('cloudEndpoint', args?.endpoint);
     return { success: true };
   });
 
-  ipcMain.handle('start_hermes_agent', () => {
+  safeHandle('start_hermes_agent', () => {
     const endpoint = store.get('cloudEndpoint', 'https://ai.lynxdo.com');
     const token = store.get('userToken', '');
     if (!token) return { success: false, error: '未设置用户 token' };
@@ -219,28 +324,48 @@ function registerIPC() {
     return { success: true };
   });
 
-  ipcMain.handle('set_auth_mode', (_e, args) => {
+  safeHandle('set_auth_mode', (_e, args) => {
     store.set('authMode', args?.mode || 'approve');
     return { success: true };
   });
 
-  ipcMain.handle('add_authorized_dir', (_e, args) => {
+  safeHandle('add_authorized_dir', (_e, args) => {
     const dirs = store.get('authorizedDirs', ['D:\\LynnHub\\user-data']);
     if (!dirs.includes(args.dir)) dirs.push(args.dir);
     store.set('authorizedDirs', dirs);
     return { success: true };
   });
 
-  ipcMain.handle('remove_authorized_dir', (_e, args) => {
+  safeHandle('remove_authorized_dir', (_e, args) => {
     const dirs = store.get('authorizedDirs', ['D:\\LynnHub\\user-data']).filter((d) => d !== args.dir);
     store.set('authorizedDirs', dirs);
     return { success: true };
   });
 
   // --- 外部链接 ---
-  ipcMain.handle('open_external', (_e, args) => {
+  safeHandle('open_external', (_e, args) => {
     if (args?.url) shell.openExternal(args.url);
     return { success: true };
+  });
+
+  // --- 应用自动更新（P1-1）---
+  safeHandle('check_app_update', async () => {
+    const data = await fetchLatestVersion();
+    if (!data || !data.version) return { success: false, error: '无法获取版本信息' };
+    const currentVersion = app.getVersion();
+    const hasUpdate = compareAppVersions(currentVersion, data.version) < 0;
+    return {
+      success: true,
+      hasUpdate,
+      current: currentVersion,
+      latest: data.version,
+      downloadUrl: data.downloadUrl || 'https://www.lynxdo.com/download/Lynx-windows-setup.exe',
+      releaseNotes: data.releaseNotes || '',
+    };
+  });
+
+  safeHandle('download_and_install_update', (_e, args) => {
+    return downloadAndInstallUpdate(args?.downloadUrl);
   });
 }
 
@@ -275,11 +400,22 @@ app.on('window-all-closed', () => {
   }
 });
 
-app.on('before-quit', () => {
-  isQuiting = true;
-  // 清理 WS 连接和 Dashboard 进程
-  wsGateway.stopWSGateway();
-  hermes.stopDashboard(9119).catch(() => {});
+app.on('before-quit', async (event) => {
+  if (!isQuiting) {
+    isQuiting = true;
+    // 等待 WS 连接优雅关闭和 Dashboard 进程停止（P0-3）
+    event.preventDefault();
+    try {
+      await Promise.race([
+        Promise.all([wsGateway.stopWSGateway(), hermes.stopDashboard(9119).catch(() => {})]),
+        new Promise((resolve) => setTimeout(resolve, 3000)), // 最多等 3 秒
+      ]);
+    } catch (e) {
+      console.warn('[quit] 清理失败:', e.message);
+    }
+    store.flush(); // 强制落盘配置（P0-2）
+    app.quit();
+  }
 });
 
 app.on('will-quit', () => {

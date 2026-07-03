@@ -181,14 +181,28 @@ function startWSGateway(cloudEndpoint, userToken) {
   connect();
 }
 
-// 停止 WS 网关客户端
+// 停止 WS 网关客户端（异步，等待 close 完成 - P0-3 优雅关闭）
 function stopWSGateway() {
   isStarted = false;
   if (heartbeatTimer) { clearInterval(heartbeatTimer); heartbeatTimer = null; }
   if (reconnectTimer) { clearTimeout(reconnectTimer); reconnectTimer = null; }
-  if (wsClient) { wsClient.close(); wsClient = null; }
   global.wsConnected = false;
-  console.log('[ws-gateway] 已停止');
+
+  if (!wsClient) {
+    console.log('[ws-gateway] 已停止（无连接）');
+    return Promise.resolve();
+  }
+
+  const client = wsClient;
+  wsClient = null;
+  // 等待 close 事件完成，最多 2 秒（避免退出时卡住）
+  return new Promise((resolve) => {
+    let settled = false;
+    const done = () => { if (!settled) { settled = true; console.log('[ws-gateway] 已停止'); resolve(); } };
+    client.once('close', done);
+    try { client.close(); } catch { done(); }
+    setTimeout(done, 2000);
+  });
 }
 
 module.exports = { startWSGateway, stopWSGateway };

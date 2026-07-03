@@ -1,6 +1,6 @@
 {
   "name": "lynx-desktop",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "Lynx AI 超级助理 - 桌面端（Electron 主架构）",
   "main": "src/main.js",
   "author": "Lynn",
@@ -33,11 +33,15 @@
       "buildResources": "build"
     },
     "publish": null,
+    "electronLanguages": ["zh-CN", "en-US"],
     "files": [
       "src/**/*",
       "renderer/**/*",
       "package.json"
     ],
+    "electronDownload": {
+      "cache": "node_modules/.cache/electron"
+    },
     "win": {
       "icon": "build/icon.ico",
       "target": [
@@ -59,6 +63,7 @@
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
       "shortcutName": "Lynx"
-    }
+    },
+    "compression": "maximum"
   }
 }

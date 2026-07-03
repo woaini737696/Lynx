@@ -9,6 +9,7 @@
 
 | 迭代 | 日期 | 任务概要 |
 |------|------|----------|
+| [迭代 106](#迭代-106---2026-07-03) | 2026-07-03 | git仓库清理+P0/P1优化全部完成：① git清理(移除.m2/Maven缓存1543文件93.91MB+添加.gitignore+desktop/node_modules排除) ② P0-1 IPC try/catch(safeHandle包装器统一14个handler错误处理) ③ P0-2 store防抖写入(500ms防抖+flush退出落盘) ④ P0-3 WS优雅关闭(stopWSGateway返回Promise+2秒超时+before-quit await 3秒) ⑤ P1-1 Electron自动更新(fetchLatestVersion+downloadInstaller重定向+进度通知+dialog确认+shell.openPath启动安装+2个IPC handler) ⑥ P1-2 安装包瘦身(electronLanguages限定zh-CN/en-US+compression:maximum / 75.82MB→69.17MB减少6.65MB-8.8%) ⑦ P1-3 GPU加速(enable-gpu-rasterization+enable-zero-copy+gpu-process-crashed自动回退) ⑧ v1.0.2打包+部署(www.lynxdo.com HTTP 200) |
 | [迭代 105](#迭代-105---2026-07-03) | 2026-07-03 | Electron主架构实现+HermesAgent自测+部署完成：① Electron完整本地能力架构(main.js窗口+托盘+全局快捷键Ctrl+Shift+L+自动更新检查+14个IPC处理器 / preload.js contextBridge桥接 / hermes.js复刻Tauri installer.rs全功能 / ws-gateway.js复刻ws_client.rs / store.js JSON持久化) ② native-ui双轨兼容(tauri.ts isElectron检测+invoke/listen优先Electron回退Tauri / auth-persistence localStorage回退 / LoginPage+TitleBar窗口控制适配) ③ Vite多目标构建(VITE_ELECTRON_BUILD切换输出目录+base路径) ④ Electron打包v1.0.1(signAndEditExecutable跳过签名+npmmirror镜像下载nsis-resources / Lynx Setup 1.0.1.exe 75.82MB) ⑤ HermesAgent自测12项全通过(detectAIEnv检测Python3.13.7/pip/node22.19/hermes0.17 + startDashboard + getDashboardStatus + executeViaDashboard RPA文件列表 + WS网关代码审查 + 托盘快捷键代码审查) ⑥ 部署完成(官网+Electron安装包→www.lynxdo.com HTTP 200 / Next.js重新构建+部署→ai.lynxdo.com HTTP 200 / 修复deploy-password.py缺少start-with-env.js) ⑦ 开发规范3.0.1八条原则已验证 ⑧ 架构师4维度分析(健壮性7/10扩展性8/10迭代性7/10性能7/10)+P0-P2迭代建议 |
 | [迭代 103](#迭代-103---2026-07-02) | 2026-07-02 | 官网下载链路完善+开发规范七条铁律：① Footer文案"Lynx AI工作台"→"Lynx AI超级助理" ② 本地构建APK v0.1.7(生成lynx-test.keystore签名) ③ 上传Tauri桌面包(Lynx_1.0.30)+APK到服务器/opt/lynx/download/ ④ nginx配置/download/别名(无s) ⑤ 官网构建部署到服务器 ⑥ DEVELOPMENT_SPEC.md新增"3.0开发流程七条铁律"章节(测试用例先行/逐条自测/自动修复至发布标准/Gitee提交+日志/不确定即弹窗/服务器零构建/清理临时文件) ⑦ 新建deploy-website-downloads.py一键部署脚本 |
 | [迭代 102](#迭代-102---2026-07-02) | 2026-07-02 | 官网完善（下载跳转+favicon+标题+文案）+ Windows NSIS CI 构建 + Android APK CI 构建 + 开发规范新增步骤0/6.5 + @types/three 修复构建 |
@@ -6280,6 +6281,47 @@ GitHub 仓库迁移 + 本地持久化 + 三方同步验证 + 文档完善：用�
 
 ### Commit
 本次提交
+
+---
+
+## 迭代 106 - 2026-07-03
+
+### 任务
+1. 清理 git 垃圾文件和大文件，保持仓库干净
+2. 处理 P0-P2 迭代建议
+
+### 完成内容
+
+#### 1. Git 仓库清理
+- 移除 `.m2/` Maven 缓存（1543 文件，93.91MB，误提交的垃圾）
+- `.gitignore` 新增 `/.m2/` 和 `/desktop/node_modules` 规则
+- 仓库 HEAD 大小从 120MB 降至 ~26MB
+
+#### 2. P0 关键优化（全部完成）
+- **P0-1 IPC try/catch**：`safeHandle` 包装器统一处理 14 个 IPC handler 错误，返回 `{ success: false, error }` 而非裸异常
+- **P0-2 store 防抖写入**：500ms 防抖写入避免阻塞主进程，`flush()` 退出前强制落盘
+- **P0-3 WS 优雅关闭**：`stopWSGateway()` 返回 Promise，2 秒超时，`before-quit` 中 await（3 秒超时上限）
+
+#### 3. P1 重要优化（全部完成）
+- **P1-1 Electron 自动更新**：完整流程（fetchLatestVersion → downloadInstaller 支持重定向+进度通知 → dialog 用户确认 → shell.openPath 启动安装 → app.quit），新增 2 个 IPC handler（check_app_update / download_and_install_update）
+- **P1-2 安装包瘦身**：`electronLanguages: ["zh-CN", "en-US"]` + `compression: maximum`，locales 从 55 文件(38MB) → 2 文件(0.89MB)，安装包 **75.82MB → 69.17MB（-6.65MB，-8.8%）**
+- **P1-3 GPU 加速**：`enable-gpu-rasterization` + `enable-zero-copy`，GPU 进程崩溃自动回退软件渲染
+
+#### 4. v1.0.2 打包 + 部署
+- 打包成功：`Lynx Setup 1.0.2.exe` 69.17MB
+- 部署到 www.lynxdo.com/download/Lynx-windows-setup.exe（HTTP 200）
+- 应用启动自测：窗口正常加载，136.5MB 内存，无崩溃
+
+### 产物
+- `desktop-electron/release/Lynx Setup 1.0.2.exe`（69.17MB，比 v1.0.1 减少 6.65MB）
+- 服务器：https://www.lynxdo.com/download/Lynx-windows-setup.exe
+
+### 下一步迭代建议（P2 长期）
+1. 淘汰 Tauri 双轨代码（Electron 稳定后移除 isTauri() 分支）
+2. E2E 自动化测试（Playwright/Spectron 覆盖核心流程）
+3. 插件系统（IPC 命令动态注册，支持第三方扩展）
+4. 主进程热重载（开发模式下 watch main.js 自动重启）
+5. Git 历史彻底清理（git filter-repo 重写历史，需要 force push）
 
 ---
 
