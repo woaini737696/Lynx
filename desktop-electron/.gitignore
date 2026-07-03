@@ -5,3 +5,6 @@ renderer/
 *.log
 .DS_Store
 out/
+*.pfx
+*.pem
+*.key

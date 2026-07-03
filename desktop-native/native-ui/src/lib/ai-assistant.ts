@@ -1,4 +1,4 @@
-import { cloudApi, getCloudEndpoint, LOGIN_REQUIRED_EVENT } from "./cloud-api";
+import { cloudApi, getCloudEndpoint } from "./cloud-api";
 import { useAuthStore } from "@/stores/authStore";
 
 // ============ 类型定义（对齐 Web 端） ============
@@ -264,19 +264,9 @@ export async function chatCompletion(
     } catch {
       // 非 JSON 错误响应
     }
-    // P0 修复：401 时触发登录弹窗（与 cloudApi 行为一致）
-    // 修复前：裸 fetch 不走 cloudApi 的 401 统一处理，导致 LoginModal 弹出遮盖聊天区，表现为"无回复"
-    if (res.status === 401) {
-      if (token) {
-        // 已登录但 token 过期：清除登录态
-        useAuthStore.getState().signOut();
-      }
-      // 触发登录弹窗（有防抖，不会重复弹）
-      if (typeof window !== "undefined") {
-        window.dispatchEvent(new CustomEvent(LOGIN_REQUIRED_EVENT));
-      }
-      errMsg = token ? "登录已过期，请重新登录" : "请先登录后再使用 AI 助理";
-    }
+    // 任务2: 移除手动触发的 LOGIN_REQUIRED_EVENT 事件
+    // 401 统一由 cloudApi 的 401 拦截器处理（其他 cloudApi 调用触发）
+    // 这里仅抛出错误，错误消息会显示在聊天区，不会弹出 LoginModal 遮盖聊天区
     const e = new Error(errMsg);
     callbacks?.onError?.(e);
     throw e;
@@ -295,7 +285,10 @@ export async function chatCompletion(
   let hermesFallback: boolean | undefined;
   let serverMessageId: string | undefined;
 
-  while (true) {
+  // P0 修复：跟踪 SSE error 事件，避免被外层 catch 吞掉后空回复覆盖错误消息
+  let sseError: Error | null = null;
+
+  outer: while (true) {
     const { done, value } = await reader.read();
     if (done) break;
     buffer += decoder.decode(value, { stream: true });
@@ -306,61 +299,72 @@ export async function chatCompletion(
       if (!trimmed || !trimmed.startsWith("data:")) continue;
       const data = trimmed.slice(5).trim();
       if (!data || data === "[DONE]") continue;
+      // P0 修复：只捕获 JSON 解析错误，不捕获 SSE error 事件
+      let evt: {
+        type: string;
+        content?: string;
+        tool?: string;
+        args?: Record<string, unknown>;
+        result?: unknown;
+        toolCalled?: ToolCalled | null;
+        provider?: string;
+        model?: string;
+        usage?: TokenUsage;
+        hermesMode?: boolean;
+        hermesFallback?: boolean;
+        message?: string;
+        messageId?: string;
+      };
       try {
-        const evt = JSON.parse(data) as {
-          type: string;
-          content?: string;
-          tool?: string;
-          args?: Record<string, unknown>;
-          result?: unknown;
-          toolCalled?: ToolCalled | null;
-          provider?: string;
-          model?: string;
-          usage?: TokenUsage;
-          hermesMode?: boolean;
-          hermesFallback?: boolean;
-          message?: string;
-          messageId?: string;
-        };
-
-        if (evt.type === "meta") {
-          provider = evt.provider;
-          model = evt.model;
-          if (evt.hermesMode) hermesMode = true;
-          if (evt.hermesFallback) hermesFallback = true;
-          callbacks?.onMeta?.({ provider, model, hermesMode, hermesFallback });
-        } else if (evt.type === "thinking") {
-          callbacks?.onThinking?.(evt.content);
-        } else if (evt.type === "tool_start") {
-          callbacks?.onToolStart?.(evt.tool || "工具", evt.args);
-        } else if (evt.type === "tool_done") {
-          if (evt.toolCalled) toolCalled = evt.toolCalled;
-          callbacks?.onToolDone?.(
-            evt.tool || "工具",
-            evt.result,
-            evt.toolCalled
-          );
-        } else if (evt.type === "delta" && typeof evt.content === "string") {
-          aiContent += evt.content;
-          callbacks?.onDelta?.(evt.content, aiContent);
-        } else if (evt.type === "done") {
-          if (evt.usage) usage = evt.usage;
-          if (evt.provider) provider = evt.provider;
-          if (evt.model) model = evt.model;
-          if (evt.toolCalled) toolCalled = evt.toolCalled;
-          if (evt.hermesMode) hermesMode = true;
-          if (evt.hermesFallback) hermesFallback = true;
-          if (evt.messageId) serverMessageId = evt.messageId;
-        } else if (evt.type === "error") {
-          const errMsg = evt.message || "流式响应异常";
-          const e = new Error(errMsg);
-          callbacks?.onError?.(e);
-          throw e;
-        }
+        evt = JSON.parse(data);
       } catch {
-        // 忽略 SSE 行解析错误（非 JSON）
+        // 忽略 SSE 行 JSON 解析错误（非 JSON 格式）
+        continue;
+      }
+
+      if (evt.type === "meta") {
+        provider = evt.provider;
+        model = evt.model;
+        if (evt.hermesMode) hermesMode = true;
+        if (evt.hermesFallback) hermesFallback = true;
+        callbacks?.onMeta?.({ provider, model, hermesMode, hermesFallback });
+      } else if (evt.type === "thinking") {
+        callbacks?.onThinking?.(evt.content);
+      } else if (evt.type === "tool_start") {
+        callbacks?.onToolStart?.(evt.tool || "工具", evt.args);
+      } else if (evt.type === "tool_done") {
+        if (evt.toolCalled) toolCalled = evt.toolCalled;
+        callbacks?.onToolDone?.(
+          evt.tool || "工具",
+          evt.result,
+          evt.toolCalled
+        );
+      } else if (evt.type === "delta" && typeof evt.content === "string") {
+        aiContent += evt.content;
+        callbacks?.onDelta?.(evt.content, aiContent);
+      } else if (evt.type === "done") {
+        // P0 修复：done 事件处理后立即 break，避免挂起等待更多数据
+        if (evt.usage) usage = evt.usage;
+        if (evt.provider) provider = evt.provider;
+        if (evt.model) model = evt.model;
+        if (evt.toolCalled) toolCalled = evt.toolCalled;
+        if (evt.hermesMode) hermesMode = true;
+        if (evt.hermesFallback) hermesFallback = true;
+        if (evt.messageId) serverMessageId = evt.messageId;
+        break outer;
+      } else if (evt.type === "error") {
+        // P0 修复：error 事件不再被外层 catch 吞掉，记录错误并 break
+        const errMsg = evt.message || "流式响应异常";
+        sseError = new Error(errMsg);
+        callbacks?.onError?.(sseError);
+        break outer;
       }
     }
+  }
+
+  // P0 修复：如果 SSE 返回了 error 事件，抛出错误而不是返回空回复
+  if (sseError) {
+    throw sseError;
   }
 
   const response: ChatResponse = {

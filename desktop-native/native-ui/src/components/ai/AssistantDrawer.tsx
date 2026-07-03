@@ -3,15 +3,8 @@ import { AnimatePresence, motion } from "framer-motion";
 import { X } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { AIAssistantPage } from "@/pages/AIAssistantPage";
-import { cloudApi, getCloudEndpoint } from "@/lib/cloud-api";
+import { cloudApi, resolveAvatarUrl } from "@/lib/cloud-api";
 import { useAuthStore } from "@/stores/authStore";
-
-// 将相对路径头像 URL 拼接为云端绝对路径（WebView2 origin 是 tauri.localhost，相对路径会 404）
-function resolveAvatarUrl(url: string | null | undefined): string {
-  if (!url) return "";
-  if (url.startsWith("http://") || url.startsWith("https://") || url.startsWith("data:")) return url;
-  return `${getCloudEndpoint().replace(/\/+$/, "")}/${url.replace(/^\/+/, "")}`;
-}
 
 // AI 助理设置类型（与 AIAssistantPage 对齐）
 interface AISettings {

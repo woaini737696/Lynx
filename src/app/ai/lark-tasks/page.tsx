@@ -511,6 +511,10 @@ export default function LarkTasksPage() {
   const [syncState, setSyncState] = useState<SyncState | null>(null);
   const [syncing, setSyncing] = useState(false);
 
+  // 飞书OAuth连接状态
+  const [feishuStatus, setFeishuStatus] = useState<{ connected: boolean; name?: string } | null>(null);
+  const [feishuLoading, setFeishuLoading] = useState(false);
+
   // 弹窗 / 抽屉
   const [showCreate, setShowCreate] = useState(false);
   const [detailTask, setDetailTask] = useState<LarkTask | null>(null);
@@ -684,6 +688,60 @@ export default function LarkTasksPage() {
     fetchMeta();
     fetchWebhookStatus();
   }, [fetchMeta, fetchWebhookStatus]);
+
+  // 飞书OAuth连接状态检查
+  const fetchFeishuStatus = useCallback(async () => {
+    try {
+      const res = await fetch("/api/feishu/status");
+      if (res.ok) {
+        const data = await res.json();
+        setFeishuStatus({ connected: data.connected, name: data.name });
+      }
+    } catch {
+      // 静默失败
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchFeishuStatus();
+    // 检查URL参数（OAuth回调后会带 feishu_connected=1）
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("feishu_connected") === "1") {
+      toast("飞书账号连接成功", "success");
+      params.delete("feishu_connected");
+      const newUrl = window.location.pathname + (params.toString() ? `?${params}` : "");
+      window.history.replaceState(null, "", newUrl);
+    } else if (params.get("feishu_connected") === "0") {
+      toast("飞书账号连接失败，请重试", "error");
+      params.delete("feishu_connected");
+      const newUrl = window.location.pathname + (params.toString() ? `?${params}` : "");
+      window.history.replaceState(null, "", newUrl);
+    }
+  }, [fetchFeishuStatus]);
+
+  // 连接飞书（跳转OAuth授权）
+  const handleConnectFeishu = () => {
+    window.location.href = "/api/feishu/auth";
+  };
+
+  // 断开飞书连接
+  const handleDisconnectFeishu = async () => {
+    setFeishuLoading(true);
+    try {
+      const res = await fetch("/api/feishu/disconnect", { method: "POST" });
+      if (res.ok) {
+        setFeishuStatus({ connected: false });
+        toast("已断开飞书连接", "success");
+        fetchTasks();
+      } else {
+        toast("断开失败", "error");
+      }
+    } catch {
+      toast("网络错误", "error");
+    } finally {
+      setFeishuLoading(false);
+    }
+  };
 
   // 自动同步：每 5 分钟触发一次（使用 ref 避免依赖变化的 handleSync 导致定时器重置）
   const handleSyncRef = useRef<(silent?: boolean) => Promise<void>>(async () => {});
@@ -902,6 +960,29 @@ export default function LarkTasksPage() {
         action={
           <div className="flex items-center gap-2">
             <SyncStatus state={syncState} syncing={syncing} />
+            {feishuStatus?.connected ? (
+              <Button
+                variant="outline"
+                size="md"
+                onClick={handleDisconnectFeishu}
+                disabled={feishuLoading}
+                title={`已连接: ${feishuStatus.name || "飞书账号"}（点击断开）`}
+              >
+                <CheckCircle2 className="h-3.5 w-3.5 text-green-500" />
+                <span className="max-w-[80px] truncate">{feishuStatus.name || "已连接"}</span>
+                {feishuLoading && <Loader2 className="h-3 w-3 animate-spin" />}
+              </Button>
+            ) : (
+              <Button
+                variant="outline"
+                size="md"
+                onClick={handleConnectFeishu}
+                title="连接你的飞书账号，同步个人任务"
+              >
+                <ExternalLink className="h-3.5 w-3.5 text-cognition" />
+                连接飞书
+              </Button>
+            )}
             <Button
               variant="outline"
               size="md"

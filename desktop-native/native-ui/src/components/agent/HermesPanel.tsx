@@ -123,6 +123,7 @@ export function HermesPanel() {
   }, [dashboardOnline]);
 
   // P0 修复：查询 WS 连接状态（与 Dashboard 分离，WS 是连接云端的，Dashboard 是本地的）
+  // 任务3: 轮询作为备份（间隔 30 秒），主通道由 ws-status-changed 事件驱动
   const { data: wsStatus } = useQuery<boolean>({
     queryKey: ["agent-ws-status"],
     queryFn: async () => {
@@ -133,12 +134,25 @@ export function HermesPanel() {
         return false;
       }
     },
-    refetchInterval: 5000,
+    refetchInterval: 30000,
   });
 
   useEffect(() => {
     setIsWsConnected(!!wsStatus);
   }, [wsStatus]);
+
+  // 任务3: 监听 IPC 事件 ws-status-changed，事件驱动更新 WS 连接状态
+  useEffect(() => {
+    let unlisten: (() => void) | null = null;
+    listen<{ connected: boolean }>("ws-status-changed", (payload) => {
+      setIsWsConnected(!!payload?.connected);
+    }).then((fn) => {
+      unlisten = fn;
+    });
+    return () => {
+      if (unlisten) unlisten();
+    };
+  }, []);
 
   // 监听安装进度事件
   useEffect(() => {

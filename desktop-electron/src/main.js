@@ -14,6 +14,10 @@ let tray = null;
 let isQuiting = false;
 let downloadedUpdatePath = null;
 
+// P0 修复：设置 AppUserModelID，让 Windows 任务栏正确显示应用图标（而非默认图标）
+// 必须在 app.whenReady() 之前调用，与 package.json 的 appId 一致
+app.setAppUserModelId('com.lynnhub.desktop');
+
 // P1-3: GPU 加速配置
 app.commandLine.appendSwitch('enable-gpu-rasterization');
 app.commandLine.appendSwitch('enable-zero-copy');
@@ -146,11 +150,20 @@ function updateTrayMenu() {
 
 function createTray() {
   const iconPath = path.join(__dirname, '..', 'build', 'icon.ico');
-  const icon = nativeImage.createFromPath(iconPath);
-  // P0 修复：resize 返回新对象，必须赋值给新变量（原变量不变）
-  const smallIcon = icon.resize({ width: 16, height: 16 });
-
-  tray = new Tray(smallIcon);
+  let icon = nativeImage.createFromPath(iconPath);
+  // P0 修复：icon.ico 已包含 16/32/48/64/128/256 多尺寸，Windows 会自动选择最佳尺寸
+  // 不再 resize，避免 resize 丢失 alpha 通道导致托盘图标变黑/不显示
+  if (icon.isEmpty()) {
+    console.error('[tray] 图标加载失败，文件不存在或无效:', iconPath);
+    // 回退：用 32x32 纯色占位图标，确保托盘至少有图标
+    icon = nativeImage.createFromBuffer(
+      Buffer.from([0x00, 0x00, 0x01, 0x00, 0x01, 0x00, 0x20, 0x20, 0x00, 0x00, 0x01, 0x00, 0x20, 0x00,
+        ...Array(40 - 14).fill(0),
+        ...Array(32 * 32 * 4).fill(0xff)
+      ])
+    );
+  }
+  tray = new Tray(icon);
   updateTrayMenu();
   tray.setToolTip('奇思 - AI超级助理');
   tray.on('click', () => { if (mainWindow) { mainWindow.isVisible() ? mainWindow.hide() : mainWindow.show(); } });
@@ -175,10 +188,37 @@ function registerShortcuts() {
 
 // ============ 自动更新检查 + 下载 + 安装（P1-1，不依赖 electron-updater） ============
 
-// 获取最新版本信息
+// 获取最新版本信息（P0 修复：添加 family:4 强制 IPv4 + User-Agent，避免 ECONNRESET）
 async function fetchLatestVersion() {
   return new Promise((resolve, reject) => {
-    https.get('https://ai.lynxdo.com/api/hermes/app-version', { timeout: 10000 }, (res) => {
+    const options = {
+      timeout: 15000,
+      family: 4,
+      headers: {
+        'User-Agent': 'QisiDesktop/1.0.9',
+        'Accept': 'application/json',
+      },
+    };
+    https.get('https://ai.lynxdo.com/api/hermes/app-version', options, (res) => {
+      if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
+        // 跟随重定向
+        fetchLatestVersionRedirect(res.headers.location).then(resolve, reject);
+        return;
+      }
+      if (res.statusCode !== 200) { reject(new Error(`HTTP ${res.statusCode}`)); return; }
+      let body = '';
+      res.on('data', (c) => body += c);
+      res.on('end', () => { try { resolve(JSON.parse(body)); } catch { resolve(null); } });
+    }).on('error', reject);
+  });
+}
+
+// 重定向后的请求
+function fetchLatestVersionRedirect(url) {
+  return new Promise((resolve, reject) => {
+    const mod = url.startsWith('https') ? https : require('http');
+    mod.get(url, { timeout: 15000, family: 4, headers: { 'User-Agent': 'QisiDesktop/1.0.8' } }, (res) => {
+      if (res.statusCode !== 200) { reject(new Error(`HTTP ${res.statusCode}`)); return; }
       let body = '';
       res.on('data', (c) => body += c);
       res.on('end', () => { try { resolve(JSON.parse(body)); } catch { resolve(null); } });
@@ -191,7 +231,7 @@ async function downloadInstaller(url, onProgress) {
   return new Promise((resolve, reject) => {
     const tmpDir = path.join(os.tmpdir(), 'lynx-update');
     if (!fs.existsSync(tmpDir)) fs.mkdirSync(tmpDir, { recursive: true });
-    const fileName = url.split('/').pop() || `Lynx-Setup-${Date.now()}.exe`;
+    const fileName = url.split('/').pop() || `QisiSetup-${Date.now()}.exe`;
     const savePath = path.join(tmpDir, fileName);
 
     const file = fs.createWriteStream(savePath);
@@ -244,7 +284,7 @@ async function checkAppUpdate() {
         mainWindow.webContents.send('app-update-available', {
           current: currentVersion,
           latest: data.version,
-          downloadUrl: data.downloadUrl || 'https://www.lynxdo.com/download/Lynx-windows-setup.exe',
+          downloadUrl: data.downloadUrl || 'https://gitee.com/shenzhens-emotions-are-booming_0/lynn-hub-release/releases/download/v1.0.9/QisiSetup-1.0.9.exe',
           releaseNotes: data.releaseNotes || '',
         });
       }
@@ -258,7 +298,7 @@ async function checkAppUpdate() {
 
 // 手动触发：下载并安装更新（通过 IPC 调用）
 async function downloadAndInstallUpdate(downloadUrl) {
-  const url = downloadUrl || 'https://www.lynxdo.com/download/Lynx-windows-setup.exe';
+  const url = downloadUrl || 'https://gitee.com/shenzhens-emotions-are-booming_0/lynn-hub-release/releases/download/v1.0.9/QisiSetup-1.0.9.exe';
   console.log(`[update] 开始下载: ${url}`);
 
   // 通知前端下载进度
@@ -364,6 +404,20 @@ function registerIPC() {
     return { success: true };
   });
 
+  // P0 修复：统一 token 同步入口 - renderer 登录后主动调用，同步到主进程 store.js
+  // 解决双重存储问题：renderer localStorage 与 main.js store.js 隔离导致 WS 连接时 token 为空
+  safeHandle('sync_auth', (_e, args) => {
+    if (args?.token) {
+      store.set('userToken', args.token);
+      console.log('[main] token 已同步到主进程');
+    }
+    if (args?.endpoint) {
+      store.set('cloudEndpoint', args.endpoint);
+      console.log('[main] cloudEndpoint 已同步:', args.endpoint);
+    }
+    return { success: true };
+  });
+
   // P0 修复：async/await WS 连接结果，返回真实连接状态给前端
   // 修复前：同步返回 {success:true}，WS 尚未连接就告诉前端"已启动"，导致对话页报"WS未连接"
   safeHandle('start_hermes_agent', async () => {
@@ -413,7 +467,7 @@ function registerIPC() {
       hasUpdate,
       current: currentVersion,
       latest: data.version,
-      downloadUrl: data.downloadUrl || 'https://gitee.com/shenzhens-emotions-are-booming_0/lynn-hub-release/releases/download/v1.0.2/Lynx_1.0.2_x64-setup.exe',
+      downloadUrl: data.downloadUrl || 'https://gitee.com/shenzhens-emotions-are-booming_0/lynn-hub-release/releases/download/v1.0.9/QisiSetup-1.0.9.exe',
       releaseNotes: data.releaseNotes || '',
     };
   });
@@ -438,6 +492,15 @@ if (!gotLock) {
     createTray();
     registerShortcuts();
     registerIPC();
+
+    // P0 修复：注册 WS 状态变化回调，转发事件到 renderer（事件驱动，消除 15 秒轮询窗口期）
+    wsGateway.onStatusChange((connected) => {
+      if (mainWindow) {
+        mainWindow.webContents.send('ws-status-changed', { connected });
+      }
+      // 同步更新托盘菜单
+      updateTrayMenu();
+    });
 
     // 启动后 5 秒检查应用更新
     setTimeout(checkAppUpdate, 5000);

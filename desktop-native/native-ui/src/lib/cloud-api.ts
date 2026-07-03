@@ -17,6 +17,23 @@ export function setCloudEndpoint(endpoint: string): void {
   }
 }
 
+/**
+ * 任务4: 将相对路径头像 URL 拼接为云端绝对路径
+ * WebView2 origin 是 tauri.localhost，相对路径会 404，必须拼接云端 endpoint
+ * 与 Web 端共用同一份数据（/api/ai/settings 返回的 avatarUrl）
+ *
+ * - url 为空时返回 ""（由调用方决定回退到 emoji 或默认头像）
+ * - url 已是绝对路径（http/https/data）时原样返回
+ * - url 为相对路径时拼接 getCloudEndpoint()，正确处理首尾斜杠
+ */
+export function resolveAvatarUrl(url: string | null | undefined): string {
+  if (!url) return "";
+  if (url.startsWith("http://") || url.startsWith("https://") || url.startsWith("data:")) return url;
+  const base = getCloudEndpoint().replace(/\/+$/, "");
+  const path = url.replace(/^\/+/, "");
+  return `${base}/${path}`;
+}
+
 // 全局事件：401 时通知上层清除登录态并跳转登录页
 export const AUTH_EXPIRED_EVENT = "lynx-auth-expired";
 // 全局事件：未登录需要弹出登录弹窗

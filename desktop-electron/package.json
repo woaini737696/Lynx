@@ -1,6 +1,6 @@
 {
   "name": "lynx-desktop",
-  "version": "1.0.8",
+  "version": "1.0.9",
   "description": "奇思 - AI超级助理 - 桌面端（Electron 主架构）",
   "main": "src/main.js",
   "author": "Lynn",
@@ -22,7 +22,9 @@
   },
   "devDependencies": {
     "electron": "^31.0.0",
-    "electron-builder": "^24.13.3"
+    "electron-builder": "^24.13.3",
+    "node-forge": "^1.4.0",
+    "selfsigned": "^5.5.0"
   },
   "build": {
     "appId": "com.lynnhub.desktop",
@@ -33,10 +35,14 @@
       "buildResources": "build"
     },
     "publish": null,
-    "electronLanguages": ["zh-CN", "en-US"],
+    "electronLanguages": [
+      "zh-CN",
+      "en-US"
+    ],
     "files": [
       "src/**/*",
       "renderer/**/*",
+      "build/icon.ico",
       "package.json"
     ],
     "electronDownload": {
@@ -47,10 +53,14 @@
       "target": [
         {
           "target": "nsis",
-          "arch": ["x64"]
+          "arch": [
+            "x64"
+          ]
         }
       ],
-      "signAndEditExecutable": false
+      "signAndEditExecutable": false,
+      "forceCodeSigning": false,
+      "artifactName": "QisiSetup-${version}.${ext}"
     },
     "nsis": {
       "oneClick": false,
@@ -61,6 +71,7 @@
       "installerHeaderIcon": "build/icon.ico",
       "installerHeader": "build/installer-header.bmp",
       "installerSidebar": "build/installer-sidebar.bmp",
+      "license": "build/license.txt",
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
       "shortcutName": "奇思"

@@ -32,17 +32,11 @@ import { cn } from "@/lib/utils";
 import { toast } from "@/lib/toast";
 import { HelpButton } from "@/components/ui/HelpButton";
 import { Modal } from "@/components/ui/Modal";
-import { cloudApi, getCloudEndpoint } from "@/lib/cloud-api";
-import { invoke } from "@/lib/tauri";
+import { cloudApi, getCloudEndpoint, resolveAvatarUrl } from "@/lib/cloud-api";
+import { invoke, listen } from "@/lib/tauri";
 import type { AgentStatus } from "@/types/api";
 import { useAuthStore } from "@/stores/authStore";
 
-// 将相对路径头像 URL 拼接为云端绝对路径（WebView2 origin 是 tauri.localhost，相对路径会 404）
-function resolveAvatarUrl(url: string | null | undefined): string {
-  if (!url) return `${getCloudEndpoint()}/lynx-icon-256.png`;
-  if (url.startsWith("http://") || url.startsWith("https://") || url.startsWith("data:")) return url;
-  return `${getCloudEndpoint().replace(/\/+$/, "")}/${url.replace(/^\/+/, "")}`;
-}
 import {
   type Message,
   type ChatSession,
@@ -100,7 +94,7 @@ interface AIAssistantPageProps {
 export function AIAssistantPage({ inDrawer = false }: AIAssistantPageProps) {
   const queryClient = useQueryClient();
   const location = useLocation();
-  const [messages, setMessages] = useState<Message[]>([buildWelcomeMessage("Lynn")]);
+  const [messages, setMessages] = useState<Message[]>([buildWelcomeMessage("奇思")]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
@@ -137,6 +131,7 @@ export function AIAssistantPage({ inDrawer = false }: AIAssistantPageProps) {
   });
 
   // 查询 Agent WS 连接状态（用于 hermesExecute 工具调用前置检查）
+  // 任务3: 事件驱动为主 + 轮询作为备份（间隔 30 秒）
   useEffect(() => {
     let cancelled = false;
     const fetchWsStatus = async () => {
@@ -148,11 +143,24 @@ export function AIAssistantPage({ inDrawer = false }: AIAssistantPageProps) {
       }
     };
     fetchWsStatus();
-    // 每 15 秒刷新一次，保持状态新鲜
-    const timer = setInterval(fetchWsStatus, 15000);
+    // 轮询备份：间隔改为 30 秒（主通道由 ws-status-changed 事件驱动）
+    const timer = setInterval(fetchWsStatus, 30000);
     return () => {
       cancelled = true;
       clearInterval(timer);
+    };
+  }, []);
+
+  // 任务3: 监听 IPC 事件 ws-status-changed，事件驱动更新 WS 连接状态
+  useEffect(() => {
+    let unlisten: (() => void) | null = null;
+    listen<{ connected: boolean }>("ws-status-changed", (payload) => {
+      setWsConnected(!!payload?.connected);
+    }).then((fn) => {
+      unlisten = fn;
+    });
+    return () => {
+      if (unlisten) unlisten();
     };
   }, []);
 
@@ -242,23 +250,34 @@ export function AIAssistantPage({ inDrawer = false }: AIAssistantPageProps) {
             )
           );
         },
-        onToolStart: (tool, args) => {
-          // hermesExecute 工具需要 WS 连接，未连接时明确提示（不静默失败）
-          if (tool === "hermesExecute" && !wsConnected) {
-            toast.error("Lynx Agent WS 未连接，请先在 Agent 页面启动 WS 连接");
-            setMessages((prev) =>
-              prev.map((m) =>
-                m.id === aiMsgId
-                  ? {
-                      ...m,
-                      content: "⚠️ Lynx Agent WS 未连接，无法执行本地工具。\n\n请先在 **Agent 页面** 启动 WS 连接，然后重试。",
-                      streaming: true,
-                      toolProgress: { tool, status: "running", args },
-                    }
-                  : m
-              )
-            );
-            return;
+        onToolStart: async (tool, args) => {
+          // 任务3: hermesExecute 工具调用前，实时调用 invoke('get_agent_status') 查询最新状态
+          // 而不是依赖缓存的 wsConnected（轮询间隔 30 秒，可能存在窗口期）
+          if (tool === "hermesExecute") {
+            let wsOk = wsConnected; // 回退到缓存状态
+            try {
+              const s = await invoke<AgentStatus>("get_agent_status");
+              wsOk = !!s?.wsConnected;
+              setWsConnected(wsOk); // 同步更新缓存
+            } catch {
+              // invoke 失败时回退到缓存状态
+            }
+            if (!wsOk) {
+              toast.error("Lynx Agent WS 未连接，请先在 Agent 页面启动 WS 连接");
+              setMessages((prev) =>
+                prev.map((m) =>
+                  m.id === aiMsgId
+                    ? {
+                        ...m,
+                        content: "⚠️ Lynx Agent WS 未连接，无法执行本地工具。\n\n请先在 **Agent 页面** 启动 WS 连接，然后重试。",
+                        streaming: true,
+                        toolProgress: { tool, status: "running", args },
+                      }
+                    : m
+                )
+              );
+              return;
+            }
           }
           setMessages((prev) =>
             prev.map((m) =>

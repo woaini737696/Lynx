@@ -113,7 +113,7 @@ function httpGet(url, { timeout = 15000 } = {}) {
     const mod = url.startsWith('https') ? httpsOrig : httpOrig;
     const req = mod.get(url, {
       timeout,
-      headers: { 'User-Agent': 'LynxDesktop/1.0.4', 'Accept': 'application/json' },
+      headers: { 'User-Agent': 'QisiDesktop/1.0.8', 'Accept': 'application/json' },
       family: 4,
     }, (res) => {
       if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {

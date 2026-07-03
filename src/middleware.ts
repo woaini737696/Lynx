@@ -23,6 +23,8 @@ const publicPatterns = [
   /^\/api\/hermes\/download-wheel$/,
   // 桌面端 Electron 自动更新检查：公开接口（fetchLatestVersion 无 token）
   /^\/api\/hermes\/app-version$/,
+  // 飞书OAuth回调：飞书服务器重定向访问，无session/token，通过state参数识别用户
+  /^\/api\/feishu\/callback$/,
 ];
 
 // 首页作为公开落地页：未登录用户可访问首页，由前端弹窗处理登录

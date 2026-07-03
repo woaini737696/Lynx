@@ -1,6 +1,6 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "Lynx",
+  "productName": "奇思",
   "version": "1.0.33",
   "identifier": "com.lynx.app",
   "build": {
@@ -13,7 +13,7 @@
     "withGlobalTauri": true,
     "windows": [
       {
-        "title": "Lynx",
+        "title": "奇思",
         "width": 1280,
         "height": 800,
         "minWidth": 1024,

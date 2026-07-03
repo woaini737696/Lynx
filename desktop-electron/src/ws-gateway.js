@@ -9,8 +9,21 @@ let wsClient = null;
 let heartbeatTimer = null;
 let reconnectTimer = null;
 let isStarted = false;
+let statusChangeCallback = null;
 
 global.wsConnected = false;
+
+// 注册 WS 状态变化回调（main.js 注册，状态变化时转发事件到 renderer）
+function onStatusChange(cb) {
+  statusChangeCallback = cb;
+}
+
+function notifyStatusChange(connected) {
+  global.wsConnected = connected;
+  if (statusChangeCallback) {
+    try { statusChangeCallback(connected); } catch (e) { console.warn('[ws-gateway] 状态回调异常:', e); }
+  }
+}
 
 function buildWsUrl(cloudEndpoint) {
   const wsScheme = cloudEndpoint.startsWith('https') ? 'wss' : 'ws';
@@ -25,7 +38,13 @@ function getDeviceName() {
 }
 
 function getAgentVersion() {
-  return process.env.npm_package_version || '1.0.1';
+  try {
+    // 从打包后的 package.json 读取版本号
+    const pkg = require('../package.json');
+    return pkg.version || '1.0.9';
+  } catch {
+    return '1.0.9';
+  }
 }
 
 // 处理云端下发的消息
@@ -148,7 +167,7 @@ function startWSGateway(cloudEndpoint, userToken) {
       wsClient.on('open', () => {
         clearTimeout(firstConnTimeout);
         console.log('[ws-gateway] 已连接，发送注册消息');
-        global.wsConnected = true;
+        notifyStatusChange(true);
 
         wsClient.send(JSON.stringify({
           type: 'register',
@@ -179,7 +198,7 @@ function startWSGateway(cloudEndpoint, userToken) {
 
       wsClient.on('close', () => {
         console.log('[ws-gateway] 连接关闭');
-        global.wsConnected = false;
+        notifyStatusChange(false);
         if (heartbeatTimer) { clearInterval(heartbeatTimer); heartbeatTimer = null; }
         if (isStarted) {
           reconnectTimer = setTimeout(connect, 5000);
@@ -221,4 +240,4 @@ function stopWSGateway() {
   });
 }
 
-module.exports = { startWSGateway, stopWSGateway };
+module.exports = { startWSGateway, stopWSGateway, onStatusChange };

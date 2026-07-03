@@ -1,4 +1,4 @@
-// Lynx AI 超级助理 - Electron preload
+// 奇思 AI 超级助理 - Electron preload
 // 通过 contextBridge 安全暴露 IPC 能力给渲染层
 // 兼容 native-ui 的 invoke/listen 接口（与 Tauri 接口同构）
 const { contextBridge, ipcRenderer } = require('electron');
@@ -31,5 +31,5 @@ contextBridge.exposeInMainWorld('electronAPI', {
   platform: 'electron',
   isDesktop: true,
   isTauri: false,
-  version: process.env.npm_package_version || '1.0.1',
+  version: '1.0.8',
 });

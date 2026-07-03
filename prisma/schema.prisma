@@ -64,12 +64,32 @@ model User {
   larkTaskComments  LarkTaskComment[]
   larkWebhookEvents LarkWebhookEvent[]
 
+  // ===== 飞书 OAuth（每用户独立飞书账号）=====
+  feishuToken FeishuToken?
+
   // ===== 货币体系 & 会员 =====
   wallet              UserWallet?
   creditTransactions  CreditTransaction[]
   sCoinTransactions   SCoinTransaction[]
   membership          Membership?
   subscriptionOrders  SubscriptionOrder[]
+}
+
+// 飞书OAuth令牌（每用户独立飞书账号）
+model FeishuToken {
+  id           String   @id @default(cuid())
+  userId       String   @unique
+  openId       String   @db.VarChar(64) // 飞书用户 open_id
+  name         String   @db.VarChar(100) // 飞书用户名
+  accessToken  String   @db.Text // user_access_token
+  refreshToken String   @db.Text // refresh_token
+  expiresAt    DateTime // access_token 过期时间
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([openId])
 }
 
 // 登录历史日志（C 端用户管理 - 登录历史追踪）

@@ -12,6 +12,8 @@ import {
   getTasklists,
   readSyncState,
   upsertTasksToDb,
+  upsertTaskToDb,
+  normalizeTask,
   getTasksFromDb,
   getAssigneesFromDb,
   getTasklistsFromDb,
@@ -20,6 +22,12 @@ import {
   type LarkMember,
   type LarkTasklistRef,
 } from "@/lib/lark-sync";
+import {
+  getFeishuToken,
+  fetchAllFeishuTasks,
+  feishuListTasklists,
+  feishuCreateTask,
+} from "@/lib/feishu-api";
 import { getCurrentUser, requireAuth } from "@/lib/auth-utils";
 import { getLogger } from "@/lib/logger";
 
@@ -70,6 +78,87 @@ export async function GET(req: NextRequest) {
 
   const complete =
     completeRaw === "true" ? true : completeRaw === "false" ? false : null;
+
+  // ===== 飞书 OAuth 路径：每用户独立飞书账号（优先于 lark-cli）=====
+  // dbOnly 模式跳过（直接读 DB，OAuth 已写入缓存），由下方现有逻辑处理
+  if (!dbOnly) {
+    const oauthUser = await getCurrentUser();
+    if (oauthUser) {
+      const feishuRow = await prisma.feishuToken.findUnique({
+        where: { userId: oauthUser.id },
+        select: { openId: true },
+      });
+      if (feishuRow) {
+        const accessToken = await getFeishuToken(oauthUser.id);
+        if (accessToken) {
+          const myOpenId = feishuRow.openId;
+
+          // meta 模式：返回筛选下拉选项（任务清单从飞书实时拉取，负责人从 DB 缓存聚合）
+          if (meta) {
+            const [listsRes, dbAssignees] = await Promise.all([
+              feishuListTasklists(accessToken),
+              getAssigneesFromDb(),
+            ]);
+            const tasklists: LarkTasklistRef[] = (listsRes.tasklists || []).map((t) => ({
+              guid: t.guid,
+              name: t.name,
+            }));
+            return NextResponse.json({
+              assignees: dbAssignees,
+              tasklists,
+              syncState: { lastSyncAt: null, lastError: null, taskCount: 0 },
+            });
+          }
+
+          // 正常列表模式：拉取全量任务（跨所有任务清单 + 子任务）并过滤
+          const fetchRes = await fetchAllFeishuTasks(accessToken);
+          if (!fetchRes.ok || !fetchRes.tasks) {
+            // OAuth 拉取失败：回退到 DB 缓存，避免前端报错
+            const dbAllTasks = await getTasksFromDb({ complete: null });
+            const filtered = applyClientFilters(dbAllTasks, {
+              complete, q, assignee, tasklist, myOpenId, view,
+            });
+            const assignees = extractAssignees(dbAllTasks);
+            const tasklists = extractTasklists(dbAllTasks);
+            const subtaskMap = buildSubtaskMap(dbAllTasks);
+            return NextResponse.json({
+              tasks: filtered,
+              assignees,
+              tasklists,
+              subtaskMap,
+              myOpenId,
+              source: "feishu-oauth-db-fallback",
+              warning: fetchRes.error,
+            });
+          }
+
+          const allTasks = fetchRes.tasks;
+          // 写入数据库缓存（后台，不阻塞响应）
+          upsertTasksToDb(allTasks).catch((e) => {
+            logger.error({ err: e }, "[lark-tasks] OAuth 同步写入数据库失败");
+          });
+
+          const filtered = applyClientFilters(allTasks, {
+            complete, q, assignee, tasklist, myOpenId, view,
+          });
+          const assignees = extractAssignees(allTasks);
+          const tasklists = extractTasklists(allTasks);
+          const subtaskMap = buildSubtaskMap(allTasks);
+
+          return NextResponse.json({
+            tasks: filtered,
+            assignees,
+            tasklists,
+            subtaskMap,
+            myOpenId,
+            source: "feishu-oauth",
+          });
+        }
+        // access_token 不可用（刷新失败）：回退到 lark-cli 路径
+      }
+      // 未绑定飞书 OAuth：回退到 lark-cli 路径
+    }
+  }
 
   // ===== 纯数据库模式（移动端）：完全不依赖 lark-cli，只读数据库 =====
   if (dbOnly) {
@@ -306,6 +395,50 @@ export async function POST(req: NextRequest) {
       if (!summary || !summary.trim()) {
         return NextResponse.json({ error: "缺少 summary" }, { status: 400 });
       }
+
+      // ===== 飞书 OAuth 路径：优先使用用户自己的飞书账号创建任务 =====
+      const oauthUser = await getCurrentUser();
+      if (oauthUser) {
+        const accessToken = await getFeishuToken(oauthUser.id);
+        if (accessToken) {
+          // 构建 members（负责人 + 关注人），飞书 v1 API 接收 id（open_id）
+          const members: Array<{ id: string; role: string }> = [];
+          const assigneeIds = assignees?.length
+            ? assignees
+            : assignee
+            ? [assignee]
+            : [];
+          for (const id of assigneeIds) members.push({ id, role: "assignee" });
+          for (const id of followers || []) members.push({ id, role: "follower" });
+
+          const feishuRes = await feishuCreateTask(accessToken, {
+            summary: summary.trim(),
+            description: description?.trim() || undefined,
+            due: due || undefined,
+            start: start || undefined,
+            tasklistGuid: tasklistId || undefined,
+            members: members.length > 0 ? members : undefined,
+          });
+          if (!feishuRes.ok) {
+            return NextResponse.json(
+              { error: "创建失败：" + feishuRes.error },
+              { status: 502 }
+            );
+          }
+          // 归一化并写入 DB 缓存，返回与 lark-cli 路径一致的结构
+          if (feishuRes.task) {
+            const normalized = normalizeTask(feishuRes.task);
+            upsertTaskToDb(normalized).catch((e) => {
+              logger.error({ err: e }, "[lark-tasks] OAuth 创建任务写入数据库失败");
+            });
+            return NextResponse.json({ success: true, task: normalized });
+          }
+          return NextResponse.json({ success: true });
+        }
+        // 未绑定飞书 OAuth 或 token 不可用：回退到 lark-cli 路径
+      }
+
+      // ===== lark-cli 路径（向后兼容）=====
       const res = createTask({
         summary: summary.trim(),
         description: description?.trim() || undefined,

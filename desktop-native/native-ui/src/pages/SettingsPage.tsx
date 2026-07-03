@@ -73,23 +73,40 @@ export function SettingsPage() {
     setChecking(true);
     setUpdateInfo(null);
     try {
-      // 通过云端接口检查最新版本（HTTP 方式，不依赖 Tauri updater 签名）
-      const resp = await cloudApi.get<{ version: string; notes?: string; downloadUrl?: string }>(
-        "/api/desktop/update-info"
-      );
-      const currentVersion = status?.version || "1.0.0";
-      const latestVersion = resp.version;
-      if (latestVersion && latestVersion !== currentVersion) {
-        setUpdateInfo({
-          version: latestVersion,
-          currentVersion,
-          notes: resp.notes,
-        });
+      // P0 修复：改用 IPC handler check_app_update（之前用了不存在的云 API /api/desktop/update-info）
+      // main.js 的 check_app_update handler 会从 /api/hermes/app-version 获取最新版本并对比
+      const result = await invoke<{
+        success: boolean;
+        hasUpdate: boolean;
+        current: string;
+        latest: string;
+        downloadUrl: string;
+        releaseNotes?: string;
+        error?: string;
+      }>("check_app_update");
+
+      if (!result.success) {
+        toast.error(result.error || "无法获取服务器版本信息");
+        return;
+      }
+
+      if (result.hasUpdate) {
+        // 有新版本：自动下载并安装
+        toast.success(`发现新版本 v${result.latest}，正在自动下载安装...`);
+        setInstalling(true);
+        try {
+          await invoke("download_and_install_update", { downloadUrl: result.downloadUrl });
+          // download_and_install_update 成功后会自动启动安装程序退出当前应用
+        } catch (err) {
+          toast.error(err instanceof Error ? err.message : "下载安装失败");
+        } finally {
+          setInstalling(false);
+        }
       } else {
-        toast.success("已是最新版本");
+        // 无新版本：Toast 提示
+        toast.success("当前已经是最新版本了");
       }
     } catch (err) {
-      // 接口不存在时，提示用户手动检查
       toast.error(err instanceof Error ? err.message : "检查更新失败，请稍后重试");
     } finally {
       setChecking(false);
@@ -97,13 +114,11 @@ export function SettingsPage() {
   };
 
   const handleDownloadInstall = async () => {
+    // 已废弃：检查更新现在自动下载安装，不再需要手动打开下载页面
+    // 保留函数避免 UI 引用错误
     setInstalling(true);
     try {
-      // 优先使用云端返回的 downloadUrl，无则回退到官网下载页
-      const downloadUrl = updateInfo?.notes
-        ? `https://ai.lynxdo.com/download?v=${updateInfo.version}`
-        : "https://www.lynxdo.com/download";
-      await invoke("open_external", { url: downloadUrl });
+      await invoke("open_external", { url: "https://www.lynxdo.com/download" });
       toast.success("已在浏览器中打开下载页面");
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "打开下载页面失败");

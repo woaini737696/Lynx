@@ -107,7 +107,7 @@ export default function Hero() {
                 >
                   {/* 第一个：下载桌面应用（高亮显示） */}
                   <a
-                    href="https://www.lynxdo.com/download/Lynx-windows-setup.exe"
+                    href="https://gitee.com/shenzhens-emotions-are-booming_0/lynn-hub-release/releases/download/v1.0.9/QisiSetup-1.0.9.exe"
                     className="w-full flex items-center gap-3 px-4 py-3.5 text-left transition-colors"
                     style={{
                       color: '#F0F4F8',

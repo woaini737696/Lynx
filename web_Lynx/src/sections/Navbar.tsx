@@ -7,8 +7,8 @@ function detectPlatform(): 'desktop' | 'mobile' {
   return /android|webos|iphone|ipad|ipod|blackberry|iemobile|opera mini/i.test(ua) ? 'mobile' : 'desktop'
 }
 
-const DESKTOP_DOWNLOAD_URL = 'https://www.lynxdo.com/download/Lynx-windows-setup.exe'
-const MOBILE_DOWNLOAD_URL = 'https://www.lynxdo.com/download/Lynx-android.apk'
+const DESKTOP_DOWNLOAD_URL = 'https://gitee.com/shenzhens-emotions-are-booming_0/lynn-hub-release/releases/download/v1.0.9/QisiSetup-1.0.9.exe'
+const MOBILE_DOWNLOAD_URL = 'https://gitee.com/shenzhens-emotions-are-booming_0/lynn-hub-release/releases/download/v0.1.7/QisiAndroid-0.1.7.apk'
 
 export default function Navbar() {
   const [scrolled, setScrolled] = useState(false)

@@ -273,7 +273,7 @@ export default function Features() {
             下载奇思桌面端
           </a>
           <a
-            href="https://www.lynxdo.com/download/Lynx-android.apk"
+            href="https://gitee.com/shenzhens-emotions-are-booming_0/lynn-hub-release/releases/download/v0.1.7/QisiAndroid-0.1.7.apk"
             className="btn-glass inline-flex"
             style={{ fontSize: '15px', padding: '14px 28px', opacity: 0.7 }}
           >
@@ -291,7 +291,7 @@ export default function Features() {
             color: 'rgba(240, 244, 248, 0.4)',
           }}
         >
-          Windows 10/11 · 69MB · v1.0.7 · Android APK
+          Windows 10/11 · 69MB · v1.0.9 · Android APK
         </p>
       </div>
     </section>

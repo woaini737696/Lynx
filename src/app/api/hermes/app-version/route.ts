@@ -42,9 +42,10 @@ export async function GET() {
     const envNotes = process.env.DESKTOP_RELEASE_NOTES;
     if (envNotes) releaseNotes = envNotes;
 
-    // 构造 Gitee Release 下载链接（tag 与 version 一致：v1.0.2）
+    // 构造 Gitee Release 下载链接（tag 与 version 一致：v1.0.9）
+    // P0 修复：artifactName 已改为 QisiSetup-${version}.exe（package.json 配置）
     const tag = `v${version}`;
-    const downloadUrl = `${GITEE_RELEASE_BASE}/${tag}/Lynx_${tag}_x64-setup.exe`;
+    const downloadUrl = `${GITEE_RELEASE_BASE}/${tag}/QisiSetup-${version}.exe`;
     const androidDownloadUrl = `${GITEE_RELEASE_BASE}/${tag}/Lynx-android.apk`;
 
     return NextResponse.json({
