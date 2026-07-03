@@ -7,9 +7,9 @@ import Features from './sections/Features'
 export default function App() {
   useEffect(() => {
     const lenis = new Lenis({
-      lerp: 0.08,
+      lerp: 0.12,
       smoothWheel: true,
-      wheelMultiplier: 1,
+      wheelMultiplier: 1.2,
     })
 
     let rafId = 0

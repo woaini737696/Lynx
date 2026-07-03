@@ -49,7 +49,7 @@ export default function Hero() {
               textWrap: 'balance',
             }}
           >
-            奇思 - AI超级助理
+            Lynx奇思 - AI工作台
           </h1>
 
           <p
@@ -64,7 +64,20 @@ export default function Hero() {
               padding: '0 16px',
             }}
           >
-            用奇思，实现你的奇妙思维。有灵感？和奇思讨论，聊完直接帮你实现。不懂AI？奇思掌握了所有前沿AI技术，它会自主学习、成长、进化，不用学习，直接使用。
+            不用学AI，什么都能干。
+          </p>
+
+          <p
+            className="text-center mt-3 md:mt-4 max-w-[640px]"
+            style={{
+              fontSize: 'clamp(13px, 1.4vw, 16px)',
+              lineHeight: 1.7,
+              color: 'rgba(240, 244, 248, 0.4)',
+              textWrap: 'pretty',
+              padding: '0 16px',
+            }}
+          >
+            一个入口，覆盖全职业所有AI能力。零门槛，开箱即用。
           </p>
 
           <div ref={ctaRef} className="mt-8 md:mt-10 flex flex-col sm:flex-row items-center gap-3 md:gap-4" style={{ pointerEvents: 'auto' }}>

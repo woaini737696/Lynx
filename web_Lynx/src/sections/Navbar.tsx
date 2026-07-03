@@ -80,17 +80,18 @@ export default function Navbar() {
             className="text-lg font-semibold tracking-tight hidden sm:block"
             style={{ color: '#F0F4F8', letterSpacing: '-0.01em' }}
           >
-            奇思
+            Lynx奇思
           </span>
         </button>
 
-        {/* Center nav */}
+        {/* Center nav：5 个导航对应 5 大功能卡片 id */}
         <div className="hidden md:flex items-center gap-7">
           {[
-            { label: '核心功能', id: 'features' },
-            { label: '超级助理', id: 'assistant' },
-            { label: '三端互通', id: 'crossplatform' },
-            { label: '团队版', id: 'team' },
+            { label: '本地操控', id: 'agent' },
+            { label: '记忆图谱', id: 'memory' },
+            { label: '灵感看板', id: 'kanban' },
+            { label: 'AI 对话', id: 'ai-chat' },
+            { label: '三端互通', id: 'cross-platform' },
           ].map((item) => (
             <button
               key={item.label}

@@ -73,7 +73,8 @@ function FeatureCard({ feature, index }: { feature: typeof FEATURES[0]; index: n
   return (
     <div
       ref={ref}
-      className="ios-glass relative overflow-hidden"
+      id={feature.id}
+      className="ios-glass relative overflow-hidden scroll-mt-24"
       style={{
         opacity: visible ? 1 : 0,
         transform: visible ? 'translateY(0)' : 'translateY(40px)',
@@ -247,7 +248,7 @@ export default function Features() {
             margin: '0 auto',
           }}
         >
-          从本地操控到记忆图谱，从灵感看板到三端互通，奇思让 AI 真正成为你的超级助理
+          从本地操控到记忆图谱，从灵感看板到三端互通，Lynx奇思让 AI 真正成为你的超级助理
         </p>
       </div>
 
@@ -268,7 +269,7 @@ export default function Features() {
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
             <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3" />
           </svg>
-          下载奇思桌面端
+          下载Lynx奇思桌面端
         </a>
         <p
           className="mt-4"
@@ -277,7 +278,7 @@ export default function Features() {
             color: 'rgba(240, 244, 248, 0.4)',
           }}
         >
-          Windows 10/11 · 69MB · v1.0.3
+          Windows 10/11 · 69MB · v1.0.7
         </p>
       </div>
     </section>
