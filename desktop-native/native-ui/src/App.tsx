@@ -74,9 +74,16 @@ function AuthInitializer({ children }: { children: React.ReactNode }) {
             setCredentials(auth);
             await cloudApi.get("/api/user/profile");
           } catch (err) {
-            console.warn("本地 token 验证失败，清除登录态:", err);
+            console.warn("本地 token 验证失败，触发登录引导:", err);
+            // P0 修复：不静默 signOut，而是触发 AUTH_EXPIRED_EVENT 让用户看到"登录已过期"弹窗
+            // AUTH_EXPIRED_EVENT 处理器（本组件已注册）会执行：
+            //   clearAuth + signOut + queryClient.clear + openLoginModal({ expired: true })
+            // 旧逻辑只 clearAuth + signOut，用户莫名其妙被登出且无任何提示
             await clearAuth();
             signOut();
+            if (typeof window !== "undefined") {
+              window.dispatchEvent(new CustomEvent(AUTH_EXPIRED_EVENT));
+            }
           }
         }
       } catch (err) {

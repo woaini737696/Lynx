@@ -19,6 +19,11 @@ import { getLogger } from "@/lib/logger";
 
 const logger = getLogger("app-version-api");
 
+// P0 修复：强制动态渲染，避免 Next.js 构建时缓存响应
+// 不加此行，standalone 构建后 GET 响应会被缓存，桌面端检查更新永远拿到旧版本号
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
 // Gitee Release 公开下载基址（仓库 lynn-hub-release，已公开）
 const GITEE_RELEASE_BASE =
   "https://gitee.com/shenzhens-emotions-are-booming_0/lynn-hub-release/releases/download";

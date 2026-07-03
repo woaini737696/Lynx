@@ -1,12 +1,23 @@
-// 生成纯白 BMP 文件用于 NSIS 安装界面（豆包风格简洁白底）
+// 生成 NSIS 安装界面 BMP（白底 + 品牌色横条，豆包风格简洁设计）
 // installer-header.bmp: 150×57（安装页顶部）
 // installer-sidebar.bmp: 164×314（欢迎/完成页侧边）
-// installer-header-icon.bmp: 32×32（安装页左上角小图标占位，全白）
+// BMP 格式：24-bit BGR uncompressed（NSIS 3.x 要求），行 4 字节对齐
 const fs = require('fs');
 const path = require('path');
 
-function writeBMP(filepath, width, height, fillR = 255, fillG = 255, fillB = 255) {
-  // BMP 行需要 4 字节对齐
+// 品牌色
+const BRAND_BLUE = { r: 50, g: 120, b: 220 };   // 顶部品牌横条
+const LIGHT_GRAY = { r: 240, g: 240, b: 240 };  // 底部装饰横条
+const WHITE = { r: 255, g: 255, b: 255 };
+
+/**
+ * 写入 24-bit BGR uncompressed BMP
+ * @param {string} filepath 输出路径
+ * @param {number} width 宽度
+ * @param {number} height 高度
+ * @param {function} pixelFn (x, y) => {r, g, b}，y 为 top-down 坐标（y=0 在顶部）
+ */
+function writeBMP(filepath, width, height, pixelFn) {
   const rowSize = Math.floor((24 * width + 31) / 32) * 4;
   const pixelDataSize = rowSize * height;
   const fileSize = 14 + 40 + pixelDataSize;
@@ -35,13 +46,16 @@ function writeBMP(filepath, width, height, fillR = 255, fillG = 255, fillB = 255
   buf.writeUInt32LE(0, off); off += 4; // important colors
 
   // Pixel data (BGR, bottom-up, row padded to 4 bytes)
-  for (let y = 0; y < height; y++) {
-    const rowStart = off + y * rowSize;
+  // BMP 是 bottom-up：文件中第一行是图像底部，所以 top-down 的 y 要翻转
+  for (let fileRow = 0; fileRow < height; fileRow++) {
+    const yTopDown = height - 1 - fileRow; // 翻转为 top-down 坐标
+    const rowStart = off + fileRow * rowSize;
     for (let x = 0; x < width; x++) {
+      const c = pixelFn(x, yTopDown);
       const i = rowStart + x * 3;
-      buf[i] = fillB;     // B
-      buf[i + 1] = fillG; // G
-      buf[i + 2] = fillR; // R
+      buf[i] = c.b;     // B
+      buf[i + 1] = c.g; // G
+      buf[i + 2] = c.r; // R
     }
     // padding bytes already 0
   }
@@ -53,9 +67,17 @@ function writeBMP(filepath, width, height, fillR = 255, fillG = 255, fillB = 255
 const buildDir = path.join(__dirname, '..', 'build');
 fs.mkdirSync(buildDir, { recursive: true });
 
-// NSIS Modern UI 标准尺寸
-writeBMP(path.join(buildDir, 'installer-header.bmp'), 150, 57);
-writeBMP(path.join(buildDir, 'installer-sidebar.bmp'), 164, 314);
-writeBMP(path.join(buildDir, 'installer-header-icon.bmp'), 32, 32);
+// installer-header.bmp: 150×57，白底 + 顶部 8px 品牌蓝横条
+writeBMP(path.join(buildDir, 'installer-header.bmp'), 150, 57, (x, y) => {
+  if (y < 8) return BRAND_BLUE; // 顶部品牌色横条
+  return WHITE;
+});
 
-console.log('[gen-bmp] 完成！所有白色 BMP 已生成');
+// installer-sidebar.bmp: 164×314，白底 + 顶部 30px 品牌蓝横条 + 底部 30px 浅灰横条
+writeBMP(path.join(buildDir, 'installer-sidebar.bmp'), 164, 314, (x, y) => {
+  if (y < 30) return BRAND_BLUE;   // 顶部品牌色横条
+  if (y >= 314 - 30) return LIGHT_GRAY; // 底部浅灰横条
+  return WHITE;
+});
+
+console.log('[gen-bmp] 完成！已生成带品牌色横条的 NSIS 安装界面 BMP');

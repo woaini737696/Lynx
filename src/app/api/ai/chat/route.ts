@@ -505,11 +505,37 @@ export async function POST(req: NextRequest) {
             // 命中系统工具意图，回退到 LLM + Function Calling
             hermesFallback = true;
           } else {
-            // Hermes 快速失败：8 秒超时（原 120 秒会让用户等太久）
-            // Hermes 需要 spawn 子进程，冷启动 5-30 秒，不适合实时聊天
-            // 超时后立即回退到 LLM + Function Calling 模式
-            const hermesResult = await executeAssistantViaHermes(user.id, userText, 8);
-            if (hermesResult.success) {
+            // P0 修复：Hermes Takeover 快速失败
+            // 旧逻辑：直接调用 Hermes（8 秒超时），Hermes 不可用时用户白等 8 秒
+            // 新逻辑：先查 WS 网关在线设备（2 秒超时），无设备直接跳过 Hermes 调用
+            let hermesAvailable = false;
+            try {
+              const wsGatewayUrl = process.env.WS_GATEWAY_URL || "http://localhost:3001";
+              const deviceResp = await fetch(
+                `${wsGatewayUrl}/devices?userId=${user.id}`,
+                {
+                  headers: { "X-Internal-Key": process.env.INTERNAL_API_KEY || "" },
+                  signal: AbortSignal.timeout(2000),
+                }
+              );
+              if (deviceResp.ok) {
+                const deviceData = await deviceResp.json();
+                const devices = Array.isArray(deviceData.devices) ? deviceData.devices : [];
+                hermesAvailable = devices.length > 0;
+              }
+            } catch (e) {
+              console.warn("[chat] 查询 Hermes 在线设备失败，跳过 Takeover:", e);
+            }
+
+            // 调用 Hermes（3 秒超时，原 8 秒过长）；无在线设备时跳过，hermesResult 为 null
+            // 使用 const 声明，确保 TypeScript 在嵌套回调（async start）中也能正确收窄 null
+            const hermesResult = hermesAvailable
+              ? await executeAssistantViaHermes(user.id, userText, 3)
+              : null;
+            if (!hermesAvailable) {
+              console.log("[chat] Hermes Takeover 已开启但无在线设备，直接使用 LLM");
+            }
+            if (hermesResult?.success) {
               // 异步学习任务模式（非阻塞，不影响响应延迟）
               learnTaskPattern(user.id, userText, hermesResult.output).catch(() => {
                 // 学习失败不影响主流程
@@ -575,7 +601,7 @@ export async function POST(req: NextRequest) {
                 durationMs: hermesResult.durationMs,
               });
             }
-            // Hermes 执行失败/超时 → 回退到 LLM + Function Calling 模式（继续往下执行）
+            // Hermes 执行失败/超时/无在线设备 → 回退到 LLM + Function Calling 模式（继续往下执行）
             hermesFallback = true;
           }
         }

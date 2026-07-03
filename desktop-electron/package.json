@@ -1,6 +1,6 @@
 {
   "name": "lynx-desktop",
-  "version": "1.0.9",
+  "version": "1.0.11",
   "description": "奇思 - AI超级助理 - 桌面端（Electron 主架构）",
   "main": "src/main.js",
   "author": "Lynn",
@@ -13,7 +13,7 @@
     "start": "electron .",
     "dev": "electron . --dev",
     "build:renderer": "node scripts/build-renderer.mjs",
-    "build:win": "npm run build:renderer && electron-builder --win nsis",
+    "build:win": "npm run build:renderer && node scripts/gen-cert.cjs && node scripts/gen-white-bmps.cjs && node scripts/gen-license.cjs && electron-builder --win nsis",
     "build:mac": "npm run build:renderer && electron-builder --mac",
     "build": "npm run build:win"
   },
@@ -31,10 +31,11 @@
     "productName": "奇思",
     "copyright": "© 2026 Lynn. All rights reserved.",
     "directories": {
-      "output": "release",
+      "output": "release-final",
       "buildResources": "build"
     },
     "publish": null,
+    "afterPack": "scripts/after-pack.cjs",
     "electronLanguages": [
       "zh-CN",
       "en-US"

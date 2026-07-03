@@ -20,7 +20,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { invoke } from "@/lib/tauri";
-import { cloudApi, getCloudEndpoint, setCloudEndpoint } from "@/lib/cloud-api";
+import { getCloudEndpoint, setCloudEndpoint } from "@/lib/cloud-api";
 import { useAuthStore } from "@/stores/authStore";
 import { useUIStore } from "@/stores/uiStore";
 import { clearAuth } from "@/lib/auth-persistence";

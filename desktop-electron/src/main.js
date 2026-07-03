@@ -188,21 +188,21 @@ function registerShortcuts() {
 
 // ============ 自动更新检查 + 下载 + 安装（P1-1，不依赖 electron-updater） ============
 
-// 获取最新版本信息（P0 修复：添加 family:4 强制 IPv4 + User-Agent，避免 ECONNRESET）
-async function fetchLatestVersion() {
+// 单次请求（P1 修复：User-Agent 用 app.getVersion() 统一，避免版本号不一致）
+async function _fetchVersionOnce() {
   return new Promise((resolve, reject) => {
     const options = {
       timeout: 15000,
       family: 4,
       headers: {
-        'User-Agent': 'QisiDesktop/1.0.9',
+        'User-Agent': `QisiDesktop/${app.getVersion()}`,
         'Accept': 'application/json',
       },
     };
     https.get('https://ai.lynxdo.com/api/hermes/app-version', options, (res) => {
       if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
         // 跟随重定向
-        fetchLatestVersionRedirect(res.headers.location).then(resolve, reject);
+        _fetchVersionRedirect(res.headers.location).then(resolve, reject);
         return;
       }
       if (res.statusCode !== 200) { reject(new Error(`HTTP ${res.statusCode}`)); return; }
@@ -213,11 +213,30 @@ async function fetchLatestVersion() {
   });
 }
 
-// 重定向后的请求
-function fetchLatestVersionRedirect(url) {
+// 带重试的版本获取（P1：ECONNRESET 等网络错误重试 3 次，间隔递增 1s/2s）
+async function fetchLatestVersion() {
+  let lastErr = null;
+  for (let i = 0; i < 3; i++) {
+    try {
+      return await _fetchVersionOnce();
+    } catch (e) {
+      lastErr = e;
+      console.warn(`[update] 第 ${i + 1}/3 次获取版本失败: ${e.message}`);
+      if (i < 2) await new Promise(r => setTimeout(r, 1000 * (i + 1)));
+    }
+  }
+  throw lastErr;
+}
+
+// 重定向后的请求（P1 修复：User-Agent 统一用 app.getVersion()，原 fetchLatestVersionRedirect 改为私有 _fetchVersionRedirect）
+function _fetchVersionRedirect(url) {
   return new Promise((resolve, reject) => {
     const mod = url.startsWith('https') ? https : require('http');
-    mod.get(url, { timeout: 15000, family: 4, headers: { 'User-Agent': 'QisiDesktop/1.0.8' } }, (res) => {
+    mod.get(url, {
+      timeout: 15000,
+      family: 4,
+      headers: { 'User-Agent': `QisiDesktop/${app.getVersion()}`, 'Accept': 'application/json' }
+    }, (res) => {
       if (res.statusCode !== 200) { reject(new Error(`HTTP ${res.statusCode}`)); return; }
       let body = '';
       res.on('data', (c) => body += c);
@@ -284,7 +303,7 @@ async function checkAppUpdate() {
         mainWindow.webContents.send('app-update-available', {
           current: currentVersion,
           latest: data.version,
-          downloadUrl: data.downloadUrl || 'https://gitee.com/shenzhens-emotions-are-booming_0/lynn-hub-release/releases/download/v1.0.9/QisiSetup-1.0.9.exe',
+          downloadUrl: data.downloadUrl || 'https://gitee.com/shenzhens-emotions-are-booming_0/lynn-hub-release/releases/download/v1.0.11/QisiSetup-1.0.11.exe',
           releaseNotes: data.releaseNotes || '',
         });
       }
@@ -298,7 +317,7 @@ async function checkAppUpdate() {
 
 // 手动触发：下载并安装更新（通过 IPC 调用）
 async function downloadAndInstallUpdate(downloadUrl) {
-  const url = downloadUrl || 'https://gitee.com/shenzhens-emotions-are-booming_0/lynn-hub-release/releases/download/v1.0.9/QisiSetup-1.0.9.exe';
+  const url = downloadUrl || 'https://gitee.com/shenzhens-emotions-are-booming_0/lynn-hub-release/releases/download/v1.0.11/QisiSetup-1.0.11.exe';
   console.log(`[update] 开始下载: ${url}`);
 
   // 通知前端下载进度
@@ -458,18 +477,40 @@ function registerIPC() {
 
   // --- 应用自动更新（P1-1）---
   safeHandle('check_app_update', async () => {
-    const data = await fetchLatestVersion();
-    if (!data || !data.version) return { success: false, error: '无法获取版本信息' };
-    const currentVersion = app.getVersion();
-    const hasUpdate = compareAppVersions(currentVersion, data.version) < 0;
-    return {
-      success: true,
-      hasUpdate,
-      current: currentVersion,
-      latest: data.version,
-      downloadUrl: data.downloadUrl || 'https://gitee.com/shenzhens-emotions-are-booming_0/lynn-hub-release/releases/download/v1.0.9/QisiSetup-1.0.9.exe',
-      releaseNotes: data.releaseNotes || '',
-    };
+    try {
+      const currentVersion = app.getVersion();
+      const data = await fetchLatestVersion();
+
+      if (!data || !data.version) {
+        return { success: true, hasUpdate: false, current: currentVersion, latest: currentVersion, message: '无法获取版本信息，请稍后重试' };
+      }
+
+      if (compareAppVersions(currentVersion, data.version) < 0) {
+        console.log(`[update] 发现新版本: ${data.version}（当前 ${currentVersion}）`);
+        return {
+          success: true,
+          hasUpdate: true,
+          current: currentVersion,
+          latest: data.version,
+          downloadUrl: data.downloadUrl || 'https://gitee.com/shenzhens-emotions-are-booming_0/lynn-hub-release/releases/download/v1.0.11/QisiSetup-1.0.11.exe',
+          releaseNotes: data.releaseNotes || '',
+        };
+      }
+      return { success: true, hasUpdate: false, current: currentVersion, latest: data.version, message: '当前已是最新版本' };
+    } catch (e) {
+      console.warn('[update] 检查更新失败:', e.message);
+      // P1：网络错误友好化，避免透传裸错误码"read ECONNRESET"
+      const msg = e.message || '';
+      let friendly = '检查更新失败';
+      if (msg.includes('ECONNRESET') || msg.includes('ETIMEDOUT') || msg.includes('ENOTFOUND')) {
+        friendly = '网络连接失败，请检查网络后重试';
+      } else if (msg.includes('HTTP 5')) {
+        friendly = '服务器暂时不可用，请稍后重试';
+      } else {
+        friendly = `检查更新失败：${msg}`;
+      }
+      return { success: false, error: friendly };
+    }
   });
 
   safeHandle('download_and_install_update', (_e, args) => {

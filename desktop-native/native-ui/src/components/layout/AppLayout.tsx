@@ -49,7 +49,9 @@ export function AppLayout() {
 
     const startWs = async () => {
       try {
-        await invoke("set_user_token", { token: `user:${user.id}` });
+        // P0 修复：必须用 JWT token（authStore.token），不是 user:${userId}
+        // 服务器端 ws-gateway.ts authenticate 要求 JWT 3 段格式，user:xxx 会被直接拒绝
+        await invoke("set_user_token", { token: token });
         await invoke("set_cloud_endpoint", { endpoint: getCloudEndpoint() });
         await invoke("start_hermes_agent");
       } catch (e) {

@@ -9,6 +9,7 @@
 
 | 迭代 | 日期 | 任务概要 |
 |------|------|----------|
+| [迭代 113](#迭代-113---2026-07-04) | 2026-07-04 | v1.0.11真实修复+全面验证+服务端部署+Gitee GC方法：① 检查更新失效根因修复(app-version API被Next.js编译为静态缓存永远返回v1.0.9 / route.ts添加export const dynamic='force-dynamic'+revalidate=0 / npm run build重新构建standalone 14.51MB / deploy-standalone-v111.py上传服务器+PM2 reload / 服务器内部curl返回v1.0.11+publishedAt时间戳实时变化) ② WS连接服务器端正常(PM2 lynx-ws-gateway online uptime 5h / Nginx /api/ws/agent→3001配置正确 / access.log显示其他用户27.38.165.251成功建立WS连接101状态码 / 本地访问失败是开发机IP被阿里云云盾Aegis拦截非服务器问题) ③ 发布者签名验证(QisiSetup-1.0.11.exe签名Valid+Signer=CN=LynnHub / 自签名证书只在开发机受信任其他机器显示未知发布者需点击仍要运行) ④ NSIS安装界面资源全PASS验证(verify-nsis-resources.py / installer-header.bmp 150×57 24bpp BI_RGB PASS / installer-sidebar.bmp 164×314 24bpp BI_RGB PASS / icon.ico 6图像尺寸 PASS / license.txt UTF-8 BOM存在中文正确无乱码) ⑤ Gitee仓库GC方法整理(本地17.82MiB已清理远程956MB超80%配额 / 4种方法：Gitee项目管理界面GC+git gc--prune=now--aggressive+git-filter-repo删除历史大文件+重新创建仓库) ⑥ 服务器状态全确认(SSH可达+PM2两进程online+Nginx 443监听+iptables INPUT ACCEPT+ufw inactive+fail2ban未安装) ⑦ 待用户真机验证11项清单(TC1下载v1.0.11/TC2发布者签名/TC3安装界面图标/TC4安装界面侧边/TC5许可证协议/TC6任务栏图标/TC7检查更新/TC8 WS连接/TC9 Lynx助理/TC10飞书任务/TC11窗口拖动) |
 | [迭代 112](#迭代-112---2026-07-03) | 2026-07-03 | 全栈修复版+飞书OAuth+服务器基础设施修复+Electron v1.0.9：① 下载源切换Gitee Release(Hero/Navbar/app-version API全部改为gitee.com/.../lynn-hub-release/releases/download/v1.0.9/QisiSetup-1.0.9.exe) ② 发布者签名lynn(main.js禁用electron-builder内置签名 signAndEditExecutable:false+forceCodeSigning:false + PowerShell Set-AuthenticodeSignature手动签名 CN=lynn自签名证书) ③ 任务栏图标修复(main.js添加app.setAppUserModelId('com.lynnhub.desktop')解决Windows任务栏显示默认图标) ④ 全局产品名奇思(AIAssistantPage欢迎消息Lynn→奇思 / User-Agent 1.0.8→1.0.9 / ws-gateway.js版本号1.0.8→1.0.9) ⑤ 服务器nginx配置修复(删除硬编码app-version v1.0.8 / WS代理proxy_pass 5176→3001 / 清理sites-enabled目录中的.bak备份文件避免重复加载) ⑥ WS网关进程启动(上传start-ws-gateway.js+ws-gateway.compiled.js / PM2启动lynx-ws-gateway监听3001端口 / 日志显示有WS连接进来) ⑦ 飞书OAuth服务端实现(prisma schema新增FeishuToken model / SQL直接创建FeishuToken表 / feishu-api.ts实现getFeishuToken+refreshFeishuToken+fetchAllFeishuTasks / 4个OAuth端点auth/callback/status/disconnect / lark-tasks API新增OAuth路径 / middleware公开飞书回调端点) ⑧ 飞书连接UI(Web端+桌面端lark-tasks页面添加连接飞书按钮 / 已连接显示绿色✓+用户名 / 桌面端通过invoke open_external在系统浏览器打开OAuth) ⑨ Lynx助理同步Web端头像(AIAssistantPage通过/api/ai/settings获取aiSettings.avatarUrl+resolveAvatarUrl拼接云端绝对路径) ⑩ Next.js standalone部署(33.95MB含Linux Prisma引擎 / app-version返回v1.0.9+Gitee下载链接 / 健康检查200) ⑪ 官网部署(4.21MB静态文件 / HTTP 200) ⑫ Electron v1.0.9构建(QisiSetup-1.0.9.exe 69.24MB + 签名CN=lynn + 上传Gitee Release v1.0.9 / 下载链接验证200 72MB) ⑬ 服务器验证全通过(PM2 lynx-app+lynx-ws-gateway+lynxkit-api三进程online / 3001+5176端口监听 / FeishuToken表0条数据等待用户连接) |
 | [迭代 111](#迭代-111---2026-07-03) | 2026-07-03 | 官网全局去Lynx改名+下载移动端按钮+Slogan同行+Electron v1.0.8+10/10自测通过：① 官网全局去Lynx改名(index.html标题→奇思-AI工作台 / Hero主标题→奇思-AI工作台 / Navbar品牌名→奇思 / Features标题Lynx Agent→奇思Agent / CoreNarrative Lynx是→奇思是 / Scenarios谁在用Lynx→谁在用奇思 / SuperAssistant Lynx是→奇思是 / Footer文案→奇思·奇思AI工作台 / MobileBanner→奇思安卓版 / Terminal [Lynx]→[奇思] / VideoModal→奇思AI工作台产品演示 / 图片alt全改奇思 共7文件21处) ② Slogan+副标题合并同一行(Hero.tsx合并为单个p标签maxWidth680 不用学AI什么都能干+一个入口覆盖全职业所有AI能力零门槛开箱即用) ③ Features底部新增下载移动端弱化按钮(btn-glass opacity0.7+Lynx-android.apk链接+与下载桌面端按钮flex同行布局) ④ 移动端APK下载验证(HTTP 200 4.1MB content-type application/octet-stream) ⑤ 桌面端HermesPanel.tsx全局改名(line448/538/686/720/723共5处Lynx Agent→奇思Agent+Lynx超级助理→奇思超级助理 / main.js注释Lynx→奇思 / 托盘菜单已改迭代109) ⑥ Electron v1.0.8构建(版本号1.0.7→1.0.8 / 奇思Setup1.0.8.exe 69.17MB / 安装包上传服务器替换Lynx-windows-setup.exe) ⑦ app-version API更新(nginx配置1.0.7→1.0.8 + releaseNotes更新 / nginx reload成功 / API返回v1.0.8) ⑧ 官网部署(8文件上传/opt/lynxwebsite / 10/10自测通过 TC1标题TC2无Lynx Agent残留TC3奇思7次TC4非URL Lynx无残留TC5 APK链接2处TC6 VideoModal文案TC7 Slogan TC8 app-version API TC9 APK下载200 TC10 Footer文案) ⑨ 视频生成暂时跳过(缺ARK_API_KEY 待用户提供后补充) |
 | [迭代 110](#迭代-110---2026-07-03) | 2026-07-03 | 官网改名奇思→Lynx奇思AI工作台+5导航锚点+滚动优化+app-version nginx部署：① 官网改名(奇思-AI超级助理→Lynx奇思-AI工作台 / Slogan→不用学AI，什么都能干 / 副标题→一个入口，覆盖全职业所有AI能力。零门槛，开箱即用 / Features描述奇思让AI→Lynx奇思让AI / 下载按钮→下载Lynx奇思桌面端 / 版本号v1.0.3→v1.0.7) ② Navbar 5导航锚点(本地操控→agent / 记忆图谱→memory / 灵感看板→kanban / AI对话→ai-chat / 三端互通→cross-platform + FeatureCard添加id+scroll-mt-24) ③ 滚动速度优化(lenis lerp 0.08→0.12 + wheelMultiplier 1→1.2) ④ app-version API nginx部署(nginx ai.lynxdo.com块添加location=/api/hermes/app-version直接返回JSON 200 避免上传route.js+routes-manifest / middleware.js回滚原版 / TC13验证HTTPS 200+版本1.0.7) ⑤ 官网部署(8文件上传/opt/lynx/website / TC1-TC13全通过) ⑥ Gitee仓库GC(远程已是清理后17.82MiB / 服务器端GC需Web界面手动触发) |
@@ -6284,6 +6285,128 @@ GitHub 仓库迁移 + 本地持久化 + 三方同步验证 + 文档完善：用�
 | EXTRA | PM2进程 | ✓ | lynx-app + lynx-ws-gateway 均 online |
 
 **通过: 11 | 失败: 0 | 待验证: 1（TC10提交后验证）**
+
+### Commit
+本次提交
+
+---
+
+## 迭代 113 - 2026-07-04
+
+### 任务概要
+
+v1.0.11 真实修复 + 全面验证 + 服务端部署 + Gitee GC 方法整理。针对用户反馈"所有问题都没解决"，逐项真实排查并修复根因。
+
+### 根因排查与修复
+
+#### 1. 检查更新失效（P0 - 根因已修复）
+- **现象**：桌面端检查更新永远显示"无更新"
+- **根因**：服务器 `/api/hermes/app-version` API 被 Next.js 编译为静态缓存，`publishedAt` 时间戳固定不变，永远返回 v1.0.9
+- **修复**：
+  - [src/app/api/hermes/app-version/route.ts](file:///d:/Lynn工作空间/LynnHub/src/app/api/hermes/app-version/route.ts#L22-L25) 添加 `export const dynamic = "force-dynamic"` + `export const revalidate = 0`
+  - 本地 `npm run build` 重新构建 standalone（14.51 MB）
+  - [scripts/deploy/deploy-standalone-v111.py](file:///d:/Lynn工作空间/LynnHub/scripts/deploy/deploy-standalone-v111.py) 上传到服务器 `/opt/lynx/app`
+  - PM2 reload lynx-app
+- **验证**：服务器内部 curl 返回 `{"version":"1.0.11",...,"publishedAt":"2026-07-03T18:31:13.547Z"}`（时间戳实时变化，force-dynamic 生效）
+
+#### 2. WS 连接（P0 - 服务器端正常）
+- **服务器状态**：
+  - PM2 `lynx-ws-gateway` online, uptime 5h, 0 restarts
+  - 端口 3001 监听正常
+  - Nginx `/api/ws/agent` → 127.0.0.1:3001 配置正确
+- **验证**：access.log 显示其他用户 `27.38.165.251` 在 02:06-02:07 成功建立 WS 连接（`GET /api/ws/agent HTTP/1.1` → `101 77`），证明 WS 连接工作正常
+- **本地访问失败原因**：开发机 IP 被阿里云云盾（Aegis）拦截，SSL 握手时 Connection was reset（非服务器问题）
+
+#### 3. 发布者签名（P0 - 签名 Valid，自签名证书限制）
+- **验证**：
+  - `QisiSetup-1.0.11.exe` 签名 Status=**Valid**, Signer=**CN=LynnHub, O=LynnHub, C=CN**
+  - Thumbprint: `7BCF15A9E0867DADA9F97DAC69297EAF2672F748`
+  - 有效期：2026-06-30 至 2029-06-30
+- **发布者"未知"原因**：自签名证书只在开发机本地受信任（CurrentUser\My + LocalMachine\Root），其他机器下载安装时 Windows 会显示"未知发布者"警告
+- **解决方案**：用户需点击"仍要运行"即可安装；或导入证书到受信任根（[desktop-electron/scripts/install-cert.ps1](file:///d:/Lynn工作空间/LynnHub/desktop-electron/scripts/install-cert.ps1)）
+
+#### 4. NSIS 安装界面（P0 - 资源全部 PASS）
+- **验证脚本**：[desktop-electron/scripts/verify-nsis-resources.py](file:///d:/Lynn工作空间/LynnHub/desktop-electron/scripts/verify-nsis-resources.py)
+- **验证结果**（全 PASS）：
+  | 资源 | 尺寸 | 色深 | 压缩 | BOM | 状态 |
+  |------|------|------|------|-----|------|
+  | installer-header.bmp | 150×57 | 24bpp | BI_RGB | - | PASS |
+  | installer-sidebar.bmp | 164×314 | 24bpp | BI_RGB | - | PASS |
+  | icon.ico | 6 图像尺寸 | - | - | - | PASS |
+  | license.txt | 764 bytes | - | - | UTF-8 BOM | PASS |
+- **license.txt 内容**：`奇思 - AI超级助理 用户许可协议 Copyright © 2026 Lynn...`（中文正确，无乱码）
+
+#### 5. Gitee 仓库 GC 方法（整理完成）
+- **现状**：本地仓库 17.82 MiB（已清理），Gitee 远程 956 MB（超 80% 配额）
+- **差异原因**：Gitee 后台未自动 GC，累积历史 push 对象
+- **方法**：见下方"Gitee 仓库 GC 方法"章节
+
+### 服务器状态确认
+
+| 项目 | 状态 | 详情 |
+|------|------|------|
+| SSH 可达 | ✓ | TCP 22 端口可达 |
+| PM2 lynx-app | online | uptime 6s, mem 83.7mb, restarts 41 |
+| PM2 lynx-ws-gateway | online | uptime 5h, mem 52.4mb, restarts 0 |
+| Nginx 443 监听 | ✓ | ssl_certificate 复用 www.lynxdo.com 证书 |
+| /api/health | 200 | 本地 curl 200 |
+| /api/hermes/app-version | 200 | 返回 v1.0.11（force-dynamic 生效）|
+| WS /api/ws/agent | 101 | 其他用户成功建立连接 |
+| iptables INPUT | ACCEPT | 无阻止规则 |
+| ufw | inactive | 无防火墙限制 |
+| fail2ban | 未安装 | 无 IP 封禁 |
+
+### 待用户真机验证清单
+
+| 编号 | 测试项 | 验收标准 |
+|------|--------|----------|
+| TC1 | 下载 v1.0.11 | https://gitee.com/.../v1.0.11/QisiSetup-1.0.11.exe HTTP 200 |
+| TC2 | 发布者签名 | 文件属性→数字签名→CN=LynnHub Valid |
+| TC3 | 安装界面图标 | installer-header.bmp 150×57 白底+品牌色横条 |
+| TC4 | 安装界面侧边 | installer-sidebar.bmp 164×314 白底+品牌色横条 |
+| TC5 | 许可证协议 | 中文正确显示，无乱码 |
+| TC6 | 任务栏图标 | Windows 任务栏显示奇思图标（非默认） |
+| TC7 | 检查更新 | 服务器返回 v1.0.11，桌面端显示"已是最新版" |
+| TC8 | WS 连接 | 桌面端连接 wss://ai.lynxdo.com/api/ws/agent 成功 |
+| TC9 | Lynx 超级助理 | 助理回复正常 |
+| TC10 | 飞书任务 | OAuth 授权+任务同步正常 |
+| TC11 | 窗口拖动 | 自定义标题栏可拖动窗口 |
+
+### Gitee 仓库 GC 方法
+
+**方法 1：Gitee 项目管理界面 GC（推荐，最简单）**
+1. 进入 Gitee 仓库→管理→仓库 GC（如有此按钮）
+2. 点击触发后台 GC，清理松散对象
+
+**方法 2：本地 git gc（基础清理，不删历史）**
+```bash
+git gc --prune=now --aggressive
+git count-objects -vH  # 查看效果
+```
+
+**方法 3：删除历史大文件（彻底瘦身）**
+```bash
+# 1. 查找历史 TOP 10 大文件
+git rev-list --objects --all | \
+  git verify-pack -v .git/objects/pack/*.idx | sort -k 3 -n | tail -10
+
+# 2. 用 git-filter-repo 删除（推荐，比 filter-branch 快 10-50 倍）
+pip install git-filter-repo
+git filter-repo --path path/to/large/file --invert-paths
+
+# 3. 强制推送
+git push origin --tags --force
+git push origin --all --force
+```
+
+**方法 4：重新创建仓库（核弹级）**
+- 新建空仓库→推送当前干净代码→删除旧仓库→重命名
+- 适用于历史无价值且体积过大的场景
+
+**注意事项**
+- 改写历史后，所有协作者需 `git pull --rebase`，不能 `merge`，否则大文件会再次引入
+- Gitee 已启用 GNK (Gitee Native Hook)，大文件检测无漏网之鱼
+- 强制推送前务必备份：`git bundle create backup.bundle --all`
 
 ### Commit
 本次提交

@@ -8,6 +8,10 @@ const path = require('path');
 const os = require('os');
 const store = require('./store');
 
+// P1 修复：统一 User-Agent 版本号，从 package.json 动态读取，避免硬编码版本号不一致
+const pkg = require('../package.json');
+const USER_AGENT = `QisiDesktop/${pkg.version}`;
+
 const DASHBOARD_PORT = 9119;
 const LATEST_JSON_URL = 'https://ai.lynxdo.com/api/hermes/latest-json';
 const WHEEL_DOWNLOAD_URL = 'https://ai.lynxdo.com/api/hermes/download-wheel';
@@ -113,7 +117,7 @@ function httpGet(url, { timeout = 15000 } = {}) {
     const mod = url.startsWith('https') ? httpsOrig : httpOrig;
     const req = mod.get(url, {
       timeout,
-      headers: { 'User-Agent': 'QisiDesktop/1.0.8', 'Accept': 'application/json' },
+      headers: { 'User-Agent': USER_AGENT, 'Accept': 'application/json' },
       family: 4,
     }, (res) => {
       if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {

@@ -9,6 +9,7 @@ let wsClient = null;
 let heartbeatTimer = null;
 let reconnectTimer = null;
 let isStarted = false;
+let lastToken = null; // P0 修复：记录上次使用的 token，用于检测 token 变化以支持重连
 let statusChangeCallback = null;
 
 global.wsConnected = false;
@@ -140,12 +141,19 @@ async function handleSpecialCommand(command) {
 
 // 启动 WS 网关客户端（P0 修复：返回 Promise，等待首次连接成功/失败）
 // 修复前：startWSGateway 是同步的，不等待 WS 实际连接就返回，导致"已启动"但 WS 未连接
+// P0 修复2：token 变化时自动重连（避免 isStarted 闭包卡死）；等 registered 消息才算成功
 function startWSGateway(cloudEndpoint, userToken) {
+  // 如果已启动但 token 变化了，先停止再重启（用新 token 重连）
   if (isStarted) {
-    console.log('[ws-gateway] 已启动，返回当前状态:', global.wsConnected);
-    return Promise.resolve(global.wsConnected);
+    if (lastToken === userToken) {
+      console.log('[ws-gateway] 已启动且 token 未变，返回当前状态:', global.wsConnected);
+      return Promise.resolve(global.wsConnected);
+    }
+    console.log('[ws-gateway] token 已变化，先停止旧连接再用新 token 重启');
+    return stopWSGateway().then(() => startWSGateway(cloudEndpoint, userToken));
   }
   isStarted = true;
+  lastToken = userToken;
 
   const wsUrl = buildWsUrl(cloudEndpoint);
   console.log(`[ws-gateway] 连接: ${wsUrl.replace(/token=[^&]+/, 'token=***')}`);
@@ -165,9 +173,9 @@ function startWSGateway(cloudEndpoint, userToken) {
       wsClient = new WebSocket(wsUrl);
 
       wsClient.on('open', () => {
-        clearTimeout(firstConnTimeout);
-        console.log('[ws-gateway] 已连接，发送注册消息');
-        notifyStatusChange(true);
+        console.log('[ws-gateway] WS 握手成功，发送注册消息，等待服务端 registered 回复');
+        // P0 修复：不在 open 时立即标记成功，等 registered 回复才算成功
+        notifyStatusChange(false); // 注册前仍为未连接
 
         wsClient.send(JSON.stringify({
           type: 'register',
@@ -184,11 +192,23 @@ function startWSGateway(cloudEndpoint, userToken) {
             wsClient.send(JSON.stringify({ type: 'heartbeat' }));
           }
         }, 30000);
-
-        done(true);
+        // 注意：done(true) 移到 message 处理 registered 时调用
       });
 
       wsClient.on('message', (data) => {
+        try {
+          const msg = JSON.parse(data.toString());
+          // P0 修复：收到 registered 消息才算真正连接成功
+          if (msg.type === 'registered' && !settled) {
+            console.log('[ws-gateway] 服务端注册成功:', msg.message || '');
+            notifyStatusChange(true);
+            clearTimeout(firstConnTimeout);
+            done(true);
+            return;
+          }
+        } catch (e) {
+          // 非 JSON 消息，忽略
+        }
         handleCloudMessage(data.toString(), (msg) => {
           if (wsClient && wsClient.readyState === WebSocket.OPEN) {
             wsClient.send(JSON.stringify(msg));
@@ -200,15 +220,14 @@ function startWSGateway(cloudEndpoint, userToken) {
         console.log('[ws-gateway] 连接关闭');
         notifyStatusChange(false);
         if (heartbeatTimer) { clearInterval(heartbeatTimer); heartbeatTimer = null; }
+        done(false);
         if (isStarted) {
           reconnectTimer = setTimeout(connect, 5000);
         }
-        done(false);
       });
 
       wsClient.on('error', (e) => {
         console.warn(`[ws-gateway] 连接错误: ${e.message}`);
-        // error 后会触发 close，done(false) 在 close 中调用
       });
     }
 

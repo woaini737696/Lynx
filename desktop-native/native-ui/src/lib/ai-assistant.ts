@@ -1,4 +1,4 @@
-import { cloudApi, getCloudEndpoint } from "./cloud-api";
+import { cloudApi, getCloudEndpoint, AUTH_EXPIRED_EVENT, LOGIN_REQUIRED_EVENT } from "./cloud-api";
 import { useAuthStore } from "@/stores/authStore";
 
 // ============ 类型定义（对齐 Web 端） ============
@@ -257,6 +257,36 @@ export async function chatCompletion(
   clearTimeout(timeoutId);
 
   if (!res.ok || !res.body) {
+    // P0 修复：401 时触发登录引导事件
+    // chatCompletion 用的是原生 fetch，不走 cloudApi，所以 401 不会自动触发登录引导
+    // 必须在此显式 dispatchEvent，否则用户卡在"请求失败（401）"且无登录弹窗
+    if (res.status === 401) {
+      if (token) {
+        // 已登录但 token 过期 → 触发 AUTH_EXPIRED_EVENT
+        // App.tsx 监听该事件，执行 clearAuth + signOut + openLoginModal({ expired: true })
+        if (typeof window !== "undefined") {
+          window.dispatchEvent(new CustomEvent(AUTH_EXPIRED_EVENT));
+        }
+        const e = new Error("登录已过期，请重新登录");
+        callbacks?.onError?.(e);
+        throw e;
+      } else {
+        // 未登录 → 触发 LOGIN_REQUIRED_EVENT
+        // AppLayout.tsx 监听该事件，执行 openLoginModal()
+        if (typeof window !== "undefined") {
+          window.dispatchEvent(new CustomEvent(LOGIN_REQUIRED_EVENT));
+        }
+        const e = new Error("请先登录");
+        callbacks?.onError?.(e);
+        throw e;
+      }
+    }
+    if (res.status === 429) {
+      const e = new Error("请求过于频繁，请稍后再试");
+      callbacks?.onError?.(e);
+      throw e;
+    }
+    // 其他错误：尝试读取服务端错误信息
     let errMsg = `请求失败（${res.status}）`;
     try {
       const errData = await res.json();
@@ -264,9 +294,6 @@ export async function chatCompletion(
     } catch {
       // 非 JSON 错误响应
     }
-    // 任务2: 移除手动触发的 LOGIN_REQUIRED_EVENT 事件
-    // 401 统一由 cloudApi 的 401 拦截器处理（其他 cloudApi 调用触发）
-    // 这里仅抛出错误，错误消息会显示在聊天区，不会弹出 LoginModal 遮盖聊天区
     const e = new Error(errMsg);
     callbacks?.onError?.(e);
     throw e;

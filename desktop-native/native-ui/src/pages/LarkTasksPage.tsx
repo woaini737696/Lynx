@@ -11,12 +11,16 @@ import {
   AlertCircle,
   CloudDownload,
   ExternalLink,
+  Plus,
+  Pencil,
+  Trash2,
 } from "lucide-react";
 import { AnimatePresence, motion } from "framer-motion";
 import { cn, formatRelativeTime } from "@/lib/utils";
 import { cloudApi, getCloudEndpoint } from "@/lib/cloud-api";
 import { invoke } from "@/lib/tauri";
 import { HelpButton } from "@/components/ui/HelpButton";
+import { Modal } from "@/components/ui/Modal";
 import { toast } from "@/lib/toast";
 import type { LarkTask } from "@/types/api";
 
@@ -74,6 +78,32 @@ function getPriorityMeta(priority?: string) {
   return PRIORITY_META[priority.toLowerCase()] || null;
 }
 
+// ===== 表单字段类型 =====
+interface TaskFormData {
+  summary: string;
+  description: string;
+  due: string; // datetime-local 格式
+}
+
+const EMPTY_FORM: TaskFormData = { summary: "", description: "", due: "" };
+
+// 将 ISO 字符串转为 datetime-local 输入框可识别的格式（yyyy-MM-ddTHH:mm）
+function isoToLocalInput(iso?: string): string {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return "";
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+// 将 datetime-local 输入值转为 ISO 字符串
+function localInputToIso(val: string): string {
+  if (!val) return "";
+  const d = new Date(val);
+  if (isNaN(d.getTime())) return "";
+  return d.toISOString();
+}
+
 export function LarkTasksPage() {
   const queryClient = useQueryClient();
   const [searchQuery, setSearchQuery] = useState("");
@@ -81,6 +111,35 @@ export function LarkTasksPage() {
   const [syncing, setSyncing] = useState(false);
   const [feishuStatus, setFeishuStatus] = useState<{ connected: boolean; name?: string } | null>(null);
   const [feishuLoading, setFeishuLoading] = useState(false);
+
+  // ===== 创建/编辑模态框状态 =====
+  const [createOpen, setCreateOpen] = useState(false);
+  const [createForm, setCreateForm] = useState<TaskFormData>(EMPTY_FORM);
+  const [creating, setCreating] = useState(false);
+
+  const [editTarget, setEditTarget] = useState<LarkTask | null>(null);
+  const [editForm, setEditForm] = useState<TaskFormData>(EMPTY_FORM);
+  const [editing, setEditing] = useState(false);
+
+  // ===== 删除确认模态框状态 =====
+  const [deleteTarget, setDeleteTarget] = useState<LarkTask | null>(null);
+  const [deleting, setDeleting] = useState(false);
+
+  // ===== 操作中的任务 ID 集合（用于按钮 loading 状态） =====
+  const [pendingIds, setPendingIds] = useState<Set<string>>(new Set());
+
+  // 标记某任务为操作中
+  const markPending = useCallback((id: string) => {
+    setPendingIds((prev) => new Set(prev).add(id));
+  }, []);
+  // 解除某任务的操作中状态
+  const unmarkPending = useCallback((id: string) => {
+    setPendingIds((prev) => {
+      const next = new Set(prev);
+      next.delete(id);
+      return next;
+    });
+  }, []);
 
   // 飞书OAuth连接状态检查
   const fetchFeishuStatus = useCallback(async () => {
@@ -126,7 +185,9 @@ export function LarkTasksPage() {
   const { data: tasks = [], isLoading, isFetching, refetch, error } = useQuery<LarkTask[]>({
     queryKey: ["lark-tasks"],
     queryFn: async () => {
-      const res = await cloudApi.get<unknown>("/api/lark-tasks?db_only=true&fast=true");
+      // P0 修复：去掉 db_only=true，让服务端走 OAuth 路径实时拉取（已绑定飞书账号的用户）
+      // 保留 fast=true，DB 有缓存时快速返回并后台刷新
+      const res = await cloudApi.get<unknown>("/api/lark-tasks?fast=true");
       // 防御性解析：API 可能返回数组、{tasks:[]}、{data:[]}、{items:[]} 等多种结构
       const obj = res as Record<string, unknown>;
       const arr = Array.isArray(res) ? res : (obj.tasks || obj.data || obj.items || obj.list || []);
@@ -152,7 +213,7 @@ export function LarkTasksPage() {
     },
   });
 
-  // 主动触发飞书任务同步（调用云端 /api/lark-tasks/sync，云端通过 lark-cli 拉取后入库）
+  // 主动触发飞书任务同步（调用云端 /api/lark-tasks/sync，云端通过 OAuth 或 lark-cli 拉取后入库）
   const handleSyncLark = async () => {
     setSyncing(true);
     try {
@@ -167,6 +228,122 @@ export function LarkTasksPage() {
       toast.error(e instanceof Error ? e.message : "同步失败");
     } finally {
       setSyncing(false);
+    }
+  };
+
+  // ===== 创建任务 =====
+  const openCreate = () => {
+    setCreateForm(EMPTY_FORM);
+    setCreateOpen(true);
+  };
+
+  const handleCreate = async () => {
+    const summary = createForm.summary.trim();
+    if (!summary) {
+      toast.error("任务标题不能为空");
+      return;
+    }
+    setCreating(true);
+    try {
+      const dueIso = localInputToIso(createForm.due);
+      const res = await cloudApi.post<{ success?: boolean; error?: string; task?: unknown }>("/api/lark-tasks", {
+        action: "create",
+        summary,
+        description: createForm.description.trim() || undefined,
+        due: dueIso || undefined,
+      });
+      if (res?.success) {
+        toast.success("任务创建成功");
+        setCreateOpen(false);
+        queryClient.invalidateQueries({ queryKey: ["lark-tasks"] });
+      } else {
+        toast.error(res?.error || "创建失败");
+      }
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "创建失败");
+    } finally {
+      setCreating(false);
+    }
+  };
+
+  // ===== 编辑任务 =====
+  const openEdit = (task: LarkTask) => {
+    setEditTarget(task);
+    setEditForm({
+      summary: task.summary || task.title || "",
+      description: task.description || "",
+      due: isoToLocalInput(task.dueDate || task.due || ""),
+    });
+  };
+
+  const handleEdit = async () => {
+    if (!editTarget) return;
+    const summary = editForm.summary.trim();
+    if (!summary) {
+      toast.error("任务标题不能为空");
+      return;
+    }
+    setEditing(true);
+    try {
+      const dueIso = localInputToIso(editForm.due);
+      const res = await cloudApi.patch<{ success?: boolean; error?: string }>(`/api/lark-tasks/${editTarget.id}`, {
+        action: "update",
+        summary,
+        description: editForm.description.trim() || undefined,
+        due: dueIso || undefined,
+      });
+      if (res?.success) {
+        toast.success("任务已更新");
+        setEditTarget(null);
+        queryClient.invalidateQueries({ queryKey: ["lark-tasks"] });
+      } else {
+        toast.error(res?.error || "更新失败");
+      }
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "更新失败");
+    } finally {
+      setEditing(false);
+    }
+  };
+
+  // ===== 完成 / 重开任务 =====
+  const handleToggleComplete = async (task: LarkTask) => {
+    const isDone = task.completed || task.isCompleted || normalizeStatus(task) === "done";
+    markPending(task.id);
+    try {
+      const res = await cloudApi.patch<{ success?: boolean; error?: string }>(`/api/lark-tasks/${task.id}`, {
+        action: isDone ? "reopen" : "complete",
+      });
+      if (res?.success) {
+        toast.success(isDone ? "任务已重开" : "任务已完成");
+        queryClient.invalidateQueries({ queryKey: ["lark-tasks"] });
+      } else {
+        toast.error(res?.error || "操作失败");
+      }
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "操作失败");
+    } finally {
+      unmarkPending(task.id);
+    }
+  };
+
+  // ===== 删除任务 =====
+  const handleDelete = async () => {
+    if (!deleteTarget) return;
+    setDeleting(true);
+    try {
+      const res = await cloudApi.delete<{ success?: boolean; error?: string }>(`/api/lark-tasks/${deleteTarget.id}`);
+      if (res?.success) {
+        toast.success("任务已删除");
+        setDeleteTarget(null);
+        queryClient.invalidateQueries({ queryKey: ["lark-tasks"] });
+      } else {
+        toast.error(res?.error || "删除失败");
+      }
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "删除失败");
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -227,11 +404,20 @@ export function LarkTasksPage() {
               连接飞书
             </button>
           )}
+          {/* 新建任务按钮：调用 OAuth 路径创建 */}
+          <button
+            onClick={openCreate}
+            title="新建飞书任务"
+            className="btn-primary-glass flex h-8 items-center gap-1.5 px-3 text-xs"
+          >
+            <Plus className="h-3.5 w-3.5" />
+            新建任务
+          </button>
           <button
             onClick={handleSyncLark}
             disabled={syncing}
             title="从飞书同步任务"
-            className="btn-primary-glass flex h-8 items-center gap-1.5 px-3 text-xs"
+            className="btn-glass flex h-8 items-center gap-1.5 px-3 text-xs"
           >
             {syncing ? (
               <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -261,7 +447,11 @@ export function LarkTasksPage() {
       {tasks.length === 0 && (
         <div className="glass-card mb-4 flex items-center gap-2 px-4 py-3 text-xs text-muted-foreground">
           <AlertCircle className="h-4 w-4 text-amber-500" />
-          <span>飞书任务通过云端数据库同步。如无数据，请先在 Web 端或本地开发环境运行飞书任务同步。</span>
+          <span>
+            {feishuStatus?.connected
+              ? "已连接飞书账号，正在同步任务。如无数据，请点击「同步飞书」主动拉取。"
+              : "未连接飞书账号。请点击右上角「连接飞书」绑定自己的飞书账号以同步任务。"}
+          </span>
         </div>
       )}
 
@@ -310,7 +500,7 @@ export function LarkTasksPage() {
           <AlertCircle className="h-12 w-12 text-graveyard/50" />
           <p className="mt-4 text-sm font-medium text-foreground">加载失败</p>
           <p className="mt-1 max-w-sm text-xs text-muted-foreground">
-            {(error as Error).message || "无法连接到飞书 CLI，请检查设置中的连接配置"}
+            {(error as Error).message || "无法连接到飞书，请检查是否已连接飞书账号"}
           </p>
           <button
             onClick={() => refetch()}
@@ -328,9 +518,18 @@ export function LarkTasksPage() {
           </p>
           <p className="mt-1 max-w-sm text-xs text-muted-foreground">
             {tasks.length === 0
-              ? "请检查设置中的飞书 CLI 连接，确保已正确配置 lark-cli 并完成授权"
+              ? "请点击右上角「连接飞书」绑定账号，或点击「新建任务」创建第一个任务"
               : "尝试更换关键词或切换状态过滤"}
           </p>
+          {tasks.length === 0 && (
+            <button
+              onClick={openCreate}
+              className="btn-primary-glass mt-4 flex h-8 items-center gap-1.5 px-3 text-xs"
+            >
+              <Plus className="h-3.5 w-3.5" />
+              新建任务
+            </button>
+          )}
         </div>
       ) : (
         <div className="flex flex-col gap-2">
@@ -338,11 +537,12 @@ export function LarkTasksPage() {
             {filtered.map((task) => {
               const statusMeta = getStatusMeta(task.status, task.completed, task.isCompleted);
               const priorityMeta = getPriorityMeta(task.priority);
+              const isDone = task.completed || task.isCompleted || normalizeStatus(task) === "done";
               const isOverdue =
                 (task.dueDate || task.due) &&
-                !task.completed &&
-                !task.isCompleted &&
+                !isDone &&
                 new Date(task.dueDate || task.due!).getTime() < Date.now();
+              const isPending = pendingIds.has(task.id);
               return (
                 <motion.div
                   key={task.id}
@@ -354,26 +554,38 @@ export function LarkTasksPage() {
                   className="glass-card group p-4 transition-all hover:-translate-y-0.5"
                 >
                   <div className="flex items-start gap-3">
-                    {/* 完成状态图标 */}
-                    <div className="mt-0.5 shrink-0">
-                      {task.completed || task.isCompleted || normalizeStatus(task) === "done" ? (
+                    {/* 完成/重开按钮（左侧圆形按钮，可点击切换状态） */}
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleToggleComplete(task);
+                      }}
+                      disabled={isPending}
+                      title={isDone ? "重开任务" : "标记完成"}
+                      className="mt-0.5 shrink-0 transition-transform hover:scale-110 disabled:opacity-50"
+                    >
+                      {isPending ? (
+                        <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                      ) : isDone ? (
                         <CheckCircle2 className="h-4 w-4 text-task" />
                       ) : normalizeStatus(task) === "in_progress" ? (
                         <Clock className="h-4 w-4 text-campaign" />
                       ) : (
-                        <div className="h-4 w-4 rounded-full border-2 border-muted-foreground/40" />
+                        <div className="h-4 w-4 rounded-full border-2 border-muted-foreground/40 hover:border-primary" />
                       )}
-                    </div>
+                    </button>
 
-                    {/* 主体 */}
-                    <div className="min-w-0 flex-1">
+                    {/* 主体（点击进入编辑） */}
+                    <button
+                      onClick={() => openEdit(task)}
+                      className="min-w-0 flex-1 text-left"
+                      title="点击编辑任务"
+                    >
                       <div className="flex flex-wrap items-center gap-2">
                         <h3
                           className={cn(
                             "text-sm font-medium leading-snug",
-                            task.completed || task.isCompleted
-                              ? "text-muted-foreground line-through"
-                              : "text-foreground"
+                            isDone ? "text-muted-foreground line-through" : "text-foreground"
                           )}
                         >
                           {task.title}
@@ -429,6 +641,32 @@ export function LarkTasksPage() {
                           </span>
                         )}
                       </div>
+                    </button>
+
+                    {/* 右侧操作按钮组：编辑 + 删除 */}
+                    <div className="flex shrink-0 items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          openEdit(task);
+                        }}
+                        disabled={isPending}
+                        title="编辑任务"
+                        className="flex h-7 w-7 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-primary/10 hover:text-primary disabled:opacity-50"
+                      >
+                        <Pencil className="h-3.5 w-3.5" />
+                      </button>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setDeleteTarget(task);
+                        }}
+                        disabled={isPending}
+                        title="删除任务"
+                        className="flex h-7 w-7 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-graveyard/10 hover:text-graveyard disabled:opacity-50"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
                     </div>
                   </div>
                 </motion.div>
@@ -437,6 +675,158 @@ export function LarkTasksPage() {
           </AnimatePresence>
         </div>
       )}
+
+      {/* ===== 创建任务模态框 ===== */}
+      <Modal open={createOpen} onClose={() => setCreateOpen(false)} title="新建飞书任务" size="md">
+        <div className="space-y-4">
+          {/* 任务标题 */}
+          <div>
+            <label className="mb-1.5 block text-xs font-medium text-foreground">
+              任务标题 <span className="text-graveyard">*</span>
+            </label>
+            <input
+              autoFocus
+              value={createForm.summary}
+              onChange={(e) => setCreateForm((f) => ({ ...f, summary: e.target.value }))}
+              placeholder="请输入任务标题"
+              className="w-full rounded-lg border border-border/60 bg-background/50 px-3 py-2 text-sm outline-none transition-colors focus:border-primary/50 focus:ring-2 focus:ring-primary/20"
+            />
+          </div>
+          {/* 任务描述 */}
+          <div>
+            <label className="mb-1.5 block text-xs font-medium text-foreground">任务描述</label>
+            <textarea
+              value={createForm.description}
+              onChange={(e) => setCreateForm((f) => ({ ...f, description: e.target.value }))}
+              placeholder="可选：补充任务详情"
+              rows={3}
+              className="w-full resize-none rounded-lg border border-border/60 bg-background/50 px-3 py-2 text-sm outline-none transition-colors focus:border-primary/50 focus:ring-2 focus:ring-primary/20"
+            />
+          </div>
+          {/* 截止时间 */}
+          <div>
+            <label className="mb-1.5 block text-xs font-medium text-foreground">截止时间</label>
+            <input
+              type="datetime-local"
+              value={createForm.due}
+              onChange={(e) => setCreateForm((f) => ({ ...f, due: e.target.value }))}
+              className="w-full rounded-lg border border-border/60 bg-background/50 px-3 py-2 text-sm outline-none transition-colors focus:border-primary/50 focus:ring-2 focus:ring-primary/20"
+            />
+          </div>
+          {/* 操作按钮 */}
+          <div className="flex justify-end gap-2 pt-2">
+            <button
+              onClick={() => setCreateOpen(false)}
+              disabled={creating}
+              className="btn-glass flex h-8 items-center gap-1.5 px-3 text-xs"
+            >
+              取消
+            </button>
+            <button
+              onClick={handleCreate}
+              disabled={creating || !createForm.summary.trim()}
+              className="btn-primary-glass flex h-8 items-center gap-1.5 px-3 text-xs disabled:opacity-50"
+            >
+              {creating ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Plus className="h-3.5 w-3.5" />}
+              创建
+            </button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* ===== 编辑任务模态框 ===== */}
+      <Modal open={!!editTarget} onClose={() => !editing && setEditTarget(null)} title="编辑飞书任务" size="md">
+        <div className="space-y-4">
+          {/* 任务标题 */}
+          <div>
+            <label className="mb-1.5 block text-xs font-medium text-foreground">
+              任务标题 <span className="text-graveyard">*</span>
+            </label>
+            <input
+              autoFocus
+              value={editForm.summary}
+              onChange={(e) => setEditForm((f) => ({ ...f, summary: e.target.value }))}
+              placeholder="请输入任务标题"
+              className="w-full rounded-lg border border-border/60 bg-background/50 px-3 py-2 text-sm outline-none transition-colors focus:border-primary/50 focus:ring-2 focus:ring-primary/20"
+            />
+          </div>
+          {/* 任务描述 */}
+          <div>
+            <label className="mb-1.5 block text-xs font-medium text-foreground">任务描述</label>
+            <textarea
+              value={editForm.description}
+              onChange={(e) => setEditForm((f) => ({ ...f, description: e.target.value }))}
+              placeholder="可选：补充任务详情"
+              rows={3}
+              className="w-full resize-none rounded-lg border border-border/60 bg-background/50 px-3 py-2 text-sm outline-none transition-colors focus:border-primary/50 focus:ring-2 focus:ring-primary/20"
+            />
+          </div>
+          {/* 截止时间 */}
+          <div>
+            <label className="mb-1.5 block text-xs font-medium text-foreground">截止时间</label>
+            <input
+              type="datetime-local"
+              value={editForm.due}
+              onChange={(e) => setEditForm((f) => ({ ...f, due: e.target.value }))}
+              className="w-full rounded-lg border border-border/60 bg-background/50 px-3 py-2 text-sm outline-none transition-colors focus:border-primary/50 focus:ring-2 focus:ring-primary/20"
+            />
+          </div>
+          {/* 操作按钮 */}
+          <div className="flex justify-end gap-2 pt-2">
+            <button
+              onClick={() => setEditTarget(null)}
+              disabled={editing}
+              className="btn-glass flex h-8 items-center gap-1.5 px-3 text-xs"
+            >
+              取消
+            </button>
+            <button
+              onClick={handleEdit}
+              disabled={editing || !editForm.summary.trim()}
+              className="btn-primary-glass flex h-8 items-center gap-1.5 px-3 text-xs disabled:opacity-50"
+            >
+              {editing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <CheckCircle2 className="h-3.5 w-3.5" />}
+              保存
+            </button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* ===== 删除确认模态框 ===== */}
+      <Modal open={!!deleteTarget} onClose={() => !deleting && setDeleteTarget(null)} title="确认删除任务" size="sm">
+        <div className="space-y-4">
+          <div className="flex items-start gap-3">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-graveyard/10">
+              <Trash2 className="h-5 w-5 text-graveyard" />
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-medium text-foreground">确定要删除这个任务吗？</p>
+              <p className="mt-1 line-clamp-2 break-words text-xs text-muted-foreground">
+                「{deleteTarget?.title || deleteTarget?.summary}」
+              </p>
+              <p className="mt-2 text-xs text-graveyard/80">此操作不可撤销，任务将从飞书永久删除。</p>
+            </div>
+          </div>
+          {/* 操作按钮 */}
+          <div className="flex justify-end gap-2 pt-2">
+            <button
+              onClick={() => setDeleteTarget(null)}
+              disabled={deleting}
+              className="btn-glass flex h-8 items-center gap-1.5 px-3 text-xs"
+            >
+              取消
+            </button>
+            <button
+              onClick={handleDelete}
+              disabled={deleting}
+              className="flex h-8 items-center gap-1.5 rounded-lg bg-graveyard px-3 text-xs font-medium text-white transition-colors hover:bg-graveyard/90 disabled:opacity-50"
+            >
+              {deleting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
+              确认删除
+            </button>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 }
