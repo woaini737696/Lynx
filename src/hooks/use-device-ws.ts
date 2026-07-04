@@ -43,7 +43,12 @@ export function useDeviceWs() {
 
         if (!mounted || closed) return;
 
-        const wsToken = `user:${session.user.id}`;
+        // P0 修复：Web 端用 JWT token 注册 WS（ws-gateway 仅接受 JWT 三段式）
+        // 原先用 `user:<id>` 会被 ws-gateway 拒绝并 close(4001)
+        const tokenRes = await fetch("/api/auth/ws-token");
+        if (!tokenRes.ok) return;
+        const { token: wsToken } = await tokenRes.json();
+        if (!wsToken) return;
 
         // 2. 从当前页面 origin 推导 WS URL
         const wsUrl = `${window.location.protocol === "https:" ? "wss:" : "ws:"}//${window.location.host}/api/ws/agent`;

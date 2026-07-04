@@ -1,0 +1,6 @@
+{
+  "version": "0.18.0",
+  "wheel": "hermes_agent-0.18.0-py3-none-any.whl",
+  "releaseNotes": "【关键修复】executor.py 第353行死代码修复：现在 LLM 生成的 <action> 标签会被真正执行（之前是无条件 return 导致动作永远不执行）；三层假成功校验关键词统一补齐\"步骤如下\"等9个关键词；dashboard.py 新增 /api/shutdown 端点支持 Web 端浏览器直连停止；_send_html 加 CORS 头支持 Web 端跨域访问",
+  "publishedAt": "2026-07-01T18:00:00Z"
+}

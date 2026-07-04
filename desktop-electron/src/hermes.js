@@ -16,6 +16,37 @@ const DASHBOARD_PORT = 9119;
 const LATEST_JSON_URL = 'https://ai.lynxdo.com/api/hermes/latest-json';
 const WHEEL_DOWNLOAD_URL = 'https://ai.lynxdo.com/api/hermes/download-wheel';
 
+// 内置 HermesAgent 资源目录（打包后位于 app/resources/）
+// 优先使用内置 .whl 离线安装，服务器无网络或不可达时回退
+const BUNDLED_RESOURCES_DIR = path.join(__dirname, '..', 'resources');
+
+/** 获取内置 latest.json（如有） */
+function readBundledLatest() {
+  try {
+    const p = path.join(BUNDLED_RESOURCES_DIR, 'latest.json');
+    if (fs.existsSync(p)) {
+      return JSON.parse(fs.readFileSync(p, 'utf-8'));
+    }
+  } catch {}
+  return null;
+}
+
+/** 查找内置 .whl 文件（resources/ 目录下唯一的 .whl） */
+function findBundledWhl() {
+  try {
+    if (!fs.existsSync(BUNDLED_RESOURCES_DIR)) return null;
+    const files = fs.readdirSync(BUNDLED_RESOURCES_DIR).filter((f) => f.endsWith('.whl'));
+    if (files.length === 0) return null;
+    const whlFile = files[0];
+    return {
+      filename: whlFile,
+      path: path.join(BUNDLED_RESOURCES_DIR, whlFile),
+      size: fs.statSync(path.join(BUNDLED_RESOURCES_DIR, whlFile)).size,
+    };
+  } catch {}
+  return null;
+}
+
 // Windows 下隐藏子进程控制台窗口
 function noWindow(cmd) {
   if (process.platform === 'win32') {
@@ -198,27 +229,40 @@ async function installAIEnv(progressCallback) {
   fs.mkdirSync(path.join(authDir, 'reports'), { recursive: true });
 
   if (!detection.hermesAgent) {
-    emit(4, '正在从服务器下载 HermesAgent...', 40);
     const pipPath = findPipExe();
     if (!pipPath) throw new Error('未找到 pip 可执行文件');
 
-    // 先获取 latest.json 得到 wheel 文件名
-    const latest = await httpGetJSON(LATEST_JSON_URL);
-    const wheelFilename = latest.wheel || 'hermes_agent-0.18.0-py3-none-any.whl';
-    const downloadUrl = `${WHEEL_DOWNLOAD_URL}?file=${wheelFilename}`;
+    // 优先使用内置 .whl（离线可用，无需联网）
+    const bundled = findBundledWhl();
+    let whlToInstall = null;
+    let isTempWhl = false;
 
-    const tmpDir = path.join(os.tmpdir(), 'lynnhub-hermes-install');
-    fs.mkdirSync(tmpDir, { recursive: true });
-    const localWhl = path.join(tmpDir, wheelFilename);
+    if (bundled) {
+      emit(4, `使用内置 HermesAgent 包: ${bundled.filename}`, 40);
+      whlToInstall = bundled.path;
+    } else {
+      // 回退：从服务器下载
+      emit(4, '正在从服务器下载 HermesAgent...', 40);
+      const latest = await httpGetJSON(LATEST_JSON_URL);
+      const wheelFilename = latest.wheel || 'hermes_agent-0.18.0-py3-none-any.whl';
+      const downloadUrl = `${WHEEL_DOWNLOAD_URL}?file=${wheelFilename}`;
 
-    const size = await downloadFile(downloadUrl, localWhl);
-    console.log(`[hermes] wheel 下载成功: ${size} 字节`);
+      const tmpDir = path.join(os.tmpdir(), 'lynnhub-hermes-install');
+      fs.mkdirSync(tmpDir, { recursive: true });
+      whlToInstall = path.join(tmpDir, wheelFilename);
+      isTempWhl = true;
+
+      const size = await downloadFile(downloadUrl, whlToInstall);
+      console.log(`[hermes] wheel 下载成功: ${size} 字节`);
+    }
 
     emit(4, '正在安装 HermesAgent（本地 pip install）...', 65);
-    const result = execSync(`"${pipPath}" install --disable-pip-version-check --upgrade --no-deps "${localWhl}"`, {
+    const result = execSync(`"${pipPath}" install --disable-pip-version-check --upgrade --no-deps "${whlToInstall}"`, {
       encoding: 'utf-8', windowsHide: true, timeout: 120000,
     });
-    fs.unlinkSync(localWhl);
+    if (isTempWhl) {
+      try { fs.unlinkSync(whlToInstall); } catch {}
+    }
     emit(4, 'HermesAgent 安装完成', 80);
   } else {
     emit(4, 'HermesAgent 已安装，跳过', 80);
@@ -321,18 +365,23 @@ async function getLocalVersion() {
 async function checkUpdate() {
   const localVersion = await getLocalVersion();
   let latest;
+  let source = 'server';
   try {
     latest = await httpGetJSON(LATEST_JSON_URL);
   } catch (e) {
-    // P0 修复：网络请求失败时返回明确错误
-    // 修复前：异常被 safeHandle 吞掉，返回 {success:false}，前端误判"已是最新版本"
-    return {
-      success: false,
-      error: `无法获取服务器版本信息: ${e.message}`,
-      currentVersion: localVersion,
-      latestVersion: 'unknown',
-      hasUpdate: false,
-    };
+    // 服务器不可达时，回退到内置 latest.json（离线检查，可能略旧）
+    const bundled = readBundledLatest();
+    if (!bundled) {
+      return {
+        success: false,
+        error: `无法获取服务器版本信息且无内置资源: ${e.message}`,
+        currentVersion: localVersion,
+        latestVersion: 'unknown',
+        hasUpdate: false,
+      };
+    }
+    latest = bundled;
+    source = 'bundled';
   }
   const latestVersion = latest.version || '';
   const hasUpdate = localVersion ? compareVersions(localVersion, latestVersion) < 0 : true;
@@ -344,6 +393,7 @@ async function checkUpdate() {
     wheel: latest.wheel || '',
     releaseNotes: latest.releaseNotes || '',
     publishedAt: latest.publishedAt || '',
+    source,
   };
 }
 
@@ -354,27 +404,47 @@ async function updateAgent(progressCallback) {
   const emit = (step, message, percent) => progressCallback?.({ step, total, message, percent });
 
   emit(1, '正在获取最新版本信息...', 10);
-  const latest = await httpGetJSON(LATEST_JSON_URL);
+  // 优先用内置 latest.json（离线可用），否则从服务器获取
+  let latest = readBundledLatest();
+  if (!latest) {
+    try {
+      latest = await httpGetJSON(LATEST_JSON_URL);
+    } catch (e) {
+      throw new Error(`无法获取服务器版本信息且无内置资源: ${e.message}`);
+    }
+  }
   const wheelFilename = latest.wheel;
   if (!wheelFilename) throw new Error('latest.json 缺少 wheel 字段');
   const latestVersion = latest.version || '';
 
-  emit(2, `正在下载 HermesAgent v${latestVersion}...`, 40);
   const pipPath = findPipExe();
   if (!pipPath) throw new Error('未找到 pip 可执行文件');
 
-  const tmpDir = path.join(os.tmpdir(), 'lynnhub-hermes-install');
-  fs.mkdirSync(tmpDir, { recursive: true });
-  const localWhl = path.join(tmpDir, wheelFilename);
-  if (fs.existsSync(localWhl)) fs.unlinkSync(localWhl);
+  // 优先使用内置 .whl（版本匹配时直接用，离线可用）
+  const bundled = findBundledWhl();
+  let whlToInstall = null;
+  let isTempWhl = false;
 
-  await downloadFile(`${WHEEL_DOWNLOAD_URL}?file=${wheelFilename}`, localWhl);
+  if (bundled && bundled.filename === wheelFilename) {
+    emit(2, `使用内置 HermesAgent 包: ${bundled.filename}`, 40);
+    whlToInstall = bundled.path;
+  } else {
+    emit(2, `正在下载 HermesAgent v${latestVersion}...`, 40);
+    const tmpDir = path.join(os.tmpdir(), 'lynnhub-hermes-install');
+    fs.mkdirSync(tmpDir, { recursive: true });
+    whlToInstall = path.join(tmpDir, wheelFilename);
+    isTempWhl = true;
+    if (fs.existsSync(whlToInstall)) fs.unlinkSync(whlToInstall);
+    await downloadFile(`${WHEEL_DOWNLOAD_URL}?file=${wheelFilename}`, whlToInstall);
+  }
 
   emit(3, '正在安装（强制升级）...', 70);
-  execSync(`"${pipPath}" install --disable-pip-version-check --force-reinstall --no-deps "${localWhl}"`, {
+  execSync(`"${pipPath}" install --disable-pip-version-check --force-reinstall --no-deps "${whlToInstall}"`, {
     encoding: 'utf-8', windowsHide: true, timeout: 120000,
   });
-  fs.unlinkSync(localWhl);
+  if (isTempWhl) {
+    try { fs.unlinkSync(whlToInstall); } catch {}
+  }
   emit(3, '升级完成', 100);
 
   return { success: true, message: `HermesAgent 已升级到 v${latestVersion}`, version: latestVersion };
