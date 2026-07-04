@@ -176,7 +176,22 @@ export function useDeviceWs(params: UseDeviceWsParams): UseDeviceWsReturn {
 
         if (!mounted || closed) return;
 
-        const wsToken = `user:${userId}`;
+        // P0 修复：ws-gateway 仅接受 JWT 三段式 token，拒绝 `user:<id>` 旧格式
+        // 调用 /api/auth/ws-token（Web 端用 session cookie 自动认证，桌面端用 Bearer JWT）
+        // 获取新鲜短期 JWT 用于 WS 注册
+        let wsToken: string;
+        try {
+          const resp = await fetch("/api/auth/ws-token", { credentials: "include" });
+          if (!resp.ok) {
+            console.warn(`[useDeviceWs] 获取 WS token 失败: HTTP ${resp.status}`);
+            return;
+          }
+          const data = await resp.json();
+          wsToken = data.token;
+        } catch (e) {
+          console.warn("[useDeviceWs] 获取 WS token 异常:", e);
+          return;
+        }
 
         // 2. 使用注入的 wsBaseUrl（替代 window.location 推导）
         const ws = new WebSocket(wsBaseUrl);

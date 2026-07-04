@@ -46,7 +46,7 @@ def main():
     run("npm run build:win", cwd=str(DESKTOP_DIR))
 
     # 4. 查找生成的 .exe
-    release_dir = DESKTOP_DIR / "release-final"
+    release_dir = DESKTOP_DIR / "release-v13"
     exe_name = f"QisiSetup-{version}.exe"
     exe_path = release_dir / exe_name
     if not exe_path.exists():

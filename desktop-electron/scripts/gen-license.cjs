@@ -5,7 +5,7 @@ const path = require('path');
 
 const outPath = path.join(__dirname, '..', 'build', 'license.txt');
 
-const content = `奇思 - AI超级助理 用户许可协议
+const content = `奇思 - AI工作台 用户许可协议
 
 Copyright © 2026 Lynn. All rights reserved.
 

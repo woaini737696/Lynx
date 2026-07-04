@@ -251,34 +251,9 @@ export function AIAssistantPage({ inDrawer = false }: AIAssistantPageProps) {
           );
         },
         onToolStart: async (tool, args) => {
-          // 任务3: hermesExecute 工具调用前，实时调用 invoke('get_agent_status') 查询最新状态
-          // 而不是依赖缓存的 wsConnected（轮询间隔 30 秒，可能存在窗口期）
-          if (tool === "hermesExecute") {
-            let wsOk = wsConnected; // 回退到缓存状态
-            try {
-              const s = await invoke<AgentStatus>("get_agent_status");
-              wsOk = !!s?.wsConnected;
-              setWsConnected(wsOk); // 同步更新缓存
-            } catch {
-              // invoke 失败时回退到缓存状态
-            }
-            if (!wsOk) {
-              toast.error("Lynx Agent WS 未连接，请先在 Agent 页面启动 WS 连接");
-              setMessages((prev) =>
-                prev.map((m) =>
-                  m.id === aiMsgId
-                    ? {
-                        ...m,
-                        content: "⚠️ Lynx Agent WS 未连接，无法执行本地工具。\n\n请先在 **Agent 页面** 启动 WS 连接，然后重试。",
-                        streaming: true,
-                        toolProgress: { tool, status: "running", args },
-                      }
-                    : m
-                )
-              );
-              return;
-            }
-          }
+          // P0 修复：移除 hermesExecute 前置 WS 检查（原逻辑会因缓存 wsConnected 过期而误拦截）
+          // 改为信任服务端：服务端 hermesExecute 工具会通过 WS 下发指令，若 WS 未连接服务端会返回错误
+          // 错误经 onToolDone / onError 自然呈现给用户，避免前端硬性拦截导致"完全不可用"
           setMessages((prev) =>
             prev.map((m) =>
               m.id === aiMsgId

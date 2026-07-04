@@ -72,12 +72,63 @@ function findHermesExe() {
 }
 
 function findPipExe() {
+  // P0 修复：增强 pip 查找，覆盖更多 Python 版本和安装方式
   try { const p = execSync('where pip 2>nul', { encoding: 'utf-8', windowsHide: true }).trim().split('\n')[0]; if (p) return p; } catch {}
   if (process.platform === 'win32' && process.env.APPDATA) {
-    const p = path.join(process.env.APPDATA, 'Python', 'Python313', 'Scripts', 'pip.exe');
-    if (fs.existsSync(p)) return p;
+    // 覆盖 Python310-313 所有版本
+    for (const py of ['Python313', 'Python312', 'Python311', 'Python310']) {
+      const p = path.join(process.env.APPDATA, 'Python', py, 'Scripts', 'pip.exe');
+      if (fs.existsSync(p)) return p;
+    }
+  }
+  // Python 安装目录（C:\Python3xx\Scripts\pip.exe）
+  if (process.platform === 'win32') {
+    for (const py of ['Python313', 'Python312', 'Python311', 'Python310']) {
+      const p1 = path.join('C:\\', py, 'Scripts', 'pip.exe');
+      if (fs.existsSync(p1)) return p1;
+      const p2 = path.join('C:\\Program Files', py, 'Scripts', 'pip.exe');
+      if (fs.existsSync(p2)) return p2;
+      const p3 = path.join('C:\\Program Files (x86)', py, 'Scripts', 'pip.exe');
+      if (fs.existsSync(p3)) return p3;
+    }
   }
   return null;
+}
+
+/** 兜底：通过 python -m pip 执行命令（即使 pip.exe 不在 PATH 也能用） */
+function findPythonPip() {
+  const py = findPythonExe();
+  if (!py) return null;
+  try {
+    // 验证 python -m pip 可用
+    execSync(`"${py}" -m pip --version`, { encoding: 'utf-8', windowsHide: true, timeout: 5000 });
+    return py;
+  } catch {
+    return null;
+  }
+}
+
+/** 使用 spawnSync 执行 pip 命令，捕获完整 stderr（避免错误信息丢失） */
+function runPipInstall(pipPath, args, opts = {}) {
+  const { spawnSync } = require('child_process');
+  const result = spawnSync(pipPath, args, {
+    encoding: 'utf-8',
+    windowsHide: true,
+    timeout: opts.timeout || 120000,
+  });
+  if (result.status !== 0) {
+    const stderr = (result.stderr || '').trim();
+    const stdout = (result.stdout || '').trim();
+    const detail = stderr || stdout || `exit code ${result.status}`;
+    throw new Error(`pip 命令失败: ${detail}`);
+  }
+  return result.stdout;
+}
+
+/** 通过 python -m pip 执行安装（兜底路径） */
+function runPipInstallViaPython(pythonPath, args, opts = {}) {
+  const fullArgs = ['-m', 'pip', ...args];
+  return runPipInstall(pythonPath, fullArgs, opts);
 }
 
 function findPythonExe() {
@@ -230,7 +281,10 @@ async function installAIEnv(progressCallback) {
 
   if (!detection.hermesAgent) {
     const pipPath = findPipExe();
-    if (!pipPath) throw new Error('未找到 pip 可执行文件');
+    const pythonPath = findPythonPip(); // 兜底用 python -m pip
+    if (!pipPath && !pythonPath) {
+      throw new Error('未找到 pip 可执行文件，请安装 Python 3.10+ 并确保 pip 可用（运行 python -m ensurepip --upgrade）');
+    }
 
     // 优先使用内置 .whl（离线可用，无需联网）
     const bundled = findBundledWhl();
@@ -257,9 +311,18 @@ async function installAIEnv(progressCallback) {
     }
 
     emit(4, '正在安装 HermesAgent（本地 pip install）...', 65);
-    const result = execSync(`"${pipPath}" install --disable-pip-version-check --upgrade --no-deps "${whlToInstall}"`, {
-      encoding: 'utf-8', windowsHide: true, timeout: 120000,
-    });
+    const pipArgs = ['install', '--disable-pip-version-check', '--upgrade', '--no-deps', whlToInstall];
+    try {
+      if (pipPath) {
+        runPipInstall(pipPath, pipArgs, { timeout: 120000 });
+      } else {
+        // 兜底：python -m pip
+        runPipInstallViaPython(pythonPath, pipArgs, { timeout: 120000 });
+      }
+    } catch (e) {
+      // 增强：失败时附加诊断信息
+      throw new Error(`HermesAgent 安装失败: ${e.message}（pip: ${pipPath || pythonPath + ' -m pip'}, wheel: ${path.basename(whlToInstall)}）`);
+    }
     if (isTempWhl) {
       try { fs.unlinkSync(whlToInstall); } catch {}
     }
@@ -418,7 +481,10 @@ async function updateAgent(progressCallback) {
   const latestVersion = latest.version || '';
 
   const pipPath = findPipExe();
-  if (!pipPath) throw new Error('未找到 pip 可执行文件');
+  const pythonPath = findPythonPip(); // 兜底用 python -m pip
+  if (!pipPath && !pythonPath) {
+    throw new Error('未找到 pip 可执行文件，请安装 Python 3.10+ 并确保 pip 可用（运行 python -m ensurepip --upgrade）');
+  }
 
   // 优先使用内置 .whl（版本匹配时直接用，离线可用）
   const bundled = findBundledWhl();
@@ -439,9 +505,17 @@ async function updateAgent(progressCallback) {
   }
 
   emit(3, '正在安装（强制升级）...', 70);
-  execSync(`"${pipPath}" install --disable-pip-version-check --force-reinstall --no-deps "${whlToInstall}"`, {
-    encoding: 'utf-8', windowsHide: true, timeout: 120000,
-  });
+  const pipArgs = ['install', '--disable-pip-version-check', '--force-reinstall', '--no-deps', whlToInstall];
+  try {
+    if (pipPath) {
+      runPipInstall(pipPath, pipArgs, { timeout: 120000 });
+    } else {
+      // 兜底：python -m pip
+      runPipInstallViaPython(pythonPath, pipArgs, { timeout: 120000 });
+    }
+  } catch (e) {
+    throw new Error(`HermesAgent 升级失败: ${e.message}（pip: ${pipPath || pythonPath + ' -m pip'}, wheel: ${path.basename(whlToInstall)}）`);
+  }
   if (isTempWhl) {
     try { fs.unlinkSync(whlToInstall); } catch {}
   }

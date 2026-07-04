@@ -361,16 +361,62 @@ function compareAppVersions(a, b) {
   return 0;
 }
 
+// ============ WS Token 刷新（P0 修复：避免 userToken 过期导致 WS 连接失败） ============
+
+// 用存储的 userToken 作为 Bearer，调用 /api/auth/ws-token 获取新鲜短期 JWT
+// requireAuth() 支持 Bearer JWT（见 src/lib/auth-utils.ts:26-44），所以桌面端可用此端点
+// 返回新鲜 JWT 字符串；失败时抛错（错误信息含状态码，调用方可判断 401 = 过期）
+function fetchFreshWsToken(cloudEndpoint, bearerToken) {
+  return new Promise((resolve, reject) => {
+    const url = `${cloudEndpoint.replace(/\/$/, '')}/api/auth/ws-token`;
+    const urlObj = new URL(url);
+    const mod = urlObj.protocol === 'https:' ? https : require('http');
+    const req = mod.get(url, {
+      timeout: 10000,
+      family: 4,
+      headers: {
+        'Authorization': `Bearer ${bearerToken}`,
+        'Accept': 'application/json',
+        'User-Agent': `QisiDesktop/${app.getVersion()}`,
+      },
+    }, (res) => {
+      if (res.statusCode === 401) {
+        reject(new Error('HTTP 401 - userToken 已过期'));
+        return;
+      }
+      if (res.statusCode !== 200) {
+        reject(new Error(`HTTP ${res.statusCode}`));
+        return;
+      }
+      let body = '';
+      res.on('data', (c) => body += c);
+      res.on('end', () => {
+        try {
+          const data = JSON.parse(body);
+          if (data.token) resolve(data.token);
+          else reject(new Error('响应缺少 token 字段'));
+        } catch (e) {
+          reject(new Error(`JSON 解析失败: ${e.message}`));
+        }
+      });
+    });
+    req.on('error', reject);
+    req.on('timeout', () => { req.destroy(); reject(new Error('请求超时')); });
+  });
+}
+
 // ============ IPC 处理器注册 ============
 
-// 统一错误包装：handler 抛错时返回 { success: false, error } 而非裸异常（P0-1）
+// 统一错误包装：handler 抛错时返回 { success: false, message, error } 而非裸异常（P0-1）
+// P0 修复：同时返回 message 和 error 字段，前端读 data.message 或 data.error 都能拿到错误信息
 function safeHandle(cmd, handler) {
   ipcMain.handle(cmd, async (event, args) => {
     try {
       return await handler(event, args);
     } catch (e) {
+      const errMsg = e instanceof Error ? e.message : String(e);
       console.error(`[IPC:${cmd}] error:`, e);
-      return { success: false, error: e instanceof Error ? e.message : String(e) };
+      return { success: false, error: errMsg, message: errMsg };
     }
   });
 }
@@ -439,11 +485,30 @@ function registerIPC() {
 
   // P0 修复：async/await WS 连接结果，返回真实连接状态给前端
   // 修复前：同步返回 {success:true}，WS 尚未连接就告诉前端"已启动"，导致对话页报"WS未连接"
+  // P0 修复2：桌面端存储的 userToken 是登录时签发的 JWT，有 TTL，过期后 WS 会被服务端拒绝
+  //   → 连接前先用 Bearer 调用 /api/auth/ws-token 获取新鲜短期 JWT（与 Web 端一致）
+  //   → 若 401（userToken 已过期）则提示用户重新登录；若网络错误则回退到原 token 尝试
   safeHandle('start_hermes_agent', async () => {
     const endpoint = store.get('cloudEndpoint', 'https://ai.lynxdo.com');
-    const token = store.get('userToken', '');
-    if (!token) return { success: false, error: '未设置用户 token' };
-    const wsOk = await wsGateway.startWSGateway(endpoint, token);
+    const storedToken = store.get('userToken', '');
+    if (!storedToken) return { success: false, error: '未设置用户 token，请先登录' };
+
+    let wsToken = storedToken;
+    try {
+      const fresh = await fetchFreshWsToken(endpoint, storedToken);
+      if (fresh) {
+        wsToken = fresh;
+        console.log('[main] 已获取新鲜 WS JWT（原 userToken 可能即将过期）');
+      }
+    } catch (e) {
+      const msg = String(e.message || e);
+      if (msg.includes('401')) {
+        return { success: false, error: '登录已过期，请重新登录后再启动 Agent' };
+      }
+      console.warn('[main] 获取新鲜 WS token 失败，回退到原 token:', msg);
+    }
+
+    const wsOk = await wsGateway.startWSGateway(endpoint, wsToken);
     return {
       success: wsOk,
       wsConnected: wsOk,
