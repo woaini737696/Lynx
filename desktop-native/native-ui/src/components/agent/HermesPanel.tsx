@@ -360,7 +360,7 @@ export function HermesPanel() {
         setUpdateProgress(p);
       });
       try {
-        return await invoke<{ success: boolean; message?: string; version?: string }>("update_hermes_agent");
+        return await invoke<{ success: boolean; message?: string; error?: string; version?: string }>("update_hermes_agent");
       } finally {
         unlisten();
       }
@@ -373,7 +373,9 @@ export function HermesPanel() {
         queryClient.invalidateQueries({ queryKey: ["local-ai-env"] });
         queryClient.invalidateQueries({ queryKey: ["dashboard-online"] });
       } else {
-        toast.error(data.message || "升级失败");
+        // P0 修复：safeHandle 返回 { success:false, error, message }，优先读 error + message
+        const errMsg = data.error || data.message || "升级失败（未知原因）";
+        toast.error(`升级失败：${errMsg}`);
       }
     },
     onError: (e: unknown) => {

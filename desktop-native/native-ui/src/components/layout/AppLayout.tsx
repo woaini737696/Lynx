@@ -44,15 +44,19 @@ export function AppLayout() {
   // 登录后自动启动 WS 连接（PC 上线，远程操控无需手动点"启动"）
   // Rust 端有 ws_started AtomicBool 防重复，这里用 ref 再加一层防护
   useEffect(() => {
-    if (!user?.id || !token || wsStartedRef.current) return;
+    if (!user?.id || !token) {
+      // P0 修复：登出时重置 wsStartedRef，确保重新登录后能重新启动 WS
+      wsStartedRef.current = false;
+      return;
+    }
+    if (wsStartedRef.current) return;
     wsStartedRef.current = true;
 
     const startWs = async () => {
       try {
         // P0 修复：必须用 JWT token（authStore.token），不是 user:${userId}
         // 服务器端 ws-gateway.ts authenticate 要求 JWT 3 段格式，user:xxx 会被直接拒绝
-        await invoke("set_user_token", { token: token });
-        await invoke("set_cloud_endpoint", { endpoint: getCloudEndpoint() });
+        await invoke("sync_auth", { token, endpoint: getCloudEndpoint() });
         await invoke("start_hermes_agent");
       } catch (e) {
         console.warn("[AppLayout] WS 自动启动失败:", e);

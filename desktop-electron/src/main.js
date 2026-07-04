@@ -471,10 +471,17 @@ function registerIPC() {
 
   // P0 修复：统一 token 同步入口 - renderer 登录后主动调用，同步到主进程 store.js
   // 解决双重存储问题：renderer localStorage 与 main.js store.js 隔离导致 WS 连接时 token 为空
+  // P0 修复2：支持空 token（登出时清空），避免主进程残留旧 token
   safeHandle('sync_auth', (_e, args) => {
-    if (args?.token) {
-      store.set('userToken', args.token);
-      console.log('[main] token 已同步到主进程');
+    const token = args?.token;
+    if (typeof token === 'string') {
+      if (token) {
+        store.set('userToken', token);
+        console.log('[main] token 已同步到主进程 (len=' + token.length + ')');
+      } else {
+        store.delete('userToken');
+        console.log('[main] token 已清空（登出）');
+      }
     }
     if (args?.endpoint) {
       store.set('cloudEndpoint', args.endpoint);
@@ -493,26 +500,31 @@ function registerIPC() {
     const storedToken = store.get('userToken', '');
     if (!storedToken) return { success: false, error: '未设置用户 token，请先登录' };
 
+    console.log('[main] start_hermes_agent: endpoint=' + endpoint + ', tokenLen=' + storedToken.length + ', tokenPrefix=' + storedToken.slice(0, 20));
+
     let wsToken = storedToken;
     try {
       const fresh = await fetchFreshWsToken(endpoint, storedToken);
       if (fresh) {
         wsToken = fresh;
-        console.log('[main] 已获取新鲜 WS JWT（原 userToken 可能即将过期）');
+        console.log('[main] 已获取新鲜 WS JWT (len=' + fresh.length + ')');
       }
     } catch (e) {
       const msg = String(e.message || e);
+      console.warn('[main] 获取新鲜 WS token 失败:', msg);
       if (msg.includes('401')) {
         return { success: false, error: '登录已过期，请重新登录后再启动 Agent' };
       }
-      console.warn('[main] 获取新鲜 WS token 失败，回退到原 token:', msg);
+      // 网络错误时回退到原 token 尝试
+      console.warn('[main] 回退到原 storedToken 尝试 WS 连接');
     }
 
     const wsOk = await wsGateway.startWSGateway(endpoint, wsToken);
+    console.log('[main] WS 连接结果:', wsOk);
     return {
       success: wsOk,
       wsConnected: wsOk,
-      error: wsOk ? undefined : 'WS 连接失败，请检查网络或重新登录',
+      error: wsOk ? undefined : 'WS 连接失败，请检查网络或重新登录（详见主进程日志）',
     };
   });
 

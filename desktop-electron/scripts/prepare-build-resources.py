@@ -113,9 +113,9 @@ def make_installer_sidebar_bmp():
     tw = bbox[2] - bbox[0]
     draw.text(((W - tw) // 2, 115), text, fill=WHITE, font=font_brand)
 
-    # Slogan
+    # Slogan（最新文案：不用学AI，什么都能干）
     font_slogan = find_font(14, bold=True)
-    lines = ["奇思 AI工作台", "用Lynx AI", "人人都是超级个体"]
+    lines = ["奇思 AI工作台", "不用学AI", "什么都能干"]
     for i, line in enumerate(lines):
         bbox = draw.textbbox((0, 0), line, font=font_slogan)
         tw = bbox[2] - bbox[0]

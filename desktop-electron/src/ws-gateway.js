@@ -216,8 +216,9 @@ function startWSGateway(cloudEndpoint, userToken) {
         }).catch((e) => console.warn('[ws-gateway] 处理消息失败:', e));
       });
 
-      wsClient.on('close', () => {
-        console.log('[ws-gateway] 连接关闭');
+      wsClient.on('close', (code, reason) => {
+        const reasonStr = reason ? reason.toString() : '';
+        console.log(`[ws-gateway] 连接关闭 code=${code} reason=${reasonStr}`);
         notifyStatusChange(false);
         if (heartbeatTimer) { clearInterval(heartbeatTimer); heartbeatTimer = null; }
         done(false);
@@ -227,7 +228,11 @@ function startWSGateway(cloudEndpoint, userToken) {
       });
 
       wsClient.on('error', (e) => {
-        console.warn(`[ws-gateway] 连接错误: ${e.message}`);
+        console.warn(`[ws-gateway] 连接错误: ${e.message}`, e.code || '', e.errno || '');
+      });
+
+      wsClient.on('unexpected-response', (req, res) => {
+        console.warn(`[ws-gateway] 服务端拒绝 WS 升级: HTTP ${res.statusCode}`);
       });
     }
 

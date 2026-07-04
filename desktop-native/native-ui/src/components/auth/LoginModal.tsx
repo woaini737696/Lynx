@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, forwardRef } from "react";
+import { useNavigate } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import { AnimatePresence, motion } from "framer-motion";
 import {
@@ -71,6 +72,7 @@ interface LoginModalProps {
 export function LoginModal({ open, mode, expired, onModeChange, onClose }: LoginModalProps) {
   const setCredentials = useAuthStore((s) => s.setCredentials);
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
 
   const [panel, setPanel] = useState<Panel>("login");
   const [phone, setPhone] = useState("");
@@ -149,6 +151,8 @@ export function LoginModal({ open, mode, expired, onModeChange, onClose }: Login
     queryClient.clear();
     queryClient.invalidateQueries();
     onClose();
+    // P0 修复：登录成功后显式导航到 /focus，避免停留在空白页
+    try { navigate("/focus", { replace: true }); } catch {}
   };
 
   const handleLogin = async (e: React.FormEvent) => {

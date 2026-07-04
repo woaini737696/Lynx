@@ -49,5 +49,17 @@ export const useAuthStore = create<AuthState>((set) => ({
   },
   setLoading: (loading) => set({ loading }),
   setInitialized: (initialized) => set({ initialized }),
-  signOut: () => set({ user: null, token: null }),
+  signOut: () => {
+    set({ user: null, token: null });
+    // P0 修复：登出时同步主进程，清空 userToken，避免 WS 用旧 token 连接
+    if (isElectron()) {
+      import("@/lib/cloud-api")
+        .then(({ getCloudEndpoint }) => {
+          invoke("sync_auth", { token: "", endpoint: getCloudEndpoint() }).catch((e) => {
+            console.warn("[authStore] signOut 同步主进程失败:", e);
+          });
+        })
+        .catch((e) => console.warn("[authStore] 加载 cloud-api 失败:", e));
+    }
+  },
 }));

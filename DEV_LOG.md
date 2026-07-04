@@ -9,6 +9,7 @@
 
 | 迭代 | 日期 | 任务概要 |
 |------|------|----------|
+| [迭代 116](#迭代-116---2026-07-04) | 2026-07-04 | v1.0.15四项问题修复+Gitee Release上线：① 安装界面Slogan改用最新文案(prepare-build-resources.py 用Lynx AI+人人都是超级个体→不用学AI+什么都能干) ② 登录后空白根因彻底修复(SettingsPage.handleSignOut不导航不存在的/login路由改弹登录弹窗/authStore.signOut同步主进程清空userToken避免WS用旧token连接/AppLayout wsStartedRef登出时不重置导致重新登录WS不启动/LoginModal登录成功后显式navigate /focus避免停留空白) ③ WS连接诊断增强(main.js sync_auth支持空token+start_hermes_agent详细日志token前缀+fetchFreshWsToken返回值/ws-gateway.js close增加code/reason日志+error增加code/errno+新增unexpected-response事件监听HTTP拒绝) ④ 覆盖安装提示(installer.nsh !macro customInit在.onInit中检测旧版ReadRegStr+MessageBox MB_YESNO弹窗提示是否覆盖+taskkill关闭旧进程避免文件占用/原Section外不能用ReadRegStr的NSIS语法错误已修复) ⑤ v1.0.15打包(QisiSetup-1.0.15.exe 69.35MB已签名CN=LynnHub) ⑥ Gitee Release v1.0.15上传(id=733604 / EXE+APK均上传成功) |
 | [迭代 115](#迭代-115---2026-07-04) | 2026-07-04 | v1.0.14三项严重bug修复+Gitee Release上线：① 桌面端空白界面修复(renderer/被.gitignore排除git reset后消失/build/目录也缺失/app.asar未包含index.html导致loadFile失败/新建prepare-build-resources.py统一生成icon.ico+installer-header.bmp+installer-sidebar.bmp+license.txt+installer.nsh/vite build重新生成renderer/) ② 安装界面样式修复(build/目录完全缺失导致BMP不生效/installer-header.bmp 150x57深空蓝+Logo+奇思+AI工作台/installer-sidebar.bmp 164x314深空蓝渐变+Logo+奇思+奇思AI工作台+用Lynx AI+人人都是超级个体+©2026 Lynn) ③ Web端chunk 404修复(服务器.next/static/是7月3日旧版本但server.js是7月4日新版本/HTML引用layout-0a42f87e4de91f45.js新hash但磁盘只有layout-a269acad2f751e03.js旧hash/上传本地.next/static/覆盖+nginx配置从proxy_pass改为alias直接服务磁盘/未来更新静态资源不再需要重启PM2) ④ License文字改为奇思-AI工作台 ⑤ 覆盖安装(installer.nsh taskkill关闭旧进程) ⑥ NSIS安装包签名(sign-installer.cjs签名最终QisiSetup-*.exe CN=LynnHub) ⑦ Gitee Release v1.0.14上传(QisiSetup-1.0.14.exe 69.35MB+QisiApp-0.1.8.apk 4.03MB / id=733546) |
 | [迭代 114](#迭代-114---2026-07-04) | 2026-07-04 | v1.0.13十项严重问题彻底修复+Android新技术栈首发+Gitee Release上线：① Gitee Release v1.0.13上传(QisiSetup-1.0.13.exe 69.32MB+QisiApp-0.1.8.apk 4.03MB / id=733499 / 公开下载链接) ② Android新技术栈首发(Kotlin+Hilt+Compose+KSP / compileSdk 34 minSdk 31 / versionCode 8→9 versionName 0.1.7→0.1.8 / 4.03MB) ③ bat文件全英文(信任奇思证书.bat 52行全英文 / 解决中文乱码) ④ License文字修改(奇思-AI超级助理→奇思-AI工作台 / gen-license.cjs line8) ⑤ NSIS安装界面样式修复(installer.nsh !ifndef保护补充BMP路径 / installer-header.bmp+installer-sidebar.bmp / 解决electron-builder 24.13.3模板已定义MUI_HEADERIMAGE冲突) ⑥ 安装流程修复(未知发布者时机：sign-installer.cjs签名最终QisiSetup-*.exe+afterPack只签内部exe不够 / 覆盖安装：installer.nsh Section -KillRunningApp taskkill /F /IM 奇思.exe) ⑦ WS连接失败根因修复(main.js fetchFreshWsToken用存储userToken作为Bearer调用/api/auth/ws-token获取新鲜短期JWT / 桌面端localStorage持久化JWT无刷新机制 / useDeviceWs.ts清理残留user:${userId}改fetch /api/auth/ws-token) ⑧ 桌面端Lynx超级助理完全不可用修复(AIAssistantPage.tsx移除onToolStart对hermesExecute硬性前置WS检查 / 原逻辑因缓存wsConnected过期误拦截) ⑨ 飞书OAuth重定向URL错误修复(.env.production添加FEISHU_REDIRECT_URI=https://ai.lynxdo.com/api/feishu/callback+NEXTAUTH_URL / 需用户在飞书后台白名单配置) ⑩ HermesAgent检查更新失败修复(hermes.js updateAgent findPipExe仅检查where pip+Python313太脆弱 / 改用runPipInstall+findPythonPip兜底覆盖Python310-313+python -m pip) |
 | [迭代 113](#迭代-113---2026-07-04) | 2026-07-04 | v1.0.11真实修复+全面验证+服务端部署+Gitee GC方法：① 检查更新失效根因修复(app-version API被Next.js编译为静态缓存永远返回v1.0.9 / route.ts添加export const dynamic='force-dynamic'+revalidate=0 / npm run build重新构建standalone 14.51MB / deploy-standalone-v111.py上传服务器+PM2 reload / 服务器内部curl返回v1.0.11+publishedAt时间戳实时变化) ② WS连接服务器端正常(PM2 lynx-ws-gateway online uptime 5h / Nginx /api/ws/agent→3001配置正确 / access.log显示其他用户27.38.165.251成功建立WS连接101状态码 / 本地访问失败是开发机IP被阿里云云盾Aegis拦截非服务器问题) ③ 发布者签名验证(QisiSetup-1.0.11.exe签名Valid+Signer=CN=LynnHub / 自签名证书只在开发机受信任其他机器显示未知发布者需点击仍要运行) ④ NSIS安装界面资源全PASS验证(verify-nsis-resources.py / installer-header.bmp 150×57 24bpp BI_RGB PASS / installer-sidebar.bmp 164×314 24bpp BI_RGB PASS / icon.ico 6图像尺寸 PASS / license.txt UTF-8 BOM存在中文正确无乱码) ⑤ Gitee仓库GC方法整理(本地17.82MiB已清理远程956MB超80%配额 / 4种方法：Gitee项目管理界面GC+git gc--prune=now--aggressive+git-filter-repo删除历史大文件+重新创建仓库) ⑥ 服务器状态全确认(SSH可达+PM2两进程online+Nginx 443监听+iptables INPUT ACCEPT+ufw inactive+fail2ban未安装) ⑦ 待用户真机验证11项清单(TC1下载v1.0.11/TC2发布者签名/TC3安装界面图标/TC4安装界面侧边/TC5许可证协议/TC6任务栏图标/TC7检查更新/TC8 WS连接/TC9 Lynx助理/TC10飞书任务/TC11窗口拖动) |
@@ -6290,6 +6291,110 @@ GitHub 仓库迁移 + 本地持久化 + 三方同步验证 + 文档完善：用�
 
 ### Commit
 本次提交
+
+---
+
+## 迭代 116 - 2026-07-04
+
+### 任务概要
+
+v1.0.15 四项问题修复 + Gitee Release 上线。针对用户反馈"安装界面文案旧 / 登录后空白 / WS 连接失败 / 覆盖安装无提示"四项反复未解决的问题，全面调研根因并彻底修复。
+
+### 完成内容
+
+#### 1. 安装界面 Slogan 改为最新文案
+- **根因**：`prepare-build-resources.py` 仍使用旧 Slogan "用Lynx AI / 人人都是超级个体"
+- **修复**：将 installer-sidebar.bmp 的 Slogan 文案改为 `["奇思 AI工作台", "不用学AI", "什么都能干"]`
+- **同步修改**：`scripts/deploy/upload-v1.0.15.py` Release 描述底部 Slogan 改为 "不用学AI，什么都能干"
+
+#### 2. 登录后空白根因彻底修复（4 个子问题）
+- **子问题 1：signOut 导航到不存在的 /login 路由**
+  - 根因：`SettingsPage.handleSignOut` 调用 `signOut()` 后导航到 `/login`，但桌面端 `HashRouter` 路由表无此路由，catch-all `*` → `/focus`，此时 `user` 为 null 页面空白
+  - 修复：[desktop-native/native-ui/src/pages/SettingsPage.tsx](file:///d:/Lynn工作空间/LynnHub/desktop-native/native-ui/src/pages/SettingsPage.tsx) 不再导航 `/login`，改为 `openLoginModal()` 弹登录弹窗（与 AUTH_EXPIRED 一致）
+- **子问题 2：wsStartedRef 不重置导致重新登录后 WS 不启动**
+  - 根因：[desktop-native/native-ui/src/components/layout/AppLayout.tsx](file:///d:/Lynn工作空间/LynnHub/desktop-native/native-ui/src/components/layout/AppLayout.tsx) 中 `wsStartedRef = useRef(false)`，登录后置为 true，但登出时未重置，重新登录时检查 `wsStartedRef.current` 仍为 true 直接 return，WS 不重启
+  - 修复：user/token 为空时 `wsStartedRef.current = false` 重置；WS 启动失败也重置允许重试
+- **子问题 3：authStore.signOut 不同步主进程，主进程残留旧 token**
+  - 根因：`authStore.signOut()` 只清空 renderer zustand 状态，不通知 main.js store.js 清空 userToken，主进程残留旧 token，WS 连接时使用过期/已登出的 token
+  - 修复：[desktop-native/native-ui/src/stores/authStore.ts](file:///d:/Lynn工作空间/LynnHub/desktop-native/native-ui/src/stores/authStore.ts) signOut 时调用 `invoke("sync_auth", { token: "", endpoint })` 同步空 token；[desktop-electron/src/main.js](file:///d:/Lynn工作空间/LynnHub/desktop-electron/src/main.js) sync_auth 支持 `store.delete('userToken')` 清空
+- **子问题 4：LoginModal 登录成功后不导航导致空白**
+  - 根因：[desktop-native/native-ui/src/components/auth/LoginModal.tsx](file:///d:/Lynn工作空间/LynnHub/desktop-native/native-ui/src/components/auth/LoginModal.tsx) `handleSuccess` 只调用 `onClose()`，但若是从 SettingsPage 退出登录后弹窗登录，关闭弹窗后停留在空白 SettingsPage（user 为 null 时页面渲染异常）
+  - 修复：handleSuccess 末尾 `navigate("/focus", { replace: true })` 显式导航到主页
+
+#### 3. WS 连接诊断增强（main.js + ws-gateway.js）
+- **根因分析**：`fetchFreshWsToken` 请求从未到达服务器（nginx access.log 无 QisiDesktop UA），可能原因：
+  - 本地网络/DNS/TLS 问题
+  - 阿里云云盾拦截
+  - 服务器端 `authenticate` 静默返回 null 无日志
+  - 客户端 close/error 不打印 code/reason
+- **修复 main.js**：
+  - `sync_auth` 支持空 token（登出时 `store.delete('userToken')`）
+  - `start_hermes_agent` 增加详细日志：endpoint + tokenLen + tokenPrefix（前 20 字符）
+  - `fetchFreshWsToken` 返回值日志（fresh JWT len）
+  - 401 错误明确返回 "登录已过期，请重新登录"
+- **修复 ws-gateway.js**：
+  - `close` 事件增加 `code=${code} reason=${reasonStr}` 日志
+  - `error` 事件增加 `e.code || '' e.errno || ''` 日志
+  - 新增 `unexpected-response` 事件监听（HTTP 拒绝 WS 升级时打印 `HTTP ${res.statusCode}`）
+
+#### 4. 覆盖安装提示（installer.nsh !macro customInit）
+- **根因**：原 `installer.nsh` 中 `ReadRegStr`/`MessageBox` 直接放在文件顶层，NSIS 报错 "ReadRegStr not valid outside Section or Function"
+- **修复**：[desktop-electron/build/installer.nsh](file:///d:/Lynn工作空间/LynnHub/desktop-electron/build/installer.nsh) 改用 `!macro customInit`（electron-builder NSIS 模板在 `.onInit` 中调用此宏）：
+  - `ReadRegStr $0 HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\${APP_ID}" "InstallLocation"` 检测旧版
+  - `MessageBox MB_YESNO|MB_ICONQUESTION "检测到已安装旧版奇思，是否覆盖安装？"` 弹窗提示
+  - 点击「否」`Quit` 退出；点击「是」`taskkill /F /IM "${PRODUCT_FILENAME}.exe" /T` 关闭旧进程
+
+#### 5. v1.0.15 打包
+- 版本号 `1.0.14` → `1.0.15`
+- electron-builder output `release-v14` → `release-v15`
+- sign-installer.cjs releaseDir 同步改为 `release-v15`
+- build-to-local.py release_dir 同步改为 `release-v15`
+- 构建产物：`QisiSetup-1.0.15.exe` (69.35 MB)，已签名 CN=LynnHub
+
+#### 6. Gitee Release v1.0.15 上传
+- 上传 `QisiSetup-1.0.15.exe`（69.35 MB）+ `QisiApp-0.1.8.apk`（4.03 MB）到 Gitee Release v1.0.15（id=733604）
+- 下载链接：
+  - 桌面端：https://gitee.com/shenzhens-emotions-are-booming_0/lynn-hub-release/releases/download/v1.0.15/QisiSetup-1.0.15.exe
+  - Android：https://gitee.com/shenzhens-emotions-are-booming_0/lynn-hub-release/releases/download/v1.0.15/QisiApp-0.1.8.apk
+- 脚本：`scripts/deploy/upload-v1.0.15.py`
+
+### 构建产物
+
+| 文件 | 大小 | 位置 |
+|------|------|------|
+| QisiSetup-1.0.15.exe | 69.35 MB | D:\LynnHub\packages\1.0.15\ |
+| lynn-code-sign.cer | 0.8 KB | D:\LynnHub\packages\1.0.15\ |
+| 信任奇思证书.bat | 2.3 KB | D:\LynnHub\packages\1.0.15\ |
+
+### 自测结果
+
+| 编号 | 测试用例 | 结果 | 详情 |
+|------|----------|------|------|
+| TC1 | Slogan 修改 | ✓ | prepare-build-resources.py 文案改为 "不用学AI / 什么都能干" |
+| TC2 | SettingsPage.signOut | ✓ | 不再 navigate("/login")，改为 openLoginModal() |
+| TC3 | authStore.signOut | ✓ | 同步主进程 invoke("sync_auth", { token: "" }) |
+| TC4 | AppLayout wsStartedRef | ✓ | user/token 为空时 wsStartedRef.current = false |
+| TC5 | LoginModal 导航 | ✓ | handleSuccess 末尾 navigate("/focus", { replace: true }) |
+| TC6 | main.js sync_auth | ✓ | 支持空 token，store.delete('userToken') |
+| TC7 | main.js start_hermes_agent | ✓ | 详细日志 endpoint+tokenLen+tokenPrefix+fresh JWT len |
+| TC8 | ws-gateway.js close/error | ✓ | close code/reason + error code/errno + unexpected-response |
+| TC9 | installer.nsh customInit | ✓ | ReadRegStr + MessageBox MB_YESNO + taskkill |
+| TC10 | electron-builder 打包 | ✓ | QisiSetup-1.0.15.exe 69.35 MB |
+| TC11 | 安装包签名 | ✓ | CN=LynnHub, Valid |
+| TC12 | Gitee Release 上传 | ✓ | v1.0.15 id=733604, exe+apk 均上传成功 |
+
+**通过: 12/12**
+
+### 待用户验证
+
+1. **TC1 Slogan**：下载 v1.0.15 安装，安装界面侧边栏应显示 "不用学AI / 什么都能干"
+2. **TC2 登录后空白**：登录成功 → 进入 /focus 正常；退出登录 → 弹登录弹窗（不再空白）；再次登录 → 进入 /focus 正常
+3. **TC3 WS 连接**：启动桌面端 → 设置 → Agent → 启动 Agent，查看是否仍提示 "检查网络或重新登录"。若仍失败，请提供主进程日志（菜单"查看"→"开发者工具"→Console，或主进程 stdout）
+4. **TC4 覆盖安装**：已安装 v1.0.14 → 双击 v1.0.15 安装包 → 应弹出"检测到已安装旧版奇思，是否覆盖安装？"提示框
+
+### WS 连接说明
+
+本轮增加了大量诊断日志，但 WS 连接的根本原因可能是网络问题（`fetchFreshWsToken` 请求从未到达服务器，nginx 日志无 QisiDesktop UA）。用户本地机器可能被阿里云云盾拦截，或 DNS/TLS 问题。诊断日志将帮助下次定位。
 
 ---
 

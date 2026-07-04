@@ -24,6 +24,7 @@ import { getCloudEndpoint, setCloudEndpoint } from "@/lib/cloud-api";
 import { useAuthStore } from "@/stores/authStore";
 import { useUIStore } from "@/stores/uiStore";
 import { clearAuth } from "@/lib/auth-persistence";
+import { openLoginModal } from "@/lib/login-modal";
 import { applyTheme, saveTheme, type Theme } from "@/lib/theme";
 import { HelpButton } from "@/components/ui/HelpButton";
 import { Logo } from "@/components/ui/Logo";
@@ -152,7 +153,8 @@ export function SettingsPage() {
       toast.error(err instanceof Error ? err.message : "退出登录失败");
     } finally {
       signOut();
-      navigate("/login", { replace: true });
+      // P0 修复：不导航 /login（路由不存在），改为弹出登录弹窗（与 AUTH_EXPIRED 一致）
+      openLoginModal();
     }
   };
 

@@ -1,6 +1,6 @@
 {
   "name": "lynx-desktop",
-  "version": "1.0.14",
+  "version": "1.0.15",
   "description": "奇思 - AI工作台 - 桌面端（Electron 主架构）",
   "main": "src/main.js",
   "author": "Lynn",
@@ -31,7 +31,7 @@
     "productName": "奇思",
     "copyright": "© 2026 Lynn. All rights reserved.",
     "directories": {
-      "output": "release-v14",
+      "output": "release-v15",
       "buildResources": "build"
     },
     "publish": null,
