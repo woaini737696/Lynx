@@ -9,6 +9,7 @@
 
 | 迭代 | 日期 | 任务概要 |
 |------|------|----------|
+| [迭代 115](#迭代-115---2026-07-04) | 2026-07-04 | v1.0.14三项严重bug修复+Gitee Release上线：① 桌面端空白界面修复(renderer/被.gitignore排除git reset后消失/build/目录也缺失/app.asar未包含index.html导致loadFile失败/新建prepare-build-resources.py统一生成icon.ico+installer-header.bmp+installer-sidebar.bmp+license.txt+installer.nsh/vite build重新生成renderer/) ② 安装界面样式修复(build/目录完全缺失导致BMP不生效/installer-header.bmp 150x57深空蓝+Logo+奇思+AI工作台/installer-sidebar.bmp 164x314深空蓝渐变+Logo+奇思+奇思AI工作台+用Lynx AI+人人都是超级个体+©2026 Lynn) ③ Web端chunk 404修复(服务器.next/static/是7月3日旧版本但server.js是7月4日新版本/HTML引用layout-0a42f87e4de91f45.js新hash但磁盘只有layout-a269acad2f751e03.js旧hash/上传本地.next/static/覆盖+nginx配置从proxy_pass改为alias直接服务磁盘/未来更新静态资源不再需要重启PM2) ④ License文字改为奇思-AI工作台 ⑤ 覆盖安装(installer.nsh taskkill关闭旧进程) ⑥ NSIS安装包签名(sign-installer.cjs签名最终QisiSetup-*.exe CN=LynnHub) ⑦ Gitee Release v1.0.14上传(QisiSetup-1.0.14.exe 69.35MB+QisiApp-0.1.8.apk 4.03MB / id=733546) |
 | [迭代 114](#迭代-114---2026-07-04) | 2026-07-04 | v1.0.13十项严重问题彻底修复+Android新技术栈首发+Gitee Release上线：① Gitee Release v1.0.13上传(QisiSetup-1.0.13.exe 69.32MB+QisiApp-0.1.8.apk 4.03MB / id=733499 / 公开下载链接) ② Android新技术栈首发(Kotlin+Hilt+Compose+KSP / compileSdk 34 minSdk 31 / versionCode 8→9 versionName 0.1.7→0.1.8 / 4.03MB) ③ bat文件全英文(信任奇思证书.bat 52行全英文 / 解决中文乱码) ④ License文字修改(奇思-AI超级助理→奇思-AI工作台 / gen-license.cjs line8) ⑤ NSIS安装界面样式修复(installer.nsh !ifndef保护补充BMP路径 / installer-header.bmp+installer-sidebar.bmp / 解决electron-builder 24.13.3模板已定义MUI_HEADERIMAGE冲突) ⑥ 安装流程修复(未知发布者时机：sign-installer.cjs签名最终QisiSetup-*.exe+afterPack只签内部exe不够 / 覆盖安装：installer.nsh Section -KillRunningApp taskkill /F /IM 奇思.exe) ⑦ WS连接失败根因修复(main.js fetchFreshWsToken用存储userToken作为Bearer调用/api/auth/ws-token获取新鲜短期JWT / 桌面端localStorage持久化JWT无刷新机制 / useDeviceWs.ts清理残留user:${userId}改fetch /api/auth/ws-token) ⑧ 桌面端Lynx超级助理完全不可用修复(AIAssistantPage.tsx移除onToolStart对hermesExecute硬性前置WS检查 / 原逻辑因缓存wsConnected过期误拦截) ⑨ 飞书OAuth重定向URL错误修复(.env.production添加FEISHU_REDIRECT_URI=https://ai.lynxdo.com/api/feishu/callback+NEXTAUTH_URL / 需用户在飞书后台白名单配置) ⑩ HermesAgent检查更新失败修复(hermes.js updateAgent findPipExe仅检查where pip+Python313太脆弱 / 改用runPipInstall+findPythonPip兜底覆盖Python310-313+python -m pip) |
 | [迭代 113](#迭代-113---2026-07-04) | 2026-07-04 | v1.0.11真实修复+全面验证+服务端部署+Gitee GC方法：① 检查更新失效根因修复(app-version API被Next.js编译为静态缓存永远返回v1.0.9 / route.ts添加export const dynamic='force-dynamic'+revalidate=0 / npm run build重新构建standalone 14.51MB / deploy-standalone-v111.py上传服务器+PM2 reload / 服务器内部curl返回v1.0.11+publishedAt时间戳实时变化) ② WS连接服务器端正常(PM2 lynx-ws-gateway online uptime 5h / Nginx /api/ws/agent→3001配置正确 / access.log显示其他用户27.38.165.251成功建立WS连接101状态码 / 本地访问失败是开发机IP被阿里云云盾Aegis拦截非服务器问题) ③ 发布者签名验证(QisiSetup-1.0.11.exe签名Valid+Signer=CN=LynnHub / 自签名证书只在开发机受信任其他机器显示未知发布者需点击仍要运行) ④ NSIS安装界面资源全PASS验证(verify-nsis-resources.py / installer-header.bmp 150×57 24bpp BI_RGB PASS / installer-sidebar.bmp 164×314 24bpp BI_RGB PASS / icon.ico 6图像尺寸 PASS / license.txt UTF-8 BOM存在中文正确无乱码) ⑤ Gitee仓库GC方法整理(本地17.82MiB已清理远程956MB超80%配额 / 4种方法：Gitee项目管理界面GC+git gc--prune=now--aggressive+git-filter-repo删除历史大文件+重新创建仓库) ⑥ 服务器状态全确认(SSH可达+PM2两进程online+Nginx 443监听+iptables INPUT ACCEPT+ufw inactive+fail2ban未安装) ⑦ 待用户真机验证11项清单(TC1下载v1.0.11/TC2发布者签名/TC3安装界面图标/TC4安装界面侧边/TC5许可证协议/TC6任务栏图标/TC7检查更新/TC8 WS连接/TC9 Lynx助理/TC10飞书任务/TC11窗口拖动) |
 | [迭代 112](#迭代-112---2026-07-03) | 2026-07-03 | 全栈修复版+飞书OAuth+服务器基础设施修复+Electron v1.0.9：① 下载源切换Gitee Release(Hero/Navbar/app-version API全部改为gitee.com/.../lynn-hub-release/releases/download/v1.0.9/QisiSetup-1.0.9.exe) ② 发布者签名lynn(main.js禁用electron-builder内置签名 signAndEditExecutable:false+forceCodeSigning:false + PowerShell Set-AuthenticodeSignature手动签名 CN=lynn自签名证书) ③ 任务栏图标修复(main.js添加app.setAppUserModelId('com.lynnhub.desktop')解决Windows任务栏显示默认图标) ④ 全局产品名奇思(AIAssistantPage欢迎消息Lynn→奇思 / User-Agent 1.0.8→1.0.9 / ws-gateway.js版本号1.0.8→1.0.9) ⑤ 服务器nginx配置修复(删除硬编码app-version v1.0.8 / WS代理proxy_pass 5176→3001 / 清理sites-enabled目录中的.bak备份文件避免重复加载) ⑥ WS网关进程启动(上传start-ws-gateway.js+ws-gateway.compiled.js / PM2启动lynx-ws-gateway监听3001端口 / 日志显示有WS连接进来) ⑦ 飞书OAuth服务端实现(prisma schema新增FeishuToken model / SQL直接创建FeishuToken表 / feishu-api.ts实现getFeishuToken+refreshFeishuToken+fetchAllFeishuTasks / 4个OAuth端点auth/callback/status/disconnect / lark-tasks API新增OAuth路径 / middleware公开飞书回调端点) ⑧ 飞书连接UI(Web端+桌面端lark-tasks页面添加连接飞书按钮 / 已连接显示绿色✓+用户名 / 桌面端通过invoke open_external在系统浏览器打开OAuth) ⑨ Lynx助理同步Web端头像(AIAssistantPage通过/api/ai/settings获取aiSettings.avatarUrl+resolveAvatarUrl拼接云端绝对路径) ⑩ Next.js standalone部署(33.95MB含Linux Prisma引擎 / app-version返回v1.0.9+Gitee下载链接 / 健康检查200) ⑪ 官网部署(4.21MB静态文件 / HTTP 200) ⑫ Electron v1.0.9构建(QisiSetup-1.0.9.exe 69.24MB + 签名CN=lynn + 上传Gitee Release v1.0.9 / 下载链接验证200 72MB) ⑬ 服务器验证全通过(PM2 lynx-app+lynx-ws-gateway+lynxkit-api三进程online / 3001+5176端口监听 / FeishuToken表0条数据等待用户连接) |
@@ -6289,6 +6290,89 @@ GitHub 仓库迁移 + 本地持久化 + 三方同步验证 + 文档完善：用�
 
 ### Commit
 本次提交
+
+---
+
+## 迭代 115 - 2026-07-04
+
+### 任务概要
+
+v1.0.14 三项严重 bug 修复 + Gitee Release 上线。针对用户反馈"桌面端空白 / 安装界面默认样式 / Web 端 chunk 404"三项严重问题，全面调研根因并彻底修复。
+
+### 完成内容
+
+#### 1. 桌面端空白界面修复
+- **根因**：`desktop-electron/renderer/` 被 .gitignore 排除，git reset 后消失；`build/` 目录也缺失；electron-builder 打包时 files 配置包含 `renderer/**/*` 但目录不存在，app.asar 未包含 index.html，loadFile 失败导致空白
+- **修复**：
+  - 运行 `npm run build:renderer` 重新构建 native-ui → renderer/
+  - 验证 app.asar 包含 `\renderer\index.html` + `\renderer\assets\*.js`
+- **验证**：`npx @electron/asar list app.asar | grep renderer` 显示 renderer/index.html 和 assets/ 都在
+
+#### 2. 安装界面样式修复
+- **根因**：`desktop-electron/build/` 目录完全缺失（icon.ico、installer-header.bmp、installer-sidebar.bmp、license.txt、installer.nsh 全部不存在），electron-builder 无 BMP 资源可用，NSIS 回退到默认界面
+- **修复**：新建 `desktop-electron/scripts/prepare-build-resources.py` 统一生成所有 build/ 资源：
+  - `icon.ico`（多尺寸 256/128/64/48/32/16，从 public/lynx-icon-512.png LANCZOS 重采样）
+  - `installer-header.bmp`（150×57，深空蓝背景 + Logo 40×40 + "奇思" 24pt + "AI工作台" 9pt）
+  - `installer-sidebar.bmp`（164×314，深空蓝渐变 + Logo 72×72 居中 + "奇思" 32pt + "奇思 AI工作台" + "用Lynx AI" + "人人都是超级个体" 14pt + ©2026 Lynn）
+  - `license.txt`（gen-license.cjs 生成，UTF-8 BOM，"奇思 - AI工作台 用户许可协议"）
+  - `installer.nsh`（!ifndef 保护补充 BMP 路径 + taskkill 覆盖安装）
+- **同步修改**：`scripts/generate-installer-assets.py` 文案 "Lynx" → "奇思"，"Lynx AI工作台" → "奇思 AI工作台"
+
+#### 3. Web 端 chunk 404 修复
+- **根因**：服务器 `/opt/lynx/app/.next/static/` 是 7月3日 21:03 的旧版本，但 `.next/server.js` 和 `BUILD_ID` 是 7月4日 11:15 的新版本；HTML 引用 `layout-0a42f87e4de91f45.js`（新 hash），磁盘只有 `layout-a269acad2f751e03.js`（旧 hash）→ 404
+- **根因链路**：`scripts/deploy/deploy-standalone-v111.py` 只打包 `.next/standalone/`，遗漏了 `.next/static/` 和 `public/`（旧脚本 `deploy_standalone.py` 正确打包三个目录）
+- **修复**：
+  - 上传本地 `.next/static/`（80 文件 / 3.22 MB）到服务器覆盖旧版本
+  - 服务器 nginx 配置 `/_next/static/` 从 `proxy_pass http://127.0.0.1:5176` 改为 `alias /opt/lynx/app/.next/static/;` 直接服务磁盘
+  - `nginx -s reload` 平滑重载（不重启 PM2）
+- **架构改进**：未来更新 `.next/static/` 不再需要重启 Next.js 进程，符合 standalone 部署最佳实践
+- **验证**：服务器 curl 返回 HTTP/2 200，content-length: 122371
+
+#### 4. License 文字修改
+- `desktop-electron/scripts/gen-license.cjs` line 8：`奇思 - AI超级助理` → `奇思 - AI工作台`
+
+#### 5. 覆盖安装
+- `desktop-electron/build/installer.nsh` 添加 `Section "-KillRunningApp"`，安装前 `taskkill /F /IM "奇思.exe" /T`
+
+#### 6. NSIS 安装包签名
+- `desktop-electron/scripts/sign-installer.cjs` 签名最终 `QisiSetup-*.exe`（CN=LynnHub）
+
+#### 7. Gitee Release v1.0.14 上传
+- `QisiSetup-1.0.14.exe`（69.35 MB）+ `QisiApp-0.1.8.apk`（4.03 MB）
+- Release id=733546
+- 下载链接：
+  - 桌面端：https://gitee.com/shenzhens-emotions-are-booming_0/lynn-hub-release/releases/download/v1.0.14/QisiSetup-1.0.14.exe
+  - Android：https://gitee.com/shenzhens-emotions-are-booming_0/lynn-hub-release/releases/download/v1.0.14/QisiApp-0.1.8.apk
+
+### 构建产物
+
+| 文件 | 大小 | 位置 |
+|------|------|------|
+| QisiSetup-1.0.14.exe | 69.35 MB | D:\LynnHub\packages\1.0.14\ |
+| lynn-code-sign.cer | 0.8 KB | D:\LynnHub\packages\1.0.14\ |
+| 信任奇思证书.bat | 2.3 KB | D:\LynnHub\packages\1.0.14\ |
+
+### 自测结果
+
+| 编号 | 测试用例 | 结果 | 详情 |
+|------|----------|------|------|
+| TC1 | build/ 资源完整 | ✓ | icon.ico 69.2KB + installer-header.bmp 25.2KB + installer-sidebar.bmp 150.9KB + license.txt + installer.nsh |
+| TC2 | renderer/ 构建成功 | ✓ | vite build 3.72s，输出 27 个 chunk 文件 |
+| TC3 | app.asar 包含 renderer | ✓ | `\renderer\index.html` + `\renderer\assets\*.js` 全部在 asar 中 |
+| TC4 | electron-builder 打包成功 | ✓ | QisiSetup-1.0.14.exe 69.35 MB |
+| TC5 | 安装包签名 | ✓ | CN=LynnHub, Valid |
+| TC6 | Web 端 chunk 可访问 | ✓ | 服务器 curl 返回 HTTP/2 200, content-length: 122371 |
+| TC7 | Gitee Release 上传 | ✓ | v1.0.14 id=733546, exe+apk 均上传成功 |
+| TC8 | Git commit + push | ✓ | 6ae30724 → origin/master |
+
+**通过: 8/8**
+
+### 待用户验证
+
+1. 下载 v1.0.14 安装包，验证安装界面（深空蓝 + Logo + 奇思 + AI工作台 Slogan）
+2. 验证桌面端打开后不再空白
+3. 验证覆盖安装（先运行旧版，再安装新版）
+4. 访问 https://ai.lynxdo.com/ 验证 Web 端正常加载
 
 ---
 
