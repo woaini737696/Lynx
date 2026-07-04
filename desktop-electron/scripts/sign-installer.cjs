@@ -7,10 +7,10 @@ const fs = require('fs');
 const path = require('path');
 
 const CERT_THUMBPRINT = '7BCF15A9E0867DADA9F97DAC69297EAF2672F748';
-const releaseDir = path.join(__dirname, '..', 'release-v13');
+const releaseDir = path.join(__dirname, '..', 'release-v14');
 
 if (!fs.existsSync(releaseDir)) {
-  console.error('[sign-installer] release-final 目录不存在:', releaseDir);
+  console.error('[sign-installer] release-v14 目录不存在:', releaseDir);
   process.exit(1);
 }
 

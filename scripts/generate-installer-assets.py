@@ -76,9 +76,9 @@ def make_nsis_header():
     logo_small = logo.resize((40, 40), Image.LANCZOS)
     img.paste(logo_small, (8, 8), logo_small)
 
-    # 右侧写 "Lynx"
+    # 右侧写 "奇思"（产品名）
     font = find_font(24, bold=True)
-    draw.text((56, 14), "Lynx", fill=WHITE, font=font)
+    draw.text((56, 14), "奇思", fill=WHITE, font=font)
 
     # 底部小字
     font_small = find_font(9)
@@ -114,16 +114,16 @@ def make_nsis_sidebar():
     logo_x = (W - 72) // 2
     img.paste(logo_large, (logo_x, 30), logo_large)
 
-    # 品牌名 "Lynx"
+    # 品牌名 "奇思"（产品名）
     font_brand = find_font(32, bold=True)
-    text = "Lynx"
+    text = "奇思"
     bbox = draw.textbbox((0, 0), text, font=font_brand)
     tw = bbox[2] - bbox[0]
     draw.text(((W - tw) // 2, 115), text, fill=WHITE, font=font_brand)
 
     # 宣传文案（自动换行）
     font_slogan = find_font(14, bold=True)
-    slogan_line1 = "Lynx AI工作台"
+    slogan_line1 = "奇思 AI工作台"
     slogan_line2 = "用Lynx AI"
     slogan_line3 = "人人都是超级个体"
 
