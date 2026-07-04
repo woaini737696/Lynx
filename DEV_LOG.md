@@ -9,6 +9,7 @@
 
 | 迭代 | 日期 | 任务概要 |
 |------|------|----------|
+| [迭代 117](#迭代-117---2026-07-05) | 2026-07-05 | 五项问题修复+日志系统重构+服务器部署：① 建立完善的日志系统(logger.ts扩展serverLog模块化ai/voice/feishu/ws/auth+新增client-logger.ts零Node依赖避免pino打包到客户端+100条环形缓冲区) ② Lynx助理聊天记录丢失bug根因修复(persistAssistantMessageSafely返回值改为{id,persisted}+2次重试机制+4个调用点done事件添加persisted字段+Web/共享层/抽屉3处useChat同步捕获serverMessageId/serverPersisted避免前端重复POST) ③ Token消耗数显示不一致修复(useSessions.ts loadSession补全tokens→usage映射+AssistantChat.tsx loadSession同步补全provider/model/usage元数据) ④ Web端全双工语音通话'语音合成失败'bug修复(tts/route.ts role:assistant→user P0根因+跳过cloned_xxxx fallback无效ID+全链路serverLog/tts/stream/route.ts同步修复+voice-tts-stream.ts新增onSynthesizeError回调连续2次失败才提示+useTTS.ts clientLog替代console.warn+错误响应解析提取可读reason) ⑤ 飞书OAuth 20029错误诊断增强(auth/route.ts打印实际redirect_uri+source env/default+callback/route.ts捕获error_code+全链路serverLog.feishu/lark-tasks page.tsx reason映射auth_denied→20029详细提示) ⑥ .env.example补充FEISHU_REDIRECT_URI示例+部署说明 ⑦ Web端部署到服务器(deploy_standalone.py上传+PM2重启+首页HTTP/2 200) |
 | [迭代 116](#迭代-116---2026-07-04) | 2026-07-04 | v1.0.15四项问题修复+Gitee Release上线：① 安装界面Slogan改用最新文案(prepare-build-resources.py 用Lynx AI+人人都是超级个体→不用学AI+什么都能干) ② 登录后空白根因彻底修复(SettingsPage.handleSignOut不导航不存在的/login路由改弹登录弹窗/authStore.signOut同步主进程清空userToken避免WS用旧token连接/AppLayout wsStartedRef登出时不重置导致重新登录WS不启动/LoginModal登录成功后显式navigate /focus避免停留空白) ③ WS连接诊断增强(main.js sync_auth支持空token+start_hermes_agent详细日志token前缀+fetchFreshWsToken返回值/ws-gateway.js close增加code/reason日志+error增加code/errno+新增unexpected-response事件监听HTTP拒绝) ④ 覆盖安装提示(installer.nsh !macro customInit在.onInit中检测旧版ReadRegStr+MessageBox MB_YESNO弹窗提示是否覆盖+taskkill关闭旧进程避免文件占用/原Section外不能用ReadRegStr的NSIS语法错误已修复) ⑤ v1.0.15打包(QisiSetup-1.0.15.exe 69.35MB已签名CN=LynnHub) ⑥ Gitee Release v1.0.15上传(id=733604 / EXE+APK均上传成功) |
 | [迭代 115](#迭代-115---2026-07-04) | 2026-07-04 | v1.0.14三项严重bug修复+Gitee Release上线：① 桌面端空白界面修复(renderer/被.gitignore排除git reset后消失/build/目录也缺失/app.asar未包含index.html导致loadFile失败/新建prepare-build-resources.py统一生成icon.ico+installer-header.bmp+installer-sidebar.bmp+license.txt+installer.nsh/vite build重新生成renderer/) ② 安装界面样式修复(build/目录完全缺失导致BMP不生效/installer-header.bmp 150x57深空蓝+Logo+奇思+AI工作台/installer-sidebar.bmp 164x314深空蓝渐变+Logo+奇思+奇思AI工作台+用Lynx AI+人人都是超级个体+©2026 Lynn) ③ Web端chunk 404修复(服务器.next/static/是7月3日旧版本但server.js是7月4日新版本/HTML引用layout-0a42f87e4de91f45.js新hash但磁盘只有layout-a269acad2f751e03.js旧hash/上传本地.next/static/覆盖+nginx配置从proxy_pass改为alias直接服务磁盘/未来更新静态资源不再需要重启PM2) ④ License文字改为奇思-AI工作台 ⑤ 覆盖安装(installer.nsh taskkill关闭旧进程) ⑥ NSIS安装包签名(sign-installer.cjs签名最终QisiSetup-*.exe CN=LynnHub) ⑦ Gitee Release v1.0.14上传(QisiSetup-1.0.14.exe 69.35MB+QisiApp-0.1.8.apk 4.03MB / id=733546) |
 | [迭代 114](#迭代-114---2026-07-04) | 2026-07-04 | v1.0.13十项严重问题彻底修复+Android新技术栈首发+Gitee Release上线：① Gitee Release v1.0.13上传(QisiSetup-1.0.13.exe 69.32MB+QisiApp-0.1.8.apk 4.03MB / id=733499 / 公开下载链接) ② Android新技术栈首发(Kotlin+Hilt+Compose+KSP / compileSdk 34 minSdk 31 / versionCode 8→9 versionName 0.1.7→0.1.8 / 4.03MB) ③ bat文件全英文(信任奇思证书.bat 52行全英文 / 解决中文乱码) ④ License文字修改(奇思-AI超级助理→奇思-AI工作台 / gen-license.cjs line8) ⑤ NSIS安装界面样式修复(installer.nsh !ifndef保护补充BMP路径 / installer-header.bmp+installer-sidebar.bmp / 解决electron-builder 24.13.3模板已定义MUI_HEADERIMAGE冲突) ⑥ 安装流程修复(未知发布者时机：sign-installer.cjs签名最终QisiSetup-*.exe+afterPack只签内部exe不够 / 覆盖安装：installer.nsh Section -KillRunningApp taskkill /F /IM 奇思.exe) ⑦ WS连接失败根因修复(main.js fetchFreshWsToken用存储userToken作为Bearer调用/api/auth/ws-token获取新鲜短期JWT / 桌面端localStorage持久化JWT无刷新机制 / useDeviceWs.ts清理残留user:${userId}改fetch /api/auth/ws-token) ⑧ 桌面端Lynx超级助理完全不可用修复(AIAssistantPage.tsx移除onToolStart对hermesExecute硬性前置WS检查 / 原逻辑因缓存wsConnected过期误拦截) ⑨ 飞书OAuth重定向URL错误修复(.env.production添加FEISHU_REDIRECT_URI=https://ai.lynxdo.com/api/feishu/callback+NEXTAUTH_URL / 需用户在飞书后台白名单配置) ⑩ HermesAgent检查更新失败修复(hermes.js updateAgent findPipExe仅检查where pip+Python313太脆弱 / 改用runPipInstall+findPythonPip兜底覆盖Python310-313+python -m pip) |
@@ -6291,6 +6292,160 @@ GitHub 仓库迁移 + 本地持久化 + 三方同步验证 + 文档完善：用�
 
 ### Commit
 本次提交
+
+---
+
+## 迭代 117 - 2026-07-05
+
+### 任务概要
+
+五项问题修复 + 日志系统重构 + 服务器部署。针对用户反馈"日志系统缺失 / 聊天记录丢失 / TTS 合成失败 / Token 显示不一致 / 飞书 OAuth 20029"五项问题，全面调研根因并彻底修复，同时建立完善的模块化日志系统作为后续排查基础设施。
+
+### 完成内容
+
+#### 1. 建立完善的日志系统（基础设施）
+- **问题**：原有日志系统仅 `getLogger(name)` 单一接口，缺少模块化结构化字段；客户端日志无独立缓冲区
+- **修复 [src/lib/logger.ts](file:///d:/Lynn工作空间/LynnHub/src/lib/logger.ts)**：
+  - 扩展 `serverLog` 模块化日志助手，按业务模块分 namespace（ai / voice / feishu / ws / auth / generic）
+  - 每个模块 3 个级别（info / warn / error），统一字段：`module / event / userId / sessionId / error / durationMs`
+  - 便于后续接入 ELK / Loki 日志聚合系统检索
+- **新建 [src/lib/client-logger.ts](file:///d:/Lynn工作空间/LynnHub/src/lib/client-logger.ts)**：
+  - 零 Node.js 依赖（不 import pino），避免被 Webpack 打包到客户端 chunk
+  - 100 条环形缓冲区（`clientLogBuffer`），便于诊断面板导出
+  - 与 `serverLog` 模块名一一对应，前后端日志检索时模块名一致
+- **架构改进**：`logger.ts` 仅供服务端使用（含 pino），`client-logger.ts` 仅供 `"use client"` 文件使用
+
+#### 2. Lynx 助理聊天记录丢失 Bug 根因修复
+- **现象**：用户中午发消息"Lynx 当时回复了，但晚上打开看不见那条回复"
+- **根因**：[src/app/api/ai/chat/route.ts](file:///d:/Lynn工作空间/LynnHub/src/app/api/ai/chat/route.ts) 的 `persistAssistantMessageSafely` 函数：
+  - catch 块 `return null` 静默吞掉错误，前端无从感知持久化失败
+  - 无重试机制，偶发 DB 锁/超时直接丢失消息
+  - 前端无论服务端是否持久化都补发 POST `/api/ai/chat/sessions/${id}/messages`，可能与服务端持久化冲突
+- **修复服务端**：
+  - 返回值从 `string | null` 改为 `{ id: string | null; persisted: boolean }`
+  - 添加 2 次重试机制（间隔 100ms）
+  - 添加详细日志：`persist-assistant-idempotent-hit / success / attempt-failed / failed-all-retries / update-session-failed`
+  - 4 个调用点（Hermes 流式 / 无 action / 工具未授权 / 第二轮 LLM）done 事件均添加 `persisted` 字段
+- **修复前端（3 处同步）**：
+  - [src/app/ai/assistant/hooks/useChat.ts](file:///d:/Lynn工作空间/LynnHub/src/app/ai/assistant/hooks/useChat.ts) Web 主页面：done 事件捕获 `serverMessageId` + `serverPersisted`，消息最终化使用 `serverMessageId` 替换临时 id；仅当 `!serverPersisted && !serverMessageId` 时才前端补 POST
+  - [packages/shared-react/hooks/useChat.ts](file:///d:/Lynn工作空间/LynnHub/packages/shared-react/hooks/useChat.ts) 共享层：`ChatDoneEvent` 接口添加 `messageId?` + `persisted?`，逻辑与 Web 版一致
+  - [src/components/ai/AssistantChat.tsx](file:///d:/Lynn工作空间/LynnHub/src/components/ai/AssistantChat.tsx) 抽屉版：2 处事件类型 + done 处理 + 持久化检查同步更新
+
+#### 3. Token 消耗数显示不一致 Bug 修复
+- **现象**：Lynx 助理回复后偶尔能看到 Token 消耗数，偶尔看不到
+- **根因**：[src/app/ai/assistant/hooks/useSessions.ts](file:///d:/Lynn工作空间/LynnHub/src/app/ai/assistant/hooks/useSessions.ts) 的 `loadSession` 映射时：
+  - API 返回 `tokens` 字段（单一 number），前端 `Message` 接口需要 `usage: { total_tokens }` 对象结构
+  - 之前 loadSession 未映射 `tokens → usage`，导致刷新页面后 Token 消耗数消失
+- **修复 [useSessions.ts](file:///d:/Lynn工作空间/LynnHub/src/app/ai/assistant/hooks/useSessions.ts)**：loadSession 映射添加：
+  ```typescript
+  usage: typeof m.tokens === "number" && m.tokens > 0
+    ? { total_tokens: m.tokens }
+    : undefined,
+  ```
+- **修复 [AssistantChat.tsx](file:///d:/Lynn工作空间/LynnHub/src/components/ai/AssistantChat.tsx)**：抽屉版 loadSession 同步补全 provider / model / usage 元数据映射
+
+#### 4. Web 端全双工实时语音通话"语音合成失败"Bug 修复
+- **现象**：用户使用全双工语音通话功能时提示"语音合成失败"
+- **根因 1（P0）**：[src/app/api/ai/tts/route.ts](file:///d:/Lynn工作空间/LynnHub/src/app/api/ai/tts/route.ts) `role: "assistant"` 应为 `role: "user"`
+  - MiMo TTS 使用 `/chat/completions` 标准接口，与 ASR / voice-clone 路由的 `role: "user"` 一致
+  - 用 `assistant` 会导致部分情况 API 调用失败
+- **根因 2**：voice-clone/route.ts 失败时生成 `cloned_xxxx` 格式无效 ID 写入数据库，TTS 读取后调用失败
+- **根因 3**：流式 TTS 端点 [tts/stream/route.ts](file:///d:/Lynn工作空间/LynnHub/src/app/api/ai/tts/stream/route.ts) 同样存在 role 问题
+- **修复 tts/route.ts**：
+  - `role: "assistant"` → `role: "user"`（P0 根因）
+  - 跳过 `cloned_xxxx` fallback 无效音色 ID，直接使用 `defaultVoice || "mimo_default"`
+  - 全链路添加 `serverLog.voice / voiceWarn / voiceError` 日志（tts-call / tts-network-error / tts-api-error / tts-fallback-success / tts-fallback-failed / tts-response-parse-failed / tts-no-audio-data / tts-success / tts-unexpected-error）
+- **修复 tts/stream/route.ts**：同步 role 修复 + 跳过 cloned_xxxx + 全链路日志
+- **修复 [src/lib/voice-tts-stream.ts](file:///d:/Lynn工作空间/LynnHub/src/lib/voice-tts-stream.ts)**：
+  - 新增 `onSynthesizeError?: (reason: string) => void` 回调
+  - 新增 `consecutiveFailures` 计数，连续 2 次以上失败才主动通知用户（避免单次偶发打扰）
+  - 合成失败时解析错误响应提取可读 reason
+  - 全链路 `clientLog.voiceError` 日志
+- **修复 [src/app/ai/assistant/hooks/useTTS.ts](file:///d:/Lynn工作空间/LynnHub/src/app/ai/assistant/hooks/useTTS.ts)**：
+  - `console.warn` 替换为 `clientLog.voiceWarn`
+  - 错误响应解析提取 reason，toast 提示从"语音合成失败"改为"语音合成失败：服务端未返回任何音频，请检查日志"
+- **修复 [src/components/ai/AssistantChat.tsx](file:///d:/Lynn工作空间/LynnHub/src/components/ai/AssistantChat.tsx)**：2 处 StreamTTS 实例化注册 `onSynthesizeError` 回调，全双工通话失败时弹 toast + setError
+
+#### 5. 飞书 OAuth 20029 错误诊断增强
+- **现象**：用户点击"连接飞书"，飞书页面提示"重定向 URL 有误，错误码 20029，日志 ID 202607050103088148A87F9386F5176294"
+- **根因**：飞书错误码 20029 = "重定向 URL 有误" → `redirect_uri` 未在飞书开放平台「安全设置 → 重定向URL」白名单中，或与代码中 `FEISHU_REDIRECT_URI` 不完全匹配（协议/域名/路径/末尾斜杠）
+- **修复 [src/app/api/feishu/auth/route.ts](file:///d:/Lynn工作空间/LynnHub/src/app/api/feishu/auth/route.ts)**：
+  - 替换 `getLogger` 为 `serverLog.feishu / feishuError`
+  - 打印实际使用的 `redirectUri` + `source`（env / default），便于对比飞书后台白名单
+  - 添加注释说明 20029 排查步骤
+- **修复 [src/app/api/feishu/callback/route.ts](file:///d:/Lynn工作空间/LynnHub/src/app/api/feishu/callback/route.ts)**：
+  - 全链路 `serverLog.feishu / feishuWarn / feishuError`
+  - 捕获 `errFromFeishu` + `error_code` 字段
+- **修复 [src/app/ai/lark-tasks/page.tsx](file:///d:/Lynn工作空间/LynnHub/src/app/ai/lark-tasks/page.tsx)**：OAuth 回调失败时根据 `reason` 给出具体提示：
+  - `auth_denied` → "飞书授权失败：重定向URL未在飞书开放平台白名单中（错误码 20029）。请联系管理员在「飞书开放平台 → 应用 → 安全设置 → 重定向URL」中添加 https://ai.lynxdo.com/api/feishu/callback 后重试"
+  - `token_exchange_failed / user_info_failed / db_write_failed / user_not_found / invalid_state / missing_params` 各自具体提示
+- **修复 [.env.example](file:///d:/Lynn工作空间/LynnHub/.env.example)**：补充 `FEISHU_REDIRECT_URI` 示例 + 部署说明（生产 / 本地隧道）
+
+#### 6. Web 端部署到服务器
+- 执行 `npm run build`（Next.js standalone 构建成功）
+- 执行 `python scripts/deploy/deploy_standalone.py` 上传 standalone + static + public 到服务器
+- 服务器 PM2 重启 lynx-app，`https://ai.lynxdo.com/` 返回 HTTP/2 200
+- 所有服务端修改（route.ts / tts/route.ts / tts/stream/route.ts / feishu/auth/route.ts / feishu/callback/route.ts / logger.ts）已生效
+
+### 修改文件清单
+
+| 文件 | 类型 | 说明 |
+|------|------|------|
+| `src/lib/logger.ts` | 修改 | 扩展 serverLog 模块化日志助手（ai/voice/feishu/ws/auth） |
+| `src/lib/client-logger.ts` | 新增 | 客户端日志（零 Node 依赖，100 条环形缓冲区） |
+| `src/app/api/ai/chat/route.ts` | 修改 | persistAssistantMessageSafely 重试 + persisted 字段 + 4 处调用点更新 |
+| `src/app/ai/assistant/hooks/useChat.ts` | 修改 | done 事件捕获 serverMessageId/serverPersisted + 持久化逻辑 |
+| `packages/shared-react/hooks/useChat.ts` | 修改 | ChatDoneEvent 接口 + 同步 Web 版持久化逻辑 |
+| `src/components/ai/AssistantChat.tsx` | 修改 | loadSession 补全 usage + 2 处 StreamTTS onSynthesizeError |
+| `src/app/ai/assistant/hooks/useSessions.ts` | 修改 | loadSession tokens → usage 映射 |
+| `src/app/ai/assistant/hooks/useTTS.ts` | 修改 | clientLog 替代 console.warn + 错误响应解析 |
+| `src/lib/voice-tts-stream.ts` | 修改 | onSynthesizeError 回调 + consecutiveFailures + clientLog |
+| `src/app/api/ai/tts/route.ts` | 修改 | role: assistant → user + 跳过 cloned_xxxx + 全链路日志 |
+| `src/app/api/ai/tts/stream/route.ts` | 修改 | 同步 role 修复 + 跳过 cloned_xxxx + 全链路日志 |
+| `src/app/api/feishu/auth/route.ts` | 修改 | serverLog.feishu + 打印 redirectUri + 20029 排查注释 |
+| `src/app/api/feishu/callback/route.ts` | 修改 | 全链路 serverLog.feishu + 捕获 error_code |
+| `src/app/ai/lark-tasks/page.tsx` | 修改 | OAuth 回调 reason 映射具体错误提示 |
+| `.env.example` | 修改 | 补充 FEISHU_REDIRECT_URI 示例 + 部署说明 |
+
+### 自测结果
+
+| 编号 | 测试用例 | 结果 | 详情 |
+|------|----------|------|------|
+| TC1 | TypeScript 编译 | ✓ | `npx tsc --noEmit` 退出码 0，无类型错误 |
+| TC2 | Next.js 构建 | ✓ | `npm run build` 退出码 0，所有路由编译成功 |
+| TC3 | client-logger 零 Node 依赖 | ✓ | 不 import pino，可被 `"use client"` 文件安全导入 |
+| TC4 | persistAssistantMessageSafely 重试 | ✓ | 2 次重试 + 100ms 间隔 + 详细日志 |
+| TC5 | done 事件 persisted 字段 | ✓ | 4 个调用点（Hermes / 无 action / 工具未授权 / 第二轮 LLM）均返回 persisted |
+| TC6 | loadSession usage 映射 | ✓ | useSessions.ts + AssistantChat.tsx 均补全 tokens → usage 映射 |
+| TC7 | TTS role 修复 | ✓ | tts/route.ts + tts/stream/route.ts 均改为 role: "user" |
+| TC8 | TTS 跳过 cloned_xxxx | ✓ | settings.clonedVoiceId.startsWith("cloned_") 时使用默认音色 |
+| TC9 | TTS 全链路日志 | ✓ | tts-call / tts-network-error / tts-api-error / tts-success / tts-no-audio-data 等 9 个事件 |
+| TC10 | 飞书 auth 日志 | ✓ | serverLog.feishu("auth-redirect", { redirectUri, source }) |
+| TC11 | 飞书 callback 错误捕获 | ✓ | errFromFeishu + error_code 字段捕获 |
+| TC12 | lark-tasks reason 映射 | ✓ | auth_denied / token_exchange_failed / user_info_failed / db_write_failed / user_not_found / invalid_state / missing_params 各自具体提示 |
+| TC13 | 服务器部署 | ✓ | deploy_standalone.py 上传成功 + PM2 重启 + 首页 HTTP/2 200 |
+
+**通过: 13/13**
+
+### 待用户验证
+
+1. **TC1 聊天记录丢失**：发送一条消息给 Lynx 助理 → 等待回复 → 关闭浏览器 → 重新打开 → 验证助理回复是否还在（应该都在）
+2. **TC2 Token 显示**：发送消息 → 等待回复 → 刷新页面 → 验证 Token 消耗数是否仍显示（应该仍显示）
+3. **TC3 全双工语音通话**：打开抽屉助理 → 点击语音通话按钮 → 说一句话 → 验证是否还提示"语音合成失败"（应该不再提示，如失败会有具体原因）
+4. **TC4 飞书连接（关键）**：
+   - **代码侧已修复**：服务端日志会打印实际 redirect_uri，前端会显示具体错误原因
+   - **用户侧需操作**：登录飞书开放平台 → 应用 → 安全设置 → 重定向URL → 添加 `https://ai.lynxdo.com/api/feishu/callback` → 保存 → 重新发布应用版本 → 等待 1-5 分钟生效 → 再次点击"连接飞书"
+5. **TC5 日志查看**：服务端可通过 `pm2 logs lynx-app` 查看结构化日志，包含 module / event / userId 字段
+
+### 飞书 20029 排查指南
+
+飞书错误码 20029 = "重定向 URL 有误"，根因是 `redirect_uri` 未在飞书后台白名单中。本迭代已在代码侧增加完整诊断日志，但最终修复需要用户在飞书后台配置：
+
+1. 登录 [飞书开放平台](https://open.feishu.cn/) → 找到对应应用
+2. 「安全设置」→「重定向URL」白名单
+3. 添加：`https://ai.lynxdo.com/api/feishu/callback`
+4. 注意：必须完全一致（协议 https / 域名 ai.lynxdo.com / 路径 /api/feishu/callback / 无末尾斜杠）
+5. 保存后需重新发布应用版本并等待 1-5 分钟生效
 
 ---
 

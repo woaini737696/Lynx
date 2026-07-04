@@ -5,11 +5,15 @@
 // 实现"边生成边播"，首字延迟 < 500ms。stop() 可立即打断（用户开口时调用）。
 // 复用现有 /api/ai/tts 端点（返回 WAV 音频）。
 
+import { clientLog } from "@/lib/client-logger";
+
 export class StreamTTS {
   /** 全部播放完成回调 */
   onComplete?: () => void;
   /** 首句开始播放回调 */
   onPlayStart?: () => void;
+  /** P0 修复：合成失败回调（用于在 UI 上提示用户"语音合成失败"原因） */
+  onSynthesizeError?: (reason: string) => void;
 
   private buffer = "";
   private queue: Array<() => Promise<void>> = [];
@@ -18,6 +22,8 @@ export class StreamTTS {
   private started = false;
   private streamEnded = false;
   private currentAudio: HTMLAudioElement | null = null;
+  /** 累计失败次数（用于判断是否需要主动通知用户） */
+  private consecutiveFailures = 0;
 
   /** 接收 AI 流式响应文本块，按句分割后入队播放 */
   feed(textChunk: string): void {
@@ -58,6 +64,7 @@ export class StreamTTS {
     this.started = false;
     this.streamEnded = false;
     this.currentAudio = null;
+    this.consecutiveFailures = 0;
   }
 
   /** 当前是否正在播放 */
@@ -130,14 +137,46 @@ export class StreamTTS {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ text: sentence }),
       });
-      if (!res.ok) return null;
+      if (!res.ok) {
+        // P0 修复：解析错误响应，提取可读错误信息
+        let reason = `HTTP ${res.status}`;
+        try {
+          const errJson = await res.json().catch(() => null);
+          if (errJson?.error) reason = String(errJson.error).slice(0, 120);
+        } catch {
+          /* noop */
+        }
+        this.consecutiveFailures += 1;
+        clientLog.voiceError("stream-tts-synthesize-failed", {
+          status: res.status,
+          reason,
+          sentencePreview: sentence.slice(0, 50),
+          consecutiveFailures: this.consecutiveFailures,
+        });
+        // 累计失败 2 次以上才主动通知用户（避免单次偶发失败打扰）
+        if (this.consecutiveFailures >= 2 && this.onSynthesizeError) {
+          this.onSynthesizeError(reason);
+        }
+        return null;
+      }
       const blob = await res.blob();
       const url = URL.createObjectURL(blob);
       const audio = new Audio(url);
       audio.onended = () => URL.revokeObjectURL(url);
       audio.onerror = () => URL.revokeObjectURL(url);
+      // 合成成功，重置失败计数
+      this.consecutiveFailures = 0;
       return audio;
-    } catch {
+    } catch (e) {
+      this.consecutiveFailures += 1;
+      clientLog.voiceError("stream-tts-synthesize-exception", {
+        error: e instanceof Error ? e.message : String(e),
+        sentencePreview: sentence.slice(0, 50),
+        consecutiveFailures: this.consecutiveFailures,
+      });
+      if (this.consecutiveFailures >= 2 && this.onSynthesizeError) {
+        this.onSynthesizeError(e instanceof Error ? e.message : "网络错误");
+      }
       return null;
     }
   }

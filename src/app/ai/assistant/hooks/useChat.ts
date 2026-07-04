@@ -180,6 +180,9 @@ export function useChat(params: UseChatParams) {
       let toolCalled: ToolCalled | null = null;
       let hermesMode: boolean | undefined;
       let hermesFallback: boolean | undefined;
+      // P0 修复：跟踪服务端持久化状态，避免前端重复 POST
+      let serverMessageId: string | undefined;
+      let serverPersisted: boolean = false;
       // 用于在 thinking 期间显示"正在思考..."，收到首个 delta 后清除
       let firstDeltaReceived = false;
       // delta 渲染节流：用 rAF 合并多个 delta 到下一帧，避免每个 token 触发 setState 重渲染
@@ -271,6 +274,9 @@ export function useChat(params: UseChatParams) {
               if (obj.toolCalled) toolCalled = obj.toolCalled;
               if (obj.hermesMode) hermesMode = true;
               if (obj.hermesFallback) hermesFallback = true;
+              // P0 修复：捕获服务端持久化状态
+              if (typeof obj.messageId === "string") serverMessageId = obj.messageId;
+              if (typeof obj.persisted === "boolean") serverPersisted = obj.persisted;
             } else if (obj.type === "error") {
               const errMsg = obj.message || "流式响应异常";
               // 取消未触发的 delta flush，避免覆盖错误状态
@@ -315,13 +321,15 @@ export function useChat(params: UseChatParams) {
                 toolCalled,
                 hermesMode,
                 hermesFallback,
+                // 若服务端已持久化并返回真实 messageId，立即用真实 id 替换临时 id
+                ...(serverMessageId ? { id: serverMessageId } : {}),
               }
             : m
         )
       );
 
-      // 持久化 AI 回复到数据库
-      if (currentSessionId && finalContent) {
+      // P0 修复：仅当服务端未持久化时，才由前端补持久化（避免重复 POST 与静默丢失）
+      if (currentSessionId && finalContent && !serverPersisted && !serverMessageId) {
         fetch(`/api/ai/chat/sessions/${currentSessionId}/messages`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -344,8 +352,14 @@ export function useChat(params: UseChatParams) {
               );
             }
           })
-          .catch(() => {});
+          .catch(() => {
+            // 前端补持久化也失败：明确告知用户消息未保存（避免静默丢失）
+            toast("消息保存失败，请重试或手动保存", "error");
+          });
         // 刷新会话列表（标题可能已自动更新）
+        fetchSessions();
+      } else if (currentSessionId && serverPersisted) {
+        // 服务端已持久化：仅刷新会话列表
         fetchSessions();
       }
 

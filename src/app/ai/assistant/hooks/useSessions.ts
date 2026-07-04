@@ -59,6 +59,10 @@ export function useSessions(
           provider: m.provider,
           model: m.model,
           images: m.images || undefined,
+          // P0 修复：保留 tokens 字段并转换为 usage 对象结构，否则刷新页面后 token 消耗数消失
+          usage: typeof m.tokens === "number" && m.tokens > 0
+            ? { total_tokens: m.tokens }
+            : undefined,
           // 加载已持久化的标注状态（feedback API 写入）
           feedback: m.feedback === "good" || m.feedback === "bad" ? m.feedback : null,
           feedbackReason: typeof m.feedbackReason === "string" ? m.feedbackReason : null,

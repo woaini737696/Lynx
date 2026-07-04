@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { requireAuth } from "@/lib/auth-utils";
+import { serverLog } from "@/lib/logger";
 
 // POST /api/ai/tts/stream
 // 流式 TTS：通过 Server-Sent Events (SSE) 逐句返回音频 URL，降低首包延迟。
@@ -34,9 +35,11 @@ async function synthesizeSentence(
   url: string,
   apiKey: string
 ): Promise<Buffer | null> {
+  // P0 修复：MiMo TTS 使用 /chat/completions 标准接口，role 应为 "user"
+  // （与 ASR/voice-clone/tts/route.ts 保持一致，之前 "assistant" 会导致部分情况失败）
   const ttsBody: Record<string, unknown> = {
     model: ttsModel,
-    messages: [{ role: "assistant", content: sentence }],
+    messages: [{ role: "user", content: sentence }],
     audio: { format: "wav", voice: selectedVoice },
   };
 
@@ -98,6 +101,7 @@ async function synthesizeSentence(
 export async function POST(req: NextRequest) {
   const auth = await requireAuth();
   if (auth.error) return auth.error;
+  const userId = auth.user?.id;
   try {
     const body = await req.json().catch(() => null);
     if (!body || typeof body !== "object") {
@@ -128,12 +132,13 @@ export async function POST(req: NextRequest) {
     const ttsModel = process.env.TTS_MODEL || "mimo-v2.5-tts";
     const url = `${baseUrl.replace(/\/$/, "")}/chat/completions`;
 
-    // 确定使用的音色
+    // 确定使用的音色：请求指定 > 复刻音色 > 默认音色
     let selectedVoice = typeof voice === "string" && voice ? voice : null;
     if (!selectedVoice) {
       try {
         const settings = await prisma.aISetting.findFirst();
-        if (settings?.clonedVoiceId) {
+        if (settings?.clonedVoiceId && !settings.clonedVoiceId.startsWith("cloned_")) {
+          // P0 修复：跳过 fallback 生成的 cloned_xxxx 无效 ID（voice-clone/route.ts 会写入）
           selectedVoice = settings.clonedVoiceId;
         } else {
           selectedVoice = settings?.defaultVoice || "mimo_default";
@@ -144,6 +149,14 @@ export async function POST(req: NextRequest) {
     }
 
     const sentences = splitSentences(text);
+
+    serverLog.voice("tts-stream-start", {
+      userId,
+      voice: selectedVoice,
+      model: ttsModel,
+      sentenceCount: sentences.length,
+      textLen: text.length,
+    });
 
     // 创建 SSE 流
     const encoder = new TextEncoder();
@@ -197,6 +210,7 @@ export async function POST(req: NextRequest) {
         }
 
         send({ type: "done" });
+        serverLog.voice("tts-stream-done", { userId, voice: selectedVoice, sentenceCount: sentences.length });
         controller.close();
       },
     });
@@ -211,6 +225,7 @@ export async function POST(req: NextRequest) {
       },
     });
   } catch (e) {
+    serverLog.voiceError("tts-stream-unexpected-error", { userId }, e);
     return NextResponse.json(
       { error: "TTS 流式服务错误：" + (e as Error).message },
       { status: 500 }

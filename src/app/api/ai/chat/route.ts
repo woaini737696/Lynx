@@ -12,6 +12,7 @@ import {
 import { prisma } from "@/lib/db";
 import { rateLimit, getClientKey } from "@/lib/rate-limit";
 import { requireAuth } from "@/lib/auth-utils";
+import { serverLog } from "@/lib/logger";
 import {
   AI_ASSISTANT_SYSTEM_PROMPT,
   parseAction,
@@ -182,51 +183,83 @@ function detectIntent(text: string): { tool: string; args: Record<string, any> }
   return null;
 }
 
-// ============ 服务端自动持久化 assistant 消息（幂等）============
+// ============ 服务端自动持久化 assistant 消息（幂等 + 重试 + 日志）============
 // 流式输出结束后调用：将 assistant 回复写入 ChatMessage 表
 // 幂等处理：若会话最新一条 assistant 消息内容相同，则复用其 id，避免前端重复 POST 导致重复写入
+// 返回值：{ id, persisted } —— id 为消息 ID（成功时），persisted 标识是否已落库
 async function persistAssistantMessageSafely(opts: {
   sessionId?: string;
   content: string;
   provider?: string;
   model?: string;
   tokens?: number;
-}): Promise<string | null> {
+}): Promise<{ id: string | null; persisted: boolean }> {
   const { sessionId, content, provider, model, tokens } = opts;
-  if (!sessionId || !content) return null;
-  try {
-    // 幂等检查：取该会话最新一条消息，若同样为 assistant 且 content 完全相同，则复用
-    const latest = await prisma.chatMessage.findFirst({
-      where: { sessionId },
-      orderBy: { createdAt: "desc" },
-      select: { id: true, role: true, content: true },
-    });
-    if (latest && latest.role === "assistant" && latest.content === content) {
-      return latest.id;
-    }
-    const created = await prisma.chatMessage.create({
-      data: {
+  if (!sessionId || !content) return { id: null, persisted: false };
+
+  const MAX_RETRY = 2;
+  const RETRY_DELAY_MS = 100;
+  const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+  for (let attempt = 1; attempt <= MAX_RETRY; attempt++) {
+    try {
+      // 幂等检查：取该会话最新一条消息，若同样为 assistant 且 content 完全相同，则复用
+      const latest = await prisma.chatMessage.findFirst({
+        where: { sessionId },
+        orderBy: { createdAt: "desc" },
+        select: { id: true, role: true, content: true },
+      });
+      if (latest && latest.role === "assistant" && latest.content === content) {
+        serverLog.ai("persist-assistant-idempotent-hit", { sessionId, messageId: latest.id, attempt });
+        return { id: latest.id, persisted: true };
+      }
+      const created = await prisma.chatMessage.create({
+        data: {
+          sessionId,
+          role: "assistant",
+          content,
+          provider: provider || null,
+          model: model || null,
+          tokens: tokens ?? null,
+        },
+        select: { id: true },
+      });
+      // 更新会话 updatedAt（触发列表排序刷新）
+      await prisma.chatSession.update({
+        where: { id: sessionId },
+        data: { updatedAt: new Date() },
+      }).catch((e) => {
+        serverLog.aiWarn("persist-assistant-update-session-failed", { sessionId, attempt }, e);
+      });
+      serverLog.ai("persist-assistant-success", {
         sessionId,
-        role: "assistant",
-        content,
-        provider: provider || null,
-        model: model || null,
-        tokens: tokens ?? null,
-      },
-      select: { id: true },
-    });
-    // 更新会话 updatedAt（触发列表排序刷新）
-    await prisma.chatSession.update({
-      where: { id: sessionId },
-      data: { updatedAt: new Date() },
-    }).catch(() => {
-      // 会话更新失败不影响主流程
-    });
-    return created.id;
-  } catch (e) {
-    // 持久化失败不阻塞流式响应（已通过 done 事件返回内容给前端）
-    return null;
+        messageId: created.id,
+        attempt,
+        contentLen: content.length,
+        tokens: tokens ?? 0,
+      });
+      return { id: created.id, persisted: true };
+    } catch (e) {
+      serverLog.aiWarn("persist-assistant-attempt-failed", {
+        sessionId,
+        attempt,
+        maxRetry: MAX_RETRY,
+        contentPreview: content.slice(0, 200),
+        error: e instanceof Error ? e.message : String(e),
+      });
+      if (attempt < MAX_RETRY) {
+        await sleep(RETRY_DELAY_MS);
+        continue;
+      }
+      serverLog.aiError("persist-assistant-failed-all-retries", {
+        sessionId,
+        contentPreview: content.slice(0, 200),
+        contentLen: content.length,
+      }, e);
+      return { id: null, persisted: false };
+    }
   }
+  return { id: null, persisted: false };
 }
 
 // POST /api/ai/chat
@@ -557,7 +590,7 @@ export async function POST(req: NextRequest) {
                         }
                       }
                       // 服务端自动持久化 assistant 消息（幂等），返回 messageId 供前端去重
-                      const hermesMessageId = await persistAssistantMessageSafely({
+                      const hermesPersist = await persistAssistantMessageSafely({
                         sessionId,
                         content: hermesResult.output || "",
                         provider: "hermes",
@@ -568,7 +601,8 @@ export async function POST(req: NextRequest) {
                         usage: { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 },
                         toolCalled: null,
                         hermesMode: true,
-                        ...(hermesMessageId ? { messageId: hermesMessageId, sessionId } : {}),
+                        persisted: hermesPersist.persisted,
+                        ...(hermesPersist.id ? { messageId: hermesPersist.id, sessionId } : {}),
                         ...(hermesFallback ? { hermesFallback: true } : {}),
                       });
                     } finally {
@@ -750,7 +784,7 @@ export async function POST(req: NextRequest) {
                   learnTaskPattern(user.id, userTextForLearn, firstContent).catch(() => {});
                 }
                 // 服务端自动持久化 assistant 消息（幂等），返回 messageId 供前端去重
-                const noActionMessageId = await persistAssistantMessageSafely({
+                const noActionPersist = await persistAssistantMessageSafely({
                   sessionId,
                   content: finalContent,
                   provider: firstProvider,
@@ -761,7 +795,8 @@ export async function POST(req: NextRequest) {
                   type: "done",
                   usage: firstUsage,
                   toolCalled: null,
-                  ...(noActionMessageId ? { messageId: noActionMessageId, sessionId } : {}),
+                  persisted: noActionPersist.persisted,
+                  ...(noActionPersist.id ? { messageId: noActionPersist.id, sessionId } : {}),
                   ...(hermesFallback ? { hermesFallback: true } : {}),
                 });
                 return;
@@ -772,7 +807,7 @@ export async function POST(req: NextRequest) {
                 const blockedContent = `你的岗位工作空间未授权使用工具「${action.tool}」。当前岗位可用工具：${allowedTools.join("、")}`;
                 send({ type: "delta", content: blockedContent });
                 // 服务端自动持久化 assistant 消息（幂等），返回 messageId 供前端去重
-                const blockedMessageId = await persistAssistantMessageSafely({
+                const blockedPersist = await persistAssistantMessageSafely({
                   sessionId,
                   content: blockedContent,
                   provider: firstProvider,
@@ -787,7 +822,8 @@ export async function POST(req: NextRequest) {
                     args: action.args,
                     result: { error: `工具未授权`, allowedTools },
                   },
-                  ...(blockedMessageId ? { messageId: blockedMessageId, sessionId } : {}),
+                  persisted: blockedPersist.persisted,
+                  ...(blockedPersist.id ? { messageId: blockedPersist.id, sessionId } : {}),
                   ...(hermesFallback ? { hermesFallback: true } : {}),
                 });
                 return;
@@ -841,7 +877,7 @@ ${toolResultStr}
                     learnTaskPattern(user.id, userTextForLearn, secondContent).catch(() => {});
                   }
                   // 服务端自动持久化 assistant 消息（幂等），返回 messageId 供前端去重
-                  const secondMessageId = await persistAssistantMessageSafely({
+                  const secondPersist = await persistAssistantMessageSafely({
                     sessionId,
                     content: secondContent,
                     provider: firstProvider,
@@ -858,7 +894,8 @@ ${toolResultStr}
                     provider: firstProvider,
                     model: firstModel,
                     toolCalled: { tool: action.tool, args: action.args, result: toolResult },
-                    ...(secondMessageId ? { messageId: secondMessageId, sessionId } : {}),
+                    persisted: secondPersist.persisted,
+                    ...(secondPersist.id ? { messageId: secondPersist.id, sessionId } : {}),
                     ...(hermesFallback ? { hermesFallback: true } : {}),
                   });
                   return;

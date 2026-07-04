@@ -2,6 +2,7 @@
 
 import { useState, useRef, useCallback, useEffect } from "react";
 import { toast } from "@/components/ui/toast";
+import { clientLog } from "@/lib/client-logger";
 import { splitSentences } from "../utils";
 
 /** 单条消息语音播报（文本模式 / 消息列表播放按钮）队列，与全双工 StreamTTS 独立 */
@@ -46,6 +47,11 @@ export function useTTS() {
 
       if (!res.ok || !res.body) {
         // 流式 API 失败时回退到非流式
+        clientLog.voiceWarn("tts-stream-api-failed-fallback", {
+          status: res.status,
+          msgId,
+          textLen: text.length,
+        });
         setTtsLoadingId(null);
         await speakFallbackRef.current(text, msgId);
         return;
@@ -132,7 +138,10 @@ export function useTTS() {
                 }
               }, 500);
             } else if (data.type === "error") {
-              console.warn("[TTS stream] 句子合成失败:", data.message);
+              clientLog.voiceWarn("tts-stream-sentence-error", {
+                index: data.index,
+                message: data.message,
+              });
             }
           } catch {
             // JSON 解析失败，跳过
@@ -143,11 +152,20 @@ export function useTTS() {
       // 等待播放队列完成
       if (!firstSentenceReceived) {
         setTtsLoadingId(null);
-        toast("语音合成失败", "error");
+        clientLog.voiceError("tts-stream-no-sentence-received", {
+          msgId,
+          textLen: text.length,
+          textPreview: text.slice(0, 80),
+        });
+        toast("语音合成失败：服务端未返回任何音频，请检查日志", "error");
         setSpeakingId(null);
       }
     } catch (e) {
       setTtsLoadingId(null);
+      clientLog.voiceError("tts-stream-network-error-fallback", {
+        msgId,
+        error: e instanceof Error ? e.message : String(e),
+      });
       // 网络错误时回退到非流式
       await speakFallbackRef.current(text, msgId);
     }
@@ -165,10 +183,26 @@ export function useTTS() {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ text: sentence }),
         });
-        if (!res.ok) return null;
+        if (!res.ok) {
+          let reason = `HTTP ${res.status}`;
+          try {
+            const errJson = await res.json().catch(() => null);
+            if (errJson?.error) reason = String(errJson.error).slice(0, 120);
+          } catch { /* noop */ }
+          clientLog.voiceWarn("tts-fallback-sentence-failed", {
+            status: res.status,
+            reason,
+            sentencePreview: sentence.slice(0, 50),
+          });
+          return null;
+        }
         const blob = await res.blob();
         return URL.createObjectURL(blob);
-      } catch {
+      } catch (e) {
+        clientLog.voiceError("tts-fallback-sentence-exception", {
+          error: e instanceof Error ? e.message : String(e),
+          sentencePreview: sentence.slice(0, 50),
+        });
         return null;
       }
     };
@@ -180,7 +214,11 @@ export function useTTS() {
     }
 
     if (queue.length === 0) {
-      toast("语音合成失败", "error");
+      clientLog.voiceError("tts-fallback-all-failed", {
+        msgId,
+        sentenceCount: sentences.length,
+      });
+      toast("语音合成失败：所有句子均失败，请检查服务端 TTS 配置", "error");
       setSpeakingId(null);
       return;
     }

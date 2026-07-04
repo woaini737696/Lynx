@@ -3,9 +3,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { exchangeCodeForToken, getFeishuUserInfo } from "@/lib/feishu-api";
-import { getLogger } from "@/lib/logger";
-
-const logger = getLogger("feishu-callback");
+import { serverLog } from "@/lib/logger";
 
 // 前端跳转目标（带成功/失败参数）
 function frontendUrl(status: "success" | "error", reason?: string): string {
@@ -29,12 +27,20 @@ export async function GET(req: NextRequest) {
   const state = searchParams.get("state");
   const errFromFeishu = searchParams.get("error");
 
+  serverLog.feishu("callback-received", {
+    hasCode: !!code,
+    hasState: !!state,
+    errFromFeishu,
+  });
+
   if (errFromFeishu) {
-    logger.warn({ err: errFromFeishu }, "[feishu-callback] 飞书授权被拒绝");
+    // 飞书侧返回错误（包括 20029 重定向 URL 有误 → 这里能拿到具体错误码）
+    serverLog.feishuError("callback-feishu-error", { errFromFeishu, code: searchParams.get("error_code") });
     return NextResponse.redirect(frontendUrl("error", "auth_denied"));
   }
 
   if (!code || !state) {
+    serverLog.feishuWarn("callback-missing-params", { hasCode: !!code, hasState: !!state });
     return NextResponse.redirect(frontendUrl("error", "missing_params"));
   }
 
@@ -45,7 +51,8 @@ export async function GET(req: NextRequest) {
     const idx = decoded.indexOf(":");
     userId = idx >= 0 ? decoded.slice(0, idx) : decoded;
     if (!userId) throw new Error("state 中无 userId");
-  } catch {
+  } catch (e) {
+    serverLog.feishuError("callback-invalid-state", { statePreview: state.slice(0, 20) }, e);
     return NextResponse.redirect(frontendUrl("error", "invalid_state"));
   }
 
@@ -55,13 +62,14 @@ export async function GET(req: NextRequest) {
     select: { id: true },
   });
   if (!user) {
+    serverLog.feishuWarn("callback-user-not-found", { userId });
     return NextResponse.redirect(frontendUrl("error", "user_not_found"));
   }
 
   // 1) 用 code 换 access_token
   const tokenRes = await exchangeCodeForToken(code);
   if (!tokenRes.ok || !tokenRes.tokenData) {
-    logger.error({ err: tokenRes.error }, "[feishu-callback] code 换 token 失败");
+    serverLog.feishuError("callback-token-exchange-failed", { userId }, tokenRes.error);
     return NextResponse.redirect(frontendUrl("error", "token_exchange_failed"));
   }
   const { access_token, refresh_token, expires_in } = tokenRes.tokenData;
@@ -69,7 +77,7 @@ export async function GET(req: NextRequest) {
   // 2) 拉取飞书用户信息（open_id + name）
   const infoRes = await getFeishuUserInfo(access_token);
   if (!infoRes.ok || !infoRes.userInfo?.open_id) {
-    logger.error({ err: infoRes.error }, "[feishu-callback] 获取用户信息失败");
+    serverLog.feishuError("callback-user-info-failed", { userId }, infoRes.error);
     return NextResponse.redirect(frontendUrl("error", "user_info_failed"));
   }
   const { open_id, name, en_name } = infoRes.userInfo;
@@ -97,10 +105,10 @@ export async function GET(req: NextRequest) {
       },
     });
   } catch (e) {
-    logger.error({ err: e }, "[feishu-callback] 写入 FeishuToken 失败");
+    serverLog.feishuError("callback-db-write-failed", { userId }, e);
     return NextResponse.redirect(frontendUrl("error", "db_write_failed"));
   }
 
-  logger.info({ userId, openId: open_id }, "[feishu-callback] 飞书账号绑定成功");
+  serverLog.feishu("callback-success", { userId, openId: open_id });
   return NextResponse.redirect(frontendUrl("success"));
 }

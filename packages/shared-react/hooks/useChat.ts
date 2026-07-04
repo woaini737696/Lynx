@@ -100,6 +100,9 @@ interface ChatDoneEvent {
   toolCalled?: ToolCalled | null;
   hermesMode?: boolean;
   hermesFallback?: boolean;
+  /** P0 修复：服务端持久化状态标识，前端据此判断是否需要补持久化 */
+  messageId?: string;
+  persisted?: boolean;
 }
 
 // ============ 依赖注入接口 ============
@@ -346,6 +349,9 @@ export function useChat(params: UseChatParams): UseChatReturn {
         let toolCalled: ToolCalled | null = null;
         let hermesMode: boolean | undefined;
         let hermesFallback: boolean | undefined;
+        // P0 修复：跟踪服务端持久化状态
+        let serverMessageId: string | undefined;
+        let serverPersisted: boolean = false;
         // 用于在 thinking 期间显示"正在思考..."，收到首个 delta 后清除
         let firstDeltaReceived = false;
         // delta 渲染节流：用 setTimeout(0) 合并多个 delta，避免每个 token 触发 setState
@@ -446,6 +452,9 @@ export function useChat(params: UseChatParams): UseChatReturn {
               if (done.toolCalled) toolCalled = done.toolCalled;
               if (done.hermesMode) hermesMode = true;
               if (done.hermesFallback) hermesFallback = true;
+              // P0 修复：捕获服务端持久化状态
+              if (typeof done.messageId === "string") serverMessageId = done.messageId;
+              if (typeof done.persisted === "boolean") serverPersisted = done.persisted;
               break;
             }
             case "error": {
@@ -484,13 +493,15 @@ export function useChat(params: UseChatParams): UseChatReturn {
                   toolCalled,
                   hermesMode,
                   hermesFallback,
+                  // P0 修复：若服务端已持久化并返回真实 messageId，立即用真实 id 替换临时 id
+                  ...(serverMessageId ? { id: serverMessageId } : {}),
                 }
               : m
           )
         );
 
-        // 持久化 AI 回复
-        if (currentSessionId && finalContent) {
+        // P0 修复：仅当服务端未持久化时，才由前端补持久化
+        if (currentSessionId && finalContent && !serverPersisted && !serverMessageId) {
           http
             .post(endpoints.persistMessage(currentSessionId), {
               role: "assistant",
@@ -508,8 +519,14 @@ export function useChat(params: UseChatParams): UseChatReturn {
                 );
               }
             })
-            .catch(() => {});
+            .catch(() => {
+              // 前端补持久化也失败：明确告知用户（避免静默丢失）
+              notify("消息保存失败，请重试", "error");
+            });
           // 刷新会话列表（标题可能已自动更新）
+          onMessagePersisted?.();
+        } else if (currentSessionId && serverPersisted) {
+          // 服务端已持久化：仅刷新会话列表
           onMessagePersisted?.();
         }
 

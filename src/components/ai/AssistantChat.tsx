@@ -321,9 +321,17 @@ export function AssistantChat({ onClose, open }: AssistantChatProps = {}) {
         setCurrentSessionId(sessionId);
         currentSessionIdRef.current = sessionId;
         setCurrentSessionTitle(data.session.title || "新对话");
+        // P0 修复：保留服务端返回的所有元数据（provider/model/tokens/usage）
+        // 之前只映射 role+content，导致 token 消耗数显示丢失
         const loaded: ChatMessage[] = (data.session.messages || []).map((m: any) => ({
           role: m.role as "user" | "assistant",
           content: m.content || "",
+          provider: m.provider,
+          model: m.model,
+          // tokens 字段是 number，需要转换为 usage 对象结构
+          usage: typeof m.tokens === "number" && m.tokens > 0
+            ? { total_tokens: m.tokens }
+            : undefined,
         }));
         setMessages(loaded);
         messagesRef.current = loaded;
@@ -524,6 +532,8 @@ export function AssistantChat({ onClose, open }: AssistantChatProps = {}) {
         let streamError: string | undefined;
         // 服务端自动持久化返回的 messageId：若存在则跳过前端单独 POST 持久化
         let serverMessageId: string | undefined;
+        // P0 修复：服务端 persisted 标识，与 messageId 配合判断是否需要前端补持久化
+        let serverPersisted: boolean = false;
 
         while (true) {
           const { done, value } = await reader.read();
@@ -549,6 +559,7 @@ export function AssistantChat({ onClose, open }: AssistantChatProps = {}) {
                 message?: string;
                 messageId?: string;
                 sessionId?: string;
+                persisted?: boolean;
               };
               if (evt.type === "meta") {
                 provider = evt.provider;
@@ -573,6 +584,7 @@ export function AssistantChat({ onClose, open }: AssistantChatProps = {}) {
                 hermesMode = evt.hermesMode;
                 hermesFallback = evt.hermesFallback;
                 serverMessageId = evt.messageId;
+                serverPersisted = evt.persisted === true;
               } else if (evt.type === "error") {
                 streamError = evt.message || "流式响应异常";
               }
@@ -606,8 +618,8 @@ export function AssistantChat({ onClose, open }: AssistantChatProps = {}) {
         });
 
         // 持久化 AI 回复到当前会话（非阻塞），并刷新会话列表
-        // 若服务端已自动持久化（done 事件含 messageId），则跳过前端单独 POST，避免重复写入
-        if (!serverMessageId && sessionId && finalContent) {
+        // P0 修复：若服务端已自动持久化（done 事件含 messageId 或 persisted=true），跳过前端 POST
+        if (!serverMessageId && !serverPersisted && sessionId && finalContent) {
           fetch(`/api/ai/chat/sessions/${sessionId}/messages`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -701,6 +713,12 @@ export function AssistantChat({ onClose, open }: AssistantChatProps = {}) {
             setPhase("listening");
           }
         };
+        // P0 修复：合成失败时提示用户（连续 2 次以上失败才提示）
+        tts.onSynthesizeError = (reason: string) => {
+          if (!voiceModeActiveRef.current) return;
+          toast(`语音合成失败：${reason}`, "error");
+          setError(`语音合成失败：${reason}`);
+        };
       }
 
       const controller = new AbortController();
@@ -757,6 +775,8 @@ export function AssistantChat({ onClose, open }: AssistantChatProps = {}) {
         let streamError: string | undefined;
         // 服务端自动持久化返回的 messageId：若存在则跳过前端单独 POST 持久化
         let serverMessageId: string | undefined;
+        // P0 修复：服务端 persisted 标识，与 messageId 配合判断是否需要前端补持久化
+        let serverPersisted: boolean = false;
 
         while (true) {
           const { done, value } = await reader.read();
@@ -782,6 +802,7 @@ export function AssistantChat({ onClose, open }: AssistantChatProps = {}) {
                 message?: string;
                 messageId?: string;
                 sessionId?: string;
+                persisted?: boolean;
               };
               if (evt.type === "meta") {
                 provider = evt.provider;
@@ -808,6 +829,7 @@ export function AssistantChat({ onClose, open }: AssistantChatProps = {}) {
                 hermesMode = evt.hermesMode;
                 hermesFallback = evt.hermesFallback;
                 serverMessageId = evt.messageId;
+                serverPersisted = evt.persisted === true;
               } else if (evt.type === "error") {
                 streamError = evt.message || "流式响应异常";
               }
@@ -954,6 +976,12 @@ export function AssistantChat({ onClose, open }: AssistantChatProps = {}) {
         ) {
           setPhase("listening");
         }
+      };
+      // P0 修复：合成失败时提示用户（连续 2 次以上失败才提示，避免单次偶发打扰）
+      tts.onSynthesizeError = (reason: string) => {
+        if (!voiceModeActiveRef.current) return;
+        toast(`语音合成失败：${reason}`, "error");
+        setError(`语音合成失败：${reason}`);
       };
 
       backchannelRef.current = new BackchannelPlayer();

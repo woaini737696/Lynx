@@ -712,8 +712,26 @@ export default function LarkTasksPage() {
       const newUrl = window.location.pathname + (params.toString() ? `?${params}` : "");
       window.history.replaceState(null, "", newUrl);
     } else if (params.get("feishu_connected") === "0") {
-      toast("飞书账号连接失败，请重试", "error");
+      // P0 修复：根据 reason 给出更具体的错误提示（特别是 20029 重定向 URL 有误）
+      const reason = params.get("reason");
+      let errMsg = "飞书账号连接失败，请重试";
+      if (reason === "auth_denied") {
+        // 飞书侧返回 20029 等 error 时回调到 reason=auth_denied
+        errMsg = "飞书授权失败：重定向URL未在飞书开放平台白名单中（错误码 20029）。请联系管理员在「飞书开放平台 → 应用 → 安全设置 → 重定向URL」中添加 https://ai.lynxdo.com/api/feishu/callback 后重试";
+      } else if (reason === "token_exchange_failed") {
+        errMsg = "飞书授权码换 token 失败，请检查 LARK_APP_ID/LARK_APP_SECRET 配置";
+      } else if (reason === "user_info_failed") {
+        errMsg = "获取飞书用户信息失败，请稍后重试";
+      } else if (reason === "db_write_failed") {
+        errMsg = "数据库写入失败，请稍后重试";
+      } else if (reason === "user_not_found") {
+        errMsg = "用户不存在，请重新登录后再试";
+      } else if (reason === "invalid_state" || reason === "missing_params") {
+        errMsg = "回调参数无效，请重新点击连接飞书";
+      }
+      toast(errMsg, "error");
       params.delete("feishu_connected");
+      params.delete("reason");
       const newUrl = window.location.pathname + (params.toString() ? `?${params}` : "");
       window.history.replaceState(null, "", newUrl);
     }
