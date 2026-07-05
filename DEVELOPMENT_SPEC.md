@@ -248,8 +248,10 @@ deploy/dist/lynx-deploy-{timestamp}/
 ├── nginx/               # Nginx 配置
 ├── pm2/                 # PM2 配置
 ├── mysql/               # MySQL 配置
-└── downloads/           # 桌面端安装包（可选）
+└── downloads/           # 仅放 Android APK + HermesAgent whl，不放桌面端 exe
 ```
+
+> **桌面端安装包固定目录**：`d:\Lynn安装包\奇思_{version}.exe`（按规格第十七章），**不上传服务器**，验证通过后仅更新 Gitee Release 下载链接。
 
 ### 步骤 5：部署到云服务器
 
@@ -278,9 +280,9 @@ python scripts/deploy/ssh_exec.py --upload-dir 本地目录 远程目录
 - **目录**：
   - `/opt/lynx/app/` — Next.js standalone
   - `/opt/lynx/website/` — 官网静态文件
-  - `/opt/lynx/downloads/` — 桌面端安装包
+  - `/opt/lynx/downloads/` — 仅 HermesAgent whl + latest.json，**禁止放桌面端安装包**（服务器空间有限）
   - `/opt/lynx/logs/` — PM2 日志
-  - `/opt/lynx/backup/` — 数据库备份
+  - `/opt/lynx/backup/` — 数据库备份（仅保留最近 3 天，app 备份用完即删）
 
 #### 5.3 部署步骤
 
@@ -523,7 +525,11 @@ location / {
   $env:CARGO_BUILD_TARGET = "x86_64-pc-windows-msvc"
   cargo tauri build
   ```
-- **产物**：`D:\cargo-target-native\release\bundle\nsis\Lynx_{version}_x64-setup.exe`
+- **产物**：原始 `D:\cargo-target-native\release\bundle\nsis\*setup.exe`，构建后由 `build.ps1` 自动重命名并复制到固定目录 `d:\Lynn安装包\奇思_{version}.exe`
+- **安装包固定目录**：`d:\Lynn安装包\`（D 盘，与项目代码分离，便于管理所有版本）
+- **命名规则**：`奇思_版本号.exe`（如 `奇思_1.0.34.exe`），每次客户端代码改动版本号 +0.01
+- **不上传服务器**：安装包仅在本地验证，验证通过后更新 Gitee Release 下载链接，**禁止上传到 `/opt/lynx/downloads/`**（服务器空间有限）
+- **构建后清理**：`build.ps1` 第 7 步自动执行 `cargo clean`，防止 `cargo-target-native` 目录膨胀超过 10GB
 
 ---
 

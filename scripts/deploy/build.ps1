@@ -164,6 +164,8 @@ New-Item -ItemType Directory -Path "$DistDir\$PkgName\mysql" -Force | Out-Null
 Copy-Item "$ProjectRoot\deploy\mysql\lynxdo.cnf" "$DistDir\$PkgName\mysql\"
 
 # 8. 桌面端构建（可选）
+# 规格：安装包固定命名「奇思_版本号.exe」，固定输出到 d:\Lynn安装包\，不上传服务器
+# 构建后 cargo clean 防止 cargo-target-native 膨胀（10GB+）
 if (-not $SkipDesktop) {
   Write-Host "[7/7] 桌面端构建 (Tauri)..." -ForegroundColor Yellow
   $TauriDir = "$ProjectRoot\desktop-native"
@@ -176,15 +178,38 @@ if (-not $SkipDesktop) {
     cargo tauri build 2>&1 | Write-Host
     Pop-Location
 
+    # 读取 tauri.conf.json 版本号
+    $TauriConf = Get-Content "$TauriDir\src-tauri\tauri.conf.json" -Raw | ConvertFrom-Json
+    $DesktopVersion = $TauriConf.version
+    $FinalInstallerName = "奇思_$DesktopVersion.exe"
+    $InstallerFixedDir = "d:\Lynn安装包"
+
     $BundleDir = "D:\cargo-target-native\release\bundle"
     $SetupExe = Get-ChildItem "$BundleDir\nsis\*setup.exe" -ErrorAction SilentlyContinue | Select-Object -First 1
     if ($SetupExe) {
-      New-Item -ItemType Directory -Path "$DistDir\$PkgName\downloads" -Force | Out-Null
-      Copy-Item $SetupExe.FullName "$DistDir\$PkgName\downloads\"
-      Write-Host "  安装包已复制: $($SetupExe.Name)" -ForegroundColor Green
+      # 固定目录：d:\Lynn安装包\
+      New-Item -ItemType Directory -Path $InstallerFixedDir -Force | Out-Null
+      $FinalPath = Join-Path $InstallerFixedDir $FinalInstallerName
+      # 如已存在同版本包，覆盖
+      Copy-Item $SetupExe.FullName $FinalPath -Force
+      Write-Host "  安装包已输出: $FinalPath ($([math]::Round($SetupExe.Length/1MB,2)) MB)" -ForegroundColor Green
+      Write-Host "  命名规则: 奇思_版本号.exe（按规格每次客户端改动版本号+0.01）" -ForegroundColor DarkGray
+
+      # 同步复制到项目 downloads 目录（仅用于本地引用，不上传服务器）
+      $DownloadsDir = "$ProjectRoot\downloads"
+      if (Test-Path $DownloadsDir) {
+        Copy-Item $FinalPath "$DownloadsDir\$FinalInstallerName" -Force
+      }
     } else {
       Write-Host "  未找到安装包（跳过）" -ForegroundColor Yellow
     }
+
+    # cargo clean 防止 cargo-target-native 膨胀（按项目规格）
+    Write-Host "  执行 cargo clean 清理 Rust 编译缓存..." -ForegroundColor DarkGray
+    Push-Location "$TauriDir\src-tauri"
+    cargo clean 2>&1 | Out-Null
+    Pop-Location
+    Write-Host "  cargo clean 完成" -ForegroundColor Green
   } else {
     Write-Host "  desktop-native 未找到，跳过桌面端构建" -ForegroundColor Yellow
   }
