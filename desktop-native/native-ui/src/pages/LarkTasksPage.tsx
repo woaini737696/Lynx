@@ -147,7 +147,8 @@ export function LarkTasksPage() {
       const res = await cloudApi.get<{ connected: boolean; name?: string }>("/api/feishu/status");
       setFeishuStatus({ connected: res.connected, name: res.name });
     } catch {
-      // 静默失败
+      // 查询失败时兜底为未连接，确保"连接飞书"按钮可见
+      setFeishuStatus({ connected: false });
     }
   }, []);
 
@@ -155,13 +156,29 @@ export function LarkTasksPage() {
     fetchFeishuStatus();
   }, [fetchFeishuStatus]);
 
-  // 连接飞书（在系统浏览器中打开OAuth授权页）
+  // 连接飞书（在系统浏览器中打开OAuth授权页，授权后自动轮询检测连接状态）
   const handleConnectFeishu = async () => {
     const base = getCloudEndpoint().replace(/\/+$/, "");
-    const authUrl = `${base}/api/feishu/auth`;
+    const authUrl = `${base}/api/feishu/auth?desktop=1`;
     try {
       await invoke("open_external", { url: authUrl });
-      toast.success("已在浏览器中打开飞书授权页面，完成后请返回刷新");
+      toast.success("已在浏览器中打开飞书授权页面，授权完成后将自动检测连接状态");
+      // 启动轮询：每 3 秒检查一次连接状态，持续 5 分钟
+      const pollInterval = setInterval(async () => {
+        try {
+          const res = await cloudApi.get<{ connected: boolean; name?: string }>("/api/feishu/status");
+          if (res.connected) {
+            setFeishuStatus({ connected: true, name: res.name });
+            toast.success(`飞书已连接: ${res.name || "授权成功"}`);
+            clearInterval(pollInterval);
+            queryClient.invalidateQueries({ queryKey: ["lark-tasks"] });
+          }
+        } catch {
+          // 静默重试
+        }
+      }, 3000);
+      // 5 分钟后自动停止轮询
+      setTimeout(() => clearInterval(pollInterval), 5 * 60 * 1000);
     } catch {
       toast.error("无法打开浏览器，请手动访问：" + authUrl);
     }

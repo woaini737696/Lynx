@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import type { PersistedUser, AuthCredentials } from "@/lib/auth-persistence";
-import { isElectron, invoke } from "@/lib/tauri";
+import { isElectron, isTauri, invoke } from "@/lib/tauri";
 
 interface User extends PersistedUser {}
 
@@ -17,6 +17,9 @@ interface AuthState {
   signOut: () => void;
 }
 
+// 桌面端环境检测：Electron 或 Tauri 都需要同步认证状态到主进程
+const isDesktop = () => isElectron() || isTauri();
+
 export const useAuthStore = create<AuthState>((set) => ({
   user: null,
   token: null,
@@ -29,11 +32,10 @@ export const useAuthStore = create<AuthState>((set) => ({
       user: credentials?.user ?? null,
       token: credentials?.token ?? null,
     });
-    // 任务1: token 设置完成后，主动同步到 Electron 主进程的 store.js
-    // 仅在 Electron 环境 + token 存在时触发（signOut 清空时不同步）
+    // 同步认证到桌面端主进程（Electron + Tauri）
+    // Rust 端需要 token + endpoint 来启动 WS 连接和发起云端请求
     const token = credentials?.token;
-    if (token && isElectron()) {
-      // 动态 import 避免与 cloud-api 形成循环依赖
+    if (token && isDesktop()) {
       import("@/lib/cloud-api")
         .then(({ getCloudEndpoint }) => {
           invoke("sync_auth", { token, endpoint: getCloudEndpoint() }).catch(
@@ -51,8 +53,12 @@ export const useAuthStore = create<AuthState>((set) => ({
   setInitialized: (initialized) => set({ initialized }),
   signOut: () => {
     set({ user: null, token: null });
-    // P0 修复：登出时同步主进程，清空 userToken，避免 WS 用旧 token 连接
-    if (isElectron()) {
+    // 登出时：1) 停止 WS 客户端 2) 清空 Rust 端 userToken
+    if (isDesktop()) {
+      // 先停止 WS，再清空 token（顺序重要：避免 WS 用旧 token 重连）
+      invoke("stop_hermes_agent").catch((e) => {
+        console.warn("[authStore] stop_hermes_agent 失败:", e);
+      });
       import("@/lib/cloud-api")
         .then(({ getCloudEndpoint }) => {
           invoke("sync_auth", { token: "", endpoint: getCloudEndpoint() }).catch((e) => {

@@ -92,7 +92,7 @@ def create_release():
 1. Windows: 下载 .exe 双击安装
 2. Android: 下载 .apk 允许未知来源安装
 
-用Lynx AI，人人都是超级个体
+不用学AI，什么都能干
 """.format(version=VERSION),
         "target_commitish": "master",
         "prerelease": False,

@@ -33,6 +33,7 @@ pub struct AppState {
     pub authorized_dirs: Mutex<Vec<String>>,
     pub ws_connected: AtomicBool,
     pub ws_started: AtomicBool, // WS 客户端是否已启动（防重复 spawn 线程）
+    pub ws_should_stop: AtomicBool, // WS 客户端停止信号（signOut 时设置）
     pub user_token: Mutex<Option<String>>,
     pub cloud_endpoint: Mutex<String>,
 }
@@ -55,6 +56,7 @@ impl Default for AppState {
             authorized_dirs: Mutex::new(vec![default_dir]),
             ws_connected: AtomicBool::new(false),
             ws_started: AtomicBool::new(false),
+            ws_should_stop: AtomicBool::new(false),
             user_token: Mutex::new(None),
             cloud_endpoint: Mutex::new("https://ai.lynxdo.com".to_string()),
         }
@@ -147,6 +149,23 @@ fn set_user_token(state: tauri::State<Arc<AppState>>, token: String) -> Result<(
 #[tauri::command]
 fn set_cloud_endpoint(state: tauri::State<Arc<AppState>>, endpoint: String) -> Result<(), String> {
     *state.cloud_endpoint.lock().map_err(|e| e.to_string())? = endpoint;
+    Ok(())
+}
+
+/// 同步认证信息（token + endpoint）到 Rust 端
+/// 前端登录/登出时调用，确保 Rust 端状态与前端一致
+/// 空字符串 token 表示清除登录态
+#[tauri::command]
+async fn sync_auth(
+    state: tauri::State<'_, Arc<AppState>>,
+    token: String,
+    endpoint: String,
+) -> Result<(), String> {
+    let token_empty = token.is_empty();
+    *state.user_token.lock().map_err(|e| e.to_string())? = if token_empty { None } else { Some(token) };
+    *state.cloud_endpoint.lock().map_err(|e| e.to_string())? = endpoint.clone();
+    log::info!("sync_auth 完成: token={}, endpoint={}",
+        if token_empty { "已清除" } else { "已设置" }, endpoint);
     Ok(())
 }
 
@@ -297,6 +316,7 @@ async fn start_hermes_agent(
     }
 
     state.ws_started.store(true, Ordering::SeqCst);
+    state.ws_should_stop.store(false, Ordering::SeqCst);
 
     let app_handle = app.clone();
     let cloud_url = cloud.clone();
@@ -310,6 +330,19 @@ async fn start_hermes_agent(
         });
     });
 
+    Ok(())
+}
+
+/// 停止 HermesAgent WS 客户端（signOut 时调用）
+/// 设置停止信号，WS 循环会在下次检查时退出
+#[tauri::command]
+async fn stop_hermes_agent(
+    state: tauri::State<'_, Arc<AppState>>,
+) -> Result<(), String> {
+    log::info!("停止 HermesAgent WS 客户端");
+    state.ws_should_stop.store(true, Ordering::SeqCst);
+    state.ws_started.store(false, Ordering::SeqCst);
+    state.ws_connected.store(false, Ordering::SeqCst);
     Ok(())
 }
 
@@ -651,6 +684,7 @@ pub fn run() {
             is_emergency_stop,
             set_user_token,
             set_cloud_endpoint,
+            sync_auth,
             get_agent_status,
             execute_assistant_command,
             rpa_browser_open,
@@ -666,6 +700,7 @@ pub fn run() {
             check_hermes_update,
             update_hermes_agent,
             start_hermes_agent,
+            stop_hermes_agent,
             start_hermes_dashboard,
             stop_hermes_dashboard,
             open_external,

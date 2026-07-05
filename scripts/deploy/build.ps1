@@ -1,4 +1,4 @@
-# Lynx 本地构建脚本 - 构建产物供服务器部署使用
+﻿# Lynx 本地构建脚本 - 构建产物供服务器部署使用
 # 服务器不做任何编译，只接收此脚本产出的打包文件
 # 用法：.\scripts\deploy\build.ps1 [-SkipDesktop]
 
@@ -45,23 +45,19 @@ if ($LASTEXITCODE -ne 0) { throw "prisma generate 失败" }
 
 # 4. 本地预编译 WS 网关（esbuild 打包成纯 JS，服务器零依赖运行）
 Write-Host "[3/7] 预编译 WS 网关 (esbuild -> 纯 JS)..." -ForegroundColor Yellow
-$compileEAP = $ErrorActionPreference
-$ErrorActionPreference = "Continue"
-node scripts/compile-ws-gateway.mjs 2>&1 | Write-Host
+# esbuild 的进度信息写到 stderr（正常行为），用 cmd /c 包装避免 PowerShell NativeCommandError 误判
+cmd /c "node scripts/compile-ws-gateway.mjs 2>&1"
 $compileExit = $LASTEXITCODE
-$ErrorActionPreference = $compileEAP
-if ($compileExit -ne 0) { throw "ws-gateway 预编译失败" }
+if ($compileExit -ne 0) { throw "ws-gateway 预编译失败 (exit=$compileExit)" }
 if (-not (Test-Path "scripts/ws-gateway.compiled.js")) { throw "ws-gateway.compiled.js 未生成" }
 Write-Host "  ws-gateway.compiled.js 已生成" -ForegroundColor Green
 
 # 5. Next.js 构建 (standalone)
 Write-Host "[4/7] Next.js 构建 (standalone)..." -ForegroundColor Yellow
-$buildEAP = $ErrorActionPreference
-$ErrorActionPreference = "Continue"
-npm run build 2>&1 | Write-Host
+# Next.js 编译警告写到 stderr，用 cmd /c 包装避免 NativeCommandError 误判
+cmd /c "npm run build 2>&1"
 $buildExit = $LASTEXITCODE
-$ErrorActionPreference = $buildEAP
-if ($buildExit -ne 0) { throw "next build 失败" }
+if ($buildExit -ne 0) { throw "next build 失败 (exit=$buildExit)" }
 
 # 6. 复制 standalone 产物
 Write-Host "[5/7] 打包 standalone 产物..." -ForegroundColor Yellow
@@ -89,9 +85,9 @@ Copy-Item -Recurse "$ProjectRoot\.next\static\*" "$StandaloneDir\.next\static"
 # 复制 public（合并到 standalone\public，避免嵌套）
 if (Test-Path "$ProjectRoot\public") {
   if (Test-Path "$StandaloneDir\public") {
-    Copy-Item -Recurse "$ProjectRoot\public\*" "$StandaloneDir\public\"
+    Copy-Item -Recurse -Force "$ProjectRoot\public\*" "$StandaloneDir\public\"
   } else {
-    Copy-Item -Recurse "$ProjectRoot\public" "$StandaloneDir\public"
+    Copy-Item -Recurse -Force "$ProjectRoot\public" "$StandaloneDir\public"
   }
 }
 
@@ -106,10 +102,7 @@ if (Test-Path "$ProjectRoot\prisma\seed.ts") {
 New-Item -ItemType Directory -Path "$StandaloneDir\scripts" -Force | Out-Null
 Copy-Item "$ProjectRoot\scripts\ws-gateway.compiled.js" "$StandaloneDir\scripts\"
 Copy-Item "$ProjectRoot\scripts\start-ws-gateway.js" "$StandaloneDir\scripts\"
-# start-with-env.js 同时复制到根目录和 scripts/（PM2 启动入口在根目录）
-Copy-Item "$ProjectRoot\scripts\start-with-env.js" "$StandaloneDir\start-with-env.js" -Force
-Copy-Item "$ProjectRoot\scripts\start-with-env.js" "$StandaloneDir\scripts\start-with-env.js" -Force
-Write-Host "  WS 网关预编译产物已复制到 standalone/scripts/ + start-with-env.js 已复制到根目录" -ForegroundColor Green
+Write-Host "  WS 网关预编译产物已复制到 standalone/scripts/" -ForegroundColor Green
 
 # 复制生产环境 .env.production 到 standalone/.env
 if (Test-Path "$ProjectRoot\.env.production") {
@@ -171,15 +164,20 @@ if (-not $SkipDesktop) {
   $TauriDir = "$ProjectRoot\desktop-native"
   if (Test-Path "$TauriDir\native-ui\package.json") {
     Push-Location "$TauriDir\native-ui"
-    npm ci 2>$null; npm run build
+    cmd /c "npm ci 2>&1"
+    cmd /c "npm run build 2>&1"
     Pop-Location
     Push-Location "$TauriDir\src-tauri"
-    $env:CARGO_BUILD_TARGET = "x86_64-pc-windows-msvc"
-    cargo tauri build 2>&1 | Write-Host
+    # 统一 CARGO_TARGET_DIR 避免重复 target 目录膨胀（项目规格）
+    # 注意：不设置 CARGO_BUILD_TARGET，本机构建不需要，且会导致 Tauri 打包时找不到二进制文件
+    $env:CARGO_TARGET_DIR = "D:\cargo-target-native"
+    cmd /c "cargo tauri build 2>&1"
+    $tauriExit = $LASTEXITCODE
     Pop-Location
+    if ($tauriExit -ne 0) { Write-Host "  Tauri 构建失败 (exit=$tauriExit)" -ForegroundColor Red }
 
-    # 读取 tauri.conf.json 版本号
-    $TauriConf = Get-Content "$TauriDir\src-tauri\tauri.conf.json" -Raw | ConvertFrom-Json
+    # 读取 tauri.conf.json 版本号（必须用 UTF-8 编码读取，否则中文乱码导致 ConvertFrom-Json 失败）
+    $TauriConf = Get-Content "$TauriDir\src-tauri\tauri.conf.json" -Raw -Encoding UTF8 | ConvertFrom-Json
     $DesktopVersion = $TauriConf.version
     $FinalInstallerName = "奇思_$DesktopVersion.exe"
     $InstallerFixedDir = "d:\Lynn安装包"
@@ -187,6 +185,23 @@ if (-not $SkipDesktop) {
     $BundleDir = "D:\cargo-target-native\release\bundle"
     $SetupExe = Get-ChildItem "$BundleDir\nsis\*setup.exe" -ErrorAction SilentlyContinue | Select-Object -First 1
     if ($SetupExe) {
+      # 代码签名（解决"未知发布者"问题，Windows SmartScreen 据此显示发布者 Lynn）
+      # 签名失败不阻塞构建，仅输出警告
+      $SignTool = "C:\Program Files (x86)\Windows Kits\10\bin\10.0.26100.0\x64\signtool.exe"
+      $PfxPath = "$TauriDir\src-tauri\lynnhub-code-sign.pfx"
+      $PfxPassword = "lynn2026"
+      if ((Test-Path $SignTool) -and (Test-Path $PfxPath)) {
+        Write-Host "  正在签名安装包（发布者: Lynn）..." -ForegroundColor DarkGray
+        cmd /c "`"$SignTool`" sign /f `"$PfxPath`" /p $PfxPassword /tr http://timestamp.digicert.com /td sha256 /fd sha256 `"$($SetupExe.FullName)`" 2>&1"
+        if ($LASTEXITCODE -eq 0) {
+          Write-Host "  代码签名成功" -ForegroundColor Green
+        } else {
+          Write-Host "  代码签名失败（错误码: $LASTEXITCODE），继续输出未签名包" -ForegroundColor Yellow
+        }
+      } else {
+        Write-Host "  signtool 或 PFX 证书不存在，跳过签名" -ForegroundColor Yellow
+      }
+
       # 固定目录：d:\Lynn安装包\
       New-Item -ItemType Directory -Path $InstallerFixedDir -Force | Out-Null
       $FinalPath = Join-Path $InstallerFixedDir $FinalInstallerName
@@ -205,11 +220,16 @@ if (-not $SkipDesktop) {
     }
 
     # cargo clean 防止 cargo-target-native 膨胀（按项目规格）
-    Write-Host "  执行 cargo clean 清理 Rust 编译缓存..." -ForegroundColor DarkGray
-    Push-Location "$TauriDir\src-tauri"
-    cargo clean 2>&1 | Out-Null
-    Pop-Location
-    Write-Host "  cargo clean 完成" -ForegroundColor Green
+    # 仅在构建成功时清理（失败时保留缓存以便增量编译重试）
+    if ($tauriExit -eq 0) {
+      Write-Host "  执行 cargo clean 清理 Rust 编译缓存..." -ForegroundColor DarkGray
+      Push-Location "$TauriDir\src-tauri"
+      cmd /c "cargo clean 2>&1"
+      Pop-Location
+      Write-Host "  cargo clean 完成" -ForegroundColor Green
+    } else {
+      Write-Host "  Tauri 构建失败，跳过 cargo clean 以便增量重试" -ForegroundColor Yellow
+    }
   } else {
     Write-Host "  desktop-native 未找到，跳过桌面端构建" -ForegroundColor Yellow
   }

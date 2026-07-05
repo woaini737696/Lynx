@@ -28,10 +28,25 @@ pub async fn start_ws_client(cloud_endpoint: &str, user_token: &str, app: AppHan
         cloud_endpoint.replace("https://", "").replace("http://", ""));
 
     loop {
+        // 检查停止信号（signOut 时设置）
+        {
+            let state = app.state::<Arc<AppState>>();
+            if state.ws_should_stop.load(Ordering::SeqCst) {
+                log::info!("WS 客户端收到停止信号，退出连接循环");
+                break;
+            }
+        }
+
         match connect_and_serve(&ws_url, user_token, &app).await {
             Ok(_) => {
                 log::info!("WS 连接正常关闭");
-                break;
+                // 检查是否是因停止信号退出
+                let state = app.state::<Arc<AppState>>();
+                if state.ws_should_stop.load(Ordering::SeqCst) {
+                    break;
+                }
+                // 否则继续重连
+                tokio::time::sleep(Duration::from_secs(2)).await;
             }
             Err(e) => {
                 log::warn!("WS 连接异常: {}, 5秒后重试", e);
@@ -39,6 +54,7 @@ pub async fn start_ws_client(cloud_endpoint: &str, user_token: &str, app: AppHan
             }
         }
     }
+    log::info!("HermesAgent WS 客户端已退出");
 }
 
 /// 构造 WS URL：将 http(s):// 转为 ws(s)://，不含 token（token 通过首条消息发送）
@@ -67,6 +83,7 @@ async fn connect_and_serve(ws_url: &str, token: &str, app: &AppHandle) -> Result
     let state = app.state::<Arc<AppState>>();
     state.ws_connected.store(true, Ordering::SeqCst);
     let _ = app.emit("ws-connected", ());
+    let _ = app.emit("ws-status-changed", json!({ "connected": true }));
 
     let (mut write, mut read) = ws_stream.split();
     use futures_util::SinkExt;
@@ -118,26 +135,42 @@ async fn connect_and_serve(ws_url: &str, token: &str, app: &AppHandle) -> Result
         }
     });
 
-    // 5. 主循环：接收云端指令
-    while let Some(msg_result) = read.next().await {
-        match msg_result {
-            Ok(Message::Text(text)) => {
-                if let Err(e) = handle_cloud_message(&text, app, &tx).await {
-                    log::warn!("处理云端消息失败: {}", e);
+    // 5. 主循环：接收云端指令（带停止信号检查，每 3 秒检查一次）
+    loop {
+        tokio::select! {
+            // 检查停止信号
+            _ = tokio::time::sleep(Duration::from_secs(3)) => {
+                if state.ws_should_stop.load(Ordering::SeqCst) {
+                    log::info!("WS 读取循环收到停止信号，退出");
+                    break;
                 }
             }
-            Ok(Message::Ping(_)) => {
-                // 自动 pong 由 tungstenite 处理
+            // 接收消息
+            msg_result = read.next() => {
+                match msg_result {
+                    Some(Ok(Message::Text(text))) => {
+                        if let Err(e) = handle_cloud_message(&text, app, &tx).await {
+                            log::warn!("处理云端消息失败: {}", e);
+                        }
+                    }
+                    Some(Ok(Message::Ping(_))) => {
+                        // 自动 pong 由 tungstenite 处理
+                    }
+                    Some(Ok(Message::Close(_))) => {
+                        log::info!("收到 WS Close 帧");
+                        break;
+                    }
+                    Some(Err(e)) => {
+                        log::warn!("WS 读取错误: {}", e);
+                        break;
+                    }
+                    None => {
+                        log::info!("WS 流已关闭");
+                        break;
+                    }
+                    _ => {}
+                }
             }
-            Ok(Message::Close(_)) => {
-                log::info!("收到 WS Close 帧");
-                break;
-            }
-            Err(e) => {
-                log::warn!("WS 读取错误: {}", e);
-                break;
-            }
-            _ => {}
         }
     }
 
@@ -148,6 +181,7 @@ async fn connect_and_serve(ws_url: &str, token: &str, app: &AppHandle) -> Result
     drop(tx);
     state.ws_connected.store(false, Ordering::SeqCst);
     let _ = app.emit("ws-disconnected", ());
+    let _ = app.emit("ws-status-changed", json!({ "connected": false }));
 
     Ok(())
 }

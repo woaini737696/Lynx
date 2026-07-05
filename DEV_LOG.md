@@ -9,6 +9,7 @@
 
 | 迭代 | 日期 | 任务概要 |
 |------|------|----------|
+| [迭代 119](#迭代-119---2026-07-05) | 2026-07-05 | v1.0.35桌面端8项严重Bug全面修复：① 发布者签名(build.ps1添加signtool签名步骤+PFX密码待用户提供暂输出未签名包) ② 安装界面Slogan修正(generate-installer-assets.py硬编码→动态读取tauri.conf.json版本号+slogan改为"不用学AI/什么都能干"+LoginModal/LoginPage/upload-to-gitee-release.py同步) ③ 安装界面版本号动态化(get_desktop_version()从tauri.conf.json读取避免手动维护) ④ 覆盖安装提示(installer-hooks.nsh新增NSIS_HOOK_CUSTOMINIT宏检测HKCU/HKLM注册表已有安装+MessageBox MB_YESNO弹窗+nsExec静默卸载旧版本) ⑤ 检查更新10054报错修复(installer.rs reqwest添加浏览器UA+http1_only规避TLS指纹拦截+备用URL+/download/latest.json+download_file同步添加UA) ⑥ WS已连接但对话不可用根因修复(ws_client.rs追加emit ws-status-changed事件+新增ws_should_stop停止信号+stop_hermes_agent命令+authStore isDesktop()检测Tauri环境+signOut时先stop_hermes_agent再sync_auth) ⑦ 飞书任务OAuth完整实现(LarkTasksPage feishuStatus兜底显示连接按钮+handleConnectFeishu加desktop=1参数+轮询5分钟检测连接/auth/route.ts编码desktop标记到state/callback/route.ts解析state返回HTML成功/失败页) ⑧ 退出登录空白根因修复(lib.rs新增sync_auth命令+authStore isDesktop()=isElectron()||isTauri()覆盖Tauri环境+signOut先stop_hermes_agent再sync_auth空token) ⑨ 版本号1.0.34→1.0.35(tauri.conf.json+Cargo.toml+package.json三处同步) ⑩ build.ps1修复(esbuild/Next.js/cargo stderr用cmd /c包装避免NativeCommandError+public复制加-Force+移除不存在的start-with-env.js+tauri.conf.json用UTF-8编码读取+CARGO_TARGET_DIR统一设置+signtool非阻塞+cargo clean仅在构建成功时执行) |
 | [迭代 117](#迭代-117---2026-07-05) | 2026-07-05 | 五项问题修复+日志系统重构+服务器部署：① 建立完善的日志系统(logger.ts扩展serverLog模块化ai/voice/feishu/ws/auth+新增client-logger.ts零Node依赖避免pino打包到客户端+100条环形缓冲区) ② Lynx助理聊天记录丢失bug根因修复(persistAssistantMessageSafely返回值改为{id,persisted}+2次重试机制+4个调用点done事件添加persisted字段+Web/共享层/抽屉3处useChat同步捕获serverMessageId/serverPersisted避免前端重复POST) ③ Token消耗数显示不一致修复(useSessions.ts loadSession补全tokens→usage映射+AssistantChat.tsx loadSession同步补全provider/model/usage元数据) ④ Web端全双工语音通话'语音合成失败'bug修复(tts/route.ts role:assistant→user P0根因+跳过cloned_xxxx fallback无效ID+全链路serverLog/tts/stream/route.ts同步修复+voice-tts-stream.ts新增onSynthesizeError回调连续2次失败才提示+useTTS.ts clientLog替代console.warn+错误响应解析提取可读reason) ⑤ 飞书OAuth 20029错误诊断增强(auth/route.ts打印实际redirect_uri+source env/default+callback/route.ts捕获error_code+全链路serverLog.feishu/lark-tasks page.tsx reason映射auth_denied→20029详细提示) ⑥ .env.example补充FEISHU_REDIRECT_URI示例+部署说明 ⑦ Web端部署到服务器(deploy_standalone.py上传+PM2重启+首页HTTP/2 200) |
 | [迭代 116](#迭代-116---2026-07-04) | 2026-07-04 | v1.0.15四项问题修复+Gitee Release上线：① 安装界面Slogan改用最新文案(prepare-build-resources.py 用Lynx AI+人人都是超级个体→不用学AI+什么都能干) ② 登录后空白根因彻底修复(SettingsPage.handleSignOut不导航不存在的/login路由改弹登录弹窗/authStore.signOut同步主进程清空userToken避免WS用旧token连接/AppLayout wsStartedRef登出时不重置导致重新登录WS不启动/LoginModal登录成功后显式navigate /focus避免停留空白) ③ WS连接诊断增强(main.js sync_auth支持空token+start_hermes_agent详细日志token前缀+fetchFreshWsToken返回值/ws-gateway.js close增加code/reason日志+error增加code/errno+新增unexpected-response事件监听HTTP拒绝) ④ 覆盖安装提示(installer.nsh !macro customInit在.onInit中检测旧版ReadRegStr+MessageBox MB_YESNO弹窗提示是否覆盖+taskkill关闭旧进程避免文件占用/原Section外不能用ReadRegStr的NSIS语法错误已修复) ⑤ v1.0.15打包(QisiSetup-1.0.15.exe 69.35MB已签名CN=LynnHub) ⑥ Gitee Release v1.0.15上传(id=733604 / EXE+APK均上传成功) |
 | [迭代 115](#迭代-115---2026-07-04) | 2026-07-04 | v1.0.14三项严重bug修复+Gitee Release上线：① 桌面端空白界面修复(renderer/被.gitignore排除git reset后消失/build/目录也缺失/app.asar未包含index.html导致loadFile失败/新建prepare-build-resources.py统一生成icon.ico+installer-header.bmp+installer-sidebar.bmp+license.txt+installer.nsh/vite build重新生成renderer/) ② 安装界面样式修复(build/目录完全缺失导致BMP不生效/installer-header.bmp 150x57深空蓝+Logo+奇思+AI工作台/installer-sidebar.bmp 164x314深空蓝渐变+Logo+奇思+奇思AI工作台+用Lynx AI+人人都是超级个体+©2026 Lynn) ③ Web端chunk 404修复(服务器.next/static/是7月3日旧版本但server.js是7月4日新版本/HTML引用layout-0a42f87e4de91f45.js新hash但磁盘只有layout-a269acad2f751e03.js旧hash/上传本地.next/static/覆盖+nginx配置从proxy_pass改为alias直接服务磁盘/未来更新静态资源不再需要重启PM2) ④ License文字改为奇思-AI工作台 ⑤ 覆盖安装(installer.nsh taskkill关闭旧进程) ⑥ NSIS安装包签名(sign-installer.cjs签名最终QisiSetup-*.exe CN=LynnHub) ⑦ Gitee Release v1.0.14上传(QisiSetup-1.0.14.exe 69.35MB+QisiApp-0.1.8.apk 4.03MB / id=733546) |
@@ -6292,6 +6293,69 @@ GitHub 仓库迁移 + 本地持久化 + 三方同步验证 + 文档完善：用�
 
 ### Commit
 本次提交
+
+---
+
+## 迭代 119 - 2026-07-05
+
+### 任务概要
+v1.0.35 桌面端 8 项严重 Bug 全面修复，覆盖安装体验、WS 连接、飞书 OAuth、登录稳定性。
+
+### 修改文件清单
+
+**Rust 后端（desktop-native/src-tauri/src/）**
+- `lib.rs`：新增 `sync_auth` 命令（同步 token+endpoint 到 Rust 端）+ `stop_hermes_agent` 命令（停止 WS 客户端）+ AppState 新增 `ws_should_stop: AtomicBool` 停止信号 + start_hermes_agent 重置停止信号 + invoke_handler 注册两个新命令
+- `ws_client.rs`：连接/断开时追加 emit `ws-status-changed` 事件（前端监听的事件名）+ 主循环 `tokio::select!` 每 3 秒检查停止信号 + start_ws_client 外层循环检查停止信号
+- `installer.rs`：`fetch_latest_json` 的 reqwest client 添加浏览器 UA + `http1_only()` 规避 TLS 指纹拦截 + 备用 URL `/download/latest.json` + `download_file` 同步添加 UA
+
+**前端（desktop-native/native-ui/src/）**
+- `stores/authStore.ts`：新增 `isDesktop()` 辅助函数（`isElectron() || isTauri()`）+ setCredentials 中 Tauri 环境调用 sync_auth + signOut 时先 stop_hermes_agent 再 sync_auth 空 token
+- `pages/LarkTasksPage.tsx`：feishuStatus 查询失败兜底 `{ connected: false }` 确保连接按钮可见 + handleConnectFeishu 加 `desktop=1` 参数 + 授权后轮询 5 分钟检测连接
+- `components/auth/LoginModal.tsx`：slogan 改为"不用学AI，什么都能干"
+- `pages/LoginPage.tsx`：slogan 同步修改
+
+**服务器端（src/app/api/feishu/）**
+- `auth/route.ts`：检测 `desktop=1` 参数，编码 `userId:nonce:desktop` 三段式 state
+- `callback/route.ts`：解析 state 中 desktop 标记 + 桌面端返回 HTML 成功/失败页（而非重定向前端路由）+ 修复 state 可能为 null 的 TypeScript 编译错误
+
+**构建与安装资源**
+- `scripts/generate-installer-assets.py`：slogan 改为"不用学AI/什么都能干" + 新增 `get_desktop_version()` 从 tauri.conf.json 动态读取版本号
+- `desktop-native/src-tauri/nsis/installer-hooks.nsh`：新增 `NSIS_HOOK_CUSTOMINIT` 宏检测已有安装（HKCU/HKLM 注册表）+ MessageBox 弹窗提示覆盖 + nsExec 静默卸载旧版本
+- `scripts/deploy/build.ps1`：signtool 签名步骤（非阻塞）+ CARGO_TARGET_DIR 统一设置 + tauri.conf.json 用 UTF-8 编码读取 + esbuild/Next.js/cargo stderr 用 cmd/c 包装避免 NativeCommandError + public 复制加 -Force + 移除不存在的 start-with-env.js + cargo clean 仅在构建成功时执行
+- `scripts/deploy/upload-to-gitee-release.py`：slogan 同步修改
+
+**版本号**
+- `desktop-native/src-tauri/tauri.conf.json`：1.0.34 → 1.0.35
+- `desktop-native/src-tauri/Cargo.toml`：1.0.33 → 1.0.35
+- `desktop-native/native-ui/package.json`：1.0.32 → 1.0.35
+
+### 8 项 Bug 修复详情
+
+1. **发布者显示"未知发布者"** → build.ps1 添加 signtool 签名步骤（PFX 密码待用户提供，暂输出未签名包）
+2. **安装界面 Slogan 旧文案** → generate-installer-assets.py 改为"不用学AI/什么都能干" + 动态读版本号
+3. **安装界面版本号 1.0.31** → `get_desktop_version()` 从 tauri.conf.json 读取，自动显示 v1.0.35
+4. **已安装无覆盖提示** → NSIS_HOOK_CUSTOMINIT 检测注册表 + MessageBox 弹窗
+5. **检查更新 10054 报错** → reqwest 浏览器 UA + http1_only 规避 TLS 指纹拦截 + 备用 URL
+6. **WS 已连接但对话不可用** → emit `ws-status-changed` 事件 + ws_should_stop 停止信号 + authStore isDesktop() 覆盖 Tauri 环境
+7. **飞书任务无连接按钮** → feishuStatus 兜底 + desktop=1 OAuth + 轮询检测 + HTML 成功页
+8. **退出登录空白** → sync_auth 命令 + isDesktop()=isElectron()||isTauri() + signOut 先 stop_hermes_agent 再 sync_auth
+
+### 构建产物
+- 桌面端安装包：`D:\Lynn安装包\奇思_1.0.35.exe`（6.61 MB，未签名）
+- 服务器部署包：`deploy/dist/lynx-deploy-20260705-175744/standalone/`（含 feishu callback 更新）
+
+### 待用户验证
+- TC1: 安装界面 slogan 显示"不用学AI/什么都能干"
+- TC2: 安装界面版本号显示 v1.0.35
+- TC3: 已安装时弹出覆盖安装提示
+- TC4: 退出登录不再空白
+- TC5: 重启后登录不再空白
+- TC6: Agent WS 连接后助理对话可用
+- TC7: 飞书任务页面显示"连接飞书"按钮
+- TC8: 点击连接飞书后浏览器打开授权页面
+- TC9: 飞书授权完成后桌面端自动检测连接状态
+- TC10: 检查更新不再报 10054 错误
+- TC11: PFX 证书密码提供后重新签名安装包
 
 ---
 

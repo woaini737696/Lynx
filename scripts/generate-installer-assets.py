@@ -5,12 +5,24 @@ Lynx 安装包图标资源生成器
 包含：icon.ico / icon.png / nsis-header.bmp / nsis-sidebar.bmp
 """
 import os
+import json
 from PIL import Image, ImageDraw, ImageFont
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 ICONS_DIR = os.path.join(ROOT, "desktop-native", "src-tauri", "icons")
 SOURCE_LOGO = os.path.join(ROOT, "public", "lynx-logo-black.png")  # Web 端黑底白猞猁
 SOURCE_ICON = os.path.join(ROOT, "public", "lynx-icon-512.png")    # 512 大图源
+TAURI_CONF = os.path.join(ROOT, "desktop-native", "src-tauri", "tauri.conf.json")
+
+
+def get_desktop_version() -> str:
+    """从 tauri.conf.json 读取桌面端版本号，避免手动维护"""
+    try:
+        with open(TAURI_CONF, "r", encoding="utf-8") as f:
+            conf = json.load(f)
+        return "v" + conf.get("version", "1.0.0")
+    except Exception:
+        return "v1.0.0"
 
 # Lynx 品牌色
 DEEP_SPACE_BLUE = (3, 8, 22)       # #030816 深空蓝
@@ -122,10 +134,11 @@ def make_nsis_sidebar():
     draw.text(((W - tw) // 2, 115), text, fill=WHITE, font=font_brand)
 
     # 宣传文案（自动换行）
+    # 用户指定 slogan：不用学AI，什么都能干
     font_slogan = find_font(14, bold=True)
     slogan_line1 = "奇思 AI工作台"
-    slogan_line2 = "用Lynx AI"
-    slogan_line3 = "人人都是超级个体"
+    slogan_line2 = "不用学AI"
+    slogan_line3 = "什么都能干"
 
     for i, line in enumerate([slogan_line1, slogan_line2, slogan_line3]):
         bbox = draw.textbbox((0, 0), line, font=font_slogan)
@@ -134,10 +147,10 @@ def make_nsis_sidebar():
         color = WHITE if i == 0 else BRAND_BLUE
         draw.text(((W - tw) // 2, y), line, fill=color, font=font_slogan)
 
-    # 底部装饰线 + 版本信息
+    # 底部装饰线 + 版本信息（动态读取 tauri.conf.json 版本号）
     draw.line([(30, 270), (W - 30, 270)], fill=(43, 127, 255, 100), width=1)
     font_ver = find_font(9)
-    ver_text = "v1.0.32"
+    ver_text = get_desktop_version()
     bbox = draw.textbbox((0, 0), ver_text, font=font_ver)
     tw = bbox[2] - bbox[0]
     draw.text(((W - tw) // 2, 280), ver_text, fill=LIGHT_GRAY, font=font_ver)

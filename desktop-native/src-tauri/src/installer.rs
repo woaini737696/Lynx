@@ -216,11 +216,13 @@ pub async fn detect_installation() -> Result<serde_json::Value, String> {
     Ok(status)
 }
 
-/// 下载文件（使用 reqwest）
+/// 下载文件（使用 reqwest + 浏览器 UA 规避 TLS 指纹拦截）
 async fn download_file(url: &str, dest: &PathBuf) -> Result<u64, String> {
     log::info!("下载文件: {} -> {}", url, dest.display());
 
     let client = reqwest::Client::builder()
+        .user_agent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36")
+        .http1_only()
         .timeout(std::time::Duration::from_secs(120))
         .build()
         .map_err(|e| format!("构建 HTTP client 失败: {}", e))?;
@@ -415,15 +417,18 @@ pub async fn install_ai_environment(app: AppHandle) -> Result<serde_json::Value,
 
 // ============ HermesAgent 版本检测与升级（迭代87 新增） ============
 
-/// 服务器 latest.json URL（走 /api/hermes/latest-json API 路由代理读取，
-/// 避免直接请求静态文件路径因 Nginx 配置问题导致连接异常重置 error 10054）
+/// 服务器 latest.json URL（多源容灾：API 路由 + 静态文件直读）
+/// reqwest 默认 TLS 指纹可能被云防火墙拦截，使用浏览器 UA + http1_only 规避
 const LATEST_JSON_URLS: &[&str] = &[
     "https://ai.lynxdo.com/api/hermes/latest-json",
+    "https://ai.lynxdo.com/download/latest.json",
 ];
 
 /// 从服务器拉取 latest.json（每个 URL 最多重试 3 次，间隔 1 秒）
 async fn fetch_latest_json() -> Result<serde_json::Value, String> {
     let client = reqwest::Client::builder()
+        .user_agent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36")
+        .http1_only()
         .timeout(std::time::Duration::from_secs(15))
         .build()
         .map_err(|e| format!("构建 HTTP client 失败: {}", e))?;

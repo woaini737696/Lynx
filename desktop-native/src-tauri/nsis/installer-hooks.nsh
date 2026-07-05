@@ -1,7 +1,31 @@
 ; NSIS installer hooks for Lynx desktop
-; 1. PREINSTALL：终止运行中的 Lynx 进程，避免文件占用导致卸载失败（"Error launching installer"）
-; 2. POSTINSTALL：自动导入自签名代码签名证书到 Windows 受信任的根证书颁发机构
+; 1. CUSTOMINIT：检测已有安装并提示覆盖（避免静默覆盖安装）
+; 2. PREINSTALL：终止运行中的 Lynx 进程，避免文件占用导致卸载失败（"Error launching installer"）
+; 3. POSTINSTALL：自动导入自签名代码签名证书到 Windows 受信任的根证书颁发机构
 ;    解决"未知开发者"安全提示（自签名证书需要导入根存储才能被 Windows 信任）
+
+!macro NSIS_HOOK_CUSTOMINIT
+  ; 检测已有安装（Tauri NSIS 使用 productName 作为注册表键名）
+  ; 依次检查 HKCU 和 HKLM 下的 Uninstall 注册表项
+  ReadRegStr $0 HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\奇思" "UninstallString"
+  ${If} $0 == ""
+    ReadRegStr $0 HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\奇思" "UninstallString"
+  ${EndIf}
+  ${If} $0 != ""
+    MessageBox MB_YESNO|MB_ICONQUESTION \
+      "检测到系统已安装 奇思。$\r$\n$\r$\n是否卸载旧版本并继续安装？" \
+      IDYES +3
+    SetErrorLevel 1
+    Quit
+    DetailPrint "正在卸载旧版本 奇思..."
+    ; 静默卸载旧版本，等待卸载完成
+    nsExec::ExecToLog '$0 /S _?=$INSTDIR'
+    Pop $1
+    DetailPrint "旧版本卸载完成（退出码: $1）"
+    ; 等待文件句柄释放
+    Sleep 1500
+  ${EndIf}
+!macroend
 
 !macro NSIS_HOOK_PREINSTALL
   DetailPrint "正在终止运行中的 Lynx 进程..."
