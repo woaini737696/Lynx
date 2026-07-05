@@ -1,5 +1,4 @@
 import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import {
   User,
@@ -45,7 +44,6 @@ const authModeOptions = [
 ];
 
 export function SettingsPage() {
-  const navigate = useNavigate();
   const user = useAuthStore((s) => s.user);
   const signOut = useAuthStore((s) => s.signOut);
   const theme = useUIStore((s) => s.theme);
