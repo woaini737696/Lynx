@@ -6,6 +6,9 @@ import type { Flow, FlowNode } from "@/lib/flow-store";
 import { prisma } from "@/lib/db";
 import { sendPushNotification } from "@/lib/push";
 import { evaluateBool, evaluateStr } from "@/lib/safe-expr";
+import { getLogger } from "@/lib/logger";
+
+const logger = getLogger("flow-engine");
 
 // ============ 类型定义 ============
 
@@ -233,7 +236,7 @@ async function executeOutputNode(
     }
   } catch (e) {
     // 副作用失败不阻断工作流执行，仅记录错误日志
-    console.error(`[flow-engine] 输出节点「${node.label}」副作用失败:`, e);
+    logger.error({ err: e, nodeLabel: node.label, target }, "输出节点副作用失败");
     return {
       nodeId: node.id,
       nodeLabel: node.label,

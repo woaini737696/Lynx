@@ -3,6 +3,9 @@
 // 全部走 OpenAI 兼容协议（/chat/completions、/embeddings）
 
 import { decrypt } from "@/lib/crypto";
+import { getLogger } from "@/lib/logger";
+
+const logger = getLogger("ai-provider");
 
 // ============ 类型定义 ============
 
@@ -254,7 +257,7 @@ export async function refreshAISettings(): Promise<void> {
     }
     _dbSettingsLoaded = true;
   } catch (e) {
-    console.error("[ai-provider] 加载 AISetting 失败，回退到环境变量:", e);
+    logger.error({ err: e }, "加载 AISetting 失败，回退到环境变量");
     _dbSettingsCache = null;
     _dbSettingsLoaded = true;
   }

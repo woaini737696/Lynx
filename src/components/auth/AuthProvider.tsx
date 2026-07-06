@@ -13,9 +13,13 @@ interface AuthContextValue {
   isOpen: boolean;
   mode: LoginMode;
   expired: boolean;
+  // 用户是否已设置密码（登录后从 session 同步，供设置页判断是否显示提醒）
+  passwordSetByUser: boolean | null;
   open: (mode?: LoginMode) => void;
   close: () => void;
   setMode: (mode: LoginMode) => void;
+  // 手动打开"设置密码"弹窗（设置页可调用）
+  openSetPassword: () => void;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -25,8 +29,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [mode, setMode] = useState<LoginMode>("phone-password");
   const [expired, setExpired] = useState(false);
   const [showSetPassword, setShowSetPassword] = useState(false);
+  // 用户是否已设置密码：null 表示尚未从 session 读取
+  const [passwordSetByUser, setPasswordSetByUser] = useState<boolean | null>(null);
   const searchParams = useSearchParams();
   const router = useRouter();
+
+  // sessionStorage key：用户点击"稍后设置"后写入，下次登录不再自动弹窗
+  const PASSWORD_SKIPPED_KEY = "lynx-password-skipped";
 
   // 监听 URL 参数：?login=1 打开弹窗，?expired=1 显示过期提示
   useEffect(() => {
@@ -96,17 +105,61 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         .then((r) => (r.ok ? r.json() : null))
         .then((s) => {
           const pwdSet = (s?.user as { passwordSetByUser?: boolean } | undefined)?.passwordSetByUser;
+          setPasswordSetByUser(pwdSet ?? null);
+          // 仅当用户未设置密码时考虑弹窗
           if (pwdSet === false) {
-            setShowSetPassword(true);
+            // 检查 sessionStorage 是否已存在跳过标记：存在则不再自动弹窗
+            const skipped =
+              typeof window !== "undefined" &&
+              sessionStorage.getItem(PASSWORD_SKIPPED_KEY) === "1";
+            if (!skipped) {
+              setShowSetPassword(true);
+            }
+          } else if (pwdSet === true) {
+            // 用户已设置密码，清理可能残留的跳过标记
+            if (typeof window !== "undefined") {
+              sessionStorage.removeItem(PASSWORD_SKIPPED_KEY);
+            }
           }
         })
         .catch(() => {});
     }, 500);
-  }, [router]);
+  }, [router, PASSWORD_SKIPPED_KEY]);
+
+  // 手动打开"设置密码"弹窗（设置页可调用，不受跳过标记影响）
+  const openSetPassword = useCallback(() => {
+    setShowSetPassword(true);
+  }, []);
+
+  // 用户点击"稍后设置"：关闭弹窗并写入 sessionStorage 跳过标记
+  const handleSkipPassword = useCallback(() => {
+    setShowSetPassword(false);
+    if (typeof window !== "undefined") {
+      sessionStorage.setItem(PASSWORD_SKIPPED_KEY, "1");
+    }
+  }, [PASSWORD_SKIPPED_KEY]);
+
+  // 设置密码成功：关闭弹窗并清理跳过标记
+  const handleSetPasswordSuccess = useCallback(() => {
+    setShowSetPassword(false);
+    setPasswordSetByUser(true);
+    if (typeof window !== "undefined") {
+      sessionStorage.removeItem(PASSWORD_SKIPPED_KEY);
+    }
+  }, [PASSWORD_SKIPPED_KEY]);
 
   const value = useMemo(
-    () => ({ isOpen, mode, expired, open, close, setMode }),
-    [isOpen, mode, expired, open, close, setMode]
+    () => ({
+      isOpen,
+      mode,
+      expired,
+      passwordSetByUser,
+      open,
+      close,
+      setMode,
+      openSetPassword,
+    }),
+    [isOpen, mode, expired, passwordSetByUser, open, close, setMode, openSetPassword]
   );
 
   return (
@@ -124,7 +177,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       {showSetPassword && (
         <SetPasswordModal
           onClose={() => setShowSetPassword(false)}
-          onSuccess={() => setShowSetPassword(false)}
+          onSuccess={handleSetPasswordSuccess}
+          onSkip={handleSkipPassword}
         />
       )}
     </AuthContext.Provider>

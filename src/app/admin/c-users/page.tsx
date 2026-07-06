@@ -16,6 +16,7 @@ import {
   UserCircle,
   Clock,
   Globe,
+  Briefcase,
 } from "lucide-react";
 import {
   PageHeader,
@@ -31,7 +32,11 @@ import {
   Pagination,
   useClientPagination,
 } from "@/components/ui/ListControls";
-import { PROFESSION_ICON_MAP } from "@/lib/permissions";
+import {
+  PROFESSIONS,
+  PROFESSION_ICON_MAP,
+  PROFESSION_LABEL_MAP,
+} from "@/lib/permissions";
 import { openContextMenu } from "@/components/ui/ContextMenu";
 
 type CUser = {
@@ -41,6 +46,7 @@ type CUser = {
   email: string | null;
   displayName: string;
   role: string;
+  profession: string | null;
   active: boolean;
   createdAt: string;
   updatedAt: string;
@@ -78,6 +84,16 @@ export default function CUsersPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [filterStatus, setFilterStatus] = useState<string>("all");
   const [filterRole, setFilterRole] = useState<string>("all");
+  // 筛选职业空间：从 URL 参数 ?profession=xxx 读取初始值（用于从职业空间页面跳转过来）
+  const [filterProfession, setFilterProfession] = useState<string>("all");
+
+  // 初始化：从 URL 读取 profession 参数（职业空间页面"查看用户"按钮跳转过来）
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const params = new URLSearchParams(window.location.search);
+    const p = params.get("profession");
+    if (p) setFilterProfession(p);
+  }, []);
 
   // 详情弹窗
   const [detailTarget, setDetailTarget] = useState<CUser | null>(null);
@@ -125,6 +141,18 @@ export default function CUsersPage() {
       ...roles.map((r) => ({ value: r.name, label: formatRoleLabel(r) })),
     ];
   }, [roles, formatRoleLabel]);
+
+  // 筛选器职业空间选项（来自 12 岗位静态定义）
+  const professionFilterOptions = useMemo(() => {
+    return [
+      { value: "all", label: "全部职业空间" },
+      { value: "none", label: "未归属职业空间" },
+      ...PROFESSIONS.map((p) => ({
+        value: p.key,
+        label: `${p.icon} ${p.label}`,
+      })),
+    ];
+  }, []);
 
   // 加载用户列表 + 角色列表
   const load = useCallback(async () => {
@@ -176,9 +204,19 @@ export default function CUsersPage() {
       if (filterStatus === "active" && !u.active) return false;
       if (filterStatus === "disabled" && u.active) return false;
       if (filterRole !== "all" && u.role !== filterRole) return false;
+      // 职业空间筛选：User.profession 优先，未设置时回退到所绑定角色的 Role.profession
+      if (filterProfession !== "all") {
+        const userProfession =
+          u.profession || roleMap.get(u.role)?.profession || null;
+        if (filterProfession === "none") {
+          if (userProfession) return false;
+        } else if (userProfession !== filterProfession) {
+          return false;
+        }
+      }
       return true;
     });
-  }, [users, searchQuery, filterStatus, filterRole]);
+  }, [users, searchQuery, filterStatus, filterRole, filterProfession, roleMap]);
 
   const { page, pageSize, total, paginated, onPageChange, onPageSizeChange } =
     useClientPagination(filtered);
@@ -389,6 +427,11 @@ export default function CUsersPage() {
           onChange={setFilterRole}
           options={filterRoleOptions}
         />
+        <FilterSelect
+          value={filterProfession}
+          onChange={setFilterProfession}
+          options={professionFilterOptions}
+        />
       </div>
 
       {/* 用户列表 */}
@@ -397,6 +440,7 @@ export default function CUsersPage() {
         <div className="hidden border-b border-border ios-glass-sm px-4 py-2.5 sm:flex sm:items-center sm:gap-3 text-xs font-medium text-muted-foreground">
           <div className="flex-1 min-w-0">用户</div>
           <div className="hidden md:block w-40 shrink-0">角色</div>
+          <div className="hidden lg:block w-32 shrink-0">职业空间</div>
           <div className="hidden lg:block w-24 shrink-0">状态</div>
           <div className="hidden lg:block w-28 shrink-0">注册时间</div>
           <div className="hidden xl:block w-28 shrink-0">最后登录</div>
@@ -500,6 +544,17 @@ export default function CUsersPage() {
                   {/* 角色 */}
                   <div className="hidden md:block w-40 shrink-0">
                     <RoleBadge role={user.role} roleMap={roleMap} />
+                  </div>
+
+                  {/* 职业空间 */}
+                  <div className="hidden lg:block w-32 shrink-0">
+                    <ProfessionBadge
+                      profession={
+                        user.profession ||
+                        roleMap.get(user.role)?.profession ||
+                        null
+                      }
+                    />
                   </div>
 
                   {/* 状态 */}
@@ -984,6 +1039,26 @@ function RoleBadge({
       {role === "admin" && <Shield className="mr-1 h-2.5 w-2.5" />}
       {icon && <span className="mr-1">{icon}</span>}
       {displayName}
+    </span>
+  );
+}
+
+// 职业空间标签：显示职业图标 + 名称；未归属时显示"—"
+function ProfessionBadge({ profession }: { profession: string | null }) {
+  if (!profession) {
+    return (
+      <span className="inline-flex items-center text-xs text-muted-foreground/60">
+        <Briefcase className="mr-1 h-3 w-3" />
+        —
+      </span>
+    );
+  }
+  const icon = PROFESSION_ICON_MAP[profession];
+  const label = PROFESSION_LABEL_MAP[profession] || profession;
+  return (
+    <span className="inline-flex items-center rounded-full ios-glass-sm px-2.5 py-0.5 text-[11px] font-medium text-foreground/80">
+      {icon && <span className="mr-1">{icon}</span>}
+      {label}
     </span>
   );
 }

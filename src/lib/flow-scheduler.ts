@@ -127,7 +127,7 @@ async function fireScheduledFlow(flowId: string, flowName: string): Promise<void
       `[flow-scheduler] 工作流执行完成: ${flowName} success=${result.success} duration=${result.totalDurationMs}ms`
     );
   } catch (e) {
-    console.error(`[flow-scheduler] 工作流执行失败: ${flowName}`, e);
+    logger.error({ err: e, flowName, flowId }, "工作流执行失败");
   }
 }
 
@@ -177,9 +177,9 @@ export function startFlowScheduler(): void {
   if (schedulerTimer) return;
   logger.info("[flow-scheduler] 定时调度器已启动");
   // 启动后立即执行一次 tick（加载已有定时任务）
-  tick().catch((e) => console.error("[flow-scheduler] 启动 tick 失败:", e));
+  tick().catch((e) => logger.error({ err: e }, "启动 tick 失败"));
   schedulerTimer = setInterval(() => {
-    tick().catch((e) => console.error("[flow-scheduler] tick 失败:", e));
+    tick().catch((e) => logger.error({ err: e }, "tick 失败"));
   }, SCHEDULER_INTERVAL);
 }
 
@@ -254,7 +254,7 @@ export async function startEventTriggers(): Promise<void> {
         );
       }
     } catch (e) {
-      console.error("[flow-scheduler] 事件触发处理失败:", e);
+      logger.error({ err: e }, "事件触发处理失败");
     }
   });
 }

@@ -219,18 +219,28 @@ export function LoginModal({
         return;
       }
       // 注册成功：用验证码方式直接登录（万能验证码可复用）
-      // 等待 300ms 确保注册事务已提交，避免 signIn 时查不到用户
-      await new Promise((r) => setTimeout(r, 300));
-      const signInRes = await signIn("credentials", {
-        phone,
-        code,
-        redirect: false,
-      });
-      if (signInRes?.ok) {
+      // 采用重试机制应对注册事务提交时序问题：最多尝试 3 次，每次间隔 200ms
+      // 三次都失败才切到登录面板提示用户手动登录
+      let signedIn = false;
+      for (let attempt = 0; attempt < 3; attempt++) {
+        if (attempt > 0) {
+          await new Promise((r) => setTimeout(r, 200));
+        }
+        const signInRes = await signIn("credentials", {
+          phone,
+          code,
+          redirect: false,
+        });
+        if (signInRes?.ok) {
+          signedIn = true;
+          break;
+        }
+      }
+      if (signedIn) {
         onSuccess();
         return;
       }
-      // 若 signIn 失败，切到验证码登录面板提示用户手动登录
+      // 三次都失败，切到验证码登录面板提示用户手动登录
       setPanel("login");
       setMode("phone-code");
       setError("注册成功，请使用验证码登录");

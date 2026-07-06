@@ -7,16 +7,49 @@ import { validateString } from "@/lib/validate";
 
 const logger = getLogger("users-api");
 
-// GET /api/users - 列出所有用户（仅 admin）
-// 返回字段中包含 profession（通过 join Role 表获取）
-export async function GET() {
+// GET /api/users - 列出所有用户（仅 admin，跨职业空间全量视图）
+// 查询参数：
+//   q          - 搜索关键词（手机号 / 用户名 / 显示名）
+//   profession - 职业空间筛选（职业 key，如 pm / designer；all 或空表示全部）
+// 返回字段中包含 profession：优先取 User.profession，回退到所绑定角色的 Role.profession
+export async function GET(req: NextRequest) {
   try {
     const auth = await requireAdmin();
     if (auth.user === null) return auth.error;
 
-    // 并行查询用户列表与角色表（用于 join 出 profession）
+    const { searchParams } = new URL(req.url);
+    const q = searchParams.get("q")?.trim().toLowerCase() || "";
+    const professionFilter = searchParams.get("profession") || "all";
+
+    // 构造 where 条件（admin 不受职业空间隔离，可查看全部用户）
+    const where: Record<string, unknown> = {};
+    if (professionFilter !== "all") {
+      // 职业空间筛选：User.profession 优先，未设置时回退到 Role.profession
+      const roles = await prisma.role.findMany({
+        where: { profession: professionFilter },
+        select: { name: true },
+      });
+      const roleNames = roles.map((r) => r.name);
+      where.OR = [
+        { profession: professionFilter },
+        ...(roleNames.length > 0 ? [{ role: { in: roleNames } }] : []),
+      ];
+    }
+    if (q) {
+      const qCond = {
+        OR: [
+          { phone: { contains: q } },
+          { displayName: { contains: q } },
+          { username: { contains: q } },
+        ],
+      };
+      where.AND = where.AND ? [...(where.AND as unknown[]), qCond] : [qCond];
+    }
+
+    // 并行查询用户列表与角色表（用于回退出 profession）
     const [users, roles] = await Promise.all([
       prisma.user.findMany({
+        where,
         orderBy: [{ createdAt: "desc" }],
         select: {
           id: true,
@@ -27,6 +60,7 @@ export async function GET() {
           role: true,
           active: true,
           createdAt: true,
+          profession: true,
         },
       }),
       prisma.role.findMany({
@@ -34,16 +68,16 @@ export async function GET() {
       }),
     ]);
 
-    // 角色 name → profession 映射
+    // 角色 name → profession 映射（用于 User.profession 为空时回退）
     const roleProfessionMap = new Map<string, string | null>();
     for (const r of roles) {
       roleProfessionMap.set(r.name, r.profession);
     }
 
-    // 附加 profession 字段（来自所绑定角色的 profession）
+    // 附加 profession 字段（User.profession 优先，回退到 Role.profession）
     const result = users.map((u) => ({
       ...u,
-      profession: roleProfessionMap.get(u.role) || null,
+      profession: u.profession || roleProfessionMap.get(u.role) || null,
     }));
 
     return NextResponse.json({ users: result });

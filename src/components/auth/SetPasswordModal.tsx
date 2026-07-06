@@ -10,15 +10,59 @@ import { Lock, Loader2, AlertCircle, X, CheckCircle2 } from "lucide-react";
 interface SetPasswordModalProps {
   onClose: () => void;
   onSuccess: () => void;
+  // 用户点击"稍后设置"时触发（与关闭 X 区分，用于记录跳过标记）
+  onSkip?: () => void;
 }
 
-export function SetPasswordModal({ onClose, onSuccess }: SetPasswordModalProps) {
+// 密码强度类型
+type PasswordStrength = "none" | "weak" | "medium" | "strong";
+
+// 内联密码强度判断：
+// - 弱：长度<8 或 只包含字母/数字（未同时含字母和数字）
+// - 中：长度>=8 且 同时包含字母+数字
+// - 强：长度>=8 且 同时包含字母+数字+特殊字符
+function getPasswordStrength(pwd: string): PasswordStrength {
+  if (!pwd) return "none";
+  const hasLetter = /[a-zA-Z]/.test(pwd);
+  const hasDigit = /\d/.test(pwd);
+  const hasSpecial = /[^a-zA-Z0-9]/.test(pwd);
+  if (pwd.length < 8) return "weak";
+  if (!(hasLetter && hasDigit)) return "weak";
+  if (hasSpecial) return "strong";
+  return "medium";
+}
+
+// 密码强度对应的填充颜色
+const STRENGTH_BAR_COLOR: Record<Exclude<PasswordStrength, "none">, string> = {
+  weak: "bg-red-400",
+  medium: "bg-yellow-400",
+  strong: "bg-green-500",
+};
+
+// 密码强度对应的文字颜色
+const STRENGTH_TEXT_COLOR: Record<Exclude<PasswordStrength, "none">, string> = {
+  weak: "text-red-400",
+  medium: "text-yellow-500",
+  strong: "text-green-500",
+};
+
+// 密码强度对应的中文标签
+const STRENGTH_LABEL: Record<Exclude<PasswordStrength, "none">, string> = {
+  weak: "弱",
+  medium: "中",
+  strong: "强",
+};
+
+export function SetPasswordModal({ onClose, onSuccess, onSkip }: SetPasswordModalProps) {
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState(false);
   const firstInputRef = useRef<HTMLInputElement | null>(null);
+
+  // 实时计算密码强度
+  const strength = getPasswordStrength(password);
 
   useEffect(() => {
     const t = setTimeout(() => firstInputRef.current?.focus(), 50);
@@ -127,6 +171,31 @@ export function SetPasswordModal({ onClose, onSuccess }: SetPasswordModalProps) 
                 className="ios-glass-sm w-full rounded-xl py-2.5 pl-10 pr-3 text-sm text-foreground placeholder:text-muted-foreground/60 transition-colors focus:border-primary/50 focus:outline-none focus:ring-2 focus:ring-primary/20 disabled:opacity-50"
               />
             </div>
+            {/* 密码强度实时提示：3 段进度条 + 文字标签 */}
+            {strength !== "none" && (
+              <div className="flex items-center gap-2 pt-1">
+                <div className="flex flex-1 gap-1">
+                  {[0, 1, 2].map((i) => {
+                    // 弱：填充第 1 段；中：填充前 2 段；强：填充全部 3 段
+                    const filled =
+                      strength === "weak" ? i === 0 : strength === "medium" ? i <= 1 : i <= 2;
+                    return (
+                      <div
+                        key={i}
+                        className={`h-1 flex-1 rounded-full transition-colors ${
+                          filled ? STRENGTH_BAR_COLOR[strength] : "bg-foreground/10"
+                        }`}
+                      />
+                    );
+                  })}
+                </div>
+                <span
+                  className={`text-[11px] font-medium ${STRENGTH_TEXT_COLOR[strength]}`}
+                >
+                  {STRENGTH_LABEL[strength]}
+                </span>
+              </div>
+            )}
           </div>
 
           <div className="space-y-1">
@@ -168,14 +237,14 @@ export function SetPasswordModal({ onClose, onSuccess }: SetPasswordModalProps) 
           </button>
         </form>
 
-        {/* 跳过提示 */}
+        {/* 跳过提示：onSkip 用于记录跳过标记，未提供时回退到 onClose */}
         <div className="mt-4 border-t border-foreground/10 pt-3 text-center">
           <p className="text-[11px] text-muted-foreground">
             可跳过此步骤，继续使用验证码登录
           </p>
           <button
             type="button"
-            onClick={onClose}
+            onClick={() => (onSkip ?? onClose)()}
             disabled={loading}
             className="mt-1 text-xs font-medium text-primary underline-offset-2 transition-colors hover:underline disabled:opacity-50"
           >

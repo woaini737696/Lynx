@@ -11,6 +11,9 @@ import {
   hasAIEmbedding,
 } from "./ai";
 import { prisma } from "./db";
+import { getLogger } from "@/lib/logger";
+
+const logger = getLogger("embedding");
 
 // ============ 中文分词（简易版）============
 // 按字符 bigram + 英文单词拆分，足够做关键词相似度
@@ -115,7 +118,7 @@ export async function embedText(text: string): Promise<Float32Array> {
       });
       vec = Float32Array.from(embedding);
     } catch (e) {
-      console.error("AI embedding 失败，降级为 TF-IDF:", e);
+      logger.error({ err: e }, "AI embedding 失败，降级为 TF-IDF");
       vec = tfidfVector(truncated);
     }
   } else {

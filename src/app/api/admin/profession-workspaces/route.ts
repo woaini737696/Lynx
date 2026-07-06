@@ -52,7 +52,7 @@ function serializeWorkspace(row: {
   };
 }
 
-/** GET - 列出所有职业 + 数据库配置 */
+/** GET - 列出所有职业 + 数据库配置（含每个职业空间的用户数量） */
 export async function GET() {
   const auth = await requireAuth();
   if (auth.error) return auth.error;
@@ -60,30 +60,55 @@ export async function GET() {
     return NextResponse.json({ error: "仅管理员可访问" }, { status: 403 });
   }
 
-  const rows = await prisma.professionWorkspace.findMany();
+  // 并行查询：DB 自定义配置 + 用户数量统计（按 profession 分组）
+  // 用户归属职业空间：User.profession 字段在分配角色时由 Role.profession 同步写入
+  const [rows, userCountsByProfession, allUsersCount] = await Promise.all([
+    prisma.professionWorkspace.findMany(),
+    // 统计 User.profession 直接归属的用户数（按 profession 分组）
+    prisma.user.groupBy({
+      by: ["profession"],
+      _count: { _all: true },
+    }),
+    // 全部用户数（用于"未归属职业空间"统计）
+    prisma.user.count(),
+  ]);
+
+  // 统计每个 profession 的用户数
+  const userCountMap = new Map<string, number>();
+  for (const item of userCountsByProfession) {
+    if (item.profession) {
+      userCountMap.set(item.profession, item._count._all);
+    }
+  }
+
   const rowMap = new Map(rows.map((r) => [r.profession, r]));
 
-  // 合并：12 岗位静态定义 + 数据库自定义
+  // 合并：12 岗位静态定义 + 数据库自定义 + 用户数量
   const workspaces = PROFESSIONS.map((def) => {
     const row = rowMap.get(def.key);
-    if (row) return serializeWorkspace(row);
+    const base = row
+      ? serializeWorkspace(row)
+      : {
+          id: null,
+          profession: def.key,
+          displayName: def.label,
+          description: def.description,
+          icon: def.icon,
+          accentColor: def.accentColor,
+          quickCommands: def.defaultQuickCommands.map((label) => ({ label })),
+          systemPrompt: def.defaultSystemPrompt,
+          defaultProvider: def.defaultProvider || null,
+          defaultModel: def.defaultModel || null,
+          defaultReasoningMode: def.defaultReasoningMode || null,
+          allowedTools: def.defaultAllowedTools,
+          allowedProviders: ["deepseek", "mimo"], // 默认允许全部 Provider
+          enabled: false, // 未在 DB 中持久化
+          updatedAt: null,
+          isDefault: true,
+        };
     return {
-      id: null,
-      profession: def.key,
-      displayName: def.label,
-      description: def.description,
-      icon: def.icon,
-      accentColor: def.accentColor,
-      quickCommands: def.defaultQuickCommands.map((label) => ({ label })),
-      systemPrompt: def.defaultSystemPrompt,
-      defaultProvider: def.defaultProvider || null,
-      defaultModel: def.defaultModel || null,
-      defaultReasoningMode: def.defaultReasoningMode || null,
-      allowedTools: def.defaultAllowedTools,
-      allowedProviders: ["deepseek", "mimo"], // 默认允许全部 Provider
-      enabled: false, // 未在 DB 中持久化
-      updatedAt: null,
-      isDefault: true,
+      ...base,
+      userCount: userCountMap.get(def.key) || 0,
     };
   });
 
@@ -95,6 +120,8 @@ export async function GET() {
       accentColor: p.accentColor,
     })),
     workspaces,
+    // 全部用户数（用于"未归属职业空间"统计）
+    totalUsers: allUsersCount,
   });
 }
 

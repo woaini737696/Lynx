@@ -1,8 +1,13 @@
 // 轻量 JWT 实现（HS256），依赖 Node crypto，无需额外 npm 包
 // 供 App 端 Token 鉴权使用，与 NextAuth session 并存
+//
+// 注意：本模块仅服务端使用（依赖 Node crypto），可安全使用 pino logger
 
 import crypto from "crypto";
 import os from "os";
+import { getLogger } from "@/lib/logger";
+
+const logger = getLogger("jwt");
 
 // 动态读取 SECRET：避免模块加载时 process.env 尚未填充导致 SECRET 为 undefined
 // （Next.js dev server 中 .env 由 dotenv 在运行时注入，模块顶层常量可能读取过早）
@@ -19,8 +24,8 @@ function getSecret(): string {
   const devSecret = `dev-secret-not-for-production:${os.hostname()}:lynx-hub`;
   if (!devSecretWarningShown) {
     devSecretWarningShown = true;
-    console.warn(
-      "[jwt] WARNING: AUTH_SECRET 未配置，开发环境使用默认非安全 secret。请勿在生产环境使用！"
+    logger.warn(
+      "AUTH_SECRET 未配置，开发环境使用默认非安全 secret。请勿在生产环境使用！"
     );
   }
   return devSecret;
@@ -62,7 +67,7 @@ export async function signToken(payload: JwtPayload): Promise<string> {
 export async function verifyToken(token: string): Promise<JwtPayload | null> {
   const secret = getSecret();
   if (!secret) {
-    console.error("[jwt] verifyToken: SECRET 为空");
+    logger.error("verifyToken: SECRET 为空");
     return null;
   }
   const parts = token.split(".");
@@ -76,7 +81,7 @@ export async function verifyToken(token: string): Promise<JwtPayload | null> {
   const b = Buffer.from(expectedSig);
   if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) {
     // 安全：日志中不输出任何签名片段，避免泄露签名前缀辅助攻击者爆破
-    console.error("[jwt] verifyToken: 签名不匹配");
+    logger.error("verifyToken: 签名不匹配");
     return null;
   }
 

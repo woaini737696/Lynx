@@ -2,7 +2,10 @@
 // 处理飞书事件订阅 v2 格式的事件通知，持久化到数据库并提供 SSE 实时推送
 import { runSyncAsync } from "./lark-sync";
 import { prisma } from "@/lib/db";
+import { getLogger } from "@/lib/logger";
 import crypto from "crypto";
+
+const logger = getLogger("lark-webhook");
 
 // ==================== 类型定义 ====================
 
@@ -86,7 +89,7 @@ async function persistEvent(evt: QueuedEvent, raw?: any): Promise<void> {
       // eventId 重复时忽略（幂等）
     });
   } catch (e) {
-    console.error("[webhook] 持久化事件失败:", e);
+    logger.error({ err: e }, "持久化事件失败");
   }
 }
 
@@ -257,7 +260,7 @@ export async function handleWebhookEvent(
 
   // 触发异步同步（不阻塞事件循环）
   runSyncAsync().catch((e) => {
-    console.error("webhook 触发异步同步失败:", e);
+    logger.error({ err: e }, "webhook 触发异步同步失败");
   });
 
   return { processed: true };
@@ -284,7 +287,7 @@ export async function getRecentEvents(sinceTimestamp?: string): Promise<QueuedEv
       summary: r.summary || undefined,
     }));
   } catch (e) {
-    console.error("[webhook] 从数据库读取事件失败:", e);
+    logger.error({ err: e }, "从数据库读取事件失败");
     return [];
   }
 }
@@ -296,6 +299,6 @@ export async function clearEventQueue(): Promise<void> {
   try {
     await prisma.larkWebhookEvent.deleteMany({});
   } catch (e) {
-    console.error("[webhook] 清空事件队列失败:", e);
+    logger.error({ err: e }, "清空事件队列失败");
   }
 }

@@ -75,7 +75,7 @@ async function authenticate(token: string): Promise<string | null> {
     const payload = await verifyToken(token);
     return payload?.id ?? null;
   } catch (e) {
-    console.warn("[ws-gateway] JWT 验证失败:", (e as Error).message);
+    logger.warn("JWT 验证失败:", (e as Error).message);
     return null;
   }
 }
@@ -168,7 +168,7 @@ async function registerDevice(
       });
     });
   } catch (e) {
-    console.error("[ws-gateway] 写入 PcSession 失败:", e);
+    logger.error({ err: e }, "写入 PcSession 失败");
   }
 
   // 关联 channelId 到 ws（用于后续消息路由）
@@ -195,7 +195,7 @@ async function heartbeat(channelId: string) {
       data: { lastHeartbeat: new Date(), status: "online" },
     });
   } catch (e) {
-    console.error("[ws-gateway] 心跳更新失败:", e);
+    logger.error({ err: e }, "心跳更新失败");
   }
 }
 
@@ -217,7 +217,7 @@ async function deviceOffline(channelId: string) {
           data: { status: "offline" },
         });
       } catch (e) {
-        console.error("[ws-gateway] 离线状态更新失败:", e);
+        logger.error({ err: e }, "离线状态更新失败");
       }
       logger.info(`[ws-gateway] PC 离线: user=${userId} channel=${channelId}`);
       break;
@@ -497,7 +497,7 @@ wss.on("connection", async (ws: WebSocket, req: import("http").IncomingMessage) 
         sendJson(ws, { type: "error", message: `未知消息类型: ${msgType}` });
       }
     } catch (e) {
-      console.error("[ws-gateway] 消息处理失败:", e);
+      logger.error({ err: e }, "消息处理失败");
       sendJson(ws, { type: "error", message: (e as Error).message });
     }
   });
@@ -516,7 +516,7 @@ wss.on("connection", async (ws: WebSocket, req: import("http").IncomingMessage) 
   });
 
   ws.on("error", (err: Error) => {
-    console.error("[ws-gateway] WS 错误:", err);
+    logger.error({ err }, "WS 错误");
   });
 });
 
@@ -533,7 +533,7 @@ setInterval(async () => {
       data: { status: "offline" },
     });
   } catch (e) {
-    console.error("[ws-gateway] 清理超时 PC 失败:", e);
+    logger.error({ err: e }, "清理超时 PC 失败");
   }
 }, 30 * 1000);
 

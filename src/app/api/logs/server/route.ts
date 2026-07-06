@@ -2,9 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { readFile } from "fs/promises";
 import { existsSync } from "fs";
 import path from "path";
+import { requireAuth } from "@/lib/auth-utils";
 
 /**
- * 服务端日志读取 API
+ * 服务端日志读取 API（仅 admin 可访问）
  * 读取 PM2 out.log 的最后 N 行，用于诊断面板导出
  *
  * GET /api/logs/server?limit=200
@@ -12,6 +13,15 @@ import path from "path";
  */
 export async function GET(req: NextRequest) {
   try {
+    // 鉴权：仅 admin 可读取服务端日志（含敏感信息）
+    const { user, error } = await requireAuth();
+    if (!user) {
+      return NextResponse.json({ error: error || "未登录" }, { status: 401 });
+    }
+    if (user.role !== "admin") {
+      return NextResponse.json({ error: "仅管理员可读取服务端日志" }, { status: 403 });
+    }
+
     const { searchParams } = new URL(req.url);
     const limit = Math.min(parseInt(searchParams.get("limit") || "200", 10), 1000);
 

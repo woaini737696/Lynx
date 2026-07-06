@@ -1402,7 +1402,7 @@ async function addLocalComment(taskId: string, content: string): Promise<Normali
       },
     });
   } catch (e) {
-    console.error("[lark-sync] 写入评论到数据库失败:", e);
+    logger.error({ err: e }, "写入评论到数据库失败");
   }
   return comment;
 }
@@ -1421,7 +1421,7 @@ async function getLocalComments(taskId: string): Promise<NormalizedComment[]> {
       creator: r.creatorId ? { id: r.creatorId, name: r.creatorName || undefined } : null,
     }));
   } catch (e) {
-    console.error("[lark-sync] 从数据库读取评论失败:", e);
+    logger.error({ err: e }, "从数据库读取评论失败");
     return [];
   }
 }
@@ -1565,7 +1565,7 @@ export function writeSyncState(state: SyncState): void {
   try {
     fs.writeFileSync(SYNC_STATE_FILE, JSON.stringify(state, null, 2), "utf-8");
   } catch (e) {
-    console.error("写入同步状态失败:", e);
+    logger.error({ err: e }, "写入同步状态失败");
   }
 }
 
@@ -1583,7 +1583,7 @@ export async function runSyncAsync(): Promise<{ ok: boolean; state: SyncState; e
   writeSyncState(state);
   if (result.ok && result.tasks.length > 0) {
     await upsertTasksToDb(result.tasks).catch((e) => {
-      console.error("[lark-sync] 同步写入数据库失败:", e);
+      logger.error({ err: e }, "同步写入数据库失败");
     });
   }
   return { ok: result.ok, state, error: result.error };
@@ -1690,7 +1690,7 @@ export async function upsertTasksToDb(tasks: NormalizedTask[]): Promise<void> {
     try {
       await upsertTaskToDb(task);
     } catch (e) {
-      console.error(`[lark-sync] upsert 任务失败 guid=${task.guid}:`, e);
+      logger.error({ err: e, guid: task.guid }, "upsert 任务失败");
     }
   }
 }
@@ -1703,7 +1703,7 @@ export async function getTaskFromDb(guid: string): Promise<NormalizedTask | null
     if (!row) return null;
     return dbRowToNormalizedTask(row);
   } catch (e) {
-    console.error(`[lark-sync] 从数据库读取任务失败 guid=${guid}:`, e);
+    logger.error({ err: e, guid }, "从数据库读取任务失败");
     return null;
   }
 }
@@ -1734,7 +1734,7 @@ export async function getTasksFromDb(opts?: {
     }
     return tasks;
   } catch (e) {
-    console.error("[lark-sync] 从数据库读取任务列表失败:", e);
+    logger.error({ err: e }, "从数据库读取任务列表失败");
     return [];
   }
 }
@@ -1754,7 +1754,7 @@ export async function getAssigneesFromDb(): Promise<LarkMember[]> {
     }
     return Array.from(map.values());
   } catch (e) {
-    console.error("[lark-sync] 从数据库聚合负责人失败:", e);
+    logger.error({ err: e }, "从数据库聚合负责人失败");
     return [];
   }
 }
@@ -1773,7 +1773,7 @@ export async function getTasklistsFromDb(): Promise<LarkTasklistRef[]> {
     }
     return Array.from(map.values());
   } catch (e) {
-    console.error("[lark-sync] 从数据库聚合任务清单失败:", e);
+    logger.error({ err: e }, "从数据库聚合任务清单失败");
     return [];
   }
 }

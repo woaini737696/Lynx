@@ -2,6 +2,9 @@
 import { prisma } from "./db";
 import { embedText, float32ToBuffer, bufferToFloat32, cosineSimilarity } from "./embedding";
 import { hasAIEmbedding } from "./ai";
+import { getLogger } from "@/lib/logger";
+
+const logger = getLogger("memory-sync");
 
 const threshold = hasAIEmbedding ? 0.8 : 0.3;
 
@@ -48,7 +51,7 @@ async function updateConnectionsFor(newMemoryId: string, newVec: Float32Array) {
       }
     }
   } catch (e) {
-    console.error("更新记忆连边失败:", e);
+    logger.error({ err: e }, "更新记忆连边失败");
   }
 }
 
@@ -65,7 +68,7 @@ export async function writeMemoryForIdea(ideaId: string, content: string) {
     });
     await updateConnectionsFor(memory.id, vec);
   } catch (e) {
-    console.error("写入 idea memory 失败:", e);
+    logger.error({ err: e, ideaId }, "写入 idea memory 失败");
   }
 }
 
@@ -87,7 +90,7 @@ export async function writeMemoryForConversation(
     });
     await updateConnectionsFor(memory.id, vec);
   } catch (e) {
-    console.error("写入 conversation memory 失败:", e);
+    logger.error({ err: e, conversationId }, "写入 conversation memory 失败");
   }
 }
 
@@ -107,6 +110,6 @@ export async function writeMemoryForCognition(
     });
     await updateConnectionsFor(memory.id, vec);
   } catch (e) {
-    console.error("写入 cognition memory 失败:", e);
+    logger.error({ err: e, cognitionId }, "写入 cognition memory 失败");
   }
 }

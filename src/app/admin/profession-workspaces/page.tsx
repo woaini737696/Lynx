@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback, useMemo } from "react";
+import Link from "next/link";
 import {
   Briefcase,
   Save,
@@ -12,6 +13,7 @@ import {
   Bot,
   X,
   Check,
+  Users,
 } from "lucide-react";
 import { PageHeader, Card, Button, LoadingState } from "@/components/layout/PageHeader";
 import { HelpButton } from "@/components/layout/HelpButton";
@@ -35,6 +37,8 @@ type Workspace = {
   enabled: boolean;
   updatedAt: string | null;
   isDefault?: boolean;
+  // 该职业空间下的用户数量（来自 API 统计）
+  userCount?: number;
 };
 
 type ToolDef = { name: string; description: string };
@@ -61,6 +65,8 @@ export default function ProfessionWorkspacesPage() {
   const [editingKey, setEditingKey] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
+  // 全部用户总数（来自 API，用于在顶部统计未归属职业空间的用户数）
+  const [totalUsers, setTotalUsers] = useState(0);
 
   // 编辑态（深拷贝目标 workspace，独立编辑）
   const [editForm, setEditForm] = useState<Workspace | null>(null);
@@ -82,6 +88,7 @@ export default function ProfessionWorkspacesPage() {
       if (wsRes.ok) {
         const data = await wsRes.json();
         setWorkspaces(data.workspaces || []);
+        setTotalUsers(data.totalUsers || 0);
       }
       if (toolsRes.ok) {
         const data = await toolsRes.json();
@@ -253,6 +260,35 @@ export default function ProfessionWorkspacesPage() {
           ))}
         </div>
       </Card>
+
+      {/* 用户归属统计概览：显示全部用户数、已归属职业空间用户数、未归属用户数 */}
+      {totalUsers > 0 && (
+        <div className="mb-4 flex flex-wrap items-center gap-3 rounded-xl ios-glass-sm px-4 py-2.5 text-xs">
+          <span className="inline-flex items-center gap-1.5 font-medium text-foreground">
+            <Users className="h-3.5 w-3.5 text-cognition" />
+            用户归属概览
+          </span>
+          <span className="text-muted-foreground">|</span>
+          <span className="text-muted-foreground">
+            全部用户：<span className="font-semibold text-foreground">{totalUsers}</span> 人
+          </span>
+          <span className="text-muted-foreground">
+            已归属职业空间：
+            <span className="font-semibold text-task">
+              {workspaces.reduce((sum, ws) => sum + (ws.userCount || 0), 0)}
+            </span> 人
+          </span>
+          <span className="text-muted-foreground">
+            未归属：
+            <span className="font-semibold text-graveyard">
+              {Math.max(
+                0,
+                totalUsers - workspaces.reduce((sum, ws) => sum + (ws.userCount || 0), 0)
+              )}
+            </span> 人
+          </span>
+        </div>
+      )}
 
       {/* 岗位搜索框 */}
       <SearchInput
@@ -670,6 +706,17 @@ function WorkspaceCard({
               </span>
             </div>
           </div>
+          <div className="flex items-start gap-1.5">
+            <Users className="mt-0.5 h-3 w-3 shrink-0 text-cognition" />
+            <div className="min-w-0">
+              <span className="text-muted-foreground">归属用户：</span>
+              <span className="text-foreground">
+                {ws.userCount && ws.userCount > 0
+                  ? `${ws.userCount} 人`
+                  : "暂无用户"}
+              </span>
+            </div>
+          </div>
         </div>
 
         {/* 状态 */}
@@ -696,6 +743,14 @@ function WorkspaceCard({
                 <RotateCcw className="h-3 w-3" />
               </button>
             )}
+            <Link
+              href={`/admin/users?profession=${encodeURIComponent(ws.profession)}`}
+              title="查看该职业空间下的全部用户"
+              className="inline-flex items-center gap-1 rounded-lg ios-glass-sm px-2 py-1 text-[11px] font-medium text-foreground/80 transition-colors hover:bg-primary/10 hover:text-primary"
+            >
+              <Users className="h-3 w-3" />
+              查看用户
+            </Link>
             <Button variant="outline" size="sm" onClick={onStartEdit}>
               <Wrench className="h-3 w-3" />
               配置
