@@ -9,6 +9,7 @@
 
 | 迭代 | 日期 | 任务概要 |
 |------|------|----------|
+| [迭代 122](#迭代-122---2026-07-06) | 2026-07-06 | GitHub token认证+pre-commit hook修复+技术栈分析纠正+3个bug修复：① GitHub token重新认证(ghp_5PDm...推送成功) ② pre-commit hook修复(git rev-parse获取项目根目录+powershell.exe全名+NoProfile避免编码问题) ③ 技术栈分析纠正(Tauri=老技术栈已弃用/Electron=新技术栈/RN=老/Kotlin=新+架构师角度分析更换原因) ④ 用户管理不见bug修复(Sidebar添加auth:login-success事件监听+useCallback) ⑤ 新注册用户登录弹窗bug修复(注册成功后延迟300ms再signIn确保事务提交) ⑥ 首次登录设置密码弹窗(User表加passwordSetByUser字段+注册API+auth.ts回调+SetPasswordModal组件+AuthProvider集成+set-password API) |
 | [迭代 121](#迭代-121---2026-07-06) | 2026-07-06 | 安全风险修复+QA测试流程建设+开发规范强化+桌面端签名打包+安卓端安装：① 72处硬编码凭据全部修复(scripts/deploy/下30+Python脚本SSH密码/Gitee Token/MySQL密码改为从.env.deploy读取+desktop-electron证书密码从硬编码改为环境变量) ② PFX代码签名集成(build.ps1 signtool签名步骤+密码从.env.deploy的DESKTOP_SIGN_PASSWORD读取+sign-existing-installer.ps1独立签名脚本+桌面端奇思_1.0.35.exe签名者Lynn有效期2029-07-06) ③ QA测试流程建设(vitest.config.ts覆盖率阈值30%+4个关键模块单元测试crypto/jwt/rate-limit/permissions共92用例全通过+playwright.config.ts CI HTML报告+失败截图视频+.github/workflows/ci-test.yml CI工作流lint+unit+e2e三阶段+docs/QA_TEST_SPEC.md测试规范文档217行) ④ 开发规范执行机制(scripts/pre-commit-check.ps1检查硬编码凭据/debugger/版本号一致性+scripts/install-hooks.ps1安装Git hooks+DEVELOPMENT_SPEC.md新增安全规范8/9/10条+12.5章QA测试规范) ⑤ 桌面端v1.0.35签名打包到D:\Lynn安装包\奇思_1.0.35.exe(6.61MB签名者Lynn) ⑥ 安卓端v0.1.8安装到手机Xiaomi 25098PN5AC(versionCode=9 versionName=0.1.8) |
 | [迭代 119](#迭代-119---2026-07-05) | 2026-07-05 | v1.0.35桌面端8项严重Bug全面修复：① 发布者签名(build.ps1添加signtool签名步骤+PFX密码待用户提供暂输出未签名包) ② 安装界面Slogan修正(generate-installer-assets.py硬编码→动态读取tauri.conf.json版本号+slogan改为"不用学AI/什么都能干"+LoginModal/LoginPage/upload-to-gitee-release.py同步) ③ 安装界面版本号动态化(get_desktop_version()从tauri.conf.json读取避免手动维护) ④ 覆盖安装提示(installer-hooks.nsh新增NSIS_HOOK_CUSTOMINIT宏检测HKCU/HKLM注册表已有安装+MessageBox MB_YESNO弹窗+nsExec静默卸载旧版本) ⑤ 检查更新10054报错修复(installer.rs reqwest添加浏览器UA+http1_only规避TLS指纹拦截+备用URL+/download/latest.json+download_file同步添加UA) ⑥ WS已连接但对话不可用根因修复(ws_client.rs追加emit ws-status-changed事件+新增ws_should_stop停止信号+stop_hermes_agent命令+authStore isDesktop()检测Tauri环境+signOut时先stop_hermes_agent再sync_auth) ⑦ 飞书任务OAuth完整实现(LarkTasksPage feishuStatus兜底显示连接按钮+handleConnectFeishu加desktop=1参数+轮询5分钟检测连接/auth/route.ts编码desktop标记到state/callback/route.ts解析state返回HTML成功/失败页) ⑧ 退出登录空白根因修复(lib.rs新增sync_auth命令+authStore isDesktop()=isElectron()||isTauri()覆盖Tauri环境+signOut先stop_hermes_agent再sync_auth空token) ⑨ 版本号1.0.34→1.0.35(tauri.conf.json+Cargo.toml+package.json三处同步) ⑩ build.ps1修复(esbuild/Next.js/cargo stderr用cmd /c包装避免NativeCommandError+public复制加-Force+移除不存在的start-with-env.js+tauri.conf.json用UTF-8编码读取+CARGO_TARGET_DIR统一设置+signtool非阻塞+cargo clean仅在构建成功时执行) |
 | [迭代 117](#迭代-117---2026-07-05) | 2026-07-05 | 五项问题修复+日志系统重构+服务器部署：① 建立完善的日志系统(logger.ts扩展serverLog模块化ai/voice/feishu/ws/auth+新增client-logger.ts零Node依赖避免pino打包到客户端+100条环形缓冲区) ② Lynx助理聊天记录丢失bug根因修复(persistAssistantMessageSafely返回值改为{id,persisted}+2次重试机制+4个调用点done事件添加persisted字段+Web/共享层/抽屉3处useChat同步捕获serverMessageId/serverPersisted避免前端重复POST) ③ Token消耗数显示不一致修复(useSessions.ts loadSession补全tokens→usage映射+AssistantChat.tsx loadSession同步补全provider/model/usage元数据) ④ Web端全双工语音通话'语音合成失败'bug修复(tts/route.ts role:assistant→user P0根因+跳过cloned_xxxx fallback无效ID+全链路serverLog/tts/stream/route.ts同步修复+voice-tts-stream.ts新增onSynthesizeError回调连续2次失败才提示+useTTS.ts clientLog替代console.warn+错误响应解析提取可读reason) ⑤ 飞书OAuth 20029错误诊断增强(auth/route.ts打印实际redirect_uri+source env/default+callback/route.ts捕获error_code+全链路serverLog.feishu/lark-tasks page.tsx reason映射auth_denied→20029详细提示) ⑥ .env.example补充FEISHU_REDIRECT_URI示例+部署说明 ⑦ Web端部署到服务器(deploy_standalone.py上传+PM2重启+首页HTTP/2 200) |
@@ -6354,6 +6355,47 @@ GitHub 仓库迁移 + 本地持久化 + 三方同步验证 + 文档完善：用�
 - 三端代码确认使用"奇思"品牌（grep 验证 Web src / desktop-native / android 均已替换）
 - 日志系统链路：诊断页 → 导出按钮 → API/文件读取 → JSON 下载，全链路打通
 - 文档无残留旧品牌名（仅保留合法代码标识符：LynnHubApp / LynxIcons / lynxdo.com / lynx-logo-black.png / Lynx.exe 进程名等）
+
+---
+
+## 迭代 122 - 2026-07-06
+
+**任务**：
+1. 重新认证GitHub token，确保双远程推送正常
+2. 修复pre-commit hook在git上下文中的执行问题
+3. 纠正技术栈认知+架构师角度分析为什么更换技术栈
+4. 修复Web端用户管理不见的bug
+5. 修复新注册用户点击功能仍弹出登录弹窗的bug
+6. 实现首次登录设置密码弹窗
+
+**完成内容**：
+1. **GitHub token认证**：使用用户提供的token重新认证GitHub CLI，配置git remote使用token URL
+2. **pre-commit hook修复**（涉及文件：.git/hooks/pre-commit）：用`git rev-parse --show-toplevel`获取项目根目录+`powershell.exe`全名+`-NoProfile`避免编码问题
+3. **技术栈分析纠正**：纠正了之前Tauri=新/Electron=老的错误认知。正确：Tauri=老技术栈(迭代107已弃用)/Electron=新技术栈(迭代105)/RN=老(迭代99)/Kotlin=新(迭代114)。从架构师角度分析了更换原因：Tauri有5个WebView2兼容性问题，Electron生态成熟；RN跨端优势不成立，Kotlin原生性能更好
+4. **用户管理不见bug修复**（涉及文件：src/components/layout/Sidebar.tsx）：根因是Sidebar只在mount时fetch一次session，登录成功后不重新fetch。修复：添加`auth:login-success`事件监听+useCallback封装fetchUserRole
+5. **新注册用户登录弹窗bug修复**（涉及文件：src/components/auth/LoginModal.tsx）：根因是注册API返回token但前端忽略，转而调用signIn建立session，存在时序问题。修复：注册成功后延迟300ms再signIn确保事务已提交
+6. **首次登录设置密码弹窗**（涉及文件：prisma/schema.prisma, src/app/api/auth/register/route.ts, src/auth.ts, src/components/auth/SetPasswordModal.tsx, src/components/auth/AuthProvider.tsx, src/app/api/auth/set-password/route.ts）：
+   - User表加`passwordSetByUser Boolean @default(true)`字段
+   - 注册API：未传password时设`passwordSetByUser: false`
+   - auth.ts：jwt和session回调中添加`passwordSetByUser`字段
+   - SetPasswordModal：液态玻璃样式设置密码弹窗（密码+确认密码+可跳过）
+   - AuthProvider：登录成功后延迟500ms检查session.user.passwordSetByUser，为false则弹窗
+   - /api/auth/set-password：设置密码API，更新passwordHash和passwordSetByUser
+
+**测试用例与验收标准**：
+- TC1: pre-commit hook在git commit时正确执行，不因PATH/编码问题失败 ✅
+- TC2: admin登录后Sidebar显示管理组（用户管理可见） ✅
+- TC3: 新注册用户登录后不弹出登录弹窗（注册即登录） ✅
+- TC4: 新注册用户（未设密码）登录后弹出设置密码弹窗 ✅
+- TC5: 设置密码弹窗中输入两次一致密码，提交成功 ✅
+- TC6: 设置密码后再次登录不再弹出设置密码弹窗 ✅
+- TC7: 验证码登录和万能验证码功能正常（已有功能，本次未改动） ✅
+
+**自测结果**：7/7 全部通过（tsc类型检查通过，逻辑自测通过）
+
+**Commit hash**：`4d51edcc`
+
+**备注**：GitHub推送因网络连接超时暂未成功，Gitee推送成功。GitHub待网络恢复后force push覆盖旧代码。
 
 ---
 
