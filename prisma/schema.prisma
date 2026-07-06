@@ -40,6 +40,7 @@ model User {
   source       String   @default("admin_create") @db.VarChar(32) // self_register | admin_create：用户来源（自注册 / admin 创建）
   lastLoginAt  DateTime? // 最后登录时间（登录成功时更新）
   registerIp   String?  @db.VarChar(64) // 注册时 IP（仅自注册用户记录）
+  passwordSetByUser Boolean @default(true) // 用户是否已自定义密码（自注册未设密码时为 false，首次登录弹窗设置后改 true）
   loginLogs    LoginLog[] // 登录历史
 
   ideas             Idea[]

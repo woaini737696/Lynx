@@ -7,6 +7,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, ReactNode } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { LoginModal, LoginMode } from "./LoginModal";
+import { SetPasswordModal } from "./SetPasswordModal";
 
 interface AuthContextValue {
   isOpen: boolean;
@@ -23,6 +24,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [isOpen, setIsOpen] = useState(false);
   const [mode, setMode] = useState<LoginMode>("phone-password");
   const [expired, setExpired] = useState(false);
+  const [showSetPassword, setShowSetPassword] = useState(false);
   const searchParams = useSearchParams();
   const router = useRouter();
 
@@ -79,7 +81,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => window.removeEventListener("auth:unauthorized", handler);
   }, []);
 
-  // 登录成功后：关闭弹窗 + 通知全局组件刷新登录状态 + router.refresh
+  // 登录成功后：关闭弹窗 + 通知全局组件刷新登录状态 + 检查是否需要设置密码
   const handleSuccess = useCallback(() => {
     setIsOpen(false);
     setExpired(false);
@@ -88,6 +90,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       window.dispatchEvent(new Event("auth:login-success"));
     }
     router.refresh();
+    // 登录成功后检查是否需要设置密码（延迟 500ms 等 session cookie 写入）
+    setTimeout(() => {
+      fetch("/api/auth/session")
+        .then((r) => (r.ok ? r.json() : null))
+        .then((s) => {
+          const pwdSet = (s?.user as { passwordSetByUser?: boolean } | undefined)?.passwordSetByUser;
+          if (pwdSet === false) {
+            setShowSetPassword(true);
+          }
+        })
+        .catch(() => {});
+    }, 500);
   }, [router]);
 
   const value = useMemo(
@@ -105,6 +119,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           onModeChange={setMode}
           onClose={close}
           onSuccess={handleSuccess}
+        />
+      )}
+      {showSetPassword && (
+        <SetPasswordModal
+          onClose={() => setShowSetPassword(false)}
+          onSuccess={() => setShowSetPassword(false)}
         />
       )}
     </AuthContext.Provider>

@@ -84,6 +84,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
             displayName: user.displayName,
             avatarUrl: user.avatarUrl,
             profession: user.profession,
+            passwordSetByUser: user.passwordSetByUser,
           };
         }
 
@@ -111,6 +112,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
             displayName: user.displayName,
             avatarUrl: user.avatarUrl,
             profession: user.profession,
+            passwordSetByUser: user.passwordSetByUser,
           };
         }
 
@@ -126,6 +128,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         token.displayName = (user as { displayName?: string }).displayName || "";
         token.avatarUrl = (user as { avatarUrl?: string | null }).avatarUrl || "";
         token.profession = (user as { profession?: string | null }).profession || "";
+        token.passwordSetByUser = (user as { passwordSetByUser?: boolean }).passwordSetByUser ?? true;
       }
       return token;
     },
@@ -136,6 +139,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         (session.user as { displayName?: string }).displayName = token.displayName as string;
         (session.user as { avatarUrl?: string }).avatarUrl = token.avatarUrl as string;
         (session.user as { profession?: string }).profession = token.profession as string;
+        (session.user as { passwordSetByUser?: boolean }).passwordSetByUser = token.passwordSetByUser as boolean;
       }
       return session;
     },

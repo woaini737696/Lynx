@@ -55,7 +55,8 @@ export async function POST(req: NextRequest) {
       );
     }
     // password 可选：未提供时自动生成随机密码（用户可用验证码登录）
-    const finalPassword = password && password.length >= 6
+    const hasUserPassword = password && password.length >= 6;
+    const finalPassword = hasUserPassword
       ? password
       : Math.random().toString(36).slice(2, 10) + "A1!";
 
@@ -110,6 +111,7 @@ export async function POST(req: NextRequest) {
           source: "self_register", // C 端用户：自注册
           registerIp,
           lastLoginAt: new Date(), // 注册即首次登录
+          passwordSetByUser: hasUserPassword ? true : false, // 未传密码时标记为 false，首次登录弹窗设置
         },
       });
       // 写入首次登录日志

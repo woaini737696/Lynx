@@ -2,7 +2,7 @@
 
 import { usePathname } from "next/navigation";
 import Image from "next/image";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import {
   Target,
   KanbanSquare,
@@ -405,12 +405,20 @@ export function Sidebar() {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [userRole, setUserRole] = useState<string | null>(null);
 
-  useEffect(() => {
+  // 拉取当前用户角色
+  const fetchUserRole = useCallback(() => {
     fetch("/api/auth/session")
       .then((r) => (r.ok ? r.json() : null))
       .then((s) => setUserRole((s?.user as { role?: string } | undefined)?.role || null))
       .catch(() => setUserRole(null));
   }, []);
+
+  useEffect(() => {
+    fetchUserRole();
+    // 监听登录成功事件，登录后重新拉取角色刷新菜单
+    window.addEventListener("auth:login-success", fetchUserRole);
+    return () => window.removeEventListener("auth:login-success", fetchUserRole);
+  }, [fetchUserRole]);
 
   const visibleGroups = useMemo(() => {
     return NAV_GROUPS.filter((g) => {

@@ -219,6 +219,8 @@ export function LoginModal({
         return;
       }
       // 注册成功：用验证码方式直接登录（万能验证码可复用）
+      // 等待 300ms 确保注册事务已提交，避免 signIn 时查不到用户
+      await new Promise((r) => setTimeout(r, 300));
       const signInRes = await signIn("credentials", {
         phone,
         code,
