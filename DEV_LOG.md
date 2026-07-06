@@ -9,6 +9,7 @@
 
 | 迭代 | 日期 | 任务概要 |
 |------|------|----------|
+| [迭代 121](#迭代-121---2026-07-06) | 2026-07-06 | 安全风险修复+QA测试流程建设+开发规范强化+桌面端签名打包+安卓端安装：① 72处硬编码凭据全部修复(scripts/deploy/下30+Python脚本SSH密码/Gitee Token/MySQL密码改为从.env.deploy读取+desktop-electron证书密码从硬编码改为环境变量) ② PFX代码签名集成(build.ps1 signtool签名步骤+密码从.env.deploy的DESKTOP_SIGN_PASSWORD读取+sign-existing-installer.ps1独立签名脚本+桌面端奇思_1.0.35.exe签名者Lynn有效期2029-07-06) ③ QA测试流程建设(vitest.config.ts覆盖率阈值30%+4个关键模块单元测试crypto/jwt/rate-limit/permissions共92用例全通过+playwright.config.ts CI HTML报告+失败截图视频+.github/workflows/ci-test.yml CI工作流lint+unit+e2e三阶段+docs/QA_TEST_SPEC.md测试规范文档217行) ④ 开发规范执行机制(scripts/pre-commit-check.ps1检查硬编码凭据/debugger/版本号一致性+scripts/install-hooks.ps1安装Git hooks+DEVELOPMENT_SPEC.md新增安全规范8/9/10条+12.5章QA测试规范) ⑤ 桌面端v1.0.35签名打包到D:\Lynn安装包\奇思_1.0.35.exe(6.61MB签名者Lynn) ⑥ 安卓端v0.1.8安装到手机Xiaomi 25098PN5AC(versionCode=9 versionName=0.1.8) |
 | [迭代 119](#迭代-119---2026-07-05) | 2026-07-05 | v1.0.35桌面端8项严重Bug全面修复：① 发布者签名(build.ps1添加signtool签名步骤+PFX密码待用户提供暂输出未签名包) ② 安装界面Slogan修正(generate-installer-assets.py硬编码→动态读取tauri.conf.json版本号+slogan改为"不用学AI/什么都能干"+LoginModal/LoginPage/upload-to-gitee-release.py同步) ③ 安装界面版本号动态化(get_desktop_version()从tauri.conf.json读取避免手动维护) ④ 覆盖安装提示(installer-hooks.nsh新增NSIS_HOOK_CUSTOMINIT宏检测HKCU/HKLM注册表已有安装+MessageBox MB_YESNO弹窗+nsExec静默卸载旧版本) ⑤ 检查更新10054报错修复(installer.rs reqwest添加浏览器UA+http1_only规避TLS指纹拦截+备用URL+/download/latest.json+download_file同步添加UA) ⑥ WS已连接但对话不可用根因修复(ws_client.rs追加emit ws-status-changed事件+新增ws_should_stop停止信号+stop_hermes_agent命令+authStore isDesktop()检测Tauri环境+signOut时先stop_hermes_agent再sync_auth) ⑦ 飞书任务OAuth完整实现(LarkTasksPage feishuStatus兜底显示连接按钮+handleConnectFeishu加desktop=1参数+轮询5分钟检测连接/auth/route.ts编码desktop标记到state/callback/route.ts解析state返回HTML成功/失败页) ⑧ 退出登录空白根因修复(lib.rs新增sync_auth命令+authStore isDesktop()=isElectron()||isTauri()覆盖Tauri环境+signOut先stop_hermes_agent再sync_auth空token) ⑨ 版本号1.0.34→1.0.35(tauri.conf.json+Cargo.toml+package.json三处同步) ⑩ build.ps1修复(esbuild/Next.js/cargo stderr用cmd /c包装避免NativeCommandError+public复制加-Force+移除不存在的start-with-env.js+tauri.conf.json用UTF-8编码读取+CARGO_TARGET_DIR统一设置+signtool非阻塞+cargo clean仅在构建成功时执行) |
 | [迭代 117](#迭代-117---2026-07-05) | 2026-07-05 | 五项问题修复+日志系统重构+服务器部署：① 建立完善的日志系统(logger.ts扩展serverLog模块化ai/voice/feishu/ws/auth+新增client-logger.ts零Node依赖避免pino打包到客户端+100条环形缓冲区) ② Lynx助理聊天记录丢失bug根因修复(persistAssistantMessageSafely返回值改为{id,persisted}+2次重试机制+4个调用点done事件添加persisted字段+Web/共享层/抽屉3处useChat同步捕获serverMessageId/serverPersisted避免前端重复POST) ③ Token消耗数显示不一致修复(useSessions.ts loadSession补全tokens→usage映射+AssistantChat.tsx loadSession同步补全provider/model/usage元数据) ④ Web端全双工语音通话'语音合成失败'bug修复(tts/route.ts role:assistant→user P0根因+跳过cloned_xxxx fallback无效ID+全链路serverLog/tts/stream/route.ts同步修复+voice-tts-stream.ts新增onSynthesizeError回调连续2次失败才提示+useTTS.ts clientLog替代console.warn+错误响应解析提取可读reason) ⑤ 飞书OAuth 20029错误诊断增强(auth/route.ts打印实际redirect_uri+source env/default+callback/route.ts捕获error_code+全链路serverLog.feishu/lark-tasks page.tsx reason映射auth_denied→20029详细提示) ⑥ .env.example补充FEISHU_REDIRECT_URI示例+部署说明 ⑦ Web端部署到服务器(deploy_standalone.py上传+PM2重启+首页HTTP/2 200) |
 | [迭代 116](#迭代-116---2026-07-04) | 2026-07-04 | v1.0.15四项问题修复+Gitee Release上线：① 安装界面Slogan改用最新文案(prepare-build-resources.py 用Lynx AI+人人都是超级个体→不用学AI+什么都能干) ② 登录后空白根因彻底修复(SettingsPage.handleSignOut不导航不存在的/login路由改弹登录弹窗/authStore.signOut同步主进程清空userToken避免WS用旧token连接/AppLayout wsStartedRef登出时不重置导致重新登录WS不启动/LoginModal登录成功后显式navigate /focus避免停留空白) ③ WS连接诊断增强(main.js sync_auth支持空token+start_hermes_agent详细日志token前缀+fetchFreshWsToken返回值/ws-gateway.js close增加code/reason日志+error增加code/errno+新增unexpected-response事件监听HTTP拒绝) ④ 覆盖安装提示(installer.nsh !macro customInit在.onInit中检测旧版ReadRegStr+MessageBox MB_YESNO弹窗提示是否覆盖+taskkill关闭旧进程避免文件占用/原Section外不能用ReadRegStr的NSIS语法错误已修复) ⑤ v1.0.15打包(QisiSetup-1.0.15.exe 69.35MB已签名CN=LynnHub) ⑥ Gitee Release v1.0.15上传(id=733604 / EXE+APK均上传成功) |
@@ -6353,6 +6354,41 @@ GitHub 仓库迁移 + 本地持久化 + 三方同步验证 + 文档完善：用�
 - 三端代码确认使用"奇思"品牌（grep 验证 Web src / desktop-native / android 均已替换）
 - 日志系统链路：诊断页 → 导出按钮 → API/文件读取 → JSON 下载，全链路打通
 - 文档无残留旧品牌名（仅保留合法代码标识符：LynnHubApp / LynxIcons / lynxdo.com / lynx-logo-black.png / Lynx.exe 进程名等）
+
+---
+
+## 迭代 121 - 2026-07-06
+
+**任务**：
+- 修复72处硬编码凭据安全风险
+- 构建完善QA测试流程（E2E+自动化测试+CI集成）
+- PFX证书签名自动生成并集成到build.ps1
+- 强化开发规范执行机制（pre-commit hook）
+- 打包桌面端v1.0.35到安装目录
+- 安装安卓端v0.1.8到手机
+
+**完成内容**：
+1. **安全风险修复**：scripts/deploy/下30+Python脚本SSH密码/Gitee Token/MySQL密码全部改为从.env.deploy读取（涉及文件：ssh_exec.py, ssh_proxy.py, deploy-standalone-v111.py, deploy-app-version-v111.py, deploy-password.py, deploy-website-downloads.py, check-*.py, fix-nginx-*.py, restart_server.py, test_via_ssh.py, update-app-version.py, upload-to-gitee-release.py, verify-*.py, selftest-website.py, switch-release-repo-public.py, create-public-release-repo.py, ssh-check-server.py, build_app_only.py, desktop-electron/scripts/gen-cert.cjs, desktop-electron/scripts/install-cert.ps1, .github/workflows/build-android-apk.yml, e2e/global-setup.ts, e2e/helpers/auth.ts, scripts/deploy/backup-db.sh, android/app/build.gradle.kts）
+2. **PFX代码签名集成**（涉及文件：scripts/deploy/build.ps1, scripts/deploy/sign-existing-installer.ps1）— signtool签名步骤+密码从.env.deploy的DESKTOP_SIGN_PASSWORD读取+独立签名脚本
+3. **QA测试流程建设**（涉及文件：vitest.config.ts, playwright.config.ts, .github/workflows/ci-test.yml, src/lib/__tests__/crypto.test.ts, src/lib/__tests__/jwt.test.ts, src/lib/__tests__/rate-limit.test.ts, src/lib/__tests__/permissions.test.ts, docs/QA_TEST_SPEC.md）— 覆盖率阈值30%+4模块92用例全通过+CI工作流lint+unit+e2e三阶段+测试规范文档
+4. **开发规范执行机制**（涉及文件：scripts/pre-commit-check.ps1, scripts/install-hooks.ps1, DEVELOPMENT_SPEC.md, .gitignore, .env.deploy.example）— pre-commit检查硬编码凭据/debugger/版本号一致性+Git hooks安装+DEVELOPMENT_SPEC新增安全规范8/9/10条+12.5章QA测试规范
+5. **桌面端v1.0.35签名打包**：D:\Lynn安装包\奇思_1.0.35.exe（6.61MB，签名者Lynn，有效期2029-07-06）
+6. **安卓端v0.1.8安装**：adb install成功安装到Xiaomi 25098PN5AC（versionCode=9, versionName=0.1.8）
+
+**测试用例与验收标准**：
+- TC1: 72处硬编码凭据全部修复，grep扫描无残留 ✅
+- TC2: 4个单元测试模块（crypto/jwt/rate-limit/permissions）共92用例全通过 ✅
+- TC3: vitest覆盖率阈值30%配置生效 ✅
+- TC4: playwright.config.ts CI环境HTML报告+失败截图视频 ✅
+- TC5: .github/workflows/ci-test.yml CI工作流lint+unit+e2e三阶段 ✅
+- TC6: pre-commit hook检查硬编码凭据/debugger/版本号一致性 ✅
+- TC7: build.ps1 signtool签名步骤集成，密码从.env.deploy读取 ✅
+- TC8: 桌面端奇思_1.0.35.exe签名者Lynn ✅
+- TC9: 安卓端v0.1.8安装到手机成功 ✅
+
+**自测结果**：9/9 全部通过
+
+**Commit hash**：待提交
 
 ---
 

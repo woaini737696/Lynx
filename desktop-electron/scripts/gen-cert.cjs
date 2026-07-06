@@ -6,7 +6,13 @@ const fs = require('fs');
 const path = require('path');
 
 const OUT = path.join(__dirname, '..', 'build', 'lynn-code-sign.pfx');
-const PASSWORD = 'lynn-sign-2026';
+// 从环境变量读取证书密码，禁止硬编码
+const PASSWORD = process.env.DESKTOP_SIGN_PASSWORD;
+if (!PASSWORD) {
+  console.error('[gen-cert] 缺少环境变量 DESKTOP_SIGN_PASSWORD，请设置后重试');
+  console.error('  PowerShell: $env:DESKTOP_SIGN_PASSWORD = "你的密码"; node scripts/gen-cert.cjs');
+  process.exit(1);
+}
 
 console.log('[gen-cert] 开始生成自签名代码签名证书...');
 

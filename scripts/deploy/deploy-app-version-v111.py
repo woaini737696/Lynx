@@ -6,9 +6,14 @@ import paramiko
 import sys
 from pathlib import Path
 
-SERVER_IP = "47.119.185.135"
-SSH_USER = "root"
-SSH_PASSWORD = "Ee9527ffss"
+# 添加 scripts/deploy 目录到 path 以导入 _config
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from _config import get_ssh_config
+
+_ssh = get_ssh_config()
+SERVER_IP = _ssh["host"]
+SSH_USER = _ssh["user"]
+SSH_PASSWORD = _ssh["password"]
 
 LOCAL_PKG = Path(r"d:\Lynn工作空间\LynnHub\desktop-electron\package.json")
 REMOTE_PKG = "/opt/lynx/app/desktop-electron/package.json"

@@ -4,12 +4,19 @@
 Electron 请求 https://ai.lynxdo.com/api/hermes/app-version
 """
 import paramiko
+import sys
+from pathlib import Path
+
+# 添加 scripts/deploy 目录到 path 以导入 _config
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from _config import get_ssh_config
 
 APP_VERSION_JSON = '{"version":"1.0.7","downloadUrl":"https://www.lynxdo.com/download/Lynx-windows-setup.exe","releaseNotes":"Lynx奇思 v1.0.7: 全局改名+CORS修复+WS连接修复+窗口拖动+托盘Logo+NSIS安装界面"}'
 
+_ssh = get_ssh_config()
 c = paramiko.SSHClient()
 c.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-c.connect('47.119.185.135', 22, 'root', 'Ee9527ffss', timeout=15)
+c.connect(_ssh["host"], 22, _ssh["user"], _ssh["password"], timeout=15)
 
 # 1. 读取当前 nginx 配置
 _, o, _ = c.exec_command('cat /etc/nginx/sites-enabled/lynxdo')

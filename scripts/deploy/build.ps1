@@ -1,4 +1,4 @@
-﻿# Lynx 本地构建脚本 - 构建产物供服务器部署使用
+# Lynx 本地构建脚本 - 构建产物供服务器部署使用
 # 服务器不做任何编译，只接收此脚本产出的打包文件
 # 用法：.\scripts\deploy\build.ps1 [-SkipDesktop]
 
@@ -187,19 +187,32 @@ if (-not $SkipDesktop) {
     if ($SetupExe) {
       # 代码签名（解决"未知发布者"问题，Windows SmartScreen 据此显示发布者 Lynn）
       # 签名失败不阻塞构建，仅输出警告
+      # 证书统一存放路径：desktop-electron\build\lynn-code-sign.pfx
+      # 密码从环境变量 DESKTOP_SIGN_PASSWORD 读取（来源于 .env.deploy，禁止硬编码）
       $SignTool = "C:\Program Files (x86)\Windows Kits\10\bin\10.0.26100.0\x64\signtool.exe"
-      $PfxPath = "$TauriDir\src-tauri\lynnhub-code-sign.pfx"
-      $PfxPassword = "lynn2026"
-      if ((Test-Path $SignTool) -and (Test-Path $PfxPath)) {
+      $PfxPath = "$ProjectRoot\desktop-electron\build\lynn-code-sign.pfx"
+      $PfxPassword = $env:DESKTOP_SIGN_PASSWORD
+      if (-not $PfxPassword) {
+        # 尝试从 .env.deploy 读取
+        $EnvDeploy = "$ProjectRoot\.env.deploy"
+        if (Test-Path $EnvDeploy) {
+          $match = Get-Content $EnvDeploy | Select-String -Pattern "^DESKTOP_SIGN_PASSWORD=(.+)$"
+          if ($match) { $PfxPassword = $match.Matches[0].Groups[1].Value.Trim() }
+        }
+      }
+      if ((Test-Path $SignTool) -and (Test-Path $PfxPath) -and $PfxPassword) {
         Write-Host "  正在签名安装包（发布者: Lynn）..." -ForegroundColor DarkGray
-        cmd /c "`"$SignTool`" sign /f `"$PfxPath`" /p $PfxPassword /tr http://timestamp.digicert.com /td sha256 /fd sha256 `"$($SetupExe.FullName)`" 2>&1"
+        cmd /c "`"$SignTool`" sign /f `"$PfxPath`" /p `"$PfxPassword`" /tr http://timestamp.digicert.com /td sha256 /fd sha256 `"$($SetupExe.FullName)`" 2>&1"
         if ($LASTEXITCODE -eq 0) {
           Write-Host "  代码签名成功" -ForegroundColor Green
         } else {
           Write-Host "  代码签名失败（错误码: $LASTEXITCODE），继续输出未签名包" -ForegroundColor Yellow
         }
       } else {
-        Write-Host "  signtool 或 PFX 证书不存在，跳过签名" -ForegroundColor Yellow
+        if (-not (Test-Path $SignTool)) { Write-Host "  signtool 不存在: $SignTool" -ForegroundColor Yellow }
+        if (-not (Test-Path $PfxPath)) { Write-Host "  PFX 证书不存在: $PfxPath" -ForegroundColor Yellow }
+        if (-not $PfxPassword) { Write-Host "  缺少 DESKTOP_SIGN_PASSWORD 环境变量或 .env.deploy" -ForegroundColor Yellow }
+        Write-Host "  跳过签名" -ForegroundColor Yellow
       }
 
       # 固定目录：d:\Lynn安装包\

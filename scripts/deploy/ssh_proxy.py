@@ -15,15 +15,21 @@ import os
 import sys
 import socks
 import paramiko
+from pathlib import Path
+
+# 添加 scripts/deploy 目录到 path 以导入 _config
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from _config import get_ssh_config
 
 # 代理配置（sandbox HTTP 代理）
 PROXY_HOST = "127.0.0.1"
 PROXY_PORT = 18080
 
 # 服务器配置（与 ssh_exec.py 一致）
-HOST = "47.119.185.135"
-USER = "root"
-PASSWORD = "Ee9527ffss"
+_ssh = get_ssh_config()
+HOST = _ssh["host"]
+USER = _ssh["user"]
+PASSWORD = _ssh["password"]
 PORT = 22
 
 

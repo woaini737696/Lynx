@@ -1,6 +1,9 @@
 """服务器端部署：解压、替换、PM2 彻底重启、健康检查"""
 import sys
-sys.path.insert(0, r"d:\Lynn工作空间\LynnHub\scripts\deploy")
+from pathlib import Path
+
+# 添加 scripts/deploy 目录到 path 以导入 _config
+sys.path.insert(0, str(Path(__file__).resolve().parent))
 from ssh_exec import exec_cmd
 
 steps = [
@@ -44,7 +47,7 @@ curl -s -o - -w "\\nHTTP: %{http_code}\\n" -k https://ai.lynxdo.com/api/health
 """),
 
     # 5. 验证 lynn 数据
-    ("5. 验证 lynn 用户数据", """mysql -u lynx -pEe9527ffss lynx -e "SELECT COUNT(*) as inbox_count FROM Idea WHERE userId='clynn_user_id_0001' AND status='inbox';" 2>&1 | grep -v Warning"""),
+    ("5. 验证 lynn 用户数据", """mysql -u lynx -p$DEPLOY_MYSQL_PASSWORD lynx -e "SELECT COUNT(*) as inbox_count FROM Idea WHERE userId='clynn_user_id_0001' AND status='inbox';" 2>&1 | grep -v Warning"""),
 
     # 6. 验证 PM2 日志最新状态
     ("6. PM2 最新日志", "pm2 logs lynx-app --nostream --lines 10 --out 2>&1 | tail -15"),

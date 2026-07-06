@@ -1,10 +1,17 @@
 """通过 SSH 在服务器上执行 curl，完整测试 HTTPS 链路"""
 import paramiko
 import json
+import sys
+from pathlib import Path
 
-HOST = "47.119.185.135"
-USER = "root"
-PASSWORD = "Ee9527ffss"
+# 添加 scripts/deploy 目录到 path 以导入 _config
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from _config import get_ssh_config
+
+_ssh = get_ssh_config()
+HOST = _ssh["host"]
+USER = _ssh["user"]
+PASSWORD = _ssh["password"]
 
 client = paramiko.SSHClient()
 client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
@@ -165,7 +172,7 @@ results.append(("Nginx & MySQL active", ok_svc, out.replace("\n", " | ")))
 # ============ 6. lynn 账号验证 ============
 print("\n[6] lynn 账号数据库验证")
 print("-" * 40)
-out, err = run("""mysql -u lynx -pEe9527ffss lynx -e "SELECT id, username, phone, role, displayName, active FROM User WHERE username='lynn';" 2>&1""")
+out, err = run("""mysql -u lynx -p$DEPLOY_MYSQL_PASSWORD lynx -e "SELECT id, username, phone, role, displayName, active FROM User WHERE username='lynn';" 2>&1""")
 print(f"  数据库记录:\n{out}")
 ok_lynn = "lynn" in out and "18942271267" in out and "admin" in out
 results.append(("lynn 账号已绑定手机号", ok_lynn, out.replace("\n", " | ")))

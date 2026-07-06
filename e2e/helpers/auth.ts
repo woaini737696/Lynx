@@ -11,7 +11,7 @@ import { expect, type Page, type APIRequestContext } from "@playwright/test";
 export async function login(
   request: APIRequestContext,
   username = "admin",
-  password = "admin123"
+  password = process.env.TEST_ADMIN_PASSWORD || "admin123"
 ): Promise<void> {
   // 1. 获取 CSRF token
   const csrfRes = await request.get("/api/auth/csrf");

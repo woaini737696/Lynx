@@ -9,10 +9,16 @@ Lynx 官网+下载包部署脚本
 import os
 import sys
 import paramiko
+from pathlib import Path
 
-SERVER_IP = "47.119.185.135"
-SSH_USER = "root"
-SSH_PASSWORD = "Ee9527ffss"
+# 添加 scripts/deploy 目录到 path 以导入 _config
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from _config import get_ssh_config
+
+_ssh = get_ssh_config()
+SERVER_IP = _ssh["host"]
+SSH_USER = _ssh["user"]
+SSH_PASSWORD = _ssh["password"]
 
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 DESKTOP_EXE = os.path.join(PROJECT_ROOT, "downloads", "Lynx_1.0.4_x64-setup.exe")

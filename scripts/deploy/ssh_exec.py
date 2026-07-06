@@ -5,11 +5,17 @@ SSH 远程执行工具 - 用于阿里云服务器部署
 import sys
 import paramiko
 import os
+from pathlib import Path
+
+# 添加 scripts/deploy 目录到 path 以导入 _config
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from _config import get_ssh_config
 
 # 服务器配置
-HOST = "47.119.185.135"
-USER = "root"
-PASSWORD = "Ee9527ffss"
+_ssh = get_ssh_config()
+HOST = _ssh["host"]
+USER = _ssh["user"]
+PASSWORD = _ssh["password"]
 PORT = 22
 
 

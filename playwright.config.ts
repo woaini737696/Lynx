@@ -13,7 +13,10 @@ export default defineConfig({
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,
   workers: 1,
-  reporter: "list",
+  // HTML 报告 + 失败时截图/视频，便于排错
+  reporter: process.env.CI
+    ? [["html", { open: "never", outputFolder: "playwright-report" }], ["list"]]
+    : "list",
   timeout: 60_000,
   expect: {
     timeout: 10_000,
@@ -23,6 +26,8 @@ export default defineConfig({
   use: {
     baseURL: "http://localhost:5176",
     trace: "on-first-retry",
+    screenshot: "only-on-failure",
+    video: "retain-on-failure",
     headless: true,
     // 复用全局登录的 storageState
     storageState: "./e2e/.auth/storage-state.json",
@@ -41,7 +46,7 @@ export default defineConfig({
   webServer: {
     command: "npm run dev",
     url: "http://localhost:5176",
-    reuseExistingServer: true,
+    reuseExistingServer: !process.env.CI, // CI 中不复用，保证隔离
     timeout: 120_000,
   },
 });

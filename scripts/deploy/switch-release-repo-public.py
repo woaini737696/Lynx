@@ -1,13 +1,19 @@
 """将 lynn-hub-release 仓库切换为公开，并验证 Release 附件下载链接"""
 import requests
 import os
+import sys
+from pathlib import Path
+
+# 添加 scripts/deploy 目录到 path 以导入 _config
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from _config import get_gitee_token
 
 os.environ["NO_PROXY"] = "*"
 os.environ["no_proxy"] = "*"
 
 OWNER = "shenzhens-emotions-are-booming_0"
 REPO = "lynn-hub-release"
-TOKEN = "12293158d567645bf7b3d16dcad8e005"
+TOKEN = get_gitee_token()
 session = requests.Session()
 session.trust_env = False
 API = "https://gitee.com/api/v5"

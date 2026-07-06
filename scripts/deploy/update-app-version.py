@@ -2,10 +2,17 @@
 """更新 nginx app-version 配置为 v1.0.8 + 上传新安装包"""
 import paramiko
 import os
+import sys
+from pathlib import Path
 
+# 添加 scripts/deploy 目录到 path 以导入 _config
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from _config import get_ssh_config
+
+_ssh = get_ssh_config()
 c = paramiko.SSHClient()
 c.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-c.connect('47.119.185.135', 22, 'root', 'Ee9527ffss', timeout=15)
+c.connect(_ssh["host"], 22, _ssh["user"], _ssh["password"], timeout=15)
 
 # 1. 查看当前 ai.lynxdo.com 块中的 app-version 配置
 _, o, _ = c.exec_command('sed -n "108,125p" /etc/nginx/sites-enabled/lynxdo')

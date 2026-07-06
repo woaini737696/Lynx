@@ -275,7 +275,7 @@ python scripts/deploy/ssh_exec.py --upload-dir 本地目录 远程目录
 #### 5.2 服务器信息
 
 - **IP**：47.119.185.135
-- **SSH**：root / Ee9527ffss
+- **SSH**：root /（密码见 `.env.deploy` 的 `SSH_PASSWORD`，禁止硬编码）
 - **系统**：Ubuntu 22.04, 2C2G
 - **目录**：
   - `/opt/lynx/app/` — Next.js standalone
@@ -483,7 +483,7 @@ location / {
 
 - **版本**：MySQL 8.x
 - **数据库**：`lynx`
-- **用户**：`lynx`（密码：`Ee9527ffss`）
+- **用户**：`lynx`（密码：见 `.env.deploy` 的 `MYSQL_PASSWORD`，禁止硬编码）
 - **关键参数**（适配 1.6G 实际内存）：
   - `innodb_buffer_pool_size = 128M`
   - `max_connections = 30`
@@ -598,6 +598,32 @@ location / {
 5. **文件上传**：必须校验魔数 + 扩展名 + 大小（10MB 上限）
 6. **Rate Limiting**：登录 5 次/分钟，上传 20 次/分钟
 7. **CORS**：仅允许 `ai.lynxdo.com` / `localhost` / `127.0.0.1`
+8. **凭据管理**：所有部署凭据（SSH 密码、MySQL 密码、Gitee Token、Android 签名密码、PFX 证书密码）必须通过 `.env.deploy` 环境变量文件读取，禁止在 `scripts/deploy/` 下任何 Python/Shell/PowerShell 脚本中硬编码。`.env.deploy` 必须在 `.gitignore` 中排除，仅提交 `.env.deploy.example` 模板。`scripts/deploy/_config.py` 是部署脚本的统一凭据入口，新增部署脚本必须通过 `from _config import get_ssh_config, get_mysql_config, get_gitee_token` 读取凭据。
+9. **代码签名**：桌面端安装包必须使用 PFX 证书签名（`desktop-electron/build/lynn-code-sign.pfx`），密码从 `.env.deploy` 的 `DESKTOP_SIGN_PASSWORD` 读取。证书已安装到 `CurrentUser\Root` + `CurrentUser\TrustedPublisher`，开发机不再显示 SmartScreen 警告。
+10. **Pre-commit 强制检查**：所有 git commit 自动执行 `scripts/pre-commit-check.ps1`，扫描硬编码凭据（SSH 密码 / Gitee Token / Android 签名密码）、debugger 语句、版本号一致性、`.env.deploy` 误提交。检查不通过禁止 commit。安装方法：`powershell -ExecutionPolicy Bypass -File scripts/install-hooks.ps1`。紧急情况跳过：`git commit --no-verify`（必须在 commit message 中说明原因）。
+
+---
+
+## 十二点五、QA 测试规范（强制执行，详见 `docs/QA_TEST_SPEC.md`）
+
+每次迭代开发必须执行完整的测试流程，未通过测试的代码不允许交付验收：
+
+1. **测试金字塔**：单元测试（Vitest，`src/lib/__tests__/`）→ 集成测试（后续补全）→ E2E 测试（Playwright，`e2e/`）
+2. **CI 工作流**：`.github/workflows/ci-test.yml` 在 PR/push 到 main 时自动执行 lint + unit test + e2e test，CI 失败的 PR 禁止合并
+3. **覆盖率阈值**：单元测试覆盖率阈值为 30%（statements/branches/functions/lines），未达阈值的 CI 构建会失败，后续迭代逐步提升到 70%
+4. **本地验证命令**：
+   - `npm run lint` — ESLint 静态检查
+   - `npm run test:coverage` — 单元测试 + 覆盖率
+   - `npm run test:e2e` — E2E 测试（需先启动 dev server）
+   - `npm run test:e2e:ui` — UI 调试模式
+5. **新增测试规则**：
+   - 新增 `src/lib/` 下的工具函数：**必须**同步新增单元测试
+   - 修改安全相关模块（crypto/jwt/permissions/rate-limit）：**必须**更新对应测试
+   - 修复 bug：**必须**新增回归测试覆盖该 bug 场景
+6. **E2E 测试数据管理**：测试数据内容前缀统一为 `E2E`，`e2e/helpers/auth.ts` 的 `cleanupTestData()` 自动清理，`scripts/cleanup-e2e-data.ts` 做数据库层兜底清理
+7. **交付标准**：每次交付给用户验收前必须满足 `npm run lint` 0 error + 单元测试全部通过且达阈值 + E2E 全部通过 + E2E 测试数据已清理 + 新增功能模块已补全对应测试 + 修复的 bug 已新增回归测试
+
+详细规范见 [docs/QA_TEST_SPEC.md](docs/QA_TEST_SPEC.md)。
 
 ---
 

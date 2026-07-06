@@ -12,11 +12,13 @@ from pathlib import Path
 # 项目根目录
 PROJECT_ROOT = Path(r"d:\Lynn工作空间\LynnHub")
 sys.path.insert(0, str(PROJECT_ROOT / "scripts" / "deploy"))
+from _config import get_ssh_config
 
 # 服务器配置
-HOST = "47.119.185.135"
-USER = "root"
-PASSWORD = "Ee9527ffss"
+_ssh = get_ssh_config()
+HOST = _ssh["host"]
+USER = _ssh["user"]
+PASSWORD = _ssh["password"]
 PORT = 22
 
 from ssh_exec import exec_cmd, upload_file

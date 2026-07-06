@@ -32,7 +32,8 @@ async function globalSetup() {
         form: {
           csrfToken,
           username: "admin",
-          password: "admin123",
+          // 测试密码从环境变量读取，默认 admin123（仅本地测试用）
+          password: process.env.TEST_ADMIN_PASSWORD || "admin123",
           redirect: "false",
           callbackUrl: "/",
         },

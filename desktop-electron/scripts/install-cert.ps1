@@ -6,7 +6,15 @@ if (-not (Test-Path $certPath)) {
     exit 1
 }
 
-$cert = New-Object System.Security.Cryptography.X509Certificates.X509Certificate2($certPath, "lynn-sign-2026")
+# 从环境变量读取证书密码，禁止硬编码
+$certPassword = $env:DESKTOP_SIGN_PASSWORD
+if (-not $certPassword) {
+    Write-Host "[install-cert] 缺少环境变量 DESKTOP_SIGN_PASSWORD，请设置后重试" -ForegroundColor Red
+    Write-Host "  PowerShell: `$env:DESKTOP_SIGN_PASSWORD = '你的密码'; powershell -File scripts/install-cert.ps1" -ForegroundColor Yellow
+    exit 1
+}
+
+$cert = New-Object System.Security.Cryptography.X509Certificates.X509Certificate2($certPath, $certPassword)
 
 # 导入到受信任根
 $rootStore = New-Object System.Security.Cryptography.X509Certificates.X509Store("Root", "LocalMachine")

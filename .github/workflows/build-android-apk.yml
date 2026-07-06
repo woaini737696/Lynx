@@ -58,16 +58,19 @@ jobs:
 
       - name: Generate test signing keystore
         # 生成测试签名 keystore（正式发布前需替换为正式 release keystore）
+        # 密码从 GitHub Secrets 读取，禁止硬编码
         env:
           KEYSTORE_PATH: ${{ github.workspace }}/android/lynx-test.keystore
+          ANDROID_STORE_PASSWORD: ${{ secrets.ANDROID_STORE_PASSWORD }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
         run: |
           keytool -genkeypair -v \
             -keystore "$KEYSTORE_PATH" \
             -alias lynx-test \
             -keyalg RSA -keysize 2048 \
             -validity 10000 \
-            -storepass lynxtest123 \
-            -keypass lynxtest123 \
+            -storepass "$ANDROID_STORE_PASSWORD" \
+            -keypass "$ANDROID_KEY_PASSWORD" \
             -dname "CN=Lynx Test, OU=Dev, O=Lynn, L=SZ, ST=GD, C=CN"
 
       - name: Write local.properties

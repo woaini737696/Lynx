@@ -14,6 +14,10 @@ import requests
 import paramiko
 from pathlib import Path
 
+# 添加 scripts/deploy 目录到 path 以导入 _config
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from _config import get_ssh_config, get_gitee_token
+
 # ============ 配置 ============
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 DOWNLOADS_DIR = PROJECT_ROOT / "downloads"
@@ -21,13 +25,14 @@ DOWNLOADS_DIR = PROJECT_ROOT / "downloads"
 # Gitee 配置（token 从 git remote URL 提取）
 GITEE_OWNER = "shenzhens-emotions-are-booming_0"
 GITEE_REPO = "lynn-hub"
-GITEE_TOKEN = "12293158d567645bf7b3d16dcad8e005"
+GITEE_TOKEN = get_gitee_token()
 GITEE_API_BASE = "https://gitee.com/api/v5"
 
 # 服务器配置（用于下载 APK）
-SERVER_IP = "47.119.185.135"
-SSH_USER = "root"
-SSH_PASSWORD = "Ee9527ffss"
+_ssh = get_ssh_config()
+SERVER_IP = _ssh["host"]
+SSH_USER = _ssh["user"]
+SSH_PASSWORD = _ssh["password"]
 REMOTE_APK_PATH = "/opt/lynx/download/Lynx-android.apk"
 
 # 版本信息

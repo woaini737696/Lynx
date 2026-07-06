@@ -1,9 +1,16 @@
 """验证服务器 WS token 端点 + 飞书/助理 API 可达性"""
 import paramiko
+import sys
+from pathlib import Path
 
+# 添加 scripts/deploy 目录到 path 以导入 _config
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from _config import get_ssh_config
+
+_ssh = get_ssh_config()
 c = paramiko.SSHClient()
 c.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-c.connect("47.119.185.135", 22, "root", "Ee9527ffss", timeout=10)
+c.connect(_ssh["host"], 22, _ssh["user"], _ssh["password"], timeout=10)
 
 # 1. WS token 端点（未登录应返回 401）
 _, o, _ = c.exec_command('curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:5176/api/auth/ws-token')

@@ -1,10 +1,16 @@
 """自测验证脚本：逐条验证 TC1-TC10"""
 import paramiko
 import sys
+from pathlib import Path
 
-SERVER_IP = "47.119.185.135"
-SSH_USER = "root"
-SSH_PASSWORD = "Ee9527ffss"
+# 添加 scripts/deploy 目录到 path 以导入 _config
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from _config import get_ssh_config
+
+_ssh = get_ssh_config()
+SERVER_IP = _ssh["host"]
+SSH_USER = _ssh["user"]
+SSH_PASSWORD = _ssh["password"]
 
 def ssh_exec(c, cmd, timeout=30):
     stdin, stdout, stderr = c.exec_command(cmd, timeout=timeout)

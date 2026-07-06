@@ -9,11 +9,17 @@ import time
 import tarfile
 import paramiko
 from io import BytesIO
+from pathlib import Path
+
+# 添加 scripts/deploy 目录到 path 以导入 _config
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from _config import get_ssh_config
 
 # ============ 配置 ============
-SERVER_IP = "47.119.185.135"
-SSH_USER = "root"
-SSH_PASSWORD = "Ee9527ffss"
+_ssh = get_ssh_config()
+SERVER_IP = _ssh["host"]
+SSH_USER = _ssh["user"]
+SSH_PASSWORD = _ssh["password"]
 DEPLOY_DIR = "/opt/lynx"
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 STANDALONE_DIR = os.path.join(PROJECT_ROOT, ".next", "standalone")

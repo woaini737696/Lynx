@@ -10,6 +10,10 @@ import sys
 import requests
 from pathlib import Path
 
+# 添加 scripts/deploy 目录到 path 以导入 _config
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from _config import get_gitee_token
+
 # 禁用所有代理
 os.environ["NO_PROXY"] = "*"
 os.environ["no_proxy"] = "*"
@@ -20,7 +24,7 @@ PROJECT_ROOT = Path(__file__).resolve().parents[2]
 DOWNLOADS_DIR = PROJECT_ROOT / "downloads"
 
 GITEE_OWNER = "shenzhens-emotions-are-booming_0"
-GITEE_TOKEN = "12293158d567645bf7b3d16dcad8e005"
+GITEE_TOKEN = get_gitee_token()
 GITEE_API_BASE = "https://gitee.com/api/v5"
 
 # 新的公开 Release 仓库

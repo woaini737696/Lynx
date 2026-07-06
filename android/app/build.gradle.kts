@@ -23,10 +23,17 @@ android {
 
     signingConfigs {
         create("release") {
+            // 从 local.properties 读取签名密码（local.properties 已 gitignore）
+            // 或从环境变量 ANDROID_STORE_PASSWORD / ANDROID_KEY_PASSWORD 读取（CI 用）
+            val localProps = rootProject.file("local.properties")
+            val props = java.util.Properties()
+            if (localProps.exists()) props.load(localProps.inputStream())
             storeFile = file("../lynx-test.keystore")
-            storePassword = "lynxtest123"
+            storePassword = props.getProperty("ANDROID_STORE_PASSWORD")
+                ?: System.getenv("ANDROID_STORE_PASSWORD") ?: "lynxtest123"
             keyAlias = "lynx-test"
-            keyPassword = "lynxtest123"
+            keyPassword = props.getProperty("ANDROID_KEY_PASSWORD")
+                ?: System.getenv("ANDROID_KEY_PASSWORD") ?: "lynxtest123"
         }
     }
 

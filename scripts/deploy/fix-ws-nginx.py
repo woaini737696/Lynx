@@ -1,9 +1,16 @@
 """修复 nginx WS 代理配置 + 清理崩溃的 PM2 进程"""
 import paramiko
+import sys
+from pathlib import Path
 
+# 添加 scripts/deploy 目录到 path 以导入 _config
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from _config import get_ssh_config
+
+_ssh = get_ssh_config()
 c = paramiko.SSHClient()
 c.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-c.connect('47.119.185.135', 22, 'root', 'Ee9527ffss', timeout=10)
+c.connect(_ssh["host"], 22, _ssh["user"], _ssh["password"], timeout=10)
 
 # 1. 修改 nginx 配置：proxy_pass 3001 → 5176
 cmd = "sed -i 's|proxy_pass http://127.0.0.1:3001|proxy_pass http://127.0.0.1:5176|g' /etc/nginx/sites-available/lynxdo"
