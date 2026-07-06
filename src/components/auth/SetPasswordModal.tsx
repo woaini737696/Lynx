@@ -21,7 +21,7 @@ type PasswordStrength = "none" | "weak" | "medium" | "strong";
 // - 弱：长度<8 或 只包含字母/数字（未同时含字母和数字）
 // - 中：长度>=8 且 同时包含字母+数字
 // - 强：长度>=8 且 同时包含字母+数字+特殊字符
-function getPasswordStrength(pwd: string): PasswordStrength {
+export function getPasswordStrength(pwd: string): PasswordStrength {
   if (!pwd) return "none";
   const hasLetter = /[a-zA-Z]/.test(pwd);
   const hasDigit = /\d/.test(pwd);
