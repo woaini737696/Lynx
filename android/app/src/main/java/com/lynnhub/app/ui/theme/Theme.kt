@@ -11,7 +11,7 @@ import androidx.compose.ui.platform.LocalView
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsControllerCompat
 
-// ============ Lynx v6 深色配色方案 ============
+// ============ 奇思 v6 深色配色方案 ============
 private val LynxDarkColorScheme = darkColorScheme(
     primary = Primary,
     onPrimary = Color.White,
@@ -33,7 +33,7 @@ private val LynxDarkColorScheme = darkColorScheme(
     onError = Color.White,
 )
 
-// ============ Lynx v6 浅色配色方案 ============
+// ============ 奇思 v6 浅色配色方案 ============
 private val LynxLightColorScheme = lightColorScheme(
     primary = PrimaryDeep,
     onPrimary = Color.White,
@@ -56,7 +56,7 @@ private val LynxLightColorScheme = lightColorScheme(
 )
 
 /**
- * Lynx v6 主题
+ * 奇思 v6 主题
  * @param themeMode "dark"/"light"/"system"，默认 "system" 跟随系统
  */
 @Composable

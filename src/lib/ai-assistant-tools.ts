@@ -151,7 +151,7 @@ export const AI_ASSISTANT_TOOLS: ToolDef[] = [
 
 // ============ System Prompt ============
 
-export const AI_ASSISTANT_SYSTEM_PROMPT = `你是 Lynx 的 AI 助理，能聊天，也能主动操作用户的所有功能。
+export const AI_ASSISTANT_SYSTEM_PROMPT = `你是奇思的 AI 助理，能聊天，也能主动操作用户的所有功能。
 
 ## 可用工具
 

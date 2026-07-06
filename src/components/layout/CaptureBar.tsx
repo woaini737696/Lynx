@@ -31,7 +31,7 @@ function resolvePageTitle(pathname: string): string {
     .filter((i) => !i.disabled && i.href !== "/" && pathname.startsWith(i.href + "/"))
     .sort((a, b) => b.href.length - a.href.length)[0];
   if (prefix) return prefix.label;
-  return "Lynx";
+  return "奇思";
 }
 
 /** 桌面版下载引导弹窗（Portal 渲染到 body，避免被 sticky header 的堆叠上下文遮挡） */
@@ -56,7 +56,7 @@ function DesktopDownloadModal({ open, onClose }: { open: boolean; onClose: () =>
             <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10">
               <Monitor className="h-5 w-5 text-primary" />
             </div>
-            <h3 className="text-base font-semibold text-foreground">下载 Lynx 桌面版</h3>
+            <h3 className="text-base font-semibold text-foreground">下载奇思桌面版</h3>
           </div>
           <button
             type="button"
@@ -70,7 +70,7 @@ function DesktopDownloadModal({ open, onClose }: { open: boolean; onClose: () =>
 
         <div className="space-y-3">
           <p className="text-sm text-muted-foreground">
-            Lynx 桌面版提供更流畅的原生体验，支持系统托盘、快捷键唤起和离线使用。
+            奇思桌面版提供更流畅的原生体验，支持系统托盘、快捷键唤起和离线使用。
           </p>
           <div className="ios-glass-sm rounded-xl p-3">
             <div className="flex items-center gap-2 text-xs text-muted-foreground">
@@ -129,11 +129,11 @@ export function CaptureBar() {
 
   return (
     <header className="glass-topbar sticky top-0 z-20 flex h-14 shrink-0 items-center justify-between px-4 lg:px-6">
-      {/* 左侧：Lynx 品牌 logo + 当前页面标题（usePathname 映射） */}
+      {/* 左侧：奇思 品牌 logo + 当前页面标题（usePathname 映射） */}
       <div className="flex min-w-0 flex-1 items-center gap-2.5">
         <Image
           src="/lynx-icon-128.png"
-          alt="Lynx"
+          alt="奇思"
           width={24}
           height={24}
           className="shrink-0 rounded-md"
@@ -190,7 +190,7 @@ export function CaptureBar() {
           onClick={() => setShowDownload(true)}
           className="ios-glass-sm flex h-9 items-center gap-1.5 rounded-full px-3 text-xs font-medium text-muted-foreground transition-all hover:text-primary"
           aria-label="下载桌面版"
-          title="下载 Lynx 桌面版"
+          title="下载奇思桌面版"
         >
           <Download className="h-4 w-4" />
           <span className="hidden sm:inline">桌面版</span>

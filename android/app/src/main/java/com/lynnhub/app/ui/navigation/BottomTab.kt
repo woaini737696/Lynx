@@ -6,7 +6,7 @@ import com.lynnhub.app.ui.component.LynxIcons
 /**
  * 底部 Dock 四个核心 Tab
  *
- * 顺序：首页 / Lynx 助理 / 任务 / 记忆
+ * 顺序：首页 / 奇思助理 / 任务 / 记忆
  */
 sealed class BottomTab(
     val route: String,
@@ -21,7 +21,7 @@ sealed class BottomTab(
 
     data object Assistant : BottomTab(
         Routes.ASSISTANT,
-        "Lynx 助理",
+        "奇思助理",
         LynxIcons.Assistant
     )
 

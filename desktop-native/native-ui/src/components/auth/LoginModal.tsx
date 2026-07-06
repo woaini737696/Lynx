@@ -268,13 +268,13 @@ export function LoginModal({ open, mode, expired, onModeChange, onClose }: Login
               <div className="mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-2xl bg-[#030816] shadow-lg ring-1 ring-white/10">
                 <img
                   src="/lynx-icon-256.png"
-                  alt="Lynx"
+                  alt="奇思"
                   className="h-10 w-10 object-contain"
                   draggable={false}
                 />
               </div>
               <h1 className="text-lg font-semibold tracking-wide text-foreground">
-                {panel === "login" ? "欢迎来到 LYNX" : "注册新账号"}
+                {panel === "login" ? "欢迎来到奇思" : "注册新账号"}
               </h1>
               <p className="mt-0.5 text-xs text-muted-foreground">
                 {panel === "login" ? "不用学AI，什么都能干" : "手机号 + 验证码 + 邀请码"}

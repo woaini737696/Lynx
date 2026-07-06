@@ -235,9 +235,9 @@ export function SettingsModal(props: SettingsModalProps) {
             )}
           </div>
 
-          {/* Lynx Agent 超级助理 */}
+          {/* 奇思 Agent 超级助理 */}
           <div className="space-y-3 rounded-xl border border-border p-4">
-            <h3 className="text-sm font-medium">🤖 Lynx Agent 超级助理</h3>
+            <h3 className="text-sm font-medium">🤖 奇思 Agent 超级助理</h3>
             <div className={cn("rounded-lg border p-3 transition-colors",
               settings.hermesTakeover ? "border-green-500/40 bg-green-500/5" : "border-border bg-muted/20")}>
               <label className="flex cursor-pointer items-center justify-between">
@@ -254,7 +254,7 @@ export function SettingsModal(props: SettingsModalProps) {
                   className="h-4 w-4 rounded accent-cognition" />
               </label>
               <p className="mt-1.5 text-[10px] leading-relaxed text-muted-foreground">
-                开启后 AI 助理由 Lynx Agent 驱动，拥有持久化记忆和持续学习能力。失败时自动回退到 LLM 模式。
+                开启后 AI 助理由奇思 Agent 驱动，拥有持久化记忆和持续学习能力。失败时自动回退到 LLM 模式。
               </p>
             </div>
             <label className="flex cursor-pointer items-center justify-between">
@@ -281,7 +281,7 @@ export function SettingsModal(props: SettingsModalProps) {
               </Button>
             </div>
             <Button size="sm" variant="outline" onClick={preloadSkills} className="w-full">
-              <Sparkles className="mr-1 h-3 w-3" /> 预加载默认技能（6 个 Lynx 技能）
+              <Sparkles className="mr-1 h-3 w-3" /> 预加载默认技能（6 个奇思技能）
             </Button>
           </div>
 

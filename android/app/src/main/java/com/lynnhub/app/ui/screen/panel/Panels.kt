@@ -198,7 +198,7 @@ fun CallPlaceholder(onBack: () -> Unit) {
 }
 
 // ====================================================================
-// 全双工通话 CallScreen —— Lynx v6 完整实现
+// 全双工通话 CallScreen —— 奇思 v6 完整实现
 //
 // 设计要点（来自已确认视觉稿）：
 // - 全屏覆盖
@@ -258,9 +258,9 @@ fun CallScreen(
     val stateText = when {
         permissionGranted == null -> "正在准备通话..."
         permissionGranted == false -> "需要录音权限"
-        uiState.state == CallState.LISTENING -> "Lynx 正在聆听"
-        uiState.state == CallState.THINKING -> "Lynx 正在思考"
-        uiState.state == CallState.SPEAKING -> "Lynx 正在回复"
+        uiState.state == CallState.LISTENING -> "奇思正在聆听"
+        uiState.state == CallState.THINKING -> "奇思正在思考"
+        uiState.state == CallState.SPEAKING -> "奇思正在回复"
         uiState.state == CallState.ERROR -> "出错了，重试中..."
         uiState.state == CallState.IDLE -> "通话结束"
         else -> ""
@@ -346,7 +346,7 @@ fun CallScreen(
                 ) {
                     Image(
                         painter = painterResource(id = R.drawable.lynx_logo_white),
-                        contentDescription = "Lynx",
+                        contentDescription = "奇思",
                         modifier = Modifier.size(54.dp)
                     )
                 }

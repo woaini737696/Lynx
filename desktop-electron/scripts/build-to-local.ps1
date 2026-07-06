@@ -100,7 +100,7 @@ $readmeLines = @(
     "- [ ] TC8: HermesAgent 一键安装（内置 whl）",
     "- [ ] TC9: WS 连接正常（设备上线）",
     "- [ ] TC10: 飞书任务同步 Web 端",
-    "- [ ] TC11: Lynx 超级助理同步 Web 端",
+    "- [ ] TC11: 奇思超级助理同步 Web 端",
     "",
     "## 构建信息",
     "- 构建时间: $buildTime",

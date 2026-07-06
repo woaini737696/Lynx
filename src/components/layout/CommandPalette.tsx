@@ -42,7 +42,7 @@ const NAV_RESULTS: SearchResult[] = [
   { id: "nav-skills", title: "技能库", type: "nav", href: "/skills", icon: Star, color: "text-campaign" },
   { id: "nav-ai-workspace", title: "AI 工作空间", type: "nav", href: "/ai/workspace", icon: LayoutGrid, color: "text-cognition" },
   { id: "nav-ai-flows", title: "AI 工作流", type: "nav", href: "/ai/flows", icon: Workflow, color: "text-cognition" },
-  { id: "nav-ai-assistant", title: "Lynx超级助理", type: "nav", href: "/ai/assistant", icon: Bot, color: "text-cognition" },
+  { id: "nav-ai-assistant", title: "奇思超级助理", type: "nav", href: "/ai/assistant", icon: Bot, color: "text-cognition" },
 ];
 
 const TYPE_LABELS: Record<SearchResult["type"], string> = {
@@ -73,7 +73,7 @@ const TRENDING: SearchResult[] = [
   { id: "trend-2", title: "决策看板", subtitle: "管理进行中的战役", type: "nav", href: "/board", icon: KanbanSquare, color: "text-campaign" },
   { id: "trend-3", title: "Inbox", subtitle: "处理待分类灵感", type: "nav", href: "/inbox", icon: Inbox, color: "text-foreground" },
   { id: "trend-4", title: "记忆图谱", subtitle: "探索知识关联", type: "nav", href: "/memory", icon: Brain, color: "text-cognition" },
-  { id: "trend-5", title: "Lynx超级助理", subtitle: "与 AI 对话", type: "nav", href: "/ai/assistant", icon: Bot, color: "text-cognition" },
+  { id: "trend-5", title: "奇思超级助理", subtitle: "与 AI 对话", type: "nav", href: "/ai/assistant", icon: Bot, color: "text-cognition" },
 ];
 
 // 快捷命令（输入 > 开头触发）
@@ -88,7 +88,7 @@ const QUICK_COMMANDS: QuickCommand[] = [
   { id: "cmd-settings", input: "settings", label: "跳转到 设置", description: "/settings", icon: Settings, color: "text-muted-foreground", kind: "navigate", target: "/settings" },
   { id: "cmd-ai", input: "ai", label: "跳转到 AI 工作空间", description: "/ai/workspace", icon: LayoutGrid, color: "text-cognition", kind: "navigate", target: "/ai/workspace" },
   { id: "cmd-flows", input: "flows", label: "跳转到 AI 工作流", description: "/ai/flows", icon: Workflow, color: "text-cognition", kind: "navigate", target: "/ai/flows" },
-  { id: "cmd-assistant", input: "assistant", label: "跳转到 Lynx超级助理", description: "/ai/assistant", icon: Bot, color: "text-cognition", kind: "navigate", target: "/ai/assistant" },
+  { id: "cmd-assistant", input: "assistant", label: "跳转到奇思超级助理", description: "/ai/assistant", icon: Bot, color: "text-cognition", kind: "navigate", target: "/ai/assistant" },
   { id: "cmd-lark", input: "lark", label: "跳转到 飞书任务", description: "/ai/lark-tasks", icon: Bot, color: "text-cognition", kind: "navigate", target: "/ai/lark-tasks" },
   { id: "cmd-skills", input: "skills", label: "跳转到 技能库", description: "/skills", icon: Star, color: "text-campaign", kind: "navigate", target: "/skills" },
   { id: "cmd-new", input: "new", label: "打开闪电输入", description: "触发闪电输入", icon: Zap, color: "text-northstar", kind: "event", target: "lynnhub:open-lightning" },

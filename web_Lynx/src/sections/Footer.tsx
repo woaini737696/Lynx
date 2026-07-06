@@ -97,7 +97,7 @@ export default function Footer() {
             <div className="flex items-center gap-2">
               <img src="/lynx-logo-black.png" alt="奇思" className="w-5 h-5" style={{ opacity: 0.5, borderRadius: '4px' }} />
               <span style={{ color: 'rgba(240, 244, 248, 0.25)', fontSize: '13px' }}>
-                奇思 · 奇思AI工作台，不用学，直接干
+                奇思 · 不用学AI，什么都能干
               </span>
             </div>
             <div className="flex items-center gap-6">

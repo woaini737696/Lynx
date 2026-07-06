@@ -399,7 +399,7 @@ export default function AIWorkspacePage() {
         <QuickLink
           href="/ai/assistant"
           icon={Bot}
-          title="Lynx超级助理"
+          title="奇思超级助理"
           desc="对话式个人助手"
           color="text-cognition"
         />

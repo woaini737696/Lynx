@@ -196,10 +196,10 @@ export function ChatInput(props: ChatInputProps) {
           {settings.hermesTakeover ? (
             <span
               className="inline-flex items-center gap-1 rounded-full border border-green-500/40 bg-green-500/10 px-2 py-0.5 text-[10px] font-medium text-green-600 dark:text-green-400"
-              title="Lynx Agent 接管模式（模式 C）：持久化记忆 + 持续学习，失败时自动回退到 LLM"
+              title="奇思 Agent 接管模式（模式 C）：持久化记忆 + 持续学习，失败时自动回退到 LLM"
             >
               <Sparkles className="h-2.5 w-2.5" />
-              🤖 Lynx Agent 模式
+              🤖 奇思 Agent 模式
             </span>
           ) : (
             <span

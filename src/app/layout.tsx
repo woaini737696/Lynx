@@ -18,7 +18,7 @@ import { SWRProvider } from "@/components/providers/SWRProvider";
 import { AuthProvider } from "@/components/auth/AuthProvider";
 
 export const metadata: Metadata = {
-  title: "Lynx AI工作站",
+  title: "奇思 AI工作台",
   description: "灵感收敛 · 工作聚焦 · 记忆复利",
   manifest: "/manifest.webmanifest",
   icons: {
@@ -33,7 +33,7 @@ export const metadata: Metadata = {
   },
   appleWebApp: {
     capable: true,
-    title: "Lynx AI工作站",
+    title: "奇思 AI工作台",
     statusBarStyle: "default",
   },
 };

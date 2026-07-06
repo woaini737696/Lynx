@@ -32,7 +32,7 @@ export async function GET() {
   try {
     // 读取 desktop-electron/package.json 的版本号作为"最新发布版本"
     let version = "1.0.0";
-    let releaseNotes = "Lynx 桌面端更新";
+    let releaseNotes = "奇思桌面端更新";
     try {
       const pkgPath = join(process.cwd(), "desktop-electron", "package.json");
       const pkg = JSON.parse(readFileSync(pkgPath, "utf-8"));

@@ -1,4 +1,4 @@
-# LynnHub 开发日志
+# 奇思 开发日志
 
 > 每次迭代开发时需先读取本文件，了解历史变更和当前状态。
 > **规范**：每次迭代完成并提交后，必须同步更新本文件，新增一个迭代区块。
@@ -6293,6 +6293,66 @@ GitHub 仓库迁移 + 本地持久化 + 三方同步验证 + 文档完善：用�
 
 ### Commit
 本次提交
+
+---
+
+## 迭代 120 - 2026-07-06
+
+### 任务概要
+三端产品名+Slogan同步更新、代码整理清理、日志系统P0完善、文档齐全化。
+
+### 完成内容
+
+#### 1. 三端产品名+Slogan同步（统一为"奇思" + "不用学AI，什么都能干"）
+- 官网 [web_Lynx/src/sections/Footer.tsx](file:///d:/Lynn工作空间/LynnHub/web_Lynx/src/sections/Footer.tsx)：Footer Slogan 同步
+- 官网 [web_Lynx/src/sections/OutOfBox.tsx](file:///d:/Lynn工作空间/LynnHub/web_Lynx/src/sections/OutOfBox.tsx)：开箱即用板块 Slogan 同步
+- 官网 [web_Lynx/OFFICIAL_SITE_PLAN.md](file:///d:/Lynn工作空间/LynnHub/web_Lynx/OFFICIAL_SITE_PLAN.md)：12 处品牌名/Slogan 替换
+- 三端代码层（Web src / desktop-native / android）：已确认使用"奇思"品牌，无需进一步修改（标识符如 LynnHubApp/LynxIcons/lynxdo.com 保留）
+
+#### 2. 代码清理（删除冗余+死代码+未使用依赖）
+- 删除 8 个冗余文件：
+  - 5 个版本化重复部署脚本（`scripts/deploy/upload-v1.0.{9,11,13,14,15}.py`）
+  - `scripts/deploy/verify-website-v2.py`（保留 v3）
+  - `scripts/deploy/deploy_standalone.py`（保留 deploy-standalone-v111.py）
+  - `src/lib/sentry.ts`（死代码，从未被 import）
+- [package.json](file:///d:/Lynn工作空间/LynnHub/package.json)：移除 4 个未使用依赖（@radix-ui/react-dialog / @radix-ui/react-slot / @radix-ui/react-toast / pino-pretty）
+- [android/app/build.gradle.kts](file:///d:/Lynn工作空间/LynnHub/android/app/build.gradle.kts)：移除未使用 `io.coil-kt:coil-compose:2.6.0`
+- [.gitignore](file:///d:/Lynn工作空间/LynnHub/.gitignore)：补充 `.trae/` 和 `Thumbs.db` 规则
+
+#### 3. 日志系统 P0 完善
+**Web 端诊断页日志导出**
+- [src/app/settings/diagnostics/page.tsx](file:///d:/Lynn工作空间/LynnHub/src/app/settings/diagnostics/page.tsx)：新增「日志导出」卡片，支持导出客户端日志（最近 100 条）+ 服务端日志（最近 200 条）
+- 新建 [src/app/api/logs/server/route.ts](file:///d:/Lynn工作空间/LynnHub/src/app/api/logs/server/route.ts)：服务端日志读取 API（GET /api/logs/server?limit=200），读取 PM2 out.log 末尾 N 行
+
+**PM2 日志轮转**
+- 新建 [scripts/deploy/setup-pm2-logrotate.sh](file:///d:/Lynn工作空间/LynnHub/scripts/deploy/setup-pm2-logrotate.sh)：服务器执行一次配置 pm2-logrotate（max_size 50M / retain 14 / compress true / 每日 0 点轮转）
+
+**桌面端文件日志**
+- [desktop-native/src-tauri/Cargo.toml](file:///d:/Lynn工作空间/LynnHub/desktop-native/src-tauri/Cargo.toml)：`env_logger` → `flexi_logger = "0.28"`
+- [desktop-native/src-tauri/src/lib.rs](file:///d:/Lynn工作空间/LynnHub/desktop-native/src-tauri/src/lib.rs)：
+  - flexi_logger 初始化（stderr + 文件双通道，每日轮转，落盘 `%APPDATA%/Lynx/logs/qisi-desktop_YYYY-MM-DD.log`）
+  - 新增 `read_desktop_logs(limit)` Tauri 命令：读取最新 .log 文件末尾 N 行
+  - invoke_handler 注册 `read_desktop_logs`
+
+#### 4. 文档齐全化
+- 新建 [docs/LOG_SYSTEM.md](file:///d:/Lynn工作空间/LynnHub/docs/LOG_SYSTEM.md)：日志系统架构说明（Web pino+client-logger / 桌面 flexi_logger / PM2 logrotate / 诊断页导出 / API 端点 / 排查工作流 / 关键事件名速查）
+- 新建 [docs/TROUBLESHOOTING.md](file:///d:/Lynn工作空间/LynnHub/docs/TROUBLESHOOTING.md)：故障排查指南（Web/桌面/安卓/服务器/数据库/性能/安全 7 大类常见问题排查流程）
+- 更新 [README.md](file:///d:/Lynn工作空间/LynnHub/README.md)：产品名 → 奇思，Slogan → 不用学AI，什么都能干，相关文档补充 LOG_SYSTEM.md / TROUBLESHOOTING.md 链接
+- 更新 [DEVELOPMENT_SPEC.md](file:///d:/Lynn工作空间/LynnHub/DEVELOPMENT_SPEC.md)：标题产品名同步
+- 更新 [ANDROID_PRD.md](file:///d:/Lynn工作空间/LynnHub/ANDROID_PRD.md)：产品名 + Lynx Agent → 奇思 Agent
+- 更新 [DESIGN_SYSTEM.md](file:///d:/Lynn工作空间/LynnHub/DESIGN_SYSTEM.md)：品牌定位产品名 + Slogan 同步
+- 更新 [docs/USER_GUIDE.md](file:///d:/Lynn工作空间/LynnHub/docs/USER_GUIDE.md)：标题产品名同步
+- 更新 [docs/API.md](file:///d:/Lynn工作空间/LynnHub/docs/API.md)：标题产品名同步
+- 更新 [docs/hermes-usage-guide.md](file:///d:/Lynn工作空间/LynnHub/docs/hermes-usage-guide.md)：标题改为「奇思 Agent 使用指南」+ 内文 LynnHub → 奇思
+
+### 待办（不阻塞本迭代）
+- PFX 证书签名（待用户手动生成新证书，详见迭代 119 TC11）
+- 安全风险修复（72 处硬编码凭据，已识别未修复，待用户决策轮换策略）
+
+### 验证
+- 三端代码确认使用"奇思"品牌（grep 验证 Web src / desktop-native / android 均已替换）
+- 日志系统链路：诊断页 → 导出按钮 → API/文件读取 → JSON 下载，全链路打通
+- 文档无残留旧品牌名（仅保留合法代码标识符：LynnHubApp / LynxIcons / lynxdo.com / lynx-logo-black.png / Lynx.exe 进程名等）
 
 ---
 

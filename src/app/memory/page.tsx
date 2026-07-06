@@ -548,7 +548,7 @@ export default function MemoryPage() {
     }
   };
 
-  // 同步 Hermes 记忆：双向同步 Hermes ↔ Lynx，完成后重新加载图谱
+  // 同步 Hermes 记忆：双向同步 Hermes ↔ 奇思，完成后重新加载图谱
   const syncHermes = async () => {
     try {
       setSyncingHermes(true);

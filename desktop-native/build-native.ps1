@@ -1,7 +1,7 @@
 param(
     [switch]$UninstallExisting
 )
-# Lynx native desktop build script
+# 奇思 native desktop build script
 # Generate installer assets -> build native UI -> build Rust -> NSIS installer
 # Use -UninstallExisting to force uninstall previous version before build
 
@@ -15,12 +15,12 @@ $assetScript = Join-Path $root "..\scripts\generate-desktop-native-assets.py"
 
 # ---------- Optional: uninstall existing version ----------
 if ($UninstallExisting) {
-    Write-Host "==> Uninstalling existing Lynx (if any)..."
+    Write-Host "==> Uninstalling existing 奇思 (if any)..."
 
     # Force kill running process to avoid file lock during uninstall
     $proc = Get-Process -Name "lynx-desktop" -ErrorAction SilentlyContinue
     if ($proc) {
-        Write-Host "    Stopping running Lynx process..."
+        Write-Host "    Stopping running 奇思 process..."
         Stop-Process -Name "lynx-desktop" -Force -ErrorAction SilentlyContinue
         Start-Sleep -Milliseconds 800
     }

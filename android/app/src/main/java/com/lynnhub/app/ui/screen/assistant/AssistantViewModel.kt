@@ -28,7 +28,7 @@ import java.util.UUID
 import javax.inject.Inject
 
 /**
- * Lynx 助理 ViewModel v2
+ * 奇思助理 ViewModel v2
  *
  * 解决核心问题：与 Web 端聊天同步
  * 1. 复用 Web 端同款会话 API（getChatSessions/createChatSession/getChatMessages/sendChat）
@@ -82,12 +82,12 @@ class AssistantViewModel @Inject constructor(
             try {
                 val sessions = apiService.getChatSessions().sessions
                 val sid = if (sessions.isNotEmpty()) {
-                    // 优先取标题为 "Lynx" 的会话（与 Web 端保持一致）
-                    sessions.firstOrNull { it.title.equals("Lynx", ignoreCase = true) }?.id
+                    // 优先取标题为 "奇思" 的会话（与 Web 端保持一致）
+                    sessions.firstOrNull { it.title.equals("奇思", ignoreCase = true) }?.id
                         ?: sessions.first().id
                 } else {
                     apiService.createChatSession(
-                        ChatCreateSessionRequest(title = "Lynx", provider = "deepseek")
+                        ChatCreateSessionRequest(title = "奇思", provider = "deepseek")
                     ).session.id
                 }
                 _uiState.update { it.copy(sessionId = sid, sessionReady = true) }
@@ -228,7 +228,7 @@ class AssistantViewModel @Inject constructor(
         val memories = _uiState.value.memoryNodes.takeLast(10) // 最近10条记忆
 
         return buildString {
-            append("你是 Lynx 助理，Lynx AI 工作台的核心助理。")
+            append("你是奇思助理，奇思 AI工作台的核心助理。")
             append("当前用户是 $userName")
             if (userRole.isNotBlank()) {
                 append("（角色：$userRole）")

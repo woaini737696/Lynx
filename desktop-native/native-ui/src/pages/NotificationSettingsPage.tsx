@@ -181,7 +181,7 @@ export function NotificationSettingsPage() {
       // 额外调用飞书通知接口验证飞书通道（失败不阻塞主流程）
       try {
         await cloudApi.post("/api/ai/notify-feishu", {
-          message: "这是一条来自 Lynx 的测试通知",
+          message: "这是一条来自奇思的测试通知",
         });
         toast.success("飞书测试通知已发送");
       } catch (e) {
@@ -288,7 +288,7 @@ export function NotificationSettingsPage() {
                 icon={Smartphone}
                 iconClass="bg-campaign/10 text-campaign"
                 title="移动端通知"
-                description="通过安卓 App 推送通知（需安装 Lynx App）"
+                description="通过安卓 App 推送通知（需安装奇思 App）"
                 checked={settings.mobileNotifications}
                 onChange={(v) => updateField("mobileNotifications", v)}
               />

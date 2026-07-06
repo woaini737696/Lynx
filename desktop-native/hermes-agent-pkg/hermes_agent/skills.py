@@ -74,7 +74,7 @@ def _parse_skill_file(content: str, filename: str) -> dict:
 def format_skills_table(skills: List[dict]) -> str:
     """格式化技能列表为表格文本"""
     if not skills:
-        return "暂无技能。通过 Lynx 桌面端使用超级助理后，会自动学习新技能。"
+        return "暂无技能。通过 奇思桌面端使用超级助理后，会自动学习新技能。"
 
     lines = [f"{'ID':<30} {'名称':<20} {'分类':<15} {'描述'}"]
     lines.append("-" * 90)

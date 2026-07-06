@@ -1,12 +1,12 @@
-# Lynx
+# 奇思
 
-> Lynx AI 工作台，不用学，直接干。
+> 不用学AI，什么都能干。
 
-Lynx 是一个会自主学习、成长、进化的超级 AI 助理平台。它不只是 AI 聊天框，而是一套能自动执行、自动学习、自动记忆的完整工作系统，集灵感管理、决策看板、智能记忆图谱、AI 工作流、技能自动蒸馏、AGI 级 AI 能力于一体，支持 **Web / Windows 桌面 / Android** 三端互通可互相操控。
+奇思 是一个会自主学习、成长、进化的超级 AI 助理平台。它不只是 AI 聊天框，而是一套能自动执行、自动学习、自动记忆的完整工作系统，集灵感管理、决策看板、智能记忆图谱、AI 工作流、技能自动蒸馏、AGI 级 AI 能力于一体，支持 **Web / Windows 桌面 / Android** 三端互通可互相操控。
 
 ## 核心亮点
 
-- **会进化的超级助理**：基于自研 **Lynx Agent**（实现于 HermesAgent 引擎）持久化记忆 + 持续学习管道 + bad 标注反馈纠错 + 巡检自动发现模式，越用越懂你
+- **会进化的超级助理**：基于自研 **奇思 Agent**（实现于 HermesAgent 引擎）持久化记忆 + 持续学习管道 + bad 标注反馈纠错 + 巡检自动发现模式，越用越懂你
 - **四大核心能力**：AI 工作流 / 自动蒸馏技能 / 智能记忆图谱 / AGI 级 AI 能力
 - **三端互通**：Web、Windows、Android 共用一套 API 信封，可互相操控与远程指令
 - **开箱即用**：60+ 预置技能、35 项细粒度权限、默认巡检规则、12 岗位职业空间
@@ -25,7 +25,7 @@ Lynx 是一个会自主学习、成长、进化的超级 AI 助理平台。它�
 
 ### AI 能力
 - 🤖 **AI 超级助理**：流式对话（首字延迟 < 700ms）、工具调用、语音对话、消息 good/bad 标注反馈学习
-- 🎯 **Lynx Agent**（基于 HermesAgent 技术实现）：本地化运行，持久化记忆、持续学习、主动汇报、跨平台响应、操作审批安全机制
+- 🎯 **奇思 Agent**（基于 HermesAgent 技术实现）：本地化运行，持久化记忆、持续学习、主动汇报、跨平台响应、操作审批安全机制
 - 🛠️ **技能库**：可复用技能模板，AI SSE 流式生成，公共广场 + 导入导出
 - 🔄 **AI 工作流**：可视化工作流编排，定时执行，flow-engine 调度
 - 📊 **AI 巡检**：自动化巡检规则，定时检查灵感去重 / Graveyard 复活 / 定时清理软删除任务
@@ -44,7 +44,7 @@ Lynx 是一个会自主学习、成长、进化的超级 AI 助理平台。它�
 ### 多端支持
 - 🌐 **Web 端**：Next.js 14，端口 5176（强制），响应式 + PWA
 - 🖥️ **桌面端**：Tauri 2.x + Rust（MSVC 工具链），1280×800 居中，托盘 + 全局快捷键 `Ctrl+Shift+L`，内置自动更新
-- 📱 **移动端**：Android 原生（Kotlin + Jetpack Compose + Material3 + Hilt），五 Tab 结构（首页 / Lynx 助理 / 任务 / 记忆），便携使用 + 远程操控 Lynx Agent
+- 📱 **移动端**：Android 原生（Kotlin + Jetpack Compose + Material3 + Hilt），五 Tab 结构（首页 / 奇思助理 / 任务 / 记忆），便携使用 + 远程操控 奇思 Agent
 
 ## 技术架构
 
@@ -175,9 +175,9 @@ scripts/                    # 测试和维护脚本
 web_Lynx/                   # 官网（Vite + React + TypeScript）
 ```
 
-## Lynx Agent（基于 HermesAgent 技术实现）
+## 奇思 Agent（基于 HermesAgent 技术实现）
 
-Lynx Agent 是产品端显示名称，其底层引擎基于自研的 **HermesAgent** 技术实现 —— 一个本地化运行、持久化记忆、持续学习、可跨平台响应的 AGI 级 AI 代理框架。
+奇思 Agent 是产品端显示名称，其底层引擎基于自研的 **HermesAgent** 技术实现 —— 一个本地化运行、持久化记忆、持续学习、可跨平台响应的 AGI 级 AI 代理框架。
 
 ### 三大进化机制
 1. **Hermes 学习管道**：从用户行为 / 对话 / 任务执行中自动萃取模式，沉淀为可复用技能
@@ -187,10 +187,10 @@ Lynx Agent 是产品端显示名称，其底层引擎基于自研的 **HermesAge
 ### 三种 AI 模式
 - **模式 A**：纯 LLM 对话（默认）
 - **模式 B**：LLM + 工具调用（RAG / 记忆检索 / 技能执行）
-- **模式 C**：Lynx Agent 接管（持久化记忆 + 持续学习，失败自动回退到 LLM）
+- **模式 C**：奇思 Agent 接管（持久化记忆 + 持续学习，失败自动回退到 LLM）
 
 ### 安全机制
-- 授权目录白名单（允许 Lynx Agent 访问的目录）
+- 授权目录白名单（允许 奇思 Agent 访问的目录）
 - 操作审批弹窗（高危操作需用户确认）
 - 完全本地化 profile 存储于 `D:\LynnHub\.lynnhub\hermes-profiles\`
 
@@ -265,7 +265,9 @@ Lynx Agent 是产品端显示名称，其底层引擎基于自研的 **HermesAge
 - [安卓端 PRD 方案](./ANDROID_PRD.md)
 - [API 文档](./docs/API.md)
 - [用户指南](./docs/USER_GUIDE.md)
-- [Lynx Agent 使用指南](./docs/hermes-usage-guide.md)
+- [奇思 Agent 使用指南](./docs/hermes-usage-guide.md)
+- [日志系统说明](./docs/LOG_SYSTEM.md)
+- [故障排查指南](./docs/TROUBLESHOOTING.md)
 
 ## License
 

@@ -51,7 +51,7 @@ export default function OutOfBox() {
             className="mt-4 max-w-[480px] mx-auto"
             style={{ fontSize: '16px', lineHeight: 1.75, color: 'rgba(240, 244, 248, 0.45)' }}
           >
-            装上就能用，不用学，直接干。所有数据在你自己的机器上。
+            装上就能用，不用学AI，什么都能干。所有数据在你自己的机器上。
           </p>
         </div>
 

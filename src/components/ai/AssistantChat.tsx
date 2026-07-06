@@ -83,7 +83,7 @@ interface AssistantSettings {
 }
 
 const DEFAULT_SETTINGS: AssistantSettings = {
-  assistantName: "Lynx",
+  assistantName: "奇思",
   assistantAvatar: "🦊",
   avatarUrl: "/lynx-icon-256.png",
 };
@@ -253,7 +253,7 @@ export function AssistantChat({ onClose, open }: AssistantChatProps = {}) {
       .then((data: { settings?: Partial<AssistantSettings> }) => {
         if (cancelled || !data.settings) return;
         setSettings({
-          assistantName: data.settings.assistantName || "Lynx",
+          assistantName: data.settings.assistantName || "奇思",
           assistantAvatar: data.settings.assistantAvatar || "🦊",
           avatarUrl: data.settings.avatarUrl || "/lynx-icon-256.png",
         });
@@ -1108,7 +1108,7 @@ export function AssistantChat({ onClose, open }: AssistantChatProps = {}) {
   };
 
   const isEmpty = messages.length === 0;
-  const displayName = settings.assistantName || "Lynx";
+  const displayName = settings.assistantName || "奇思";
 
   return (
     <div className="flex h-full flex-col bg-background">

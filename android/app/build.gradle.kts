@@ -107,9 +107,6 @@ dependencies {
     // DataStore
     implementation("androidx.datastore:datastore-preferences:1.0.0")
 
-    // Coil (图片加载)
-    implementation("io.coil-kt:coil-compose:2.6.0")
-
     // Markwon (Markdown 渲染)
     implementation("io.noties.markwon:core:4.6.2")
     implementation("io.noties.markwon:html:4.6.2")

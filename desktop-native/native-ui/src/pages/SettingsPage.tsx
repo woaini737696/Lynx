@@ -426,12 +426,12 @@ export function SettingsPage() {
 
             {activeTab === "about" && (
               <div className="flex flex-col gap-5">
-                <h2 className="text-lg font-semibold text-foreground">关于 Lynx</h2>
+                <h2 className="text-lg font-semibold text-foreground">关于奇思</h2>
                 <div className="flex items-center gap-4">
                   <Logo className="h-16 w-16 rounded-2xl" />
                   <div>
-                    <p className="text-base font-semibold text-foreground">Lynx 原生桌面端</p>
-                    <p className="text-sm text-muted-foreground">基于 Lynx Agent 技术</p>
+                    <p className="text-base font-semibold text-foreground">奇思原生桌面端</p>
+                    <p className="text-sm text-muted-foreground">基于奇思 Agent 技术</p>
                   </div>
                 </div>
 

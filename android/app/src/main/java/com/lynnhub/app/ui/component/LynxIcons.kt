@@ -11,7 +11,7 @@ import androidx.compose.ui.unit.dp
 private val StrokeColor = Color.White
 
 /**
- * Lynx iOS 26 风格图标集
+ * 奇思 iOS 26 风格图标集
  * 统一：描边 1.6dp / round 线帽 / round 连接 / 无填充
  */
 object LynxIcons {

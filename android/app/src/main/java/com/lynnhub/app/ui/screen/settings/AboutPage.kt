@@ -55,7 +55,7 @@ fun AboutPage(onBack: () -> Unit) {
             }
             Spacer(modifier = Modifier.height(10.dp))
             Text(
-                "Lynx",
+                "奇思",
                 color = TextPrimary,
                 fontSize = 18.sp,
                 fontWeight = FontWeight.Bold
@@ -80,8 +80,8 @@ fun AboutPage(onBack: () -> Unit) {
 
         Spacer(modifier = Modifier.height(24.dp))
         InfoCard(
-            title = "Lynx v6",
-            text = "极简 · 人性 · 即时反馈。Lynx 是基于 HermesAgent 技术的超级助手，支持桌面/Shell/CLI/浏览器/应用控制、自主学习（重复 2x → 技能）、自我生长（记忆提取）、本地执行与隐私保护。"
+            title = "奇思 v6",
+            text = "极简 · 人性 · 即时反馈。奇思是基于 HermesAgent 技术的超级助手，支持桌面/Shell/CLI/浏览器/应用控制、自主学习（重复 2x → 技能）、自我生长（记忆提取）、本地执行与隐私保护。"
         )
     }
 }

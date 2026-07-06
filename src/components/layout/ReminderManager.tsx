@@ -159,7 +159,7 @@ export function ReminderManager() {
           newHistory.push(item);
 
           toast(result.message, "info");
-          sendNotification("Lynx 灵感助理", result.message);
+          sendNotification("奇思灵感助理", result.message);
 
           if (result.ruleId === "revive-check" && result.details) {
             setReviveSuggestions(result.details);

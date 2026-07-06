@@ -269,7 +269,7 @@ fun AgentPanel(
                         )
                         Spacer(modifier = Modifier.height(8.dp))
                         Text(
-                            text = "请先在 PC 端启动 Lynx 桌面端并登录",
+                            text = "请先在 PC 端启动奇思桌面端并登录",
                             color = TextMuted.copy(alpha = 0.6f),
                             fontSize = 11.sp
                         )

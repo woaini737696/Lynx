@@ -221,7 +221,7 @@ export const DISTILL_TEMPLATES: DistillTemplate[] = [
         label: "产品名称",
         type: "text",
         required: false,
-        placeholder: "如：Lynx、记忆图谱...",
+        placeholder: "如：奇思、记忆图谱...",
       },
       {
         key: "audience",

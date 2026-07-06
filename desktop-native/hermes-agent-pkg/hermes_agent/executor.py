@@ -96,7 +96,7 @@ def call_llm(prompt: str, system: Optional[str] = None, timeout: int = 120) -> d
 
 # 系统提示：要求 LLM 在需要 OS 操作时输出结构化动作标签
 SYSTEM_PROMPT = (
-    "你是 Lynx 超级助理（Hermes Agent），一个真正能操控电脑的本地 AI 代理。\n"
+    "你是 奇思超级助理（Hermes Agent），一个真正能操控电脑的本地 AI 代理。\n"
     "你不是聊天机器人，你是真正能执行操作系统动作的代理。\n\n"
     "## 核心规则（最高优先级，必须遵守）\n"
     "当用户请求涉及任何操作系统动作（打开浏览器/网址、启动应用、运行命令、打开文件等），\n"
@@ -302,7 +302,7 @@ def execute_task(prompt: str, yolo: bool = False, timeout: int = 120) -> dict:
                 "Hermes 未配置 LLM 模型。请在 .env 中设置：\n"
                 "  DEEPSEEK_API_KEY=your-key\n"
                 "  DEEPSEEK_MODEL=deepseek-chat\n"
-                "或通过 Lynx 桌面端「一键配置模型」自动配置。"
+                "或通过 奇思桌面端「一键配置模型」自动配置。"
             ),
             "durationMs": int((time.time() - start) * 1000),
             "executed": False,

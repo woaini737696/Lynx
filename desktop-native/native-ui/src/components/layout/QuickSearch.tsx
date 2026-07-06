@@ -12,9 +12,9 @@ const suggestions = [
   { id: "graveyard", label: "灵感墓地", to: "/graveyard" },
   { id: "ai-workspace", label: "AI 工作空间", to: "/ai/workspace" },
   { id: "ai-flows", label: "AI 工作流", to: "/ai/flows" },
-  { id: "ai-assistant", label: "Lynx超级助理", to: "/ai/assistant" },
+  { id: "ai-assistant", label: "奇思超级助理", to: "/ai/assistant" },
   { id: "skills", label: "技能管理", to: "/skills" },
-  { id: "agent", label: "Lynx Agent", to: "/agent" },
+  { id: "agent", label: "奇思 Agent", to: "/agent" },
   { id: "settings", label: "设置", to: "/settings" },
 ];
 

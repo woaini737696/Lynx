@@ -72,7 +72,7 @@ export function useSessions(
           loadedMessages.push({
             id: "welcome",
             role: "assistant",
-            content: `你好！我是你的 Lynx超级助理${assistantName !== "Lynn" ? ` ${assistantName}` : ""}。我可以帮你管理灵感、分析任务、整理认知，也可以直接对话讨论问题。有什么我能帮你的？`,
+            content: `你好！我是你的奇思超级助理${assistantName !== "Lynn" ? ` ${assistantName}` : ""}。我可以帮你管理灵感、分析任务、整理认知，也可以直接对话讨论问题。有什么我能帮你的？`,
             time: "刚刚",
           });
         }
@@ -99,7 +99,7 @@ export function useSessions(
         setMessages([{
           id: "welcome",
           role: "assistant",
-          content: `你好！我是你的 Lynx超级助理${assistantName !== "Lynn" ? ` ${assistantName}` : ""}。我可以帮你管理灵感、分析任务、整理认知，也可以直接对话讨论问题。有什么我能帮你的？`,
+          content: `你好！我是你的奇思超级助理${assistantName !== "Lynn" ? ` ${assistantName}` : ""}。我可以帮你管理灵感、分析任务、整理认知，也可以直接对话讨论问题。有什么我能帮你的？`,
           time: "刚刚",
         }]);
         fetchSessions();

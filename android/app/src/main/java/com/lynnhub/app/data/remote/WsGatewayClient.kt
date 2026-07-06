@@ -160,7 +160,7 @@ class WsGatewayClient @Inject constructor(
             put("type", "register")
             put("token", token)
             put("agentVersion", "android-1.0.0")
-            put("deviceName", android.os.Build.MODEL ?: "Lynx-Android")
+            put("deviceName", android.os.Build.MODEL ?: "奇思-Android")
             putJsonArray("capabilities") {
                 // Android 当前不执行 RPA，仅作为控制端订阅进度
                 add("command-watch")

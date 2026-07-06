@@ -122,7 +122,7 @@ export function UserMenu({ collapsed = false }: UserMenuProps) {
                 {displayName}
               </p>
               <p className="truncate text-[11px] text-muted-foreground">
-                {isLoggedIn ? "Lynx 桌面端" : "未登录"}
+                {isLoggedIn ? "奇思桌面端" : "未登录"}
               </p>
             </div>
             <ChevronDown
@@ -158,7 +158,7 @@ export function UserMenu({ collapsed = false }: UserMenuProps) {
               )}
               <div className="min-w-0 flex-1">
                 <p className="truncate text-sm font-semibold text-foreground">{displayName}</p>
-                <p className="truncate text-xs text-muted-foreground">Lynx 桌面端</p>
+                <p className="truncate text-xs text-muted-foreground">奇思桌面端</p>
               </div>
             </div>
 
@@ -202,7 +202,7 @@ export function UserMenu({ collapsed = false }: UserMenuProps) {
             onClick={(e) => e.stopPropagation()}
           >
             <div className="px-3 py-2.5 text-center">
-              <p className="text-sm font-semibold text-foreground">登录 Lynx</p>
+              <p className="text-sm font-semibold text-foreground">登录奇思</p>
               <p className="mt-0.5 text-xs text-muted-foreground">登录后同步所有数据</p>
             </div>
             <div className="my-1 h-px bg-border/60" />

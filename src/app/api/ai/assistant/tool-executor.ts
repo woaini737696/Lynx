@@ -1163,7 +1163,7 @@ async function executeSendNotification(
   args: { title?: string; body?: string },
   user: AuthUser
 ) {
-  const title = String(args.title || "Lynx 通知").trim();
+  const title = String(args.title || "奇思通知").trim();
   const body = String(args.body || "").trim();
   if (!body) {
     return { error: "通知内容不能为空" };
@@ -1337,7 +1337,7 @@ async function executeHermesExecute(
     return {
       success: false,
       output: "",
-      error: "未检测到在线设备。请在您的电脑上打开 Lynx 桌面端或 Web 端并登录，确保至少一台设备在线。AI 助理通过在线设备执行本地操作（如打开浏览器、操作文件等），无法在服务器上执行。",
+      error: "未检测到在线设备。请在您的电脑上打开奇思桌面端或 Web 端并登录，确保至少一台设备在线。AI 助理通过在线设备执行本地操作（如打开浏览器、操作文件等），无法在服务器上执行。",
     };
   }
 

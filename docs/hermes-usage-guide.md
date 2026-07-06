@@ -1,6 +1,6 @@
-# Hermes Agent 使用指南
+# 奇思 Agent 使用指南
 
-> Hermes Agent 是 NousResearch 开发的开源本地 AI 代理框架，支持 Computer Use（桌面控制）、Shell 命令执行、MCP 工具集成、Skills Hub 技能市场、以及基于持久化 Profile 的自我进化。LynnHub 把 Hermes Agent 深度融入 AI 助理，让助理拥有**跨会话记忆、持续学习、自动成长、主动汇报**四大能力，从一个"问一句答一句"的聊天机器人，进化成会主动帮你干活的超级助理。
+> Hermes Agent 是 NousResearch 开发的开源本地 AI 代理框架，支持 Computer Use（桌面控制）、Shell 命令执行、MCP 工具集成、Skills Hub 技能市场、以及基于持久化 Profile 的自我进化。奇思 把 Hermes Agent 深度融入 AI 助理，让助理拥有**跨会话记忆、持续学习、自动成长、主动汇报**四大能力，从一个"问一句答一句"的聊天机器人，进化成会主动帮你干活的超级助理。
 
 > **如果你开启 Hermes 后"没感觉到有什么作用"，99% 是因为没有开启「Hermes 接管模式（模式 C）」、或模型未配置、或 Hermes 服务未运行。请先按第 2 章完成安装与配置，再按第 3.5 节开启接管模式，最后按第 5、6 章实际使用。**
 

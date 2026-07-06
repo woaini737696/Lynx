@@ -190,7 +190,7 @@ export function AssistantGlobalEntry() {
               </button>
             </div>
             <p className="mt-2 text-sm text-muted-foreground">
-              使用 Lynx 超级助理需要先登录账号
+              使用奇思超级助理需要先登录账号
             </p>
             <div className="mt-5 flex gap-2">
               <button

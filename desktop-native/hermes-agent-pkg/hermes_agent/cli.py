@@ -35,7 +35,7 @@ def main(argv: Optional[list] = None):
     """CLI 主入口"""
     parser = argparse.ArgumentParser(
         prog="hermes",
-        description="Hermes Agent - Lynx 本地 AI 代理框架",
+        description="Hermes Agent - 奇思本地 AI 代理框架",
     )
     parser.add_argument("--version", action="store_true", help="显示版本号")
     parser.add_argument("-z", "--prompt", type=str, help="执行自然语言任务")

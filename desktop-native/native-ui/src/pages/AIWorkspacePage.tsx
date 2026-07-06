@@ -104,7 +104,7 @@ export function AIWorkspacePage() {
     setFavorites((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
   };
 
-  // 运行模板：构建提示词并跳转到 Lynx超级助理执行
+  // 运行模板：构建提示词并跳转到奇思超级助理执行
   const handleRun = async () => {
     if (!selected) return;
     setRunning(true);
@@ -125,7 +125,7 @@ export function AIWorkspacePage() {
       parts.push("请根据以上信息生成完整结果。");
       const prompt = parts.join("\n");
       setSelected(null);
-      toast.success("已发送到 Lynx超级助理");
+      toast.success("已发送到奇思超级助理");
       navigate("/ai/assistant", { state: { initialPrompt: prompt } });
     } finally {
       setRunning(false);

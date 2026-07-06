@@ -146,14 +146,14 @@ self.addEventListener("message", (event) => {
 
 // ============ Web Push 通知 ============
 self.addEventListener("push", (event) => {
-  let data = { title: "LynnHub 通知", body: "你有新消息" };
+  let data = { title: "奇思 通知", body: "你有新消息" };
   try {
     if (event.data) data = event.data.json();
   } catch (e) {
     if (event.data) data.body = event.data.text();
   }
   event.waitUntil(
-    self.registration.showNotification(data.title || "LynnHub 通知", {
+    self.registration.showNotification(data.title || "奇思 通知", {
       body: data.body || "",
       icon: "/icon-192.png",
       badge: "/icon-192.png",

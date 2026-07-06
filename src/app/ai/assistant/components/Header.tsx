@@ -34,7 +34,7 @@ export function Header(props: HeaderProps) {
             )}
           </div>
           <div>
-            <h1 className="text-base font-semibold text-foreground">Lynx超级助理 {settings.assistantName !== "Lynn" && <span className="text-cognition">· {settings.assistantName}</span>}</h1>
+            <h1 className="text-base font-semibold text-foreground">奇思超级助理 {settings.assistantName !== "Lynn" && <span className="text-cognition">· {settings.assistantName}</span>}</h1>
             <p className="text-xs text-muted-foreground">基于你的记忆图谱和认知库提供个性化协助</p>
           </div>
         </div>

@@ -62,20 +62,20 @@ def make_sidebar_bmp():
 
     # 标题文字
     draw = ImageDraw.Draw(bg, "RGBA")
-    # 使用默认字体绘制 "LYNX"
+    # 使用默认字体绘制 "奇思"
     try:
         font_large = ImageFont.truetype("arial.ttf", 24)
         font_small = ImageFont.truetype("arial.ttf", 11)
     except Exception:
         font_large = ImageFont.load_default()
         font_small = ImageFont.load_default()
-    # LYNX 标题
-    text = "LYNX"
+    # 奇思 标题
+    text = "奇思"
     bbox = draw.textbbox((0, 0), text, font=font_large)
     tw = bbox[2] - bbox[0]
     draw.text(((w - tw) // 2, 165), text, fill=(255, 255, 255, 255), font=font_large)
     # 副标题
-    sub = "AI 工作站"
+    sub = "AI工作台"
     bbox2 = draw.textbbox((0, 0), sub, font=font_small)
     sw = bbox2[2] - bbox2[0]
     draw.text(((w - sw) // 2, 198), sub, fill=(180, 200, 230, 220), font=font_small)
@@ -105,8 +105,8 @@ def make_header_bmp():
     except Exception:
         font = ImageFont.load_default()
         font_sm = ImageFont.load_default()
-    draw.text((55, 12), "LYNX", fill=(255, 255, 255, 255), font=font)
-    draw.text((55, 33), "AI 工作站", fill=(180, 200, 230, 220), font=font_sm)
+    draw.text((55, 12), "奇思", fill=(255, 255, 255, 255), font=font)
+    draw.text((55, 33), "AI工作台", fill=(180, 200, 230, 220), font=font_sm)
 
     bg.convert("RGB").save(os.path.join(ICONS_DIR, "nsis-header.bmp"), "BMP")
     print("Generated nsis-header.bmp (150x57)")

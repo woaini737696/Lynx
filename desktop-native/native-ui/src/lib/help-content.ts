@@ -45,22 +45,22 @@ export const helpContent: Record<string, HelpContent> = {
     ],
   },
   "ai-assistant": {
-    title: "Lynx超级助理使用说明",
+    title: "奇思超级助理使用说明",
     paragraphs: [
-      "「Lynx超级助理」是你的个人智能助手，可以直接用自然语言下达指令。",
-      "输入任务描述后按 Enter 发送，Lynn 会理解意图并调用云端能力或本地 Lynx Agent 执行。",
+      "「奇思超级助理」是你的个人智能助手，可以直接用自然语言下达指令。",
+      "输入任务描述后按 Enter 发送，Lynn 会理解意图并调用云端能力或本地 奇思 Agent 执行。",
       "快捷指令可以帮助你快速发起常见操作。",
     ],
     tips: [
       "支持查询任务、分析趋势、检索认知库等操作",
-      "本地 Lynx Agent 安装后可执行电脑操控、文件处理等本地能力",
+      "本地 奇思 Agent 安装后可执行电脑操控、文件处理等本地能力",
       "Shift + Enter 换行，Enter 直接发送",
     ],
   },
   agent: {
-    title: "Lynx Agent 使用说明",
+    title: "奇思 Agent 使用说明",
     paragraphs: [
-      "「Lynx Agent」是 Lynx 的本地超级助理，负责在你的电脑上执行文件处理、浏览器自动化、桌面 RPA 等高级能力。",
+      "「奇思 Agent」是 奇思 的本地超级助理，负责在你的电脑上执行文件处理、浏览器自动化、桌面 RPA 等高级能力。",
       "首次使用需要点击「安装 AI 环境」完成依赖准备，然后点击「启动」即可连接云端。",
       "所有本地操作均受三档授权模式保护，确保安全性。",
     ],
@@ -141,7 +141,7 @@ export const helpContent: Record<string, HelpContent> = {
     title: "AI 工作流使用说明",
     paragraphs: [
       "「AI 工作流」通过可视化节点编排，串联触发器、AI 动作、条件分支、输出等节点，自动化复杂任务流程。",
-      "支持 9 种节点类型：触发器、AI 动作、条件、输出、Lynx Agent、HTTP 请求、数据库、数据转换、延时。",
+      "支持 9 种节点类型：触发器、AI 动作、条件、输出、奇思 Agent、HTTP 请求、数据库、数据转换、延时。",
       "创建工作流后，点击「执行」即可运行；运行结果和执行历史会自动保存。",
     ],
     tips: [
@@ -231,7 +231,7 @@ export const helpContent: Record<string, HelpContent> = {
   "lark-tasks": {
     title: "飞书任务使用说明",
     paragraphs: [
-      "「飞书任务」从飞书 / Lark 同步你的任务列表，方便在 Lynx 内集中查看。",
+      "「飞书任务」从飞书 / Lark 同步你的任务列表，方便在 奇思 内集中查看。",
       "支持按状态（全部/待办/进行中/已完成）过滤，以及按标题关键词搜索。",
       "任务卡片展示标题、描述、状态、优先级、截止时间和创建时间，逾期任务会高亮提示。",
     ],

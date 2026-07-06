@@ -77,7 +77,7 @@ import com.lynnhub.app.ui.theme.TextPrimary
 import kotlinx.coroutines.delay
 
 /**
- * Lynx v6 核心页面：Lynx 助理 v2（iOS26 液态玻璃 + 长按语音 + Web 端同步）
+ * 奇思 v6 核心页面：奇思助理 v2（iOS26 液态玻璃 + 长按语音 + Web 端同步）
  *
  * 设计要点：
  * - 顶部固定 CoreScreenHeader（不随滚动）
@@ -117,7 +117,7 @@ fun AssistantScreen(
         ) {
             // 固定顶部栏（iOS26 液态玻璃，不随滚动）
             CoreScreenHeader(
-                title = "Lynx",
+                title = "奇思",
                 userName = state.userName,
                 onOpenSettings = onOpenSettings
             )

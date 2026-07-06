@@ -148,7 +148,7 @@ class DashboardHandler(BaseHTTPRequestHandler):
 <body>
   <div class="card">
     <h1>🤖 Hermes Agent</h1>
-    <p class="version">Lynx 超级助理 · v{__version__}</p>
+    <p class="version">奇思 超级助理 · v{__version__}</p>
     <div class="status">
       <span class="dot"></span>
       <span>LLM 模型{status_text} · {llm["provider"] or "未设置"} / {llm["model"] or "未设置"}</span>
@@ -172,10 +172,10 @@ class DashboardHandler(BaseHTTPRequestHandler):
       </div>
     </div>
     <p style="color:#6b7280;font-size:13px;line-height:1.6;">
-      Hermes Agent 已就绪。通过 Lynx 桌面端「超级助理」发送任务，
+      Hermes Agent 已就绪。通过 奇思桌面端「超级助理」发送任务，
       或在终端执行 <code style="background:#f3f4f6;padding:2px 6px;border-radius:4px;">hermes -z "你的任务" --yolo</code>
     </p>
-    <div class="footer">© 2026 Lynn · Lynx AI工作台</div>
+    <div class="footer">© 2026 Lynn · 奇思 AI工作台</div>
   </div>
 </body>
 </html>"""

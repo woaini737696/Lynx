@@ -11,7 +11,7 @@ export interface AssistantDrawerProps {
 }
 
 /**
- * Lynx AI 超级助理抽屉面板
+ * 奇思 AI 超级助理抽屉面板
  * - 右侧滑入/滑出（transition-transform duration-200 ease-out）
  * - 桌面端 40% 宽度（min 400 / max 600），移动端全屏
  * - 内容区使用增强版 AssistantChat 组件（自带 header / 模型切换 / 语音通话 / 快捷技能）
@@ -53,7 +53,7 @@ export function AssistantDrawer({ open, onClose }: AssistantDrawerProps) {
       {/* 抽屉面板：AssistantChat 自带 header（头像+名称+ModelSwitcher+语音按钮+关闭） */}
       <aside
         role="dialog"
-        aria-label="Lynx AI 超级助理"
+        aria-label="奇思 AI 超级助理"
         aria-modal="false"
         className={`fixed right-0 top-0 z-50 flex h-full w-full flex-col border-l border-border bg-background shadow-2xl transition-transform duration-200 ease-out md:w-[40%] md:min-w-[400px] md:max-w-[600px] ${
           open ? "translate-x-0" : "translate-x-full"

@@ -18,7 +18,7 @@ export function ApprovalModal({ desktopMode, showApproval, currentApproval, hand
     <Modal
       open={showApproval}
       onClose={() => handleApprovalResponse(false)}
-      title="Lynx Agent 操作审批"
+      title="奇思 Agent 操作审批"
       size="md"
     >
       {currentApproval && (

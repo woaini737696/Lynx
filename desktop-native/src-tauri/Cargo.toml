@@ -1,7 +1,7 @@
 [package]
 name = "lynx-desktop"
 version = "1.0.35"
-description = "Lynx 原生桌面端 - 本地前端 + 云端 API"
+description = "奇思原生桌面端 - 本地前端 + 云端 API"
 authors = ["Lynn"]
 edition = "2021"
 rust-version = "1.70"
@@ -30,7 +30,7 @@ tokio-tungstenite = { version = "0.21", features = ["native-tls"] }
 futures-util = "0.3"
 reqwest = { version = "0.11", features = ["json"] }
 log = "0.4"
-env_logger = "0.11"
+flexi_logger = "0.28"
 dirs = "5"
 which = "6"
 

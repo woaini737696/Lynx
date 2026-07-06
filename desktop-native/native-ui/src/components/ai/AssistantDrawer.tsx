@@ -35,7 +35,7 @@ export function AssistantDrawer({ open, onClose }: AssistantDrawerProps) {
     },
   });
 
-  const assistantName = aiSettings?.assistantName?.trim() || "Lynx";
+  const assistantName = aiSettings?.assistantName?.trim() || "奇思";
   const assistantEmoji = aiSettings?.assistantAvatar?.trim() || "🦊";
   // 优先使用 AI 助理 avatarUrl，回退到用户头像
   const avatarUrl = resolveAvatarUrl(aiSettings?.avatarUrl) || resolveAvatarUrl(user?.avatarUrl);
@@ -71,7 +71,7 @@ export function AssistantDrawer({ open, onClose }: AssistantDrawerProps) {
       {/* 抽屉：始终挂载，通过 transform + pointer-events 控制可见性，避免会话状态丢失 */}
       <motion.aside
         role="dialog"
-        aria-label="Lynx AI 超级助理"
+        aria-label="奇思 AI 超级助理"
         aria-modal="false"
         initial={false}
         animate={{ x: open ? 0 : "100%" }}

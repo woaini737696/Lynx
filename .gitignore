@@ -59,6 +59,8 @@ next-env.d.ts
 .idea/
 .vscode/
 .trae-cn/
+.trae/
+Thumbs.db
 
 # Rust 编译产物（所有 target 变体）
 /desktop-native/src-tauri/target/

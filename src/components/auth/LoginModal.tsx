@@ -270,17 +270,17 @@ export function LoginModal({
         <div className="mb-4 flex flex-col items-center gap-1.5">
           <Image
             src="/lynx-icon-128.png"
-            alt="Lynx"
+            alt="奇思"
             width={40}
             height={40}
             className="h-10 w-10 rounded-2xl shadow-lg"
           />
           <div className="text-center">
             <h1 className="text-base font-semibold tracking-tight text-foreground">
-              {panel === "login" ? "欢迎来到 LYNX" : "注册新账号"}
+              {panel === "login" ? "欢迎来到 奇思" : "注册新账号"}
             </h1>
             <p className="mt-0.5 text-xs text-muted-foreground">
-              {panel === "login" ? "用Lynx AI，人人都是超级个体" : "手机号 + 验证码 + 邀请码"}
+              {panel === "login" ? "不用学AI，什么都能干" : "手机号 + 验证码 + 邀请码"}
             </p>
           </div>
         </div>

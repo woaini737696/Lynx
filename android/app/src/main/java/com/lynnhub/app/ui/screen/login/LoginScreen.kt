@@ -84,7 +84,7 @@ fun LoginScreen(
             ) {
                 Image(
                     painter = painterResource(id = R.drawable.lynx_logo_standard),
-                    contentDescription = "Lynx",
+                    contentDescription = "奇思",
                     modifier = Modifier.size(52.dp)
                 )
             }
@@ -92,7 +92,7 @@ fun LoginScreen(
             // 品牌名
             Spacer(modifier = Modifier.height(24.dp))
             Text(
-                text = "Lynx",
+                text = "奇思",
                 style = MaterialTheme.typography.titleLarge.copy(
                     fontWeight = FontWeight.Bold,
                     letterSpacing = 1.sp
@@ -208,7 +208,7 @@ fun LoginScreen(
 }
 
 /**
- * Lynx v6 统一输入框样式
+ * 奇思 v6 统一输入框样式
  * 圆角 12px，深色背景，聚焦时蓝色边框
  */
 @Composable

@@ -58,14 +58,14 @@ import com.lynnhub.app.ui.theme.Think
 import com.lynnhub.app.ui.theme.Void
 
 /**
- * Lynx v6 首页 - 今日工作台
+ * 奇思 v6 首页 - 今日工作台
  *
  * 重新设计：从"时间流"改为"今日工作台"，更实用
  * - 顶部：问候 + 头像（设置入口）
  * - Agent 状态 pill
  * - 中央呼吸球（点击进通话）
  * - 今日概览：3 个统计胶囊（进行中/今日完成/待处理飞书）
- * - 快捷入口：灵感速记 / Lynx 助理 / Agent 远程
+ * - 快捷入口：灵感速记 / 奇思助理 / Agent 远程
  * - 最近飞书任务 Top 3
  * - 右下角 FAB：灵感速记
  */
@@ -548,7 +548,7 @@ private fun BreathBall(
         ) {
             Image(
                 painter = painterResource(id = R.drawable.lynx_logo_white),
-                contentDescription = "Lynx",
+                contentDescription = "奇思",
                 modifier = Modifier.size(68.dp)
             )
         }

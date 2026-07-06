@@ -126,7 +126,7 @@ class ChatPanelViewModel @Inject constructor(
                     sessions.first().id
                 } else {
                     apiService.createChatSession(
-                        ChatCreateSessionRequest(title = "Lynx", provider = "deepseek")
+                        ChatCreateSessionRequest(title = "奇思", provider = "deepseek")
                     ).session.id
                 }
                 // 先标记 sessionReady，再加载历史；加载历史时绝不覆盖用户已发消息
@@ -307,7 +307,7 @@ fun ChatPanel(
                 .imePadding()
                 .padding(start = 22.dp, end = 22.dp, top = 16.dp, bottom = 24.dp)
         ) {
-            PanelHeader(title = "Lynx", onBack = onBack, swipeHint = "← 右滑返回")
+            PanelHeader(title = "奇思", onBack = onBack, swipeHint = "← 右滑返回")
             Spacer(modifier = Modifier.height(0.dp))
 
             // 快捷指令：3 个胶囊横向滑动

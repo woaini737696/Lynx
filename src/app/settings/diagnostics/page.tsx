@@ -16,11 +16,14 @@ import {
   Layers,
   AlertTriangle,
   Trash2,
+  Download,
+  FileText,
 } from "lucide-react";
 import { PageHeader, Card, Button, LoadingState } from "@/components/layout/PageHeader";
 import { HelpButton } from "@/components/layout/HelpButton";
 import { toast } from "@/components/ui/toast";
 import { cn } from "@/lib/utils";
+import { clientLog } from "@/lib/client-logger";
 
 interface Diagnostics {
   timestamp: string;
@@ -171,6 +174,50 @@ export default function DiagnosticsPage() {
     }, 30000);
     return () => clearInterval(timer);
   }, [fetchDiagnostics, fetchNotFoundData]);
+
+  // 导出客户端日志（环形缓冲区最近 100 条）
+  const exportClientLogs = useCallback(() => {
+    const logs = clientLog.getBuffer();
+    if (logs.length === 0) {
+      toast("客户端日志为空", "error");
+      return;
+    }
+    const blob = new Blob([JSON.stringify({ exportedAt: new Date().toISOString(), count: logs.length, logs }, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `client-logs-${new Date().toISOString().replace(/[:.]/g, "-")}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    toast(`已导出 ${logs.length} 条客户端日志`, "success");
+  }, []);
+
+  // 导出服务端日志（从 /api/logs/server 获取最近 200 条）
+  const [serverLogLoading, setServerLogLoading] = useState(false);
+  const exportServerLogs = useCallback(async () => {
+    setServerLogLoading(true);
+    try {
+      const res = await fetch("/api/logs/server?limit=200");
+      if (!res.ok) throw new Error(`获取服务端日志失败（${res.status}）`);
+      const json = await res.json();
+      const blob = new Blob([JSON.stringify({ exportedAt: new Date().toISOString(), count: json.logs?.length || 0, logs: json.logs || [] }, null, 2)], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `server-logs-${new Date().toISOString().replace(/[:.]/g, "-")}.json`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      toast(`已导出 ${json.logs?.length || 0} 条服务端日志`, "success");
+    } catch (e: any) {
+      toast(e.message || "导出服务端日志失败", "error");
+    } finally {
+      setServerLogLoading(false);
+    }
+  }, []);
 
   if (loading && !data) {
     return <LoadingState title="性能监控" />;
@@ -528,6 +575,37 @@ export default function DiagnosticsPage() {
             暂无 404 访问记录
           </div>
         )}
+      </Card>
+
+      {/* 日志导出 */}
+      <Card className="mt-4">
+        <div className="mb-3 flex items-center gap-2">
+          <FileText className="h-4 w-4 text-cognition" />
+          <h2 className="text-sm font-semibold">日志导出</h2>
+          <span className="text-[10px] text-muted-foreground">用于问题排查与诊断</span>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={exportClientLogs}
+          >
+            <Download className="h-3 w-3" />
+            导出客户端日志
+          </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={exportServerLogs}
+            disabled={serverLogLoading}
+          >
+            {serverLogLoading ? <RefreshCw className="h-3 w-3 animate-spin" /> : <Download className="h-3 w-3" />}
+            导出服务端日志
+          </Button>
+        </div>
+        <div className="mt-2 text-[10px] text-muted-foreground/70">
+          客户端日志含浏览器端最近 100 条事件（AI对话/语音/飞书/WS）；服务端日志从 PM2 out.log 读取最近 200 条
+        </div>
       </Card>
 
       <div className="mt-4 text-center text-[10px] text-muted-foreground/60">

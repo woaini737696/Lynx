@@ -1,4 +1,4 @@
-// Lynx 桌面端核心库
+// 奇思桌面端核心库
 // 集成 HermesAgent 本地超级助理 + 四类RPA能力 + 三档授权模式
 
 pub mod hermes;
@@ -627,13 +627,76 @@ async fn check_for_updates(app: tauri::AppHandle) -> Result<bool, String> {
 
 // ============ 应用主入口 ============
 
+/// 读取桌面端日志文件（最近 N 行）
+/// 用于前端诊断页面导出桌面端日志
+#[tauri::command]
+async fn read_desktop_logs(limit: Option<usize>) -> Result<Vec<String>, String> {
+    let limit = limit.unwrap_or(200);
+    let log_dir = dirs::data_dir()
+        .map(|d| d.join("Lynx").join("logs"))
+        .ok_or("无法获取日志目录")?;
+
+    // 读取最新的日志文件（按修改时间排序）
+    let mut log_files: Vec<_> = std::fs::read_dir(&log_dir)
+        .map_err(|e| format!("读取日志目录失败: {}", e))?
+        .filter_map(|e| e.ok())
+        .filter(|e| e.path().extension().map(|ext| ext == "log").unwrap_or(false))
+        .collect();
+
+    log_files.sort_by(|a, b| {
+        b.metadata()
+            .and_then(|m| m.modified())
+            .ok()
+            .cmp(&a.metadata().and_then(|m| m.modified()).ok())
+    });
+
+    if log_files.is_empty() {
+        return Ok(vec!["[暂无日志文件]".to_string()]);
+    }
+
+    let latest_log = log_files[0].path();
+    let content = std::fs::read_to_string(&latest_log)
+        .map_err(|e| format!("读取日志文件失败: {}", e))?;
+
+    let lines: Vec<String> = content
+        .lines()
+        .filter(|l| !l.trim().is_empty())
+        .rev()
+        .take(limit)
+        .collect::<Vec<_>>()
+        .into_iter()
+        .rev()
+        .collect();
+
+    Ok(lines)
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info"))
-        .format_timestamp_secs()
-        .init();
+    // ============ 日志系统初始化 ============
+    // 使用 flexi_logger 实现双通道日志：stderr + 文件持久化（每日轮转）
+    // 日志文件位置：%APPDATA%/Lynx/logs/qisi-desktop_YYYY-MM-DD.log
+    let log_dir = dirs::data_dir()
+        .map(|d| d.join("Lynx").join("logs"))
+        .unwrap_or_else(|| std::path::PathBuf::from("./logs"));
+    let _ = std::fs::create_dir_all(&log_dir);
 
-    log::info!("LynnHub 桌面端启动中...");
+    flexi_logger::Logger::try_with_str(std::env::var("RUST_LOG").unwrap_or_else(|_| "info".to_string()))
+        .expect("flexi_logger 初始化失败")
+        .log_to_file(
+            flexi_logger::FileSpec::default()
+                .directory(&log_dir)
+                .basename("qisi-desktop")
+                .suffix("log"),
+        )
+        .duplicate_to_stderr(flexi_logger::Duplicate::Info)
+        .rotate(flexi_logger::Age::Day)
+        .write_mode(flexi_logger::WriteMode::BufferAndFlush)
+        .start()
+        .expect("flexi_logger 启动失败");
+
+    log::info!("奇思桌面端启动中...");
+    log::info!("日志文件目录: {:?}", log_dir);
 
     let app_state = Arc::new(AppState::default());
 
@@ -708,20 +771,21 @@ pub fn run() {
             check_local_server,
             check_for_updates,
             cloud_request,
+            read_desktop_logs,
         ])
         .setup(|app| {
-            log::info!("Lynx 桌面端启动完成");
+            log::info!("奇思桌面端启动完成");
 
             // ============ 系统托盘（Tauri 2.x API） ============
-            // 只保留"退出 Lynx"一个菜单项，双击托盘图标显示主窗口
+            // 只保留"退出奇思"一个菜单项，双击托盘图标显示主窗口
             let app_handle = app.handle().clone();
-            let quit_item = MenuItem::with_id(&app_handle, "quit", "退出 Lynx", true, None::<&str>)?;
+            let quit_item = MenuItem::with_id(&app_handle, "quit", "退出奇思", true, None::<&str>)?;
 
             let tray_menu = Menu::with_items(&app_handle, &[&quit_item])?;
 
             let _tray = TrayIconBuilder::with_id("main-tray")
                 .menu(&tray_menu)
-                .tooltip("Lynx")
+                .tooltip("奇思")
                 .icon(tauri::include_image!("icons/tray-icon.png"))
                 .menu_on_left_click(false)
                 .on_menu_event(|app, event| {

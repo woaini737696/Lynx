@@ -49,7 +49,7 @@ const UserAIKeyConfig = dynamic(
 );
 const DesktopHermesSection = dynamic(
   () => import("@/components/settings/DesktopHermesSection").then((m) => m.DesktopHermesSection),
-  { ssr: false, loading: () => <LoadingState title="桌面端 Lynx Agent" /> }
+  { ssr: false, loading: () => <LoadingState title="桌面端奇思 Agent" /> }
 );
 const AuthConfigSection = dynamic(
   () => import("@/components/settings/AuthConfigSection").then((m) => m.AuthConfigSection),
@@ -61,7 +61,7 @@ type SettingsTab = "ai" | "agent" | "auth" | "system" | "files";
 
 const TABS: { key: SettingsTab; label: string; icon: React.ReactNode }[] = [
   { key: "ai", label: "AI 模型", icon: <KeyRound className="h-3.5 w-3.5" /> },
-  { key: "agent", label: "Lynx Agent", icon: <img src="/lynx-icon-64.png" alt="" className="h-3.5 w-3.5 rounded-sm" /> },
+  { key: "agent", label: "奇思 Agent", icon: <img src="/lynx-icon-64.png" alt="" className="h-3.5 w-3.5 rounded-sm" /> },
   { key: "auth", label: "认证", icon: <ShieldCheck className="h-3.5 w-3.5" /> },
   { key: "system", label: "系统状态", icon: <Database className="h-3.5 w-3.5" /> },
   { key: "files", label: "配置文件", icon: <FileText className="h-3.5 w-3.5" /> },
@@ -208,7 +208,7 @@ export default function SettingsPage() {
         </div>
       )}
 
-      {/* Lynx Agent Tab */}
+      {/* 奇思 Agent Tab */}
       {visitedTabs.has("agent") && (
         <div className={activeTab === "agent" ? "block" : "hidden"}>
           <DesktopHermesSection />
@@ -1266,7 +1266,7 @@ function HermesConfigSection() {
     }
   };
 
-  // 一键配置 Hermes 模型（复用 Lynx 的 DeepSeek / MiMo API Key）
+  // 一键配置 Hermes 模型（复用奇思的 DeepSeek / MiMo API Key）
   const handleConfigureModel = async () => {
     setConfiguringModel(true);
     try {
@@ -1455,7 +1455,7 @@ function HermesConfigSection() {
     setInstalling(true);
     const { hasDevice } = await checkOnlineDevices();
     if (!hasDevice) {
-      toast("未检测到在线的桌面端。请先安装并打开 Lynx 桌面端，Web 端将通过桌面端一键安装 HermesAgent", "error");
+      toast("未检测到在线的桌面端。请先安装并打开奇思桌面端，Web 端将通过桌面端一键安装 HermesAgent", "error");
       setInstalling(false);
       return;
     }
@@ -1485,7 +1485,7 @@ function HermesConfigSection() {
     setStarting(true);
     const { hasDevice } = await checkOnlineDevices();
     if (!hasDevice) {
-      toast("未检测到在线的桌面端。请先安装并打开 Lynx 桌面端", "error");
+      toast("未检测到在线的桌面端。请先安装并打开奇思桌面端", "error");
       setStarting(false);
       return;
     }
@@ -1638,7 +1638,7 @@ function HermesConfigSection() {
           });
           const data = await res.json().catch(() => ({}));
           if (data.success) {
-            toast("Lynx Agent 已启动，正在打开 Dashboard...", "success");
+            toast("奇思 Agent 已启动，正在打开 Dashboard...", "success");
           } else {
             toast(data.error || "启动失败", "error");
             return;
@@ -1664,7 +1664,7 @@ function HermesConfigSection() {
           toast(
             "未检测到本地 HermesAgent Dashboard（127.0.0.1:9119）。\n" +
             "请在命令行运行 `hermes dashboard --port 9119` 启动，" +
-            "或在桌面端「设置 → Lynx Agent」点击「启动 Lynx Agent」。",
+            "或在桌面端「设置 → 奇思 Agent」点击「启动奇思 Agent」。",
             "error"
           );
         }
@@ -1733,7 +1733,7 @@ function HermesConfigSection() {
 
   if (loading) {
     return (
-      <Section icon={<img src="/lynx-icon-64.png" alt="Lynx" className="h-4 w-4 rounded-sm" />} title="Lynx Agent（本地 AI 代理）">
+      <Section icon={<img src="/lynx-icon-64.png" alt="奇思" className="h-4 w-4 rounded-sm" />} title="奇思 Agent（本地 AI 代理）">
         <div className="flex items-center gap-2 text-xs text-muted-foreground">
           <Loader2 className="h-3 w-3 animate-spin" /> 加载中...
         </div>
@@ -1747,22 +1747,22 @@ function HermesConfigSection() {
 
   return (
     <Section
-      icon={<img src="/lynx-icon-64.png" alt="Lynx" className="h-4 w-4 rounded-sm" />}
-      title="Lynx Agent（本地 AI 代理）"
+      icon={<img src="/lynx-icon-64.png" alt="奇思" className="h-4 w-4 rounded-sm" />}
+      title="奇思 Agent（本地 AI 代理）"
     >
       {/* 说明 */}
       <div className="mb-4 rounded-xl border border-northstar/20 bg-northstar/5 p-4 text-sm text-foreground/80">
         <div className="mb-1.5 flex items-center justify-between">
           <div className="flex items-center gap-2 font-semibold text-foreground">
-            <img src="/lynx-icon-64.png" alt="Lynx" className="h-5 w-5 rounded-sm" />
-            Lynx Agent 是什么？
+            <img src="/lynx-icon-64.png" alt="奇思" className="h-5 w-5 rounded-sm" />
+            奇思 Agent 是什么？
           </div>
           <button
             type="button"
             onClick={handleOpenDashboard}
             disabled={openingDashboard}
             className="inline-flex items-center gap-1 text-xs text-campaign hover:underline disabled:opacity-50"
-            title={isInstalled ? "确保 Dashboard 服务已启动并在新标签页打开" : "请先安装 Lynx Agent"}
+            title={isInstalled ? "确保 Dashboard 服务已启动并在新标签页打开" : "请先安装奇思 Agent"}
           >
             {openingDashboard ? (
               <><Loader2 className="h-3 w-3 animate-spin" /> 启动中...</>
@@ -1772,7 +1772,7 @@ function HermesConfigSection() {
           </button>
         </div>
         <p className="leading-relaxed">
-          基于 Hermes Agent 技术深度定制开发，让 AI 助理升级为 Lynx 超级助理，可以直接操控你的电脑（桌面控制、Shell 命令、浏览器控制），并拥有自主学习与自我成长能力。所有操作在本地执行，数据不出本机。
+          基于 Hermes Agent 技术深度定制开发，让 AI 助理升级为奇思超级助理，可以直接操控你的电脑（桌面控制、Shell 命令、浏览器控制），并拥有自主学习与自我成长能力。所有操作在本地执行，数据不出本机。
         </p>
       </div>
 
@@ -1959,7 +1959,7 @@ function HermesConfigSection() {
           <div className="mb-2 flex items-center gap-2">
             <Terminal className="h-4 w-4 text-campaign" />
             <span className="text-sm font-medium text-foreground">快速执行任务</span>
-            <span className="text-xs text-muted-foreground">直接在这里让 Lynx Agent 执行任务</span>
+            <span className="text-xs text-muted-foreground">直接在这里让奇思 Agent 执行任务</span>
           </div>
           <div className="flex gap-2">
             <input
@@ -2032,8 +2032,8 @@ function HermesConfigSection() {
         {/* 启用开关 */}
         <div className="ios-glass-sm flex items-center justify-between rounded-xl p-3">
           <div>
-            <div className="text-sm font-medium text-foreground">启用 Lynx Agent 集成</div>
-            <div className="text-xs text-muted-foreground">开启后 AI 助理和工作流可调用 Lynx Agent</div>
+            <div className="text-sm font-medium text-foreground">启用奇思 Agent 集成</div>
+            <div className="text-xs text-muted-foreground">开启后 AI 助理和工作流可调用奇思 Agent</div>
           </div>
           <button
             type="button"
@@ -2053,7 +2053,7 @@ function HermesConfigSection() {
         {/* 端点和 API Key - 网格布局 */}
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <div>
-            <label className="mb-1.5 block text-sm font-medium text-foreground">Lynx Agent 端点</label>
+            <label className="mb-1.5 block text-sm font-medium text-foreground">奇思 Agent 端点</label>
             <input
               type="text"
               value={endpoint}
@@ -2104,7 +2104,7 @@ function HermesConfigSection() {
         <div className="ios-glass-sm flex items-center justify-between rounded-xl p-3">
           <div>
             <div className="text-sm font-medium text-foreground">随系统自动启动</div>
-            <div className="text-xs text-muted-foreground">服务启动时自动拉起 Lynx Agent</div>
+            <div className="text-xs text-muted-foreground">服务启动时自动拉起奇思 Agent</div>
           </div>
           <button
             type="button"

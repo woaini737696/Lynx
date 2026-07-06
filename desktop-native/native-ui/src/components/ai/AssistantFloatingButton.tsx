@@ -44,7 +44,7 @@ export function AssistantFloatingButton() {
             transition={{ duration: 0.2 }}
             className="ios-glass mr-3 rounded-xl px-3 py-1.5 text-xs font-medium text-foreground"
           >
-            Lynx AI · Alt + J
+            奇思 AI · Alt + J
           </motion.div>
         )}
       </AnimatePresence>
@@ -52,7 +52,7 @@ export function AssistantFloatingButton() {
       <button
         type="button"
         onClick={() => openAssistantDrawer()}
-        aria-label="打开 Lynx AI 助理"
+        aria-label="打开奇思 AI 助理"
         className="glass-fab relative flex h-14 w-14 shrink-0 items-center justify-center rounded-full text-white shadow-lg transition-transform hover:scale-105 active:scale-95"
         style={{
           background:

@@ -1,7 +1,7 @@
 {
-  "name": "Lynx · 个人认知操作系统",
-  "short_name": "Lynx",
-  "description": "用Lynx AI，人人都是超级个体",
+  "name": "奇思 · 个人认知操作系统",
+  "short_name": "奇思",
+  "description": "不用学AI，什么都能干",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#030816",

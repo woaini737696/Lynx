@@ -33,7 +33,7 @@ data class HomeUiState(
     val userName: String = "",
     val summary: String = "",
     val agentStatus: AgentStatus = AgentStatus.OFFLINE,
-    val agentLabel: String = "Lynx Agent 未连接",
+    val agentLabel: String = "奇思 Agent 未连接",
     // 今日概览统计
     val activeTaskCount: Int = 0,
     val todayDoneCount: Int = 0,
@@ -128,13 +128,13 @@ class HomeViewModel @Inject constructor(
     private suspend fun safeHermesStatus(): Pair<AgentStatus, String> = try {
         val s = apiService.getHermesStatus()
         when {
-            s.connected -> AgentStatus.ONLINE to ("Lynx Agent 在线")
-            s.config?.status == "running" -> AgentStatus.BUSY to "Lynx Agent 连接中"
-            s.installed -> AgentStatus.BUSY to "Lynx Agent 待启动"
-            else -> AgentStatus.OFFLINE to "Lynx Agent 未连接"
+            s.connected -> AgentStatus.ONLINE to ("奇思 Agent 在线")
+            s.config?.status == "running" -> AgentStatus.BUSY to "奇思 Agent 连接中"
+            s.installed -> AgentStatus.BUSY to "奇思 Agent 待启动"
+            else -> AgentStatus.OFFLINE to "奇思 Agent 未连接"
         }
     } catch (_: Exception) {
-        AgentStatus.OFFLINE to "Lynx Agent 未连接"
+        AgentStatus.OFFLINE to "奇思 Agent 未连接"
     }
 
     // ============ 看板任务统计（进行中数） ============

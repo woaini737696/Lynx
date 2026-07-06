@@ -52,10 +52,10 @@ const NAV_GROUPS: Record<TabKey, { label: string; icon: React.ElementType; items
     items: [
       { to: "/ai/workspace", label: "AI 工作空间", icon: Sparkles },
       { to: "/ai/flows", label: "AI 工作流", icon: Workflow },
-      { to: "/ai/assistant", label: "Lynx超级助理", icon: MessageSquare },
+      { to: "/ai/assistant", label: "奇思超级助理", icon: MessageSquare },
       { to: "/ai/lark-tasks", label: "飞书任务", icon: ListTodo },
       { to: "/skills", label: "技能管理", icon: BookMarked },
-      { to: "/agent", label: "Lynx Agent", icon: Cpu },
+      { to: "/agent", label: "奇思 Agent", icon: Cpu },
       { to: "/settings/notifications", label: "通知设置", icon: Bell },
     ],
   },

@@ -1,4 +1,4 @@
-# LynnHub API 文档
+# 奇思 API 文档
 
 > 所有 API 均为 Next.js App Router 路由，基础路径为 `/api`。
 > 除认证接口外，所有接口均需要登录（通过 NextAuth.js Session Cookie 鉴权）。

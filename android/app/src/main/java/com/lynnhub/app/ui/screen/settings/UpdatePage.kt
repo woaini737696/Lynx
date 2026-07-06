@@ -159,7 +159,7 @@ fun UpdatePage(onBack: () -> Unit, viewModel: UpdateViewModel = hiltViewModel())
         // 更新日志
         InfoCard(
             title = "最近更新",
-            text = "v0.1.0\n· Lynx v6 极简 UI 重构\n· 四向手势交互\n· 单主页 + 浮层架构\n· 灵感速记/任务视图/AI 对话/Agent 远程"
+            text = "v0.1.0\n· 奇思 v6 极简 UI 重构\n· 四向手势交互\n· 单主页 + 浮层架构\n· 灵感速记/任务视图/AI 对话/Agent 远程"
         )
     }
 }

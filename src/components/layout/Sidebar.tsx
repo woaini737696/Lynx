@@ -108,7 +108,7 @@ const NAV_GROUPS: NavGroup[] = [
     items: [
       { href: "/ai/workspace", label: "AI 工作空间", icon: LayoutGrid, color: "text-cognition" },
       { href: "/ai/flows", label: "AI 工作流", icon: Workflow, color: "text-cognition" },
-      { href: "/ai/assistant", label: "Lynx超级助理", icon: Bot, color: "text-cognition" },
+      { href: "/ai/assistant", label: "奇思超级助理", icon: Bot, color: "text-cognition" },
       { href: "/skills", label: "技能管理", icon: Wrench, color: "text-cognition" },
       { href: "/skills/market", label: "Skill 市场", icon: Store, color: "text-cognition" },
       { href: "/ai/lark-tasks", label: "飞书任务", icon: ListTodo, color: "text-cognition" },
@@ -296,7 +296,7 @@ function SidebarUserProfile() {
             <Loader2 className="h-3.5 w-3.5 animate-spin" />
           </span>
           <div className="min-w-0 flex-1">
-            <div className="truncate text-sm font-semibold text-foreground">Lynx</div>
+            <div className="truncate text-sm font-semibold text-foreground">奇思</div>
             <div className="truncate text-[11px] text-muted-foreground">加载中…</div>
           </div>
         </div>
@@ -318,7 +318,7 @@ function SidebarUserProfile() {
           </span>
           <div className="min-w-0 flex-1">
             <div className="truncate text-sm font-semibold text-foreground">未登录</div>
-            <div className="truncate text-[11px] text-muted-foreground">点击登录 Lynx</div>
+            <div className="truncate text-[11px] text-muted-foreground">点击登录奇思</div>
           </div>
         </button>
       </div>
@@ -353,7 +353,7 @@ function SidebarUserProfile() {
         )}
         <div className="min-w-0 flex-1">
           <div className="truncate text-sm font-semibold text-foreground">{displayName}</div>
-          <div className="truncate text-[11px] text-muted-foreground">Lynx Web 端</div>
+          <div className="truncate text-[11px] text-muted-foreground">奇思 Web 端</div>
         </div>
         {/* 1:1 还原 ui-preview-v2.html：默认向左 -90deg，展开向上 -180deg */}
         <ChevronDown
@@ -478,12 +478,12 @@ export function Sidebar() {
           <FastLink href="/" className="flex items-center gap-2 transition-opacity hover:opacity-80">
             <Image
               src="/lynx-icon-128.png"
-              alt="Lynx"
+              alt="奇思"
               width={28}
               height={28}
               className="h-7 w-7 rounded-lg shadow-md"
             />
-            <span className="text-base font-bold tracking-tight text-foreground">LYNX</span>
+            <span className="text-base font-bold tracking-tight text-foreground">奇思</span>
           </FastLink>
           <button
             onClick={() => setMobileOpen(false)}

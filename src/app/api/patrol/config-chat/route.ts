@@ -5,7 +5,7 @@ import { rateLimit, getClientKey } from "@/lib/rate-limit";
 import { prisma } from "@/lib/db";
 
 // 巡检规则配置助手系统提示词
-const PATROL_CONFIG_SYSTEM_PROMPT = `你是 Lynx 的巡检规则配置助手，帮助用户通过自然语言配置 AI 巡检规则。
+const PATROL_CONFIG_SYSTEM_PROMPT = `你是奇思的巡检规则配置助手，帮助用户通过自然语言配置 AI 巡检规则。
 
 ## 巡检规则参数说明
 

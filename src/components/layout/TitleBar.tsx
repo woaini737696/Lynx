@@ -16,7 +16,7 @@ import {
 /**
  * 桌面端自定义标题栏（无边框窗口用，豆包/Kimi 风格）
  * - 仅在 Tauri 桌面端显示
- * - 左侧 Lynx 品牌标识 + 右侧最小化/最大化/关闭按钮
+ * - 左侧 奇思 品牌标识 + 右侧最小化/最大化/关闭按钮
  * - 中间为可拖拽区域（data-tauri-drag-region）
  * - 双击拖拽区域切换最大化（原生窗口行为）
  */
@@ -51,17 +51,17 @@ export function TitleBar() {
 
   return (
     <div className="glass-topbar flex h-9 w-full shrink-0 select-none items-center justify-between px-2">
-      {/* 左侧：Lynx 品牌标识（黑底白色猞猁高清 logo） */}
+      {/* 左侧：奇思 品牌标识（黑底白色猞猁高清 logo） */}
       <div className="flex items-center gap-2 pl-1">
         <Image
           src="/lynx-logo-black.png"
-          alt="Lynx"
+          alt="奇思"
           width={20}
           height={20}
           className="h-5 w-5 rounded-[6px] object-cover shadow-sm"
           draggable={false}
         />
-        <span className="text-xs font-medium text-foreground/70">Lynx</span>
+        <span className="text-xs font-medium text-foreground/70">奇思</span>
       </div>
 
       {/* 中间：拖拽区域（双击切换最大化） */}

@@ -126,7 +126,7 @@ function AuthInitializer({ children }: { children: React.ReactNode }) {
     return (
       <div className="flex h-screen w-screen flex-col items-center justify-center gap-3 bg-background text-foreground">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
-        <p className="text-sm text-muted-foreground">正在启动 Lynx...</p>
+        <p className="text-sm text-muted-foreground">正在启动奇思...</p>
       </div>
     );
   }

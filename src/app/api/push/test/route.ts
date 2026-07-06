@@ -51,7 +51,7 @@ export async function POST(req: NextRequest) {
     }
 
     const payload = {
-      title: customTitle || "Lynx 测试通知",
+      title: customTitle || "奇思测试通知",
       body: customBody || `这是一条测试推送通知 · ${new Date().toLocaleString("zh-CN")}`,
       icon: "/icon-192.png",
       badge: "/icon-192.png",

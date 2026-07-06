@@ -331,12 +331,12 @@ export function LoginPage() {
         <div className="mb-3 flex h-16 w-16 items-center justify-center rounded-2xl bg-[#030816] shadow-xl ring-1 ring-white/10">
           <img
             src="/lynx-icon-256.png"
-            alt="Lynx"
+            alt="奇思"
             className="h-12 w-12 object-contain"
             draggable={false}
           />
         </div>
-        <h1 className="text-2xl font-semibold tracking-wide text-foreground">Lynx</h1>
+        <h1 className="text-2xl font-semibold tracking-wide text-foreground">奇思</h1>
         <p className="mt-1 text-sm text-muted-foreground">不用学AI，什么都能干</p>
       </motion.div>
 

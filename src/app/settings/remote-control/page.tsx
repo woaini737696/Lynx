@@ -173,7 +173,7 @@ export default function RemoteControlPage() {
             <Monitor className="mx-auto mb-2 h-8 w-8 opacity-30" />
             暂无 PC 设备
             <div className="mt-1 text-[11px]">
-              请在电脑上下载并启动 Lynx 桌面端，登录同账号后自动出现在此处
+              请在电脑上下载并启动奇思桌面端，登录同账号后自动出现在此处
             </div>
           </div>
         ) : (

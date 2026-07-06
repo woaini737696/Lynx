@@ -44,7 +44,7 @@ const ROUTE_MAP: Record<string, { label: string; icon: LucideIcon }> = {
   "/memory": { label: "记忆图谱", icon: Brain },
   "/ai/workspace": { label: "AI 工作空间", icon: LayoutGrid },
   "/ai/flows": { label: "AI 工作流", icon: Workflow },
-  "/ai/assistant": { label: "Lynx超级助理", icon: Bot },
+  "/ai/assistant": { label: "奇思超级助理", icon: Bot },
   "/skills": { label: "技能管理", icon: Wrench },
   "/skills/market": { label: "Skill 市场", icon: Store },
   "/ai/lark-tasks": { label: "飞书任务", icon: ListTodo },

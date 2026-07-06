@@ -17,7 +17,7 @@ const POSITION_KEY = "lynnhub:assistant-fab-pos";
 const DEFAULT_POS = { x: -1, y: -1 }; // -1 表示使用默认右下角定位
 
 /**
- * Lynx AI 超级助理全局悬浮入口按钮
+ * 奇思 AI 超级助理全局悬浮入口按钮
  * - 可自由拖动位置（保存到 localStorage）
  * - 每次打开默认位置不变（用户拖动后下次记住新位置）
  * - 液态玻璃质感
@@ -122,7 +122,7 @@ export function AssistantFloatingButton({ open, onToggle, unreadCount = 0 }: Ass
         aria-hidden="true"
         className="pointer-events-none mr-3 translate-x-2 rounded-xl border border-border/60 bg-popover/90 px-3 py-1.5 text-xs font-medium text-popover-foreground opacity-0 shadow-xl backdrop-blur-xl transition-all duration-200 group-hover:translate-x-0 group-hover:opacity-100"
       >
-        Lynx AI · Alt + J
+        奇思 AI · Alt + J
       </div>
 
       <button
@@ -131,7 +131,7 @@ export function AssistantFloatingButton({ open, onToggle, unreadCount = 0 }: Ass
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
         onPointerUp={onPointerUp}
-        aria-label={open ? "收起 Lynx AI 超级助理" : "打开 Lynx AI 超级助理"}
+        aria-label={open ? "收起奇思 AI 超级助理" : "打开奇思 AI 超级助理"}
         aria-pressed={open}
         className={`glass-fab relative flex h-14 w-14 shrink-0 cursor-grab items-center justify-center rounded-full text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ${dragging ? "cursor-grabbing !opacity-90" : ""}`}
         style={{ touchAction: "none" }}

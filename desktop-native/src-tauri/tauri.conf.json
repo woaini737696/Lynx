@@ -44,8 +44,8 @@
     "publisher": "Lynn",
     "copyright": "© 2026 Lynn. All rights reserved.",
     "category": "Productivity",
-    "shortDescription": "Lynx 全平台智能助理桌面端",
-    "longDescription": "Lynx 原生桌面端，本地前端 + 云端 API，安装即用，支持全局唤起与自动更新。",
+    "shortDescription": "奇思 全平台智能助理桌面端",
+    "longDescription": "奇思原生桌面端，本地前端 + 云端 API，安装即用，支持全局唤起与自动更新。",
     "resources": ["lynx-code-sign.cer"],
     "windows": {
       "nsis": {

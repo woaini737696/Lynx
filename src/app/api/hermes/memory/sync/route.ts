@@ -8,18 +8,18 @@ import { getLogger } from "@/lib/logger";
 
 const logger = getLogger("hermes-api");
 
-// POST /api/hermes/memory/sync - 双向同步 Hermes ↔ Lynx 记忆
-// 1. 将 Hermes memory 目录的文件导入 Lynx Memory 表（Hermes → Lynx）
-// 2. 将 Lynx Memory 表的记忆导出到 Hermes memory 目录（Lynx → Hermes）
+// POST /api/hermes/memory/sync - 双向同步 Hermes ↔ 奇思 记忆
+// 1. 将 Hermes memory 目录的文件导入奇思 Memory 表（Hermes → 奇思）
+// 2. 将奇思 Memory 表的记忆导出到 Hermes memory 目录（奇思 → Hermes）
 export async function POST() {
   const auth = await requireAuth();
   if (auth.user === null) return auth.error;
 
   try {
-    // 1. Hermes → Lynx：导入 Hermes memory 文件
+    // 1. Hermes → 奇思：导入 Hermes memory 文件
     const importResult = await syncHermesMemoryToLynx(auth.user.id);
 
-    // 2. Lynx → Hermes：导出 Lynx Memory 到 Hermes memory 目录
+    // 2. 奇思 → Hermes：导出奇思 Memory 到 Hermes memory 目录
     const exportResult = await exportMemoryToHermes(auth.user.id);
 
     logger.info(

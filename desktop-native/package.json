@@ -2,7 +2,7 @@
   "name": "lynnhub-desktop-native",
   "version": "1.0.20",
   "private": true,
-  "description": "Lynx 原生桌面端 - 本地前端 + 云端 API + NSIS 安装包",
+  "description": "奇思原生桌面端 - 本地前端 + 云端 API + NSIS 安装包",
   "scripts": {
     "dev": "tauri dev",
     "build": "tauri build",

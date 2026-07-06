@@ -155,7 +155,7 @@ export function SkillPanel(props: SkillPanelProps) {
                 <div className="min-h-0 flex-1 overflow-y-auto px-5 py-3">
                   {skillTab === "hermes" && (
                     <div className="mb-3 rounded-md border border-primary/30 bg-primary/5 p-2 text-[10px] text-primary">
-                      Lynx Skills Hub 提供 672+ 官方技能，需先在设置中启用 Lynx Agent。
+                      奇思 Skills Hub 提供 672+ 官方技能，需先在设置中启用奇思 Agent。
                     </div>
                   )}
                   {skillsLoading ? (
@@ -168,8 +168,8 @@ export function SkillPanel(props: SkillPanelProps) {
                       <div className="flex flex-col items-center gap-3 py-10 text-center">
                         <p className="text-sm text-muted-foreground">
                           {hermesRunning
-                            ? "暂无 Hermes 技能。点击「预加载默认技能」加载 6 个 Lynx 专用技能。"
-                            : "Lynx Agent 未运行，显示已学习的技能。点击「预加载默认技能」可添加技能。"}
+                            ? "暂无 Hermes 技能。点击「预加载默认技能」加载 6 个奇思专用技能。"
+                            : "奇思 Agent 未运行，显示已学习的技能。点击「预加载默认技能」可添加技能。"}
                         </p>
                         <Button size="sm" variant="outline" onClick={handlePreloadHermesSkills} disabled={hermesPreloading}>
                           {hermesPreloading ? (

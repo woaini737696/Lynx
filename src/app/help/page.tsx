@@ -49,7 +49,7 @@ const QUICK_ENTRIES: QuickEntry[] = [
   {
     category: "getting-started",
     label: "开始使用",
-    desc: "快速了解 LynxHub 核心概念",
+    desc: "快速了解奇思Hub 核心概念",
     icon: <Rocket className="h-5 w-5" />,
     color: "text-northstar",
   },
@@ -83,9 +83,9 @@ const FAQS: FAQItem[] = [
   {
     id: "gs-1",
     category: "getting-started",
-    question: "LynxHub 是什么？适合什么样的用户？",
+    question: "奇思Hub 是什么？适合什么样的用户？",
     answer:
-      "LynxHub 是一个 AI 驱动的个人工作台，整合灵感收件箱、决策看板、记忆图谱、认知库、AI 助理、AI 工作流等模块。适合创作者、开发者、产品经理等需要管理灵感、决策和知识沉淀的用户。",
+      "奇思Hub 是一个 AI 驱动的个人工作台，整合灵感收件箱、决策看板、记忆图谱、认知库、AI 助理、AI 工作流等模块。适合创作者、开发者、产品经理等需要管理灵感、决策和知识沉淀的用户。",
     docLink: { label: "查看产品介绍", href: "/inbox" },
   },
   {
@@ -152,7 +152,7 @@ const FAQS: FAQItem[] = [
     category: "features",
     question: "AI 助理能做什么？",
     answer:
-      "AI 助理支持 Function Calling，能调用 21 个工具覆盖灵感/看板/记忆/认知/技能/工作流/巡检/通知/Lynx Agent 全功能。直接用自然语言对话即可完成创建、搜索、执行等操作。",
+      "AI 助理支持 Function Calling，能调用 21 个工具覆盖灵感/看板/记忆/认知/技能/工作流/巡检/通知/奇思 Agent 全功能。直接用自然语言对话即可完成创建、搜索、执行等操作。",
     docLink: { label: "打开 AI 助理", href: "/ai-assistant" },
   },
   {
@@ -160,16 +160,16 @@ const FAQS: FAQItem[] = [
     category: "features",
     question: "AI 工作流是什么？",
     answer:
-      "AI 工作流是可视化编排画布，支持拖拽节点、连线分支、配置参数。提供 9 种节点类型（触发器、AI 任务、条件分支、输出、Lynx Agent、HTTP、数据库、转换、延时），一次编排反复执行。",
+      "AI 工作流是可视化编排画布，支持拖拽节点、连线分支、配置参数。提供 9 种节点类型（触发器、AI 任务、条件分支、输出、奇思 Agent、HTTP、数据库、转换、延时），一次编排反复执行。",
     docLink: { label: "打开 AI 工作流", href: "/ai-workflow" },
   },
   {
     id: "ft-3",
     category: "features",
-    question: "Lynx Agent 如何使用？",
+    question: "奇思 Agent 如何使用？",
     answer:
-      "Lynx Agent 是基于 Hermes Agent 定制的本地 AI 代理，能直接操控你的电脑。前往「设置 → Lynx Agent」一键安装，配置模型后启动服务。可在 AI 助理或工作流中调用。",
-    docLink: { label: "查看 Lynx Agent 说明", href: "/settings" },
+      "奇思 Agent 是基于 Hermes Agent 定制的本地 AI 代理，能直接操控你的电脑。前往「设置 → 奇思 Agent」一键安装，配置模型后启动服务。可在 AI 助理或工作流中调用。",
+    docLink: { label: "查看奇思 Agent 说明", href: "/settings" },
   },
   {
     id: "ft-4",
@@ -200,10 +200,10 @@ const FAQS: FAQItem[] = [
   {
     id: "ts-2",
     category: "troubleshooting",
-    question: "Lynx Agent 启动失败？",
+    question: "奇思 Agent 启动失败？",
     answer:
-      "1) 确保已点击「一键安装 AI 环境」；2) 安装后点击「一键配置模型」复用 Lynx 的 API Key；3) 检查端口 9119 是否被占用；4) 查看「设置 → Lynx Agent」中的错误日志。",
-    docLink: { label: "打开 Lynx Agent 设置", href: "/settings" },
+      "1) 确保已点击「一键安装 AI 环境」；2) 安装后点击「一键配置模型」复用奇思的 API Key；3) 检查端口 9119 是否被占用；4) 查看「设置 → 奇思 Agent」中的错误日志。",
+    docLink: { label: "打开奇思 Agent 设置", href: "/settings" },
   },
   {
     id: "ts-3",
@@ -440,7 +440,7 @@ export default function HelpCenterPage() {
             遇到问题或有改进建议？提交反馈，我们会尽快处理。
           </p>
           <button
-            onClick={() => (window.location.href = "mailto:support@lynxdo.com?subject=Lynx 用户反馈")}
+            onClick={() => (window.location.href = "mailto:support@lynxdo.com?subject=奇思用户反馈")}
             className="btn-primary inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium text-white"
           >
             发送邮件
@@ -454,7 +454,7 @@ export default function HelpCenterPage() {
             <h4 className="text-sm font-semibold text-foreground">加入用户群</h4>
           </div>
           <p className="mb-3 text-xs text-muted-foreground">
-            加入 LynxHub 用户交流群，与开发者和其他用户实时互动。
+            加入奇思Hub 用户交流群，与开发者和其他用户实时互动。
           </p>
           <button
             onClick={() => (window.location.href = "https://t.me/lynnhub")}

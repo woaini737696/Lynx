@@ -75,7 +75,7 @@ function buildWelcomeMessage(name: string): Message {
   return {
     id: "welcome",
     role: "assistant",
-    content: `你好，我是 ${name} · 你的奇思超级助理。\n\n我可以帮你查询任务、分析灵感、搜索记忆、执行技能，甚至通过 Lynx Agent 操控本地电脑。\n\n试试下方的快捷指令，或直接告诉我你想做什么。`,
+    content: `你好，我是 ${name} · 你的奇思超级助理。\n\n我可以帮你查询任务、分析灵感、搜索记忆、执行技能，甚至通过奇思 Agent 操控本地电脑。\n\n试试下方的快捷指令，或直接告诉我你想做什么。`,
     time: new Date().toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit" }),
   };
 }
@@ -876,7 +876,7 @@ function MessageBubble({
       ) : hasAvatarUrl ? (
         <img
           src={avatarUrl}
-          alt="Lynx"
+          alt="奇思"
           className="h-8 w-8 shrink-0 rounded-full object-cover shadow-sm"
           draggable={false}
           onError={(e) => {
@@ -1018,7 +1018,7 @@ function MessageBubble({
             {message.provider && (
               <span className="opacity-60">
                 {message.provider}
-                {message.hermesFallback ? " · 回退" : message.hermesMode ? " · Lynx" : ""}
+                {message.hermesFallback ? " · 回退" : message.hermesMode ? " · 奇思" : ""}
               </span>
             )}
             {message.usage?.total_tokens && (
@@ -1314,7 +1314,7 @@ function AISettingsModal({
             onChange={(v) => update("feishuNotify", v)}
           />
           <ToggleRow
-            label="Lynx Agent 接管"
+            label="奇思 Agent 接管"
             checked={form.hermesTakeover ?? false}
             onChange={(v) => update("hermesTakeover", v)}
           />

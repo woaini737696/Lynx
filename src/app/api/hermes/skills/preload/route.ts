@@ -6,7 +6,7 @@ import { getLogger } from "@/lib/logger";
 const logger = getLogger("hermes-api");
 
 // POST /api/hermes/skills/preload - 预置默认技能到用户 Hermes profile skills 目录
-// 将 Lynx 核心能力（任务管理、灵感捕获、记忆搜索等）写入
+// 将奇思核心能力（任务管理、灵感捕获、记忆搜索等）写入
 // ~/.lynnhub/hermes-profiles/<userId>/hermes/skills/
 export async function POST() {
   const auth = await requireAuth();
